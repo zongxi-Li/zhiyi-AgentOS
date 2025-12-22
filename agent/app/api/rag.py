@@ -1,0 +1,180 @@
+"""
+RAG（检索增强生成）API
+"""
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel
+from typing import List, Optional
+import logging
+from app.services.rag_service import RAGService
+from app.services.ai_service import AIService
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# 初始化RAG服务
+rag_service = RAGService()
+ai_service = AIService()
+
+class RAGQuery(BaseModel):
+    """RAG查询请求"""
+    query: str
+    top_k: int = 5
+    context_id: Optional[str] = None
+    use_knowledge_graph: bool = False  # 是否使用知识图谱增强
+
+class RAGResponse(BaseModel):
+    """RAG响应"""
+    answer: str
+    sources: List[dict]
+    confidence: float
+
+@router.post("/query", response_model=RAGResponse)
+async def query_rag(request: RAGQuery):
+    """
+    RAG查询接口
+    
+    实现检索增强生成：
+    1. 从知识库检索相关文档
+    2. 构建增强上下文
+    3. 使用AI服务生成回答
+    """
+    try:
+        # 1. 文档检索（支持知识图谱增强）
+        if request.use_knowledge_graph:
+            enhanced_result = rag_service.enhanced_search(
+                query=request.query,
+                top_k=request.top_k,
+                use_knowledge_graph=True
+            )
+            search_results = enhanced_result.get("fused_results", enhanced_result.get("vector_results", []))
+            kg_info = {
+                "use_kg": True,
+                "entities": enhanced_result.get("entities", []),
+                "kg_results": enhanced_result.get("kg_results", [])
+            }
+        else:
+            search_results = rag_service.search(
+                query=request.query,
+                top_k=request.top_k,
+                context_id=request.context_id
+            )
+            kg_info = {"use_kg": False}
+        
+        # 2. 构建增强上下文
+        context = rag_service.build_context(request.query, search_results)
+        
+        # 3. 使用AI服务生成回答（结合检索结果）
+        enhanced_query = f"{request.query}\n\n{context}" if context else request.query
+        
+        ai_response = await ai_service.generate_text(
+            text=enhanced_query,
+            context=None  # 可以传入对话历史
+        )
+        
+        # 构建来源信息
+        sources = [
+            {
+                "doc_id": result.get("doc_id"),
+                "filename": result.get("filename"),
+                "score": result.get("score", 0.0),
+                "excerpt": result.get("content", "")[:200]
+            }
+            for result in search_results
+        ]
+        
+        response = RAGResponse(
+            answer=ai_response.get("text", ""),
+            sources=sources,
+            confidence=ai_response.get("confidence", 0.85)
+        )
+        
+        # 添加知识图谱信息（如果使用）
+        if request.use_knowledge_graph:
+            response_dict = response.dict()
+            response_dict["kg_info"] = kg_info
+            return response_dict
+        
+        return response
+    except Exception as e:
+        logger.error(f"RAG查询失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"RAG查询失败: {str(e)}")
+
+@router.post("/documents")
+async def upload_document(
+    file: UploadFile = File(...),
+    metadata: Optional[str] = Form(None)
+):
+    """
+    上传文档到知识库
+    
+    支持格式：txt, md, pdf, doc, docx等
+    文档会被解析、分块并建立索引
+    """
+    try:
+        # 读取文件数据
+        file_data = await file.read()
+        
+        # 解析元数据（如果提供）
+        doc_metadata = {}
+        if metadata:
+            try:
+                import json
+                doc_metadata = json.loads(metadata)
+            except:
+                pass
+        
+        # 上传并处理文档
+        doc_id = rag_service.upload_document(
+            file_data=file_data,
+            filename=file.filename or "unknown",
+            metadata=doc_metadata
+        )
+        
+        return {
+            "message": "文档上传成功",
+            "document_id": doc_id,
+            "filename": file.filename
+        }
+    except Exception as e:
+        logger.error(f"文档上传失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"文档上传失败: {str(e)}")
+
+@router.get("/documents")
+async def list_documents():
+    """
+    列出所有已上传的文档
+    """
+    try:
+        documents = []
+        for doc_id, doc_data in rag_service.documents.items():
+            documents.append({
+                "doc_id": doc_id,
+                "filename": doc_data.get("filename", ""),
+                "upload_time": doc_data.get("upload_time", ""),
+                "metadata": doc_data.get("metadata", {})
+            })
+        return {"documents": documents, "count": len(documents)}
+    except Exception as e:
+        logger.error(f"获取文档列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str):
+    """
+    删除指定文档
+    """
+    try:
+        if doc_id in rag_service.documents:
+            del rag_service.documents[doc_id]
+            rag_service._rebuild_index()
+            rag_service._save_documents()
+            return {"message": "文档删除成功", "doc_id": doc_id}
+        else:
+            raise HTTPException(status_code=404, detail="文档不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除文档失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

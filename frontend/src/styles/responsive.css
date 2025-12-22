@@ -1,0 +1,113 @@
+/* 响应式布局样式 */
+
+/* 移动端 (< 768px) */
+@media (max-width: 767px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .app-header {
+    height: auto !important;
+    padding: 10px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .header-menu {
+    width: 100%;
+  }
+
+  .chat-view .sidebar {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .chat-main {
+    height: calc(100vh - 200px) !important;
+  }
+
+  .message-content-wrapper {
+    max-width: 85% !important;
+  }
+
+  .role-card {
+    width: 100%;
+  }
+
+  .chat-input-wrapper {
+    padding: 10px;
+  }
+}
+
+/* 平板 (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .message-content-wrapper {
+    max-width: 75% !important;
+  }
+
+  .role-card {
+    width: 50%;
+  }
+}
+
+/* 桌面端 (> 1024px) */
+@media (min-width: 1025px) {
+  .app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .chat-view {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+  }
+}
+
+/* 大屏幕 (> 1920px) */
+@media (min-width: 1920px) {
+  .app-container {
+    max-width: 1600px;
+  }
+}
+
+/* 通用响应式工具类 */
+.hide-mobile {
+  display: block;
+}
+
+.show-mobile {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .hide-mobile {
+    display: none;
+  }
+
+  .show-mobile {
+    display: block;
+  }
+}
+
+/* 响应式字体 */
+@media (max-width: 767px) {
+  h1 { font-size: 20px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 16px; }
+  body { font-size: 14px; }
+}
+
+/* 响应式间距 */
+@media (max-width: 767px) {
+  .el-card {
+    margin-bottom: 10px;
+  }
+
+  .el-form-item {
+    margin-bottom: 15px;
+  }
+}
+

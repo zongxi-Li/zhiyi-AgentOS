@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15
+    container_name: kinlin-postgres
+    environment:
+      POSTGRES_DB: kinlin_ai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kinlin-network
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: kinlin-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - kinlin-network
+
+  # Spring Boot后端
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: kinlin-backend
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_SERVICE_URL: http://ai-service:8000
+    depends_on:
+      - postgres
+      - redis
+      - ai-service
+    networks:
+      - kinlin-network
+
+  # Python AI服务
+  ai-service:
+    build:
+      context: ../agent
+      dockerfile: Dockerfile
+    container_name: kinlin-ai-service
+    ports:
+      - "8000:8000"
+    environment:
+      KYLIN_AI_API_KEY: ${KYLIN_AI_API_KEY}
+      KYLIN_AI_ENDPOINT: ${KYLIN_AI_ENDPOINT:-https://api.kylin.ai}
+    networks:
+      - kinlin-network
+
+volumes:
+  postgres_data:
+
+networks:
+  kinlin-network:
+    driver: bridge
+

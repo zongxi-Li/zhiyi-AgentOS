@@ -1,0 +1,12 @@
+# 开发环境配置
+spring:
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+
+logging:
+  level:
+    com.kinlin.ai: DEBUG
+    org.springframework.web: DEBUG
+
