@@ -1,5 +1,6 @@
 package com.kinlin.ai.service;
 
+import com.kinlin.ai.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class CacheStrategyService {
 
     private final CacheService cacheService;
+    private final RoleService roleService;
 
     /**
      * 缓存对话历史
@@ -69,7 +71,46 @@ public class CacheStrategyService {
      */
     public void warmupCache() {
         log.info("Warming up cache...");
-        // TODO: 实现缓存预热逻辑
+        try {
+            // 预热内置角色缓存
+            warmupBuiltinRoles();
+            
+            // 预热常用对话上下文（如果有）
+            warmupRecentConversations();
+            
+            log.info("Cache warmup completed successfully");
+        } catch (Exception e) {
+            log.error("Cache warmup failed", e);
+        }
+    }
+    
+    /**
+     * 预热内置角色缓存
+     */
+    private void warmupBuiltinRoles() {
+        try {
+            log.debug("Warming up builtin roles cache...");
+            List<Role> builtinRoles = roleService.getBuiltinRoles();
+            for (Role role : builtinRoles) {
+                // 缓存每个内置角色
+                cacheRoleInfo(role.getId(), role);
+            }
+            log.info("Warmed up {} builtin roles", builtinRoles.size());
+        } catch (Exception e) {
+            log.warn("Failed to warmup builtin roles cache", e);
+        }
+    }
+    
+    /**
+     * 预热最近对话缓存
+     */
+    private void warmupRecentConversations() {
+        try {
+            log.debug("Warming up recent conversations cache...");
+            // 实际实现时，可以获取最近的对话并缓存
+        } catch (Exception e) {
+            log.warn("Failed to warmup recent conversations cache", e);
+        }
     }
 }
 

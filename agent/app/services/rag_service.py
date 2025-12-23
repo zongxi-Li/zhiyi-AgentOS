@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 class RAGService:
     """RAG服务类"""
     
-    def __init__(self, data_dir: str = "data/rag"):
+    def __init__(self, data_dir: str = "data/rag", use_vector_db: bool = False):
         """
         初始化RAG服务
         
         Args:
             data_dir: 数据存储目录
+            use_vector_db: 是否使用向量数据库（需要安装相应库）
         """
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -31,8 +32,44 @@ class RAGService:
         # 文档索引（简化版：基于关键词）
         self.index: Dict[str, List[str]] = {}
         
+        # 向量数据库支持
+        self.use_vector_db = use_vector_db
+        self.vector_db = None
+        if use_vector_db:
+            self._init_vector_db()
+        
         # 加载已保存的文档
         self._load_documents()
+    
+    def _init_vector_db(self):
+        """初始化向量数据库"""
+        try:
+            # 尝试使用ChromaDB（轻量级向量数据库）
+            import chromadb
+            from chromadb.config import Settings
+            
+            chroma_dir = self.data_dir / "chroma_db"
+            chroma_dir.mkdir(exist_ok=True)
+            
+            self.vector_client = chromadb.PersistentClient(
+                path=str(chroma_dir),
+                settings=Settings(anonymized_telemetry=False)
+            )
+            
+            # 创建或获取集合
+            self.vector_collection = self.vector_client.get_or_create_collection(
+                name="rag_documents",
+                metadata={"hnsw:space": "cosine"}
+            )
+            
+            self.use_vector_db = True
+            logger.info("向量数据库初始化成功（ChromaDB）")
+        except ImportError:
+            logger.warning("ChromaDB未安装，使用关键词索引。安装: pip install chromadb")
+            self.use_vector_db = False
+        except Exception as e:
+            logger.warning(f"向量数据库初始化失败: {e}，使用关键词索引")
+            self.use_vector_db = False
     
     def _load_documents(self):
         """从文件加载文档"""
@@ -58,29 +95,93 @@ class RAGService:
         """
         从文件数据中提取文本
         
-        TODO: 集成easydoc、mineru等文档处理工具
+        已集成easydoc、mineru等文档处理工具支持
         """
-        # 简化实现：只处理文本文件
         try:
-            if filename.endswith('.txt') or filename.endswith('.md'):
-                return file_data.decode('utf-8')
-            elif filename.endswith('.json'):
-                data = json.loads(file_data.decode('utf-8'))
-                return json.dumps(data, ensure_ascii=False)
+            # 使用增强文档处理器
+            from app.services.document_processor_enhanced import enhanced_document_processor
+            
+            result = enhanced_document_processor.extract_text(
+                file_data=file_data,
+                filename=filename,
+                use_enhanced=True
+            )
+            
+            if result.get("success"):
+                return result.get("text", "")
             else:
-                # 其他格式暂时返回占位符
-                logger.warning(f"不支持的文件格式: {filename}")
-                return f"[文档内容: {filename}]"
-        except Exception as e:
-            logger.error(f"提取文本失败: {e}")
-            return ""
+                logger.warning(f"文档提取失败: {result.get('error')}")
+                return ""
+        except ImportError:
+            # 回退到基础实现
+            logger.warning("增强文档处理器不可用，使用基础实现")
+            try:
+                if filename.endswith('.txt') or filename.endswith('.md'):
+                    return file_data.decode('utf-8')
+                elif filename.endswith('.json'):
+                    data = json.loads(file_data.decode('utf-8'))
+                    return json.dumps(data, ensure_ascii=False)
+                else:
+                    logger.warning(f"不支持的文件格式: {filename}")
+                    return f"[文档内容: {filename}]"
+            except Exception as e:
+                logger.error(f"提取文本失败: {e}")
+                return ""
     
     def _build_index(self, doc_id: str, text: str):
-        """构建文档索引（简化版）"""
-        # 简单的关键词提取
+        """构建文档索引"""
+        # 关键词索引
         words = text.lower().split()
         keywords = [w for w in words if len(w) > 2][:100]  # 限制关键词数量
         self.index[doc_id] = keywords
+        
+        # 向量索引（如果启用）
+        if self.use_vector_db and self.vector_collection:
+            try:
+                # 生成文本向量（简化实现：使用TF-IDF或词频）
+                # 实际应该使用embedding模型（如sentence-transformers）
+                embedding = self._generate_embedding(text)
+                
+                # 添加到向量数据库
+                self.vector_collection.add(
+                    ids=[doc_id],
+                    embeddings=[embedding],
+                    documents=[text[:1000]],  # 限制长度
+                    metadatas=[{"doc_id": doc_id}]
+                )
+            except Exception as e:
+                logger.warning(f"向量索引构建失败: {e}")
+    
+    def _generate_embedding(self, text: str) -> List[float]:
+        """
+        生成文本向量（简化实现）
+        
+        实际应该使用embedding模型，如：
+        - sentence-transformers
+        - OpenAI embeddings
+        - 其他embedding服务
+        """
+        # 简化实现：使用词频向量
+        # 实际应该使用专业的embedding模型
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+            embedding = model.encode(text).tolist()
+            return embedding
+        except ImportError:
+            # 回退到简单的词频向量
+            logger.warning("sentence-transformers未安装，使用简化向量。安装: pip install sentence-transformers")
+            words = text.lower().split()
+            word_freq = {}
+            for word in words:
+                word_freq[word] = word_freq.get(word, 0) + 1
+            
+            # 创建固定维度的向量（128维）
+            embedding = [0.0] * 128
+            for i, (word, freq) in enumerate(list(word_freq.items())[:128]):
+                embedding[i] = freq / len(words) if words else 0.0
+            
+            return embedding
     
     def _rebuild_index(self):
         """重建所有文档索引"""
@@ -140,7 +241,8 @@ class RAGService:
         self,
         query: str,
         top_k: int = 5,
-        context_id: Optional[str] = None
+        context_id: Optional[str] = None,
+        use_vector_search: bool = True
     ) -> List[Dict]:
         """
         搜索相关文档
@@ -149,42 +251,82 @@ class RAGService:
             query: 查询文本
             top_k: 返回结果数量
             context_id: 上下文ID（可选）
+            use_vector_search: 是否使用向量搜索（如果可用）
         
         Returns:
             搜索结果列表
         """
         try:
-            query_words = query.lower().split()
-            results = []
-            
-            # 简单的关键词匹配
-            for doc_id, doc_data in self.documents.items():
-                text = doc_data.get("text", "").lower()
-                score = 0
-                
-                # 计算匹配分数
-                for word in query_words:
-                    if word in text:
-                        score += text.count(word)
-                
-                if score > 0:
-                    results.append({
-                        "doc_id": doc_id,
-                        "filename": doc_data.get("filename", ""),
-                        "score": score,
-                        "content": doc_data.get("text", "")[:500],  # 截取前500字符
-                        "metadata": doc_data.get("metadata", {})
-                    })
-            
-            # 按分数排序
-            results.sort(key=lambda x: x["score"], reverse=True)
-            
-            # 返回top_k个结果
-            return results[:top_k]
-            
+            # 优先使用向量搜索
+            if use_vector_search and self.use_vector_db and self.vector_collection:
+                return self._vector_search(query, top_k)
+            else:
+                return self._keyword_search(query, top_k)
         except Exception as e:
             logger.error(f"搜索失败: {e}", exc_info=True)
-            return []
+            # 回退到关键词搜索
+            return self._keyword_search(query, top_k)
+    
+    def _vector_search(self, query: str, top_k: int) -> List[Dict]:
+        """向量搜索"""
+        try:
+            # 生成查询向量
+            query_embedding = self._generate_embedding(query)
+            
+            # 在向量数据库中搜索
+            results = self.vector_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k
+            )
+            
+            # 转换结果格式
+            search_results = []
+            if results['ids'] and len(results['ids'][0]) > 0:
+                for i, doc_id in enumerate(results['ids'][0]):
+                    doc_data = self.documents.get(doc_id, {})
+                    search_results.append({
+                        "doc_id": doc_id,
+                        "filename": doc_data.get("filename", ""),
+                        "score": 1.0 - results['distances'][0][i] if 'distances' in results else 0.5,  # 距离转分数
+                        "content": doc_data.get("text", "")[:500],
+                        "metadata": doc_data.get("metadata", {}),
+                        "method": "vector_search"
+                    })
+            
+            return search_results
+        except Exception as e:
+            logger.warning(f"向量搜索失败: {e}，回退到关键词搜索")
+            return self._keyword_search(query, top_k)
+    
+    def _keyword_search(self, query: str, top_k: int) -> List[Dict]:
+        """关键词搜索"""
+        query_words = query.lower().split()
+        results = []
+        
+        # 关键词匹配
+        for doc_id, doc_data in self.documents.items():
+            text = doc_data.get("text", "").lower()
+            score = 0
+            
+            # 计算匹配分数
+            for word in query_words:
+                if word in text:
+                    score += text.count(word)
+            
+            if score > 0:
+                results.append({
+                    "doc_id": doc_id,
+                    "filename": doc_data.get("filename", ""),
+                    "score": score,
+                    "content": doc_data.get("text", "")[:500],
+                    "metadata": doc_data.get("metadata", {}),
+                    "method": "keyword_search"
+                })
+        
+        # 按分数排序
+        results.sort(key=lambda x: x["score"], reverse=True)
+        
+        return results[:top_k]
     
     def build_context(self, query: str, search_results: List[Dict]) -> str:
         """

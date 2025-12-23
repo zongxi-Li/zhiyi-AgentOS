@@ -6,7 +6,15 @@ export interface Message {
   id: number | string
   role: 'user' | 'assistant'
   content: string
-  createdAt: Date
+  createdAt?: Date
+  timestamp?: number
+  audioUrl?: string
+  animation?: any
+  confidence?: number
+  tokensUsed?: number
+  sources?: any[]
+  reasoningPath?: any[]
+  modelInfo?: string
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -45,8 +53,13 @@ export const useChatStore = defineStore('chat', () => {
         id: Date.now() + 1,
         role: 'assistant',
         content: response.text,
-        createdAt: new Date()
-      }
+        createdAt: new Date(),
+        confidence: response.confidence,
+        tokensUsed: response.tokensUsed,
+        sources: response.sources,
+        reasoningPath: response.reasoningPath,
+        modelInfo: response.modelInfo
+      } as any
       messages.value.push(assistantMessage)
 
       return response
@@ -103,6 +116,25 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // 添加消息（用于直接添加消息到列表）
+  const addMessage = (message: Message) => {
+    messages.value.push(message)
+  }
+
+  // 设置消息列表（用于批量设置消息）
+  const setMessages = (newMessages: Message[]) => {
+    messages.value = newMessages.map(msg => ({
+      ...msg,
+      createdAt: msg.createdAt || (msg.timestamp ? new Date(msg.timestamp) : new Date())
+    }))
+  }
+
+  // 清除消息（用于清除当前对话）
+  const clearMessages = () => {
+    messages.value = []
+    contextId.value = null
+  }
+
   return {
     messages,
     loading,
@@ -112,7 +144,10 @@ export const useChatStore = defineStore('chat', () => {
     clearHistory,
     setRole,
     loadHistory,
-    setContextId
+    setContextId,
+    addMessage,
+    setMessages,
+    clearMessages
   }
 })
 

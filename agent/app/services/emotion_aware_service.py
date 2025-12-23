@@ -27,7 +27,7 @@ class MultiModalEmotionAnalyzer:
         
     def analyze_text(self, text: str) -> Dict:
         """
-        分析文本情感
+        分析文本情感（增强实现）
         
         Args:
             text: 文本内容
@@ -47,26 +47,61 @@ class MultiModalEmotionAnalyzer:
                 continue
             
             score = 0
+            keyword_matches = 0
+            
             for keyword in keywords:
                 count = text_lower.count(keyword)
-                score += count * 0.1  # 每个关键词0.1分
+                if count > 0:
+                    keyword_matches += 1
+                    score += count * 0.15  # 提高关键词权重
             
             # 检查情感强度词
-            intensity_words = ["非常", "很", "特别", "极其", "超级"]
-            for intensity_word in intensity_words:
+            intensity_words = {
+                "非常": 1.8,
+                "很": 1.5,
+                "特别": 1.6,
+                "极其": 2.0,
+                "超级": 1.7,
+                "十分": 1.4,
+                "相当": 1.3
+            }
+            
+            intensity_multiplier = 1.0
+            for intensity_word, multiplier in intensity_words.items():
                 if intensity_word in text:
-                    score *= 1.5
+                    intensity_multiplier = max(intensity_multiplier, multiplier)
+            
+            score *= intensity_multiplier
+            
+            # 检查否定词（降低情感强度）
+            negation_words = ["不", "没", "非", "无", "别"]
+            negation_count = sum(1 for word in negation_words if word in text_lower)
+            if negation_count > 0:
+                score *= (1.0 - negation_count * 0.2)  # 每个否定词降低20%
+            
+            # 检查问号（可能表示困惑）
+            if "?" in text or "？" in text:
+                if emotion == "confused":
+                    score += 0.2
+            
+            # 检查感叹号（可能表示强烈情感）
+            if "!" in text or "！" in text:
+                score *= 1.3
             
             emotion_scores[emotion] = score
         
         # 选择得分最高的情感
-        if emotion_scores:
+        if emotion_scores and max(emotion_scores.values()) > 0:
             max_emotion = max(emotion_scores, key=emotion_scores.get)
             max_score = emotion_scores[max_emotion]
             
             # 归一化强度（0-1）
-            intensity = min(max_score / 2.0, 1.0)
-            confidence = min(max_score / 1.0, 1.0)
+            intensity = min(max_score / 3.0, 1.0)  # 调整归一化因子
+            confidence = min(max_score / 2.0, 1.0)
+            
+            # 如果得分太低，认为是中性
+            if max_score < 0.1:
+                return {"emotion": "neutral", "intensity": 0.5, "confidence": 0.5}
             
             return {
                 "emotion": max_emotion,
@@ -327,21 +362,57 @@ class EmotionAwareResponseGenerator:
         return role
     
     def _generate_text_response(self, question: str, role: Dict, emotion: Dict) -> str:
-        """生成文本回复（简化实现）"""
-        # 实际应该调用AI模型生成
+        """生成文本回复（增强实现）"""
         emotion_type = emotion.get("emotion", "neutral")
+        intensity = emotion.get("intensity", 0.5)
         
-        # 根据情感添加前缀
+        # 根据情感和强度生成更丰富的回复前缀
         emotion_prefixes = {
-            "anxious": "我理解你的担心，",
-            "sad": "我感受到你的难过，",
-            "angry": "我明白你的不满，",
-            "excited": "很高兴看到你这么兴奋，",
-            "confused": "让我来帮你理清思路，"
+            "anxious": {
+                "high": "我完全理解你的担心和焦虑，",
+                "medium": "我理解你的担心，",
+                "low": "我注意到你有些担心，"
+            },
+            "sad": {
+                "high": "我深深感受到你的难过，",
+                "medium": "我感受到你的难过，",
+                "low": "我注意到你有些低落，"
+            },
+            "angry": {
+                "high": "我明白你非常不满，",
+                "medium": "我明白你的不满，",
+                "low": "我注意到你有些不满，"
+            },
+            "excited": {
+                "high": "很高兴看到你这么兴奋和激动，",
+                "medium": "很高兴看到你这么兴奋，",
+                "low": "我注意到你有些兴奋，"
+            },
+            "confused": {
+                "high": "让我来帮你详细理清思路，",
+                "medium": "让我来帮你理清思路，",
+                "low": "让我来帮你理解一下，"
+            },
+            "happy": {
+                "high": "看到你这么开心我也很高兴，",
+                "medium": "看到你开心我也很高兴，",
+                "low": "我注意到你心情不错，"
+            }
         }
         
-        prefix = emotion_prefixes.get(emotion_type, "")
-        response = f"{prefix}关于你的问题，我会尽力帮助你。"
+        # 根据强度选择前缀
+        intensity_level = "high" if intensity > 0.7 else ("medium" if intensity > 0.4 else "low")
+        prefix_dict = emotion_prefixes.get(emotion_type, {})
+        prefix = prefix_dict.get(intensity_level, prefix_dict.get("medium", ""))
+        
+        # 根据角色调整回复风格
+        role_personality = role.get("personality", "")
+        if "专业" in role_personality or "严谨" in role_personality:
+            response = f"{prefix}从专业角度来说，关于你的问题：{question}，我会为你提供详细的解答。"
+        elif "耐心" in role_personality or "温和" in role_personality:
+            response = f"{prefix}关于你的问题，我会耐心地为你解答。"
+        else:
+            response = f"{prefix}关于你的问题，我会尽力帮助你。"
         
         return response
     

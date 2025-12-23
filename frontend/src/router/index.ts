@@ -22,11 +22,47 @@ const routes = [
     }
   },
   {
+    path: '/user',
+    name: 'User',
+    component: () => import('@/views/UserView.vue'),
+    meta: {
+      title: '用户中心',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/info',
+    name: 'Info',
+    component: () => import('@/views/InfoView.vue'),
+    meta: {
+      title: '信息入口',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/history',
+    name: 'History',
+    component: () => import('@/views/HistoryView.vue'),
+    meta: {
+      title: '历史记录',
+      requiresAuth: true
+    }
+  },
+  {
     path: '/chat',
     name: 'Chat',
     component: ChatView,
     meta: {
-      title: '文本对话',
+      title: '对话框',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/digital-human',
+    name: 'DigitalHumanChat',
+    component: () => import('@/views/DigitalHumanChatView.vue'),
+    meta: {
+      title: '数字人对话',
       requiresAuth: true
     }
   },
@@ -45,6 +81,15 @@ const routes = [
     component: RoleView,
     meta: {
       title: '角色管理',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/create-role',
+    name: 'CreateRole',
+    component: () => import('@/views/CreateRoleView.vue'),
+    meta: {
+      title: '创建角色',
       requiresAuth: true
     }
   },

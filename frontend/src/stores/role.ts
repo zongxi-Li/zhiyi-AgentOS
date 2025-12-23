@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { roleApi, type Role, type RoleCreateRequest } from '@/services/api/role'
 
 export const useRoleStore = defineStore('role', () => {
@@ -7,6 +7,9 @@ export const useRoleStore = defineStore('role', () => {
   const customRoles = ref<Role[]>([])
   const currentRole = ref<Role | null>(null)
   const loading = ref(false)
+
+  // 计算属性：所有角色
+  const roles = computed(() => [...builtinRoles.value, ...customRoles.value])
 
   // 加载内置角色
   const loadBuiltinRoles = async () => {
@@ -28,9 +31,36 @@ export const useRoleStore = defineStore('role', () => {
     }
   }
 
+  // 加载所有角色
+  const loadRoles = async () => {
+    loading.value = true
+    try {
+      await Promise.all([
+        loadBuiltinRoles(),
+        loadCustomRoles()
+      ])
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 选择角色
   const selectRole = (role: Role) => {
     currentRole.value = role
+  }
+
+  // 设置当前角色（别名方法）
+  const setCurrentRole = (role: Role) => {
+    currentRole.value = role
+  }
+
+  // 添加角色（用于创建后添加到列表）
+  const addRole = (role: Role) => {
+    if (role.isBuiltin) {
+      builtinRoles.value.push(role)
+    } else {
+      customRoles.value.push(role)
+    }
   }
 
   // 创建自定义角色
@@ -80,11 +110,15 @@ export const useRoleStore = defineStore('role', () => {
   return {
     builtinRoles,
     customRoles,
+    roles,
     currentRole,
     loading,
     loadBuiltinRoles,
     loadCustomRoles,
+    loadRoles,
     selectRole,
+    setCurrentRole,
+    addRole,
     createRole,
     updateRole,
     deleteRole

@@ -4,7 +4,7 @@
       <el-header class="header">
         <div class="header-content">
           <h2>角色管理</h2>
-          <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">
+          <el-button type="primary" @click="handleCreateRole" :icon="Plus">
             创建自定义角色
           </el-button>
         </div>
@@ -57,26 +57,28 @@
       </el-main>
     </el-container>
 
-    <!-- 创建角色对话框 -->
-    <CreateRoleDialog
-      v-model="showCreateDialog"
-      @created="handleRoleCreated"
+    <!-- 编辑角色对话框 -->
+    <EditRoleDialog
+      v-model="showEditDialog"
+      :role="editingRole"
+      @updated="handleRoleUpdated"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useRoleStore } from '@/stores/role'
 import RoleCard from '@/components/RoleCard.vue'
-import CreateRoleDialog from '@/components/CreateRoleDialog.vue'
+import EditRoleDialog from '@/components/EditRoleDialog.vue'
 import { useChatStore } from '@/stores/chat'
 
+const router = useRouter()
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
-const showCreateDialog = ref(false)
 
 const handleSelectRole = (role: any) => {
   roleStore.selectRole(role)
@@ -84,9 +86,20 @@ const handleSelectRole = (role: any) => {
   ElMessage.success(`已切换到角色: ${role.name}`)
 }
 
+const handleCreateRole = () => {
+  router.push('/create-role')
+}
+
+const showEditDialog = ref(false)
+const editingRole = ref<any>(null)
+
 const handleEditRole = (role: any) => {
-  // TODO: 实现编辑功能
-  ElMessage.info('编辑功能开发中')
+  editingRole.value = role
+  showEditDialog.value = true
+}
+
+const handleRoleUpdated = () => {
+  roleStore.loadCustomRoles()
 }
 
 const handleDeleteRole = async (role: any) => {
@@ -108,27 +121,25 @@ const handleDeleteRole = async (role: any) => {
   }
 }
 
-const handleRoleCreated = () => {
-  roleStore.loadCustomRoles()
-}
-
 onMounted(async () => {
   await roleStore.loadBuiltinRoles()
   await roleStore.loadCustomRoles()
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .role-view {
-  height: 100vh;
+  height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
+  background: var(--bg-color-page);
 }
 
 .header {
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
-  padding: 0 20px;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--border-color-base);
+  padding: 0 var(--spacing-xl);
+  box-shadow: var(--box-shadow-base);
 }
 
 .header-content {
@@ -136,20 +147,42 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   height: 100%;
+  
+  h2 {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--text-color-primary);
+    letter-spacing: -0.01em;
+  }
 }
 
-.header-content h2 {
-  margin: 0;
+:deep(.el-main) {
+  padding: var(--spacing-xl);
+  overflow-y: auto;
 }
 
 .role-section {
-  margin-bottom: 40px;
-}
-
-.role-section h3 {
-  margin-bottom: 20px;
-  color: #303133;
-  font-size: 18px;
+  margin-bottom: var(--spacing-2xl);
+  
+  h3 {
+    margin-bottom: var(--spacing-lg);
+    color: var(--text-color-primary);
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    letter-spacing: -0.01em;
+    
+    &::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: var(--primary-color);
+      border-radius: 2px;
+    }
+  }
 }
 </style>
 

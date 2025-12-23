@@ -31,6 +31,7 @@ public class ChatService {
     private final AiService aiService;
     private final RagService ragService;
     private final MetricsService metricsService;
+    private final RoleSwitchOptimizer roleSwitchOptimizer;
 
     /**
      * 发送消息并获取回复
@@ -83,6 +84,16 @@ public class ChatService {
             }
         }
 
+        // 获取角色上下文（使用缓存优化）
+        Map<String, Object> roleContext = null;
+        if (request.getRoleId() != null) {
+            try {
+                roleContext = roleSwitchOptimizer.getRoleContext(request.getRoleId());
+            } catch (Exception e) {
+                log.warn("获取角色上下文失败，使用默认: " + e.getMessage());
+            }
+        }
+        
         // 调用AI服务获取回复
         ChatResponse aiResponse = aiService.sendTextMessage(
                 enhancedText,
@@ -90,6 +101,13 @@ public class ChatService {
                 context,
                 conversation.getContextId()
         );
+        
+        // 如果角色上下文可用，添加到响应元数据中
+        if (roleContext != null && aiResponse.getMetadata() == null) {
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("role_context", roleContext);
+            aiResponse.setMetadata(metadata);
+        }
 
         // 保存AI回复
         Message assistantMessage = new Message();
@@ -99,6 +117,16 @@ public class ChatService {
         assistantMessage.setMessageType(Message.MessageType.TEXT);
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("confidence", aiResponse.getConfidence());
+        // 添加可解释性信息
+        if (aiResponse.getTokensUsed() != null) {
+            metadata.put("tokens_used", aiResponse.getTokensUsed());
+        }
+        if (aiResponse.getSources() != null && !aiResponse.getSources().isEmpty()) {
+            metadata.put("sources", aiResponse.getSources());
+        }
+        if (aiResponse.getReasoningPath() != null) {
+            metadata.put("reasoning_path", aiResponse.getReasoningPath());
+        }
         assistantMessage.setMetadata(metadata);
         messageRepository.save(assistantMessage);
 

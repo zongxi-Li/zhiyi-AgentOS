@@ -28,6 +28,19 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response: AxiosResponse) => {
+    // 统一处理响应数据格式
+    if (response.data && typeof response.data === 'object') {
+      // 如果后端返回的是 { success: true, data: ... } 格式，提取data
+      if ('success' in response.data && 'data' in response.data) {
+        return { ...response, data: response.data.data }
+      }
+      // 如果后端返回的是 { success: false, message: ... } 格式，抛出错误
+      if ('success' in response.data && !response.data.success) {
+        const message = response.data.message || '请求失败'
+        ElMessage.error(message)
+        return Promise.reject(new Error(message))
+      }
+    }
     return response
   },
   (error: AxiosError) => {
@@ -39,6 +52,13 @@ request.interceptors.response.use(
           break
         case 401:
           ElMessage.error('未授权，请登录')
+          // 清除token并跳转到登录页
+          localStorage.removeItem('token')
+          localStorage.removeItem('userId')
+          // 避免循环重定向
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
           break
         case 403:
           ElMessage.error('拒绝访问')

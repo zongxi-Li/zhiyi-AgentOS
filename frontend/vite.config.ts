@@ -14,7 +14,7 @@ export default defineConfig({
     strictPort: false, // 如果5173被占用，自动使用下一个可用端口
     proxy: {
       '/api': {
-        target: 'http://localhost:8086',
+        target: 'http://localhost:8090',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, _options) => {

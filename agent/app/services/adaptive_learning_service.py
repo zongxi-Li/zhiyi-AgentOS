@@ -248,3 +248,4 @@ class AdaptiveLearningService:
 # 全局自适应学习服务实例
 adaptive_learning_service = AdaptiveLearningService()
 
+

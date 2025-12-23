@@ -1,0 +1,272 @@
+/* Global Styles - Kinlin Premium Light Design System */
+/* 
+   Design Philosophy: 
+   - Light, Airy, Ceramic-like Texture
+   - "Gallery" Aesthetic: Clean walls (backgrounds), Art on display (content)
+   - Subtle Shadows & Blurs instead of heavy borders
+   - Focus on Typography & Whitespace
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* --- Color Palette: Ceramic / Gallery (Premium Light) --- */
+  
+  /* Primary Brand Colors - Adjusted for Light Mode */
+  --primary-color: #4f46e5; /* Indigo 600 - Bold but elegant */
+  --primary-hover: #4338ca; /* Indigo 700 */
+  --primary-active: #3730a3;
+  --primary-fade: rgba(79, 70, 229, 0.08);
+  
+  /* Backgrounds */
+  --bg-app: #f8fafc; /* Slate 50 - Very subtle cool grey */
+  --bg-sidebar: #ffffff; /* Pure white for contrast */
+  --bg-card: #ffffff; /* Pure white cards */
+  --bg-input: #f1f5f9; /* Slate 100 - Subtle input background */
+  --bg-glass: rgba(255, 255, 255, 0.75); /* Frosted glass */
+  
+  /* Text Colors - High Contrast but Soft */
+  --text-primary: #0f172a; /* Slate 900 - Deep, rich black/blue */
+  --text-regular: #334155; /* Slate 700 */
+  --text-secondary: #64748b; /* Slate 500 */
+  --text-disabled: #94a3b8; /* Slate 400 */
+  
+  /* Borders */
+  --border-light: #e2e8f0; /* Slate 200 */
+  --border-hover: #cbd5e1; /* Slate 300 */
+  --border-focus: rgba(79, 70, 229, 0.4);
+  
+  /* Status Colors */
+  --success: #059669; /* Emerald 600 */
+  --warning: #d97706; /* Amber 600 */
+  --danger: #dc2626; /* Red 600 */
+  --info: #2563eb; /* Blue 600 */
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Noto Serif SC', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Spacing & Layout */
+  --header-height: 0px; 
+  --sidebar-width: 260px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px; /* Softer, larger corners for modern feel */
+  --radius-full: 9999px;
+  
+  /* Effects */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  --shadow-glow: 0 0 15px rgba(79, 70, 229, 0.15);
+  --backdrop-blur: blur(20px);
+  --transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Base Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  /* Subtle mesh gradient background for atmosphere */
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.03) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Typography Enhancements */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+h1 { font-size: 24px; }
+h2 { font-size: 20px; }
+h3 { font-size: 18px; }
+
+p {
+  color: var(--text-regular);
+  margin-bottom: 0.5em;
+}
+
+/* Scrollbar - Minimal Light */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* --- Element Plus Overrides for Light/Premium Theme --- */
+
+/* Buttons */
+.el-button {
+  background: #fff;
+  border: 1px solid var(--border-light);
+  color: var(--text-regular);
+  border-radius: var(--radius-md);
+  height: 36px;
+  padding: 0 16px;
+  font-weight: 500;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.el-button:hover, .el-button:focus {
+  background: #f8fafc;
+  border-color: var(--border-hover);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.el-button--primary {
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  color: #fff !important;
+  box-shadow: var(--shadow-glow);
+}
+
+.el-button--primary:hover {
+  background: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.el-button.is-text {
+  border: none;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Inputs */
+.el-input__wrapper, .el-textarea__inner {
+  background-color: var(--bg-input) !important;
+  box-shadow: none !important;
+  border: 1px solid transparent !important; /* Cleaner look */
+  border-radius: var(--radius-md) !important;
+  color: var(--text-primary) !important;
+  transition: var(--transition);
+}
+
+.el-input__wrapper:hover, .el-textarea__inner:hover {
+  background-color: #fff !important;
+  box-shadow: 0 0 0 1px var(--border-hover) inset !important;
+}
+
+.el-input__wrapper.is-focus, .el-textarea__inner:focus {
+  background-color: #fff !important;
+  box-shadow: 0 0 0 1px var(--primary-color) inset !important; /* Thin, elegant focus ring */
+}
+
+/* Dialogs/Cards */
+.el-dialog, .el-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-light) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.el-dialog__title, .el-card__header {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  color: var(--text-secondary);
+}
+
+/* Menus */
+.el-menu {
+  background: transparent !important;
+  border-right: none !important;
+}
+
+.el-menu-item {
+  color: var(--text-regular) !important;
+  border-radius: var(--radius-md);
+  margin: 4px 8px;
+  height: 40px;
+  line-height: 40px;
+  font-weight: 500;
+}
+
+.el-menu-item:hover {
+  background-color: var(--bg-input) !important;
+  color: var(--primary-color) !important;
+}
+
+.el-menu-item.is-active {
+  background-color: var(--primary-fade) !important;
+  color: var(--primary-color) !important;
+}
+
+.el-sub-menu__title {
+  color: var(--text-regular) !important;
+}
+
+.el-sub-menu__title:hover {
+  background-color: transparent !important;
+  color: var(--primary-color) !important;
+}
+
+/* Dropdowns */
+.el-dropdown-menu {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-light) !important;
+  box-shadow: var(--shadow-md) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.el-dropdown-menu__item {
+  color: var(--text-regular) !important;
+  border-radius: var(--radius-sm);
+  margin: 2px 4px;
+}
+
+.el-dropdown-menu__item:hover {
+  background-color: var(--bg-input) !important;
+  color: var(--primary-color) !important;
+}
+
+/* --- Utility Classes --- */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: var(--backdrop-blur);
+  border: 1px solid rgba(255, 255, 255, 0.5); /* Subtle white border for glass edge */
+  box-shadow: var(--shadow-lg);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary-color) 0%, #818cf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.font-serif { font-family: var(--font-serif); }
+.font-mono { font-family: var(--font-mono); }

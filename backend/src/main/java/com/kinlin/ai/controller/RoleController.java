@@ -21,6 +21,7 @@ import java.util.UUID;
 public class RoleController {
 
     private final RoleService roleService;
+    private final com.kinlin.ai.service.RoleSwitchOptimizer roleSwitchOptimizer;
 
     /**
      * 获取内置角色列表
@@ -43,13 +44,46 @@ public class RoleController {
     }
 
     /**
-     * 获取角色详情
+     * 获取角色详情（使用缓存优化）
      */
     @GetMapping("/{roleId}")
     public ResponseEntity<Role> getRole(@PathVariable UUID roleId) {
-        return roleService.getRole(roleId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            Role role = roleSwitchOptimizer.getRoleCached(roleId);
+            return ResponseEntity.ok(role);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    /**
+     * 获取角色上下文（快速访问）
+     */
+    @GetMapping("/{roleId}/context")
+    public ResponseEntity<java.util.Map<String, Object>> getRoleContext(@PathVariable UUID roleId) {
+        try {
+            java.util.Map<String, Object> context = roleSwitchOptimizer.getRoleContext(roleId);
+            return ResponseEntity.ok(context);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    /**
+     * 获取缓存统计
+     */
+    @GetMapping("/cache/stats")
+    public ResponseEntity<java.util.Map<String, Object>> getCacheStats() {
+        return ResponseEntity.ok(roleSwitchOptimizer.getCacheStats());
+    }
+    
+    /**
+     * 清除角色缓存
+     */
+    @DeleteMapping("/cache/{roleId}")
+    public ResponseEntity<Void> clearRoleCache(@PathVariable UUID roleId) {
+        roleSwitchOptimizer.clearRoleCache(roleId);
+        return ResponseEntity.ok().build();
     }
 
     /**

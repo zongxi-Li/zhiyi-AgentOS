@@ -146,3 +146,4 @@ async def get_entity_info(entity_id: str, relation: Optional[str] = None, limit:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查询实体失败: {str(e)}")
 
+

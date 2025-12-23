@@ -10,7 +10,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
+import lombok.Data;
 
 /**
  * 文件服务类
@@ -78,6 +82,52 @@ public class FileService {
      */
     public boolean fileExists(String filePath) {
         return Files.exists(Paths.get(uploadDir, filePath));
+    }
+
+    /**
+     * 获取文件列表
+     */
+    public List<FileInfo> listFiles(String type) throws IOException {
+        List<FileInfo> files = new ArrayList<>();
+        Path typePath = Paths.get(uploadDir, type);
+        
+        if (!Files.exists(typePath)) {
+            return files;
+        }
+        
+        try (Stream<Path> paths = Files.walk(typePath, 1)) {
+            paths.filter(Files::isRegularFile)
+                 .forEach(path -> {
+                     try {
+                         FileInfo info = new FileInfo();
+                         info.setId(UUID.randomUUID().toString());
+                         info.setName(path.getFileName().toString());
+                         info.setPath(type + "/" + path.getFileName().toString());
+                         info.setSize(Files.size(path));
+                         info.setType(Files.probeContentType(path));
+                         info.setUploadTime(java.time.Instant.ofEpochMilli(
+                             Files.getLastModifiedTime(path).toMillis()).toString());
+                         files.add(info);
+                     } catch (IOException e) {
+                         log.error("Error reading file info: {}", path, e);
+                     }
+                 });
+        }
+        
+        return files;
+    }
+
+    /**
+     * 文件信息DTO
+     */
+    @lombok.Data
+    public static class FileInfo {
+        private String id;
+        private String name;
+        private String path;
+        private long size;
+        private String type;
+        private String uploadTime;
     }
 }
 

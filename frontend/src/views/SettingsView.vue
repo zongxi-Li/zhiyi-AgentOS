@@ -160,22 +160,70 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .settings-view {
-  padding: 20px;
+  padding: var(--spacing-xl);
   max-width: 1200px;
   margin: 0 auto;
+  background: var(--bg-color-page);
+  min-height: calc(100vh - 64px);
+  
+  .el-header {
+    padding: var(--spacing-lg) 0;
+    border-bottom: 1px solid var(--border-color-base);
+    margin-bottom: var(--spacing-xl);
+    
+    h2 {
+      margin: 0;
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--text-color-primary);
+      letter-spacing: -0.01em;
+    }
+  }
+  
+  .el-main {
+    padding: 0;
+  }
+}
+
+:deep(.el-card) {
+  border: 1px solid var(--border-color-base);
+  box-shadow: var(--box-shadow-base);
+  margin-bottom: var(--spacing-lg);
+  
+  &:hover {
+    box-shadow: var(--box-shadow-hover);
+  }
+}
+
+:deep(.el-card__header) {
+  border-bottom: 1px solid var(--border-color-light);
+  padding: var(--spacing-md) var(--spacing-lg);
+  
+  span {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    color: var(--text-color-primary);
+  }
 }
 
 .form-tip {
-  margin-left: 10px;
-  font-size: 12px;
-  color: #909399;
+  margin-left: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
 }
 
 .settings-actions {
-  margin-top: 30px;
+  margin-top: var(--spacing-xl);
   text-align: right;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color-light);
+}
+
+:deep(.el-form-item__label) {
+  color: var(--text-color-regular);
+  font-weight: 500;
 }
 </style>
 

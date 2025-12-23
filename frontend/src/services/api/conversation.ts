@@ -1,23 +1,4 @@
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 30000
-})
-
-// 请求拦截器：添加Token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+import request from '@/utils/request'
 
 export interface Conversation {
   id: string
@@ -30,20 +11,24 @@ export interface Conversation {
 
 export const conversationApi = {
   // 获取用户的对话列表
-  async getUserConversations(): Promise<Conversation[]> {
-    const response = await api.get<Conversation[]>('/conversations')
+  async getUserConversations(userId?: string): Promise<Conversation[]> {
+    const headers: Record<string, string> = {}
+    if (userId) {
+      headers['X-User-Id'] = userId
+    }
+    const response = await request.get<Conversation[]>('/conversations', { headers })
     return response.data
   },
 
   // 获取对话详情
   async getConversation(contextId: string): Promise<Conversation> {
-    const response = await api.get<Conversation>(`/conversations/${contextId}`)
+    const response = await request.get<Conversation>(`/conversations/${contextId}`)
     return response.data
   },
 
   // 删除对话
   async deleteConversation(conversationId: string): Promise<void> {
-    await api.delete(`/conversations/${conversationId}`)
+    await request.delete(`/conversations/${conversationId}`)
   }
 }
 

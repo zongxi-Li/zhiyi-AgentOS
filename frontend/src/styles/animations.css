@@ -78,24 +78,38 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
+/* 状态点脉冲动画 */
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 8px rgba(103, 194, 58, 0.5);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(103, 194, 58, 0.8);
+  }
+}
+
 /* 按钮悬停效果 */
 .el-button {
   transition: all 0.3s ease;
 }
 
 .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: var(--box-shadow-hover);
 }
 
 /* 卡片悬停效果 */
 .el-card {
-  transition: all 0.3s ease;
+  transition: var(--transition-base);
 }
 
 .el-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: var(--box-shadow-hover);
 }
 
 /* 输入框焦点效果 */

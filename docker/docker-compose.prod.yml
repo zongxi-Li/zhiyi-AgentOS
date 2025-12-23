@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: kinlin-ai-backend-prod
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kinlin_ai
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-kinlin_ai}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-kinlin_ai_password}
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - AI_SERVICE_URL=http://ai-service:8000
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - kinlin-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AI服务
+  ai-service:
+    build:
+      context: ../agent
+      dockerfile: Dockerfile
+    container_name: kinlin-ai-service-prod
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../agent/data:/app/data
+      - ../agent/logs:/app/logs
+    networks:
+      - kinlin-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: kinlin-ai-frontend-prod
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080/api
+      - VITE_AI_SERVICE_URL=http://localhost:8000
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - kinlin-network
+    restart: unless-stopped
+
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: kinlin-ai-postgres-prod
+    environment:
+      - POSTGRES_DB=kinlin_ai
+      - POSTGRES_USER=${DB_USERNAME:-kinlin_ai}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-kinlin_ai_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../backend/src/main/resources/db/migration:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - kinlin-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-kinlin_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: kinlin-ai-redis-prod
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kinlin-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+
+  # Nginx反向代理（可选）
+  nginx:
+    image: nginx:alpine
+    container_name: kinlin-ai-nginx-prod
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - kinlin-network
+    restart: unless-stopped
+
+networks:
+  kinlin-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+
+

@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * 文件上传控制器
@@ -90,6 +91,22 @@ public class FileController {
             return ResponseEntity.ok().build();
         } catch (IOException e) {
             log.error("File delete failed", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 获取文件列表
+     */
+    @GetMapping
+    public ResponseEntity<List<FileService.FileInfo>> getFileList(
+            @RequestParam(value = "type", required = false) String type
+    ) {
+        try {
+            List<FileService.FileInfo> files = fileService.listFiles(type != null ? type : "general");
+            return ResponseEntity.ok(files);
+        } catch (IOException e) {
+            log.error("Get file list failed", e);
             return ResponseEntity.internalServerError().build();
         }
     }

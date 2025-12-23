@@ -1,26 +1,4 @@
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 60000, // 语音处理可能需要更长时间
-  headers: {
-    'Content-Type': 'multipart/form-data'
-  }
-})
-
-// 请求拦截器：添加Token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+import request from '@/utils/request'
 
 export interface VoiceChatRequest {
   audio: File
@@ -37,17 +15,21 @@ export interface VoiceChatResponse {
 
 export const voiceApi = {
   // 发送语音消息
-  async sendVoiceMessage(request: VoiceChatRequest): Promise<VoiceChatResponse> {
+  async sendVoiceMessage(voiceRequest: VoiceChatRequest): Promise<VoiceChatResponse> {
     const formData = new FormData()
-    formData.append('audio', request.audio)
-    if (request.roleId) {
-      formData.append('roleId', request.roleId)
+    formData.append('audio', voiceRequest.audio)
+    if (voiceRequest.roleId) {
+      formData.append('roleId', voiceRequest.roleId)
     }
-    if (request.contextId) {
-      formData.append('contextId', request.contextId)
+    if (voiceRequest.contextId) {
+      formData.append('contextId', voiceRequest.contextId)
     }
 
-    const response = await api.post<VoiceChatResponse>('/voice/chat', formData)
+    const response = await request.post<VoiceChatResponse>('/voice/chat', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
     return response.data
   },
 
@@ -58,7 +40,7 @@ export const voiceApi = {
     speed: number = 1.0, 
     pitch: number = 1.0
   ): Promise<Blob> {
-    const response = await api.post(
+    const response = await request.post(
       '/voice/tts',
       {
         text,

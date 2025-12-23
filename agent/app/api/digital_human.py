@@ -73,3 +73,4 @@ async def switch_style(request: SwitchStyleRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+

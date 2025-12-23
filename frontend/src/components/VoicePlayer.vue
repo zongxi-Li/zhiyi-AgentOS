@@ -13,8 +13,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, computed } from 'vue'
+import { ref, onUnmounted, computed, watch } from 'vue'
 import { VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 interface Props {
   audioUrl?: string | Blob

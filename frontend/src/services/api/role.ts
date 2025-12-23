@@ -1,23 +1,4 @@
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 30000
-})
-
-// 请求拦截器：添加Token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+import request from '@/utils/request'
 
 export interface Role {
   id: string
@@ -42,37 +23,37 @@ export interface RoleCreateRequest {
 export const roleApi = {
   // 获取内置角色列表
   async getBuiltinRoles(): Promise<Role[]> {
-    const response = await api.get<Role[]>('/roles/builtin')
+    const response = await request.get<Role[]>('/roles/builtin')
     return response.data
   },
 
   // 获取自定义角色列表
   async getCustomRoles(): Promise<Role[]> {
-    const response = await api.get<Role[]>('/roles/custom')
+    const response = await request.get<Role[]>('/roles/custom')
     return response.data
   },
 
   // 获取角色详情
   async getRole(roleId: string): Promise<Role> {
-    const response = await api.get<Role>(`/roles/${roleId}`)
+    const response = await request.get<Role>(`/roles/${roleId}`)
     return response.data
   },
 
   // 创建自定义角色
-  async createRole(request: RoleCreateRequest): Promise<Role> {
-    const response = await api.post<Role>('/roles/custom', request)
+  async createRole(roleRequest: RoleCreateRequest): Promise<Role> {
+    const response = await request.post<Role>('/roles/custom', roleRequest)
     return response.data
   },
 
   // 更新角色
-  async updateRole(roleId: string, request: RoleCreateRequest): Promise<Role> {
-    const response = await api.put<Role>(`/roles/${roleId}`, request)
+  async updateRole(roleId: string, roleRequest: RoleCreateRequest): Promise<Role> {
+    const response = await request.put<Role>(`/roles/${roleId}`, roleRequest)
     return response.data
   },
 
   // 删除角色
   async deleteRole(roleId: string): Promise<void> {
-    await api.delete(`/roles/${roleId}`)
+    await request.delete(`/roles/${roleId}`)
   }
 }
 

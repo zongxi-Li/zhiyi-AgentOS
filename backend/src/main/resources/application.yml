@@ -1,6 +1,6 @@
 # 服务器配置
 server:
-  port: 8086
+  port: 8090
 
 spring:
   application:
@@ -68,7 +68,7 @@ cors:
     - http://localhost:5173
     - http://localhost:5174
     - http://localhost:8080
-    - http://localhost:8086
+    - http://localhost:8090
   allowed-methods:
     - GET
     - POST

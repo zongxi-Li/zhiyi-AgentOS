@@ -193,32 +193,74 @@ class VoiceDrivenDigitalHuman:
         }
     
     def _generate_lip_sync(self, audio: bytes, text: str) -> List[Dict]:
-        """生成口型同步数据"""
-        # 简化实现：根据文本生成基本口型
+        """生成口型同步数据（增强实现）"""
+        # 根据文本和音频生成口型同步
         phonemes = self._text_to_phonemes(text)
         lip_poses = []
         
-        for phoneme in phonemes:
+        # 分析音频特征（简化实现）
+        audio_duration = len(audio) / 16000  # 假设16kHz采样率
+        phoneme_duration = audio_duration / len(phonemes) if phonemes else 0.1
+        
+        for i, phoneme in enumerate(phonemes):
             lip_pose = self._phoneme_to_lip_pose(phoneme)
+            lip_pose["timestamp"] = i * phoneme_duration
+            lip_pose["duration"] = phoneme_duration
             lip_poses.append(lip_pose)
         
         return lip_poses
     
     def _text_to_phonemes(self, text: str) -> List[str]:
-        """文本转音素（简化实现）"""
-        # 实际应该使用专业的TTS音素转换
-        return list(text)
+        """文本转音素（增强实现）"""
+        # 简化实现：将文本转换为基本音素
+        # 实际应该使用专业的TTS音素转换（如pyttsx3、gTTS等）
+        
+        # 中文音素映射（简化版）
+        phoneme_map = {
+            "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "ü": "v",
+            "b": "b", "p": "p", "m": "m", "f": "f",
+            "d": "d", "t": "t", "n": "n", "l": "l",
+            "g": "g", "k": "k", "h": "h",
+            "j": "j", "q": "q", "x": "x",
+            "zh": "zh", "ch": "ch", "sh": "sh", "r": "r",
+            "z": "z", "c": "c", "s": "s"
+        }
+        
+        # 简化处理：将文本转换为字符列表
+        # 实际应该使用拼音转换和音素分析
+        phonemes = []
+        for char in text:
+            if char.isalpha():
+                phonemes.append(char.lower())
+            elif char in ["，", "。", "！", "？", ",", ".", "!", "?"]:
+                phonemes.append("pause")  # 停顿
+        
+        return phonemes if phonemes else list(text)
     
     def _phoneme_to_lip_pose(self, phoneme: str) -> Dict:
-        """音素转口型"""
-        # 简化实现：基本口型映射
+        """音素转口型（增强实现）"""
+        # 扩展的口型映射
         lip_map = {
-            "a": {"mouth_open": 0.8, "mouth_width": 0.6},
-            "i": {"mouth_open": 0.3, "mouth_width": 0.4},
-            "u": {"mouth_open": 0.5, "mouth_width": 0.3},
-            "o": {"mouth_open": 0.7, "mouth_width": 0.5}
+            # 元音
+            "a": {"mouth_open": 0.8, "mouth_width": 0.6, "lip_protrusion": 0.0},
+            "o": {"mouth_open": 0.7, "mouth_width": 0.5, "lip_protrusion": 0.3},
+            "e": {"mouth_open": 0.6, "mouth_width": 0.5, "lip_protrusion": 0.0},
+            "i": {"mouth_open": 0.3, "mouth_width": 0.4, "lip_protrusion": 0.0},
+            "u": {"mouth_open": 0.5, "mouth_width": 0.3, "lip_protrusion": 0.5},
+            "v": {"mouth_open": 0.4, "mouth_width": 0.3, "lip_protrusion": 0.4},  # ü
+            # 辅音
+            "b": {"mouth_open": 0.0, "mouth_width": 0.5, "lip_protrusion": 0.2},
+            "p": {"mouth_open": 0.0, "mouth_width": 0.5, "lip_protrusion": 0.3},
+            "m": {"mouth_open": 0.0, "mouth_width": 0.5, "lip_protrusion": 0.1},
+            "f": {"mouth_open": 0.2, "mouth_width": 0.3, "lip_protrusion": 0.1},
+            # 停顿
+            "pause": {"mouth_open": 0.1, "mouth_width": 0.4, "lip_protrusion": 0.0}
         }
-        return lip_map.get(phoneme.lower(), {"mouth_open": 0.5, "mouth_width": 0.5})
+        
+        # 默认口型
+        default_pose = {"mouth_open": 0.5, "mouth_width": 0.5, "lip_protrusion": 0.0}
+        
+        return lip_map.get(phoneme.lower(), default_pose)
     
     def _detect_emotion_from_audio(self, audio: bytes) -> Dict:
         """从音频检测情感"""
@@ -244,15 +286,56 @@ class VoiceDrivenDigitalHuman:
         return expressions
     
     def _generate_gestures(self, audio_features: Dict, emotion: Dict, text: str) -> List[Dict]:
-        """生成身体动作"""
+        """生成身体动作（增强实现）"""
         gestures = []
         
-        # 根据音频节奏生成手势
-        if audio_features.get("rhythm", 0) > 0.6:
-            gestures.append({
-                "type": "hand_gesture",
-                "intensity": audio_features.get("rhythm", 0.5),
+        emotion_type = emotion.get("emotion", "neutral")
+        intensity = emotion.get("intensity", 0.5)
+        rhythm = audio_features.get("rhythm", 0.5)
+        
+        # 根据情感生成手势
+        emotion_gestures = {
+            "excited": {
+                "type": "energetic_gesture",
+                "intensity": intensity,
+                "duration": 1.0
+            },
+            "happy": {
+                "type": "welcoming_gesture",
+                "intensity": intensity * 0.8,
+                "duration": 0.8
+            },
+            "sad": {
+                "type": "gentle_gesture",
+                "intensity": intensity * 0.6,
+                "duration": 0.6
+            },
+            "angry": {
+                "type": "firm_gesture",
+                "intensity": intensity * 0.7,
                 "duration": 0.5
+            }
+        }
+        
+        if emotion_type in emotion_gestures:
+            gestures.append(emotion_gestures[emotion_type])
+        
+        # 根据音频节奏生成手势
+        if rhythm > 0.6:
+            gestures.append({
+                "type": "rhythmic_hand_gesture",
+                "intensity": rhythm,
+                "duration": 0.5,
+                "frequency": 2.0  # 每秒2次
+            })
+        
+        # 根据文本长度生成点头动作
+        if len(text) > 50:
+            gestures.append({
+                "type": "nodding",
+                "intensity": 0.5,
+                "duration": 0.3,
+                "count": min(len(text) // 20, 3)  # 最多3次点头
             })
         
         return gestures
