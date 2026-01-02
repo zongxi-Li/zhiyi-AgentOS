@@ -1,158 +1,205 @@
 <template>
   <div class="create-role-view">
-    <el-container>
-      <el-header class="header">
+    <!-- Atmospheric Background -->
+    <div class="ambient-glow top-left"></div>
+    <div class="ambient-glow bottom-right"></div>
+
+    <el-container class="view-layout">
+      <el-header class="header glass-header">
         <div class="header-content">
           <div class="left-section">
-            <el-button @click="handleBack" :icon="ArrowLeft" circle plain />
-            <h2>创建自定义角色</h2>
+            <div class="back-btn" @click="handleBack">
+              <el-icon><ArrowLeft /></el-icon>
+            </div>
+            <h2 class="page-title">创建自定义角色</h2>
+          </div>
+          <div class="header-actions">
+            <el-button @click="handleBack" class="cancel-btn">取消</el-button>
+            <el-button type="primary" @click="handleSubmit" :loading="loading" class="create-btn">
+              立即创建
+            </el-button>
           </div>
         </div>
       </el-header>
 
-      <el-main>
-        <div class="form-container">
-          <el-card class="form-card">
-            <template #header>
-              <div class="card-header">
-                <span>角色信息设定</span>
-                <el-tooltip content="创建具有独特个性和专业知识的AI角色" placement="top">
-                  <el-icon><InfoFilled /></el-icon>
-                </el-tooltip>
-              </div>
-            </template>
-            
-            <el-form
-              ref="formRef"
-              :model="form"
-              :rules="rules"
-              label-position="top"
-              size="large"
-            >
-              <el-form-item label="角色名称" prop="name">
-                <el-input 
-                  v-model="form.name" 
-                  placeholder="给你的角色起个名字，例如：Python专家、心理咨询师" 
-                  maxlength="50"
-                  show-word-limit
-                />
-              </el-form-item>
-
-              <el-form-item label="角色描述" prop="description">
-                <el-input
-                  v-model="form.description"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="简短描述这个角色的主要功能和特点"
-                  maxlength="200"
-                  show-word-limit
-                />
-              </el-form-item>
-
-              <el-form-item label="系统提示词 (System Prompt)" prop="systemPrompt">
-                <div class="label-helper">
-                  <span>这是核心设定，决定了角色的行为方式。</span>
-                  <el-link type="primary" :underline="false" href="#" @click.prevent>查看示例</el-link>
+      <el-main class="scroll-area">
+        <div class="content-wrapper">
+          <div class="form-grid">
+            <!-- Left: Info Settings -->
+            <div class="form-main-side">
+              <div class="glass-card section-card">
+                <div class="section-header">
+                  <div class="title-box">
+                    <span class="dot"></span>
+                    <h3>基本信息设定</h3>
+                  </div>
+                  <el-tooltip content="这些信息将定义角色的基础身份" placement="top">
+                    <el-icon class="info-trigger"><InfoFilled /></el-icon>
+                  </el-tooltip>
                 </div>
-                <el-input
-                  v-model="form.systemPrompt"
-                  type="textarea"
-                  :rows="8"
-                  placeholder="你是一名经验丰富的Python后端工程师，专注于高性能Web服务开发。你擅长使用FastAPI和Django框架。在回答问题时，请提供清晰的代码示例和最佳实践建议。"
-                />
-              </el-form-item>
 
-              <el-row :gutter="20">
-                <el-col :span="12">
-                  <el-form-item label="对话风格">
-                    <el-input
-                      v-model="form.dialogueStyleText"
-                      type="textarea"
-                      :rows="4"
-                      placeholder='例如：{"formal": "high", "warmth": "medium"} (JSON格式)'
+                <el-form
+                  ref="formRef"
+                  :model="form"
+                  :rules="rules"
+                  label-position="top"
+                  class="premium-form"
+                >
+                  <el-form-item label="角色名称" prop="name">
+                    <el-input 
+                      v-model="form.name" 
+                      placeholder="例如：Python专家、心理咨询师" 
+                      maxlength="50"
+                      show-word-limit
+                      class="premium-input"
                     />
                   </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="性格特点">
+
+                  <el-form-item label="角色描述" prop="description">
                     <el-input
-                      v-model="form.personalityText"
+                      v-model="form.description"
                       type="textarea"
-                      :rows="4"
-                      placeholder='例如：{"traits": ["patient", "professional", "creative"]} (JSON格式)'
+                      :rows="2"
+                      placeholder="简短描述这个角色的主要功能和特点"
+                      maxlength="200"
+                      show-word-limit
+                      class="premium-input"
                     />
                   </el-form-item>
-                </el-col>
-              </el-row>
 
-              <!-- 形象配色部分 -->
-              <div class="section-divider">
-                <span class="section-title">形象与配色</span>
-                <div class="section-line"></div>
+                  <el-form-item prop="systemPrompt">
+                    <template #label>
+                      <div class="label-with-helper">
+                        <span>系统提示词 (System Prompt)</span>
+                        <el-link type="primary" :underline="false" class="example-link">查看示例</el-link>
+                      </div>
+                    </template>
+                    <el-input
+                      v-model="form.systemPrompt"
+                      type="textarea"
+                      :rows="10"
+                      placeholder="这是核心设定，决定了角色的行为方式。请输入详细的角色指令..."
+                      class="premium-input prompt-input"
+                    />
+                  </el-form-item>
+
+                  <div class="form-row">
+                    <el-form-item label="对话风格" class="half-width">
+                      <el-input
+                        v-model="form.dialogueStyleText"
+                        type="textarea"
+                        :rows="3"
+                        placeholder='例如：{"formal": "high", "warmth": "medium"}'
+                        class="premium-input"
+                      />
+                    </el-form-item>
+                    <el-form-item label="性格特点" class="half-width">
+                      <el-input
+                        v-model="form.personalityText"
+                        type="textarea"
+                        :rows="3"
+                        placeholder='例如：{"traits": ["patient", "professional"]}'
+                        class="premium-input"
+                      />
+                    </el-form-item>
+                  </div>
+                </el-form>
               </div>
+            </div>
 
-              <div class="color-selection-container">
-                <p class="section-desc">选择三个基准颜色，这将决定数字人的外观风格以及聊天界面的主题配色。</p>
-                <el-row :gutter="40" justify="center">
-                  <el-col :span="8" class="color-item">
-                    <span class="color-label">主色调 (Primary)</span>
-                    <el-color-picker v-model="form.colors.primary" show-alpha />
-                    <span class="color-value">{{ form.colors.primary }}</span>
-                    <div class="color-desc">决定界面的主要视觉风格</div>
-                  </el-col>
-                  <el-col :span="8" class="color-item">
-                    <span class="color-label">辅助色 (Secondary)</span>
-                    <el-color-picker v-model="form.colors.secondary" show-alpha />
-                    <span class="color-value">{{ form.colors.secondary }}</span>
-                    <div class="color-desc">用于搭配和衬托主色调</div>
-                  </el-col>
-                  <el-col :span="8" class="color-item">
-                    <span class="color-label">点缀色 (Accent)</span>
-                    <el-color-picker v-model="form.colors.accent" show-alpha />
-                    <span class="color-value">{{ form.colors.accent }}</span>
-                    <div class="color-desc">用于强调重点和交互元素</div>
-                  </el-col>
-                </el-row>
+            <!-- Right: Visual & Preview -->
+            <div class="form-side-pane">
+              <!-- Digital Human Style Selection -->
+              <div class="glass-card section-card">
+                <div class="section-header">
+                  <div class="title-box">
+                    <span class="dot accent"></span>
+                    <h3>数字人形象风格</h3>
+                  </div>
+                </div>
                 
-                <!-- 预览色块 -->
-                <div class="color-preview" :style="{
-                  '--preview-primary': form.colors.primary,
-                  '--preview-secondary': form.colors.secondary,
-                  '--preview-accent': form.colors.accent
-                }">
-                  <div class="preview-card">
-                    <div class="preview-header">
-                      <div class="preview-avatar">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="12" cy="12" r="12" :fill="form.colors.secondary" />
-                          <circle cx="12" cy="12" r="11" stroke="white" stroke-width="1.5" />
-                          <path d="M7 16C7 13.2386 9.23858 11 12 11C14.7614 11 17 13.2386 17 16" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                          <circle cx="12" cy="8" r="2.5" fill="white" />
-                        </svg>
-                      </div>
-                      <div class="preview-title">配色与形象预览</div>
-                    </div>
-                    <div class="preview-body">
-                      <div class="preview-bubble left">你好，我是你的AI助手。</div>
-                      <div class="preview-bubble right">
-                        <span class="preview-btn">开始对话</span>
-                      </div>
-                      <div class="preview-model-hint">
-                        数字人形象将基于您选择的基准色生成
-                      </div>
+                <div class="style-selection">
+                  <p class="config-hint">选择数字人形象的生成风格，系统将根据此风格生成对应的数字人形象。</p>
+                  
+                  <div class="style-options">
+                    <div 
+                      v-for="style in digitalHumanStyles" 
+                      :key="style.id"
+                      class="style-option-card"
+                      :class="{ active: form.digitalHumanStyle === style.id }"
+                      @click="form.digitalHumanStyle = style.id"
+                    >
+                      <div class="style-icon">{{ style.icon }}</div>
+                      <div class="style-name">{{ style.name }}</div>
+                      <div class="style-desc">{{ style.description }}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="form-actions">
-                <el-button @click="handleBack">取消</el-button>
-                <el-button type="primary" @click="handleSubmit" :loading="loading">
-                  立即创建
-                </el-button>
+              <!-- Visual Styles -->
+              <div class="glass-card section-card">
+                <div class="section-header">
+                  <div class="title-box">
+                    <span class="dot accent"></span>
+                    <h3>视觉形象与配色</h3>
+                  </div>
+                </div>
+                
+                <div class="color-config">
+                  <p class="config-hint">选择品牌基准色，系统将自动生成对应的数字人形象与界面主题。</p>
+                  
+                  <div class="color-pickers">
+                    <div class="picker-item">
+                      <span class="p-label">主色调</span>
+                      <el-color-picker v-model="form.colors.primary" show-alpha />
+                    </div>
+                    <div class="picker-item">
+                      <span class="p-label">辅助色</span>
+                      <el-color-picker v-model="form.colors.secondary" show-alpha />
+                    </div>
+                    <div class="picker-item">
+                      <span class="p-label">点缀色</span>
+                      <el-color-picker v-model="form.colors.accent" show-alpha />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="preview-area">
+                  <div class="preview-device" :style="{
+                    '--p-color': form.colors.primary,
+                    '--s-color': form.colors.secondary,
+                    '--a-color': form.colors.accent
+                  }">
+                    <div class="device-header">
+                      <div class="avatar-circle"></div>
+                      <div class="header-lines">
+                        <div class="line long"></div>
+                        <div class="line short"></div>
+                      </div>
+                    </div>
+                    <div class="device-body">
+                      <div class="chat-bubble bot">Hello, I'm your AI.</div>
+                      <div class="chat-bubble user">Nice to meet you!</div>
+                      <div class="action-bar">
+                        <div class="btn-mock">Send</div>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="preview-label">界面配色效果实时预览</p>
+                </div>
               </div>
-            </el-form>
-          </el-card>
+
+              <!-- Extra Tip -->
+              <div class="glass-card tip-card">
+                <el-icon><StarFilled /></el-icon>
+                <div class="tip-content">
+                  <h4>设计建议</h4>
+                  <p>优秀的提示词应包含角色的身份背景、专业技能范围以及特定的语言禁忌。</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </el-main>
     </el-container>
@@ -163,7 +210,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowLeft, InfoFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, StarFilled } from '@element-plus/icons-vue'
 import { useRoleStore } from '@/stores/role'
 import type { RoleCreateRequest } from '@/services/api/role'
 
@@ -178,12 +225,34 @@ const form = reactive({
   systemPrompt: '',
   dialogueStyleText: '',
   personalityText: '',
+  digitalHumanStyle: 'realistic',  // 数字人形象风格
   colors: {
     primary: '#409EFF',
     secondary: '#79bbff',
     accent: '#95d475'
   }
 })
+
+const digitalHumanStyles = [
+  {
+    id: 'realistic',
+    name: '写实风格',
+    icon: '🎭',
+    description: '极其写实，如同真实人类一般'
+  },
+  {
+    id: 'cartoon',
+    name: '卡通风格',
+    icon: '🎨',
+    description: '清新可爱，适合日常交流'
+  },
+  {
+    id: 'anime',
+    name: '二次元风格',
+    icon: '✨',
+    description: '充满艺术感，深受年轻用户喜爱'
+  }
+]
 
 const rules: FormRules = {
   name: [
@@ -225,7 +294,8 @@ const handleSubmit = async () => {
           dialogueStyle: parseJson(form.dialogueStyleText),
           personality: parseJson(form.personalityText),
           avatarConfig: {
-            colors: form.colors
+            colors: form.colors,
+            style: form.digitalHumanStyle
           }
         }
 
@@ -244,232 +314,416 @@ const handleSubmit = async () => {
 
 <style scoped lang="scss">
 .create-role-view {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-color-page);
-}
-
-:deep(.el-container) {
-  height: 100%;
+  height: 100vh;
+  width: 100%;
+  position: relative;
   overflow: hidden;
+  background-color: var(--bg-app);
 }
 
-.header {
-  flex-shrink: 0;
-  background: var(--bg-color);
-  border-bottom: 1px solid var(--border-color-base);
-  padding: 0 var(--spacing-xl);
-  box-shadow: var(--box-shadow-base);
+/* Ambient Background - 使用简洁的纯色，不使用深层渐变 */
+.ambient-glow {
+  display: none;
+}
+
+.view-layout {
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.glass-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-light);
+  height: 72px !important;
 }
 
 .header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
   display: flex;
   align-items: center;
-  height: 100%;
-  
-  .left-section {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    
-    h2 {
-      margin: 0;
-      font-size: var(--font-size-xl);
-      font-weight: 600;
-      color: var(--text-color-primary);
-    }
-  }
+  justify-content: space-between;
 }
 
-:deep(.el-main) {
-  padding: var(--spacing-xl);
-  overflow-y: auto;
+.left-section {
   display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.back-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  /* 确保在内容溢出时可以滚动 */
-  height: 100%;
+  background: white;
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary);
 }
 
-.form-container {
-  width: 100%;
-  max-width: 800px;
-  /* 增加底部间距，防止滚动到底部时紧贴 */
-  padding-bottom: var(--spacing-2xl);
+.back-btn:hover {
+  color: var(--primary-color);
+  background: var(--bg-input);
+  border-color: var(--primary-color);
 }
 
-.form-card {
-  border-radius: var(--border-radius-large);
-  box-shadow: var(--box-shadow-light);
-  
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-  }
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-serif);
 }
 
-.label-helper {
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.cancel-btn {
+  border-radius: 12px;
+  height: 42px;
+  padding: 0 24px;
+}
+
+.create-btn {
+  border-radius: 12px;
+  height: 42px;
+  padding: 0 24px;
+  font-weight: 600;
+}
+
+.scroll-area {
+  padding: 40px 0;
+  overflow-y: auto;
+}
+
+.content-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 0.9fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.glass-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  padding: 32px;
+}
+
+.section-card {
+  margin-bottom: 24px;
+}
+
+.section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
-  font-size: var(--font-size-sm);
-  color: var(--text-color-secondary);
+  margin-bottom: 28px;
 }
 
-.form-actions {
-  margin-top: var(--spacing-xl);
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-md);
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--border-color-light);
-}
-
-.section-divider {
+.title-box {
   display: flex;
   align-items: center;
-  margin: var(--spacing-xl) 0 var(--spacing-lg);
-  
-  .section-title {
-    font-size: var(--font-size-md);
+  gap: 12px;
+}
+
+.title-box h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-color);
+}
+
+.dot.accent { background: #10b981; }
+
+.info-trigger {
+  color: var(--text-disabled);
+  cursor: help;
+}
+
+/* Premium Form Elements */
+.premium-form {
+  :deep(.el-form-item__label) {
     font-weight: 600;
-    color: var(--text-color-primary);
-    white-space: nowrap;
-    margin-right: var(--spacing-md);
-  }
-  
-  .section-line {
-    flex-grow: 1;
-    height: 1px;
-    background-color: var(--border-color-light);
+    font-size: 14px;
+    color: var(--text-regular);
+    padding-bottom: 8px;
   }
 }
 
-.color-selection-container {
-  padding: 0 var(--spacing-md);
+.premium-input {
+  :deep(.el-input__wrapper), :deep(.el-textarea__inner) {
+    background-color: #f8fafc !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    border: 1px solid transparent !important;
+    transition: all 0.2s;
+  }
   
-  .section-desc {
-    color: var(--text-color-secondary);
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--spacing-xl);
+  :deep(.el-input__wrapper:hover), :deep(.el-textarea__inner:hover) {
+    background-color: white !important;
+    border-color: var(--border-hover) !important;
+  }
+  
+  :deep(.el-input__wrapper.is-focus), :deep(.el-textarea__inner:focus) {
+    background-color: white !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 1px var(--primary-color) inset !important;
   }
 }
 
-.color-item {
+.label-with-helper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.example-link {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+}
+
+.half-width {
+  flex: 1;
+}
+
+/* Side Pane Styles */
+.color-config {
+  margin-bottom: 32px;
+}
+
+.config-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.color-pickers {
+  display: flex;
+  justify-content: space-between;
+  background: #f1f5f9;
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.picker-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
-  
-  .color-label {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--text-color-regular);
+  gap: 8px;
+}
+
+.p-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Device Preview Mockup */
+.preview-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 20px;
+}
+
+.preview-device {
+  width: 220px;
+  height: 320px;
+  background: white;
+  border-radius: 16px;
+  border: 2px solid var(--border-light);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.device-header {
+  height: 50px;
+  background: var(--p-color);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+}
+
+.avatar-circle {
+  width: 28px;
+  height: 28px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 50%;
+}
+
+.header-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.line { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
+.line.long { width: 60px; }
+.line.short { width: 30px; }
+
+.device-body {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-bubble {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 10px;
+  max-width: 80%;
+  font-weight: 500;
+}
+
+.chat-bubble.bot {
+  background: #f1f5f9;
+  color: #334155;
+  border-left: 3px solid var(--s-color);
+  align-self: flex-start;
+}
+
+.chat-bubble.user {
+  background: var(--p-color);
+  color: white;
+  align-self: flex-end;
+}
+
+.action-bar {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-mock {
+  background: var(--a-color);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-disabled);
+}
+
+.tip-card {
+  display: flex;
+  gap: 16px;
+  background: rgba(79, 70, 229, 0.05);
+  border: 1px solid rgba(79, 70, 229, 0.15);
+  padding: 24px;
+}
+
+.tip-card .el-icon {
+  font-size: 24px;
+  color: var(--primary-color);
+}
+
+.tip-content h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tip-content p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-regular);
+  line-height: 1.5;
+}
+
+/* Style Selection */
+.style-selection {
+  margin-bottom: 32px;
+}
+
+.style-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.style-option-card {
+  padding: 16px;
+  border: 2px solid var(--border-light);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+
+  &:hover {
+    border-color: var(--primary-color);
+    background: rgba(79, 70, 229, 0.02);
   }
-  
-  .color-value {
-    font-family: monospace;
-    font-size: 12px;
-    color: var(--text-color-secondary);
-  }
-  
-  .color-desc {
-    font-size: 12px;
-    color: var(--text-color-secondary);
-    text-align: center;
-    margin-top: 4px;
+
+  &.active {
+    border-color: var(--primary-color);
+    background: rgba(79, 70, 229, 0.05);
   }
 }
 
-.color-preview {
-  margin-top: var(--spacing-2xl);
-  padding: var(--spacing-xl);
-  background: #f5f7fa;
-  border-radius: 8px;
-  display: flex;
-  justify-content: center;
-  
-  .preview-card {
-    width: 300px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    
-    .preview-header {
-      background: var(--preview-primary);
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      
-      .preview-avatar {
-        width: 36px;
-        height: 36px;
-        flex-shrink: 0;
-        
-        svg {
-          width: 100%;
-          height: 100%;
-          display: block;
-        }
-      }
-      
-      .preview-title {
-        color: white;
-        font-weight: 600;
-        font-size: 14px;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-      }
-    }
-    
-    .preview-body {
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      
-      .preview-bubble {
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-size: 12px;
-        max-width: 80%;
-        
-        &.left {
-          align-self: flex-start;
-          background: #f0f2f5;
-          color: #333;
-          border-left: 3px solid var(--preview-secondary);
-        }
-        
-        &.right {
-          align-self: flex-end;
-          
-          .preview-btn {
-            display: inline-block;
-            padding: 6px 16px;
-            background: var(--preview-accent);
-            color: white;
-            border-radius: 16px;
-            font-weight: 500;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          }
-        }
-      }
+.style-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
 
-      .preview-model-hint {
-        text-align: center;
-        font-size: 10px;
-        color: #909399;
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px dashed #e4e7ed;
-      }
-    }
+.style-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.style-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

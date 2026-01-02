@@ -1,67 +1,58 @@
 <template>
   <div class="rag-query-container">
-    <el-card class="query-card">
-      <template #header>
-        <div class="query-header">
-          <span class="title">
-            <el-icon><Search /></el-icon> 智能检索
-          </span>
-          <div class="settings">
-            <span class="label">Top K:</span>
-            <el-input-number 
-              v-model="topK" 
-              :min="1" 
-              :max="10" 
-              size="small"
-              controls-position="right"
-              class="k-input"
-            />
-          </div>
+    <div class="query-card">
+      <div class="card-header">
+        <div class="header-left">
+          <el-icon class="header-icon"><Search /></el-icon>
+          <span class="header-title">智能检索</span>
         </div>
-      </template>
+        <div class="header-settings">
+          <span class="settings-label">Top K:</span>
+          <el-input-number 
+            v-model="topK" 
+            :min="1" 
+            :max="10" 
+            size="small"
+            controls-position="right"
+            class="k-input"
+          />
+        </div>
+      </div>
       
-      <div class="input-area">
-        <el-input
-          v-model="queryText"
-          type="textarea"
-          :rows="4"
-          placeholder="请输入您的问题，AI 将基于知识库为您解答..."
-          resize="none"
-          class="custom-textarea"
-          @keydown.enter.prevent.ctrl="handleQuery"
-        />
-        <div class="input-actions">
-          <span class="hint">Ctrl + Enter 发送</span>
-          <el-button
-            type="primary"
+      <div class="query-body">
+        <div class="input-area">
+          <textarea
+            v-model="queryText"
+            placeholder="请输入您的问题，AI 将基于知识库为您解答..."
+            class="query-textarea"
+            @keydown.enter.prevent.ctrl="handleQuery"
+            rows="4"
+          ></textarea>
+        </div>
+        <div class="input-footer">
+          <span class="hint-text">Ctrl + Enter 发送</span>
+          <button
+            class="submit-button"
             @click="handleQuery"
-            :loading="loading"
-            round
-            class="submit-btn"
+            :disabled="loading"
           >
-            查询
-            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-          </el-button>
+            <el-icon v-if="!loading" class="submit-icon"><ArrowRight /></el-icon>
+            <el-icon v-else class="submit-icon loading"><Loading /></el-icon>
+            <span>查询</span>
+          </button>
         </div>
       </div>
 
       <transition name="fade-slide">
         <div v-if="result" class="result-area">
           <div class="result-header">
-            <span class="label">AI 回答</span>
-            <div class="confidence" v-if="result.confidence">
-              <span>置信度</span>
-              <el-progress 
-                :percentage="Math.round(result.confidence * 100)" 
-                :color="confidenceColor"
-                :stroke-width="6"
-                :width="40"
-                type="circle"
-              >
-                <template #default="{ percentage }">
-                  <span class="percentage-text">{{ percentage }}%</span>
-                </template>
-              </el-progress>
+            <div class="result-title-wrapper">
+              <div class="title-indicator"></div>
+              <span class="result-title">AI 回答</span>
+            </div>
+            <div class="confidence-badge" v-if="result.confidence">
+              <span class="confidence-label">置信度</span>
+              <div class="confidence-value">{{ Math.round(result.confidence * 100) }}%</div>
             </div>
           </div>
           
@@ -69,31 +60,32 @@
             <div class="answer-content">{{ result.answer }}</div>
           </div>
           
-          <div v-if="result.sources && result.sources.length > 0" class="sources-list">
-            <div class="sources-title">
-              <el-icon><Link /></el-icon> 参考来源
+          <div v-if="result.sources && result.sources.length > 0" class="sources-section">
+            <div class="sources-header">
+              <el-icon class="sources-icon"><Link /></el-icon>
+              <span class="sources-title">参考来源</span>
             </div>
-            <div class="source-items">
+            <div class="sources-list">
               <div 
                 v-for="(source, index) in result.sources" 
                 :key="index"
                 class="source-item"
               >
-                <div class="source-index">{{ index + 1 }}</div>
-                <div class="source-content">{{ source.title || source.url || '未知来源' }}</div>
+                <div class="source-number">{{ index + 1 }}</div>
+                <div class="source-text">{{ source.title || source.url || '未知来源' }}</div>
               </div>
             </div>
           </div>
         </div>
       </transition>
-    </el-card>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, ArrowRight, Link } from '@element-plus/icons-vue'
+import { Search, ArrowRight, Link, Loading } from '@element-plus/icons-vue'
 import { ragApi } from '@/services/api/rag'
 
 const emit = defineEmits<{
@@ -105,13 +97,6 @@ const topK = ref(5)
 const loading = ref(false)
 const result = ref<any>(null)
 
-const confidenceColor = [
-  { color: '#f56c6c', percentage: 20 },
-  { color: '#e6a23c', percentage: 40 },
-  { color: '#5cb87a', percentage: 60 },
-  { color: '#1989fa', percentage: 80 },
-  { color: '#6f7ad3', percentage: 100 },
-]
 
 const handleQuery = async () => {
   if (!queryText.value.trim()) {
@@ -135,232 +120,298 @@ const handleQuery = async () => {
 </script>
 
 <style scoped lang="scss">
-$primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-$surface-color: rgba(255, 255, 255, 0.7);
-$glass-border: 1px solid rgba(255, 255, 255, 0.3);
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 .rag-query-container {
   height: 100%;
 }
 
 .query-card {
-  background: $surface-color !important;
-  backdrop-filter: blur(16px) !important;
-  border: $glass-border !important;
-  border-radius: 16px !important;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07) !important;
-  overflow: visible; // Allow shadows/elements to pop out if needed
-  
-  :deep(.el-card__header) {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    padding: 16px 24px;
-  }
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.query-header {
+.card-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
-  .title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #303133;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .el-icon {
-      color: #6366f1;
-    }
-  }
-  
-  .settings {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .label {
-      font-size: 13px;
-      color: #909399;
-    }
-    
-    .k-input {
-      width: 100px;
-    }
-  }
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-icon {
+  font-size: 20px;
+  color: var(--primary-color);
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.header-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.k-input {
+  width: 100px;
+}
+
+.query-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .input-area {
   position: relative;
-  
-  .custom-textarea {
-    :deep(.el-textarea__inner) {
-      border-radius: 12px;
-      padding: 16px;
-      font-size: 15px;
-      background: rgba(255, 255, 255, 0.6);
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
-      transition: all 0.3s;
-      
-      &:focus {
-        background: white;
-        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
-        border-color: #6366f1;
-      }
-    }
-  }
-  
-  .input-actions {
-    margin-top: 12px;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 16px;
-    
-    .hint {
-      font-size: 12px;
-      color: #909399;
-    }
-    
-    .submit-btn {
-      background: $primary-gradient;
-      border: none;
-      padding: 10px 24px;
-      height: auto;
-      font-weight: 500;
-      letter-spacing: 0.5px;
-      transition: all 0.3s;
-      
-      &:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-      }
-    }
-  }
+}
+
+.query-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-input);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text-primary);
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.query-textarea:focus {
+  background: #ffffff;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-fade);
+}
+
+.query-textarea::placeholder {
+  color: var(--text-disabled);
+}
+
+.input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: var(--text-disabled);
+  font-weight: 400;
+}
+
+.submit-button {
+  height: 36px;
+  padding: 0 20px;
+  background: var(--primary-color);
+  border: none;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.submit-button:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submit-icon {
+  font-size: 16px;
+}
+
+.submit-icon.loading {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .result-area {
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--border-light);
 }
 
 .result-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  
-  .label {
-    font-size: 16px;
-    font-weight: 700;
-    color: #303133;
-    position: relative;
-    padding-left: 12px;
-    
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 4px;
-      height: 16px;
-      background: #8b5cf6;
-      border-radius: 2px;
-    }
-  }
-  
-  .confidence {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: #909399;
-    
-    .percentage-text {
-      font-size: 10px;
-      transform: scale(0.9);
-    }
-  }
+  margin-bottom: 20px;
+}
+
+.result-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-indicator {
+  width: 3px;
+  height: 18px;
+  background: var(--primary-color);
+  border-radius: 2px;
+}
+
+.result-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.confidence-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+}
+
+.confidence-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.confidence-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-color);
+  letter-spacing: -0.01em;
 }
 
 .answer-box {
-  background: linear-gradient(to right bottom, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.4));
+  background: var(--bg-input);
   border-radius: 12px;
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
-  
-  .answer-content {
-    line-height: 1.8;
-    color: #4b5563;
-    font-size: 15px;
-    text-align: justify;
-  }
+  border: 1px solid var(--border-light);
+  margin-bottom: 24px;
+}
+
+.answer-content {
+  line-height: 1.8;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.sources-section {
+  margin-top: 24px;
+}
+
+.sources-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sources-icon {
+  font-size: 16px;
+  color: var(--primary-color);
+}
+
+.sources-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .sources-list {
-  margin-top: 24px;
-  
-  .sources-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #606266;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  .source-items {
-    display: grid;
-    gap: 8px;
-    
-    .source-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 10px;
-      background: rgba(243, 244, 246, 0.5);
-      border-radius: 8px;
-      transition: all 0.2s;
-      
-      &:hover {
-        background: rgba(243, 244, 246, 0.9);
-      }
-      
-      .source-index {
-        width: 20px;
-        height: 20px;
-        background: #e0e7ff;
-        color: #6366f1;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 11px;
-        font-weight: 700;
-        flex-shrink: 0;
-        margin-top: 2px;
-      }
-      
-      .source-content {
-        font-size: 13px;
-        color: #6b7280;
-        line-height: 1.5;
-        word-break: break-all;
-      }
-    }
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-// Transitions
+.source-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.source-item:hover {
+  background: #ffffff;
+  border-color: var(--border-hover);
+}
+
+.source-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.source-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  word-break: break-word;
+  font-weight: 400;
+}
+
+/* 过渡动画 */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: all 0.4s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-slide-enter-from,
@@ -369,5 +420,8 @@ $glass-border: 1px solid rgba(255, 255, 255, 0.3);
   transform: translateY(20px);
 }
 </style>
+
+
+
 
 

@@ -1,177 +1,175 @@
 package com.kinlin.ai.service;
 
-import com.kinlin.ai.entity.Role;
-import com.kinlin.ai.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 个性化推荐服务
- * 基于用户画像推荐角色和内容
+ * 推荐服务
+ * 基于对话上下文生成推荐问题
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RecommendationService {
 
-    private final UserProfileService userProfileService;
-    private final RoleRepository roleRepository;
-
     /**
-     * 推荐角色
+     * 基于对话上下文生成推荐问题
      *
-     * @param userId 用户ID
-     * @param limit  推荐数量
-     * @return 推荐的角色列表
+     * @param conversationHistory 对话历史（最近的几条消息）
+     * @param roleName 当前角色名称（可选）
+     * @return 推荐问题列表
      */
-    public List<RoleRecommendation> recommendRoles(UUID userId, int limit) {
-        // 获取用户画像
-        UserProfileService.UserProfile profile = userProfileService.buildUserProfile(userId);
+    public List<String> generateRecommendations(List<String> conversationHistory, String roleName) {
+        List<String> recommendations = new ArrayList<>();
 
-        List<RoleRecommendation> recommendations = new ArrayList<>();
-
-        // 1. 推荐常用角色（如果用户有使用历史）
-        if (profile.getFavoriteRoleId() != null) {
-            roleRepository.findById(profile.getFavoriteRoleId()).ifPresent(role -> {
-                recommendations.add(new RoleRecommendation(
-                        role,
-                        "您经常使用的角色",
-                        1.0
-                ));
-            });
+        if (conversationHistory == null || conversationHistory.isEmpty()) {
+            // 如果没有对话历史，返回通用推荐
+            return getDefaultRecommendations(roleName);
         }
 
-        // 2. 推荐相似角色（基于角色类型）
-        if (profile.getRoleUsageCount() != null && !profile.getRoleUsageCount().isEmpty()) {
-            Set<Role.RoleType> usedRoleTypes = profile.getRoleUsageCount().keySet().stream()
-                    .map(roleIdStr -> {
-                        try {
-                            UUID roleId = UUID.fromString(roleIdStr);
-                            return roleRepository.findById(roleId)
-                                    .map(Role::getRoleType)
-                                    .orElse(null);
-                        } catch (IllegalArgumentException e) {
-                            log.warn("Invalid UUID format: {}", roleIdStr);
-                            return null;
-                        }
-                    })
-                    .filter(type -> type != null)
-                    .collect(Collectors.toSet());
+        // 分析最近的消息，提取关键词
+        String recentText = conversationHistory.stream()
+                .limit(3) // 只分析最近3条消息
+                .collect(Collectors.joining(" "));
 
-            roleRepository.findAll().stream()
-                    .filter(role -> usedRoleTypes.contains(role.getRoleType()))
-                    .filter(role -> !role.getId().equals(profile.getFavoriteRoleId()))
-                    .limit(limit - recommendations.size())
-                    .forEach(role -> {
-                        recommendations.add(new RoleRecommendation(
-                                role,
-                                "与您常用角色相似",
-                                0.8
-                        ));
-                    });
+        // 提取关键词（简单实现：提取常见问题词）
+        List<String> keywords = extractKeywords(recentText);
+
+        // 基于关键词生成推荐问题
+        recommendations.addAll(generateQuestionsByKeywords(keywords, roleName));
+
+        // 如果推荐问题不足，补充默认推荐
+        if (recommendations.size() < 3) {
+            recommendations.addAll(getDefaultRecommendations(roleName));
         }
 
-        // 3. 推荐热门角色（如果推荐不足）
-        if (recommendations.size() < limit) {
-            List<Role> popularRoles = roleRepository.findAll().stream()
-                    .filter(role -> profile.getFavoriteRoleId() == null ||
-                            !role.getId().equals(profile.getFavoriteRoleId()))
-                    .limit(limit - recommendations.size())
-                    .collect(Collectors.toList());
-
-            popularRoles.forEach(role -> {
-                recommendations.add(new RoleRecommendation(
-                        role,
-                        "热门角色",
-                        0.6
-                ));
-            });
-        }
-
-        // 按推荐分数排序
-        recommendations.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
-
-        log.info("为用户 {} 推荐了 {} 个角色", userId, recommendations.size());
-        return recommendations;
+        // 返回最多5个推荐问题
+        return recommendations.stream()
+                .distinct()
+                .limit(5)
+                .collect(Collectors.toList());
     }
 
     /**
-     * 推荐对话主题（基于用户历史）
-     *
-     * @param userId 用户ID
-     * @return 推荐的主题列表
+     * 提取关键词
      */
-    public List<String> recommendTopics(UUID userId) {
-        UserProfileService.UserProfile profile = userProfileService.buildUserProfile(userId);
+    private List<String> extractKeywords(String text) {
+        List<String> keywords = new ArrayList<>();
+        
+        // 常见问题关键词
+        String[] questionWords = {"什么", "如何", "怎么", "为什么", "哪个", "哪些", "能否", "可以", "是否"};
+        String[] topicWords = {"法律", "合同", "纠纷", "学习", "教育", "代码", "编程", "写作", "文章"};
 
-        List<String> topics = new ArrayList<>();
-
-        // 基于用户活跃度推荐
-        if ("very_active".equals(profile.getActivityLevel())) {
-            topics.add("深度技术讨论");
-            topics.add("专业咨询");
-        } else if ("active".equals(profile.getActivityLevel())) {
-            topics.add("日常交流");
-            topics.add("学习辅导");
-        } else {
-            topics.add("快速问答");
-            topics.add("简单咨询");
-        }
-
-        // 基于常用角色推荐主题
-        if (profile.getFavoriteRoleName() != null) {
-            switch (profile.getFavoriteRoleName()) {
-                case "律师":
-                    topics.add("法律咨询");
-                    topics.add("合同审查");
-                    break;
-                case "教师":
-                    topics.add("知识讲解");
-                    topics.add("学习辅导");
-                    break;
-                case "程序员":
-                    topics.add("代码问题");
-                    topics.add("技术讨论");
-                    break;
-                case "作家":
-                    topics.add("创意写作");
-                    topics.add("文章润色");
-                    break;
+        for (String word : questionWords) {
+            if (text.contains(word)) {
+                keywords.add(word);
             }
         }
 
-        return topics;
+        for (String word : topicWords) {
+            if (text.contains(word)) {
+                keywords.add(word);
+            }
+        }
+
+        return keywords;
     }
 
     /**
-     * 角色推荐数据类
+     * 基于关键词生成推荐问题
      */
-    public static class RoleRecommendation {
-        private Role role;
-        private String reason;
-        private double score;
+    private List<String> generateQuestionsByKeywords(List<String> keywords, String roleName) {
+        List<String> questions = new ArrayList<>();
 
-        public RoleRecommendation(Role role, String reason, double score) {
-            this.role = role;
-            this.reason = reason;
-            this.score = score;
+        if (keywords.isEmpty()) {
+            return questions;
         }
 
-        public Role getRole() {
-            return role;
+        // 根据角色和关键词生成问题
+        if (roleName != null) {
+            if (roleName.contains("律师") || roleName.contains("法律")) {
+                if (keywords.contains("合同")) {
+                    questions.add("合同纠纷如何处理？");
+                    questions.add("如何起草一份有效的合同？");
+                }
+                if (keywords.contains("纠纷")) {
+                    questions.add("发生纠纷时应该采取什么措施？");
+                }
+                questions.add("常见的法律问题有哪些？");
+            } else if (roleName.contains("教师") || roleName.contains("教育")) {
+                if (keywords.contains("学习")) {
+                    questions.add("如何提高学习效率？");
+                    questions.add("有什么好的学习方法推荐？");
+                }
+                questions.add("如何制定学习计划？");
+            } else if (roleName.contains("程序") || roleName.contains("代码")) {
+                if (keywords.contains("代码") || keywords.contains("编程")) {
+                    questions.add("如何优化代码性能？");
+                    questions.add("常见的编程错误有哪些？");
+                }
+                questions.add("如何调试代码？");
+            } else if (roleName.contains("作家") || roleName.contains("写作")) {
+                if (keywords.contains("写作") || keywords.contains("文章")) {
+                    questions.add("如何提高写作水平？");
+                    questions.add("文章结构应该如何安排？");
+                }
+                questions.add("如何写出吸引人的开头？");
+            }
         }
 
-        public String getReason() {
-            return reason;
+        // 通用问题
+        if (keywords.contains("什么")) {
+            questions.add("能详细解释一下吗？");
+        }
+        if (keywords.contains("如何") || keywords.contains("怎么")) {
+            questions.add("具体步骤是什么？");
+        }
+        if (keywords.contains("为什么")) {
+            questions.add("有什么原因吗？");
         }
 
-        public double getScore() {
-            return score;
+        return questions;
+    }
+
+    /**
+     * 获取默认推荐问题
+     */
+    private List<String> getDefaultRecommendations(String roleName) {
+        List<String> recommendations = new ArrayList<>();
+
+        if (roleName != null) {
+            if (roleName.contains("律师") || roleName.contains("法律")) {
+                recommendations.add("合同纠纷如何处理？");
+                recommendations.add("如何保护自己的合法权益？");
+                recommendations.add("常见的法律风险有哪些？");
+            } else if (roleName.contains("教师") || roleName.contains("教育")) {
+                recommendations.add("如何提高学习效率？");
+                recommendations.add("有什么好的学习方法？");
+                recommendations.add("如何制定学习计划？");
+            } else if (roleName.contains("程序") || roleName.contains("代码")) {
+                recommendations.add("如何优化代码性能？");
+                recommendations.add("常见的编程错误有哪些？");
+                recommendations.add("如何调试代码？");
+            } else if (roleName.contains("作家") || roleName.contains("写作")) {
+                recommendations.add("如何提高写作水平？");
+                recommendations.add("文章结构应该如何安排？");
+                recommendations.add("如何写出吸引人的开头？");
+            } else {
+                recommendations.add("能详细解释一下吗？");
+                recommendations.add("有什么建议吗？");
+                recommendations.add("还有其他相关问题吗？");
+            }
+        } else {
+            recommendations.add("能详细解释一下吗？");
+            recommendations.add("有什么建议吗？");
+            recommendations.add("还有其他相关问题吗？");
         }
+
+        return recommendations;
     }
 }
-

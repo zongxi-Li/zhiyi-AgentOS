@@ -2,11 +2,14 @@ package com.kinlin.ai.controller;
 
 import com.kinlin.ai.entity.Conversation;
 import com.kinlin.ai.service.ConversationService;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -50,6 +53,55 @@ public class ConversationController {
     public ResponseEntity<Void> deleteConversation(@PathVariable UUID conversationId) {
         conversationService.deleteConversation(conversationId);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 更新对话标题
+     */
+    @PutMapping("/{conversationId}/title")
+    public ResponseEntity<Conversation> updateTitle(
+            @PathVariable UUID conversationId,
+            @RequestBody UpdateTitleRequest request
+    ) {
+        Conversation conversation = conversationService.updateTitle(conversationId, request.getTitle());
+        return ResponseEntity.ok(conversation);
+    }
+
+    /**
+     * 获取对话详情（包含预览内容）
+     */
+    @GetMapping("/{conversationId}/detail")
+    public ResponseEntity<Map<String, Object>> getConversationDetail(@PathVariable UUID conversationId) {
+        Conversation conversation = conversationService.getConversationByContextId("")
+                .orElse(null);
+        
+        // 如果通过contextId找不到，尝试通过ID查找
+        if (conversation == null) {
+            conversation = conversationService.getConversationById(conversationId)
+                    .orElse(null);
+        }
+        
+        if (conversation == null) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        // 自动生成标题（如果还没有）
+        if (conversation.getTitle() == null || conversation.getTitle().isEmpty()) {
+            conversation = conversationService.autoGenerateTitle(conversationId);
+        }
+        
+        String preview = conversationService.getPreviewContent(conversationId);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("conversation", conversation);
+        result.put("preview", preview);
+        
+        return ResponseEntity.ok(result);
+    }
+
+    @Data
+    static class UpdateTitleRequest {
+        private String title;
     }
 }
 

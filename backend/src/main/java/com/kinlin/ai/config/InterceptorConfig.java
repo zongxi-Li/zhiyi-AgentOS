@@ -22,12 +22,12 @@ public class InterceptorConfig implements WebMvcConfigurer {
         // 限流拦截器（最先执行）
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/health", "/swagger-ui/**", "/v3/api-docs/**", "/ws/**", "/auth/**");
+                .excludePathPatterns("/health", "/swagger-ui/**", "/v3/api-docs/**", "/ws/**", "/auth/**", "/ai/**");
         
         // 用户上下文拦截器
         registry.addInterceptor(userContextInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/health", "/swagger-ui/**", "/v3/api-docs/**", "/auth/**");
+                .excludePathPatterns("/health", "/swagger-ui/**", "/v3/api-docs/**", "/auth/**", "/ai/**");
     }
 }
 

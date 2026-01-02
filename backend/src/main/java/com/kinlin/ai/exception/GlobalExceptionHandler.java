@@ -4,9 +4,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,6 +58,40 @@ public class GlobalExceptionHandler {
         response.put("message", ex.getMessage());
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFoundException(NoResourceFoundException ex) {
+        log.warn("资源未找到: {}", ex.getResourcePath());
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "请求的接口不存在: " + ex.getResourcePath());
+        response.put("error", "请检查请求路径是否正确");
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException ex) {
+        log.warn("JSON解析错误: {}", ex.getMessage());
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "请求参数格式错误");
+        
+        // 提取更友好的错误信息
+        String errorMessage = ex.getMessage();
+        if (errorMessage != null && errorMessage.contains("Unrecognized field")) {
+            response.put("error", "请求中包含未知字段，请检查请求参数");
+        } else if (errorMessage != null && errorMessage.contains("JSON parse error")) {
+            response.put("error", "JSON格式错误，请检查请求体格式");
+        } else {
+            response.put("error", errorMessage);
+        }
+        
+        return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(Exception.class)

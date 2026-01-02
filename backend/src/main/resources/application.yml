@@ -1,20 +1,19 @@
-# 服务器配置
+# 服务器配置（支持环境变量）
 server:
-  port: 8090
+  port: ${SERVER_PORT:8090}
 
 spring:
   application:
     name: kinlin-ai-backend
-  
-  # Profile配置 - 默认使用dev profile（不使用h2）
+
   profiles:
     active: dev
 
-  # 数据库配置
+  # 数据库配置（支持环境变量）
   datasource:
-    url: jdbc:postgresql://localhost:5432/kinlin_ai
-    username: postgres
-    password: ROOT
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/kinlin_ai}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:ROOT}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -34,11 +33,13 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  # Redis配置
+  # Redis配置（支持环境变量）
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:}
+      database: ${SPRING_REDIS_DATABASE:0}
       timeout: 2000ms
       lettuce:
         pool:
@@ -46,11 +47,11 @@ spring:
           max-idle: 8
           min-idle: 0
 
-# AI服务配置
+# AI服务配置（支持环境变量）
 ai:
   service:
-    url: http://localhost:8000
-    timeout: 30000
+    url: ${AI_SERVICE_URL:http://localhost:8000}
+    timeout: ${AI_SERVICE_TIMEOUT:30000}
 
 # 应用配置
 app:
@@ -58,8 +59,10 @@ app:
     dir: uploads
     max-size: 10485760  # 10MB
   jwt:
-    secret: kinlin-ai-secret-key-change-in-production
-    expiration: 86400000  # 24小时（毫秒）
+    # JWT密钥 - 至少64字符（512位）用于HS512算法
+    # 支持环境变量: APP_JWT_SECRET
+    secret: ${APP_JWT_SECRET:kinlin-ai-secret-key-change-in-production-this-is-a-very-long-secret-key-for-hs512-algorithm-must-be-at-least-64-characters-long}
+    expiration: ${APP_JWT_EXPIRATION:86400000}  # 24小时（毫秒）
 
 # CORS跨域配置
 cors:

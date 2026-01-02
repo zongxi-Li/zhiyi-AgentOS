@@ -80,5 +80,30 @@ public class DigitalHumanController {
         DigitalHumanResponse response = digitalHumanService.switchStyle(roleId, newStyle);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 获取数字人信息（用于加载已创建的数字人）
+     */
+    @GetMapping("/{roleId}")
+    public ResponseEntity<DigitalHumanResponse> getDigitalHuman(
+            @PathVariable("roleId") String roleId
+    ) {
+        try {
+            log.info("收到获取数字人请求: roleId={}", roleId);
+            DigitalHumanResponse response = digitalHumanService.getDigitalHuman(roleId);
+            
+            if (response.getSuccess() != null && !response.getSuccess()) {
+                // 如果数字人不存在，返回404
+                return ResponseEntity.status(404).body(response);
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("获取数字人失败", e);
+            DigitalHumanResponse errorResponse = new DigitalHumanResponse();
+            errorResponse.setSuccess(false);
+            errorResponse.setMessage("获取数字人失败: " + e.getMessage());
+            return ResponseEntity.status(404).body(errorResponse);
+        }
+    }
 }
 

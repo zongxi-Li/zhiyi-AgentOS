@@ -5,6 +5,7 @@
       :icon="Microphone"
       circle
       size="large"
+      class="voice-recorder-btn"
       @mousedown="startRecording"
       @mouseup="stopRecording"
       @mouseleave="stopRecording"
@@ -15,48 +16,117 @@
       <span class="pulse"></span>
       <span>正在录音...</span>
     </div>
+    <div v-if="realtimeText" class="realtime-text">
+      {{ realtimeText }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { Microphone } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { RealtimeASRService } from '@/services/api/realtimeAsr'
+
+interface Props {
+  disabled?: boolean
+  enableRealtime?: boolean  // 是否启用实时识别
+}
 
 interface Emits {
   (e: 'recorded', audioBlob: Blob): void
+  (e: 'recording-start'): void
+  (e: 'recording-end'): void
+  (e: 'realtime-text', text: string): void  // 实时识别文本
 }
+
+const props = withDefaults(defineProps<Props>(), {
+  disabled: false,
+  enableRealtime: false
+})
 
 const emit = defineEmits<Emits>()
 
 const isRecording = ref(false)
 const processing = ref(false)
+const realtimeText = ref('')
 let mediaRecorder: MediaRecorder | null = null
 let audioChunks: Blob[] = []
+let audioStream: MediaStream | null = null
+let realtimeASR: RealtimeASRService | null = null
+let audioContext: AudioContext | null = null
+let audioWorkletNode: AudioWorkletNode | null = null
+
+// 清理资源
+onUnmounted(() => {
+  stopRecording()
+  if (realtimeASR) {
+    realtimeASR.close()
+  }
+  if (audioStream) {
+    audioStream.getTracks().forEach(track => track.stop())
+  }
+  if (audioContext) {
+    audioContext.close()
+  }
+})
 
 const startRecording = async () => {
+  if (props.disabled || isRecording.value) return
+  
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(stream)
+    audioStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        sampleRate: 16000,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true
+      }
+    })
+    
+    // 如果启用实时识别，启动WebSocket连接
+    if (props.enableRealtime) {
+      await startRealtimeASR()
+    }
+    
+    mediaRecorder = new MediaRecorder(audioStream, {
+      mimeType: 'audio/webm;codecs=opus'
+    })
     audioChunks = []
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         audioChunks.push(event.data)
+        // 如果启用实时识别，发送音频数据
+        if (props.enableRealtime && realtimeASR) {
+          realtimeASR.sendAudio(event.data)
+        }
       }
     }
 
     mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' })
-      emit('recorded', audioBlob)
-      stream.getTracks().forEach(track => track.stop())
+      if (audioChunks.length > 0) {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+        emit('recorded', audioBlob)
+      }
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop())
+        audioStream = null
+      }
+      // 结束实时识别
+      if (props.enableRealtime && realtimeASR) {
+        realtimeASR.endSession()
+      }
     }
 
-    mediaRecorder.start()
+    // 设置时间片，每100ms发送一次数据（用于实时识别）
+    mediaRecorder.start(props.enableRealtime ? 100 : undefined)
     isRecording.value = true
-  } catch (error) {
-    ElMessage.error('无法访问麦克风')
+    emit('recording-start')
+  } catch (error: any) {
+    ElMessage.error('无法访问麦克风: ' + (error.message || '未知错误'))
     console.error('录音失败:', error)
+    emit('recording-end')
   }
 }
 
@@ -64,6 +134,36 @@ const stopRecording = () => {
   if (mediaRecorder && isRecording.value) {
     mediaRecorder.stop()
     isRecording.value = false
+    emit('recording-end')
+    realtimeText.value = ''
+  }
+}
+
+/**
+ * 启动实时ASR
+ */
+const startRealtimeASR = async () => {
+  try {
+    realtimeASR = new RealtimeASRService()
+    await realtimeASR.startSession({
+      language: 'zh-CN',
+      sampleRate: 16000,
+      onPartialResult: (text, confidence) => {
+        realtimeText.value = text
+        emit('realtime-text', text)
+      },
+      onFinalResult: (text, confidence) => {
+        realtimeText.value = text
+        emit('realtime-text', text)
+      },
+      onError: (error) => {
+        console.error('实时识别错误:', error)
+        ElMessage.warning('实时识别错误: ' + error)
+      }
+    })
+  } catch (error: any) {
+    console.error('启动实时识别失败:', error)
+    ElMessage.warning('实时识别功能不可用，将使用普通录音模式')
   }
 }
 </script>

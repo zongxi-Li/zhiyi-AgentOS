@@ -17,40 +17,53 @@
               router
               class="sidebar-menu"
             >
-              <div class="menu-group-title">MAIN</div>
+              <div class="menu-group-title">{{ $t('nav.main') }}</div>
               <el-menu-item index="/chat">
                 <el-icon><ChatDotRound /></el-icon>
-                <span>对话</span>
+                <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
               <el-menu-item index="/digital-human">
                 <el-icon><UserFilled /></el-icon>
-                <span>数字人</span>
+                <span>{{ $t('nav.digitalHuman') }}</span>
               </el-menu-item>
               <el-menu-item index="/voice">
                 <el-icon><Microphone /></el-icon>
-                <span>语音交互</span>
+                <span>{{ $t('nav.voice') }}</span>
               </el-menu-item>
 
-              <div class="menu-group-title">KNOWLEDGE</div>
+              <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
               <el-menu-item index="/rag">
                 <el-icon><Search /></el-icon>
-                <span>知识库</span>
+                <span>{{ $t('nav.rag') }}</span>
               </el-menu-item>
               <el-menu-item index="/history">
                 <el-icon><Clock /></el-icon>
-                <span>历史记录</span>
+                <span>{{ $t('nav.history') }}</span>
               </el-menu-item>
 
-              <div class="menu-group-title">SYSTEM</div>
+              <div class="menu-group-title">{{ $t('nav.system') }}</div>
               <el-menu-item index="/roles">
                 <el-icon><User /></el-icon>
-                <span>角色管理</span>
+                <span>{{ $t('nav.roles') }}</span>
               </el-menu-item>
+              <!-- <el-menu-item index="/federated-models">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>模型管理</span>
+              </el-menu-item> -->
               <el-menu-item index="/settings">
                 <el-icon><Setting /></el-icon>
-                <span>设置</span>
+                <span>{{ $t('nav.settings') }}</span>
               </el-menu-item>
             </el-menu>
+          </div>
+
+          <!-- Digital Human Widget -->
+          <div class="sidebar-digital-human">
+            <DigitalHuman
+              :role-id="currentRoleId"
+              :is-speaking="isSpeaking"
+              :audio-url="currentAudioUrl"
+            />
           </div>
 
           <!-- User Profile / Bottom Section -->
@@ -97,17 +110,32 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   ChatDotRound, User, UserFilled, Microphone, Search, 
-  Clock, Setting
+  Clock, Setting, DataAnalysis
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
+import DigitalHuman from '@/components/DigitalHuman.vue'
+import { useRoleStore } from '@/stores/role'
+import { useChatStore } from '@/stores/chat'
 
 const route = useRoute()
 const router = useRouter()
 const globalError = ref('')
 
-// 判断是否为沉浸式模式（如语音交互界面）
+// 获取角色和聊天状态
+const roleStore = useRoleStore()
+const chatStore = useChatStore()
+
+// 计算当前角色ID和状态
+const currentRoleId = computed(() => roleStore.currentRole?.id || null)
+const isSpeaking = computed(() => false) // 可以从chatStore获取
+const currentAudioUrl = computed(() => '') // 可以从chatStore获取
+
+// 判断是否为沉浸式模式（如语音交互界面、登录页面、联邦学习管理中心等）
 const isImmersive = computed(() => {
-  return route.path.startsWith('/voice')
+  const path = route.path
+  return path.startsWith('/voice') || 
+         path.startsWith('/login') || 
+         path.startsWith('/federated-models')
 })
 
 const activeMenu = computed(() => {
@@ -119,6 +147,7 @@ const activeMenu = computed(() => {
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
   if (path === '/settings' || path.startsWith('/settings')) return '/settings'
   if (path.startsWith('/history')) return '/history'
+  if (path.startsWith('/federated-models')) return '/federated-models'
   if (path.startsWith('/user')) return '/settings' // User goes to settings
   return path
 })
@@ -154,9 +183,11 @@ onUnmounted(() => {
 
 <style scoped>
 .app-layout {
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   background-color: var(--bg-app);
+  overflow: hidden;
+  display: flex;
 }
 
 /* Sidebar Styles */
@@ -220,9 +251,38 @@ onUnmounted(() => {
   background: transparent;
 }
 
-.sidebar-footer {
+.sidebar-digital-human {
   padding: 16px;
   border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  height: 320px; /* 增加高度以更好地显示数字人 */
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden; /* 确保内容不溢出 */
+}
+
+.sidebar-digital-human :deep(.digital-human-container) {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-digital-human :deep(.digital-human-canvas) {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.sidebar-footer {
+  padding: 16px;
 }
 
 .user-profile {
@@ -273,6 +333,8 @@ onUnmounted(() => {
   padding: 0;
   overflow: hidden;
   height: 100%;
+  width: 100%;
+  position: relative;
 }
 
 .global-error-banner {
@@ -298,5 +360,27 @@ onUnmounted(() => {
 /* Immersive Mode Overrides */
 .immersive-mode .main-container {
   background-color: #0f1115; /* Match VoiceChatView background */
+}
+
+.immersive-mode .app-main {
+  overflow-y: auto;
+}
+
+/* 艺术感自定义滚动条 */
+.app-main::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-main::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 10px;
+}
+
+.app-main::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.2);
 }
 </style>

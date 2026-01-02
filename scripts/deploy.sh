@@ -64,3 +64,6 @@ echo "显示服务日志（按Ctrl+C退出）..."
 docker-compose -f "$COMPOSE_FILE" logs -f
 
 
+
+
+

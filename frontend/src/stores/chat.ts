@@ -118,7 +118,16 @@ export const useChatStore = defineStore('chat', () => {
 
   // 添加消息（用于直接添加消息到列表）
   const addMessage = (message: Message) => {
-    messages.value.push(message)
+    // 确保消息数据完整
+    const completeMessage: Message = {
+      ...message,
+      id: message.id || Date.now().toString(),
+      role: message.role || 'user',
+      content: message.content || '',
+      createdAt: message.createdAt || (message.timestamp ? new Date(message.timestamp) : new Date()),
+      timestamp: message.timestamp || (message.createdAt ? message.createdAt.getTime() : Date.now())
+    }
+    messages.value.push(completeMessage)
   }
 
   // 设置消息列表（用于批量设置消息）

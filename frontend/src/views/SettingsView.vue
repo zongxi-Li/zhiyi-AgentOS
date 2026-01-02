@@ -2,57 +2,102 @@
   <div class="settings-view">
     <el-container>
       <el-header>
-        <h2>系统设置</h2>
+        <h2>{{ $t('settings.title') }}</h2>
       </el-header>
       <el-main>
         <el-card>
           <template #header>
-            <span>通用设置</span>
+            <span>{{ $t('settings.general') }}</span>
           </template>
           
           <el-form label-width="150px">
-            <el-form-item label="主题">
+            <el-form-item :label="$t('settings.theme')">
               <el-radio-group v-model="settings.theme">
-                <el-radio label="light">浅色</el-radio>
-                <el-radio label="dark">深色</el-radio>
-                <el-radio label="auto">跟随系统</el-radio>
+                <el-radio label="light">{{ $t('settings.themeLight') }}</el-radio>
+                <el-radio label="dark">{{ $t('settings.themeDark') }}</el-radio>
+                <el-radio label="auto">{{ $t('settings.themeAuto') }}</el-radio>
               </el-radio-group>
             </el-form-item>
 
-            <el-form-item label="语言">
-              <el-select v-model="settings.language">
-                <el-option label="简体中文" value="zh-CN" />
-                <el-option label="English" value="en" />
+            <el-form-item :label="$t('settings.language')">
+              <el-select v-model="settings.language" @change="handleLanguageChange">
+                <el-option :label="$t('settings.languageZhCN')" value="zh-CN" />
+                <el-option :label="$t('settings.languageEn')" value="en" />
               </el-select>
             </el-form-item>
 
-            <el-form-item label="字体大小">
+            <el-form-item :label="$t('settings.fontSize')">
               <el-slider v-model="settings.fontSize" :min="12" :max="20" />
+            </el-form-item>
+
+            <el-form-item :label="$t('settings.primaryColor')">
+              <el-color-picker v-model="settings.primaryColor" @change="applyTheme" />
+            </el-form-item>
+
+            <el-form-item :label="$t('settings.backgroundStyle')">
+              <el-radio-group v-model="settings.backgroundStyle" @change="applyTheme">
+                <el-radio label="default">{{ $t('settings.backgroundDefault') }}</el-radio>
+                <el-radio label="mesh">{{ $t('settings.backgroundMesh') }}</el-radio>
+                <el-radio label="image">{{ $t('settings.backgroundImage') }}</el-radio>
+              </el-radio-group>
             </el-form-item>
           </el-form>
         </el-card>
 
         <el-card style="margin-top: 20px">
           <template #header>
-            <span>对话设置</span>
+            <span>{{ $t('settings.privacy') }}</span>
           </template>
           
           <el-form label-width="150px">
-            <el-form-item label="自动发送">
-              <el-switch v-model="settings.autoSend" />
-              <span class="form-tip">语音识别后自动发送</span>
+            <el-form-item :label="$t('settings.storageLocation')">
+              <el-radio-group v-model="settings.storageLocation">
+                <el-radio label="local">{{ $t('settings.storageLocal') }}</el-radio>
+                <el-radio label="cloud">{{ $t('settings.storageCloud') }}</el-radio>
+              </el-radio-group>
+              <div class="form-tip">{{ $t('settings.storageTip') }}</div>
             </el-form-item>
 
-            <el-form-item label="消息提示音">
+            <el-form-item :label="$t('settings.autoDelete')">
+              <el-select v-model="settings.autoDelete">
+                <el-option :label="$t('settings.autoDeleteNever')" value="never" />
+                <el-option :label="$t('settings.autoDelete7')" value="7" />
+                <el-option :label="$t('settings.autoDelete30')" value="30" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item :label="$t('settings.privacyPassword')">
+              <el-input 
+                v-model="settings.privacyPassword" 
+                type="password" 
+                show-password 
+                :placeholder="$t('settings.privacyPasswordPlaceholder')"
+              />
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <el-card style="margin-top: 20px">
+          <template #header>
+            <span>{{ $t('settings.chat') }}</span>
+          </template>
+          
+          <el-form label-width="150px">
+            <el-form-item :label="$t('settings.autoSend')">
+              <el-switch v-model="settings.autoSend" />
+              <span class="form-tip">{{ $t('settings.autoSendTip') }}</span>
+            </el-form-item>
+
+            <el-form-item :label="$t('settings.messageSound')">
               <el-switch v-model="settings.messageSound" />
             </el-form-item>
 
-            <el-form-item label="历史记录保留">
+            <el-form-item :label="$t('settings.historyRetention')">
               <el-select v-model="settings.historyRetention">
-                <el-option label="1天" value="1" />
-                <el-option label="7天" value="7" />
-                <el-option label="30天" value="30" />
-                <el-option label="永久" value="forever" />
+                <el-option :label="$t('settings.historyRetention1')" value="1" />
+                <el-option :label="$t('settings.historyRetention7')" value="7" />
+                <el-option :label="$t('settings.historyRetention30')" value="30" />
+                <el-option :label="$t('settings.historyRetentionForever')" value="forever" />
               </el-select>
             </el-form-item>
           </el-form>
@@ -60,19 +105,19 @@
 
         <el-card style="margin-top: 20px">
           <template #header>
-            <span>数字人设置</span>
+            <span>{{ $t('settings.digitalHuman') }}</span>
           </template>
           
           <el-form label-width="150px">
-            <el-form-item label="渲染质量">
+            <el-form-item :label="$t('settings.renderQuality')">
               <el-select v-model="settings.renderQuality">
-                <el-option label="高" value="high" />
-                <el-option label="中" value="medium" />
-                <el-option label="低" value="low" />
+                <el-option :label="$t('settings.renderQualityHigh')" value="high" />
+                <el-option :label="$t('settings.renderQualityMedium')" value="medium" />
+                <el-option :label="$t('settings.renderQualityLow')" value="low" />
               </el-select>
             </el-form-item>
 
-            <el-form-item label="动画流畅度">
+            <el-form-item :label="$t('settings.animationSmoothness')">
               <el-slider v-model="settings.animationSmoothness" :min="30" :max="60" />
             </el-form-item>
           </el-form>
@@ -80,15 +125,15 @@
 
         <el-card style="margin-top: 20px">
           <template #header>
-            <span>语音设置</span>
+            <span>{{ $t('settings.voice') }}</span>
           </template>
           
           <VoiceSettings @change="handleVoiceSettingsChange" />
         </el-card>
 
         <div class="settings-actions">
-          <el-button type="primary" @click="saveSettings">保存设置</el-button>
-          <el-button @click="resetSettings">重置</el-button>
+          <el-button type="primary" @click="saveSettings">{{ $t('settings.saveButton') }}</el-button>
+          <el-button @click="resetSettings">{{ $t('common.reset') }}</el-button>
         </div>
       </el-main>
     </el-container>
@@ -96,14 +141,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
+import ElementPlus from 'element-plus'
+import zhCN from 'element-plus/dist/locale/zh-cn.mjs'
+import en from 'element-plus/dist/locale/en.mjs'
 import VoiceSettings from '@/components/VoiceSettings.vue'
+
+const { t, locale } = useI18n()
 
 const settings = ref({
   theme: 'light',
   language: 'zh-CN',
   fontSize: 14,
+  primaryColor: '#4f46e5',
+  backgroundStyle: 'default',
+  storageLocation: 'local',
+  autoDelete: 'never',
+  privacyPassword: '',
   autoSend: false,
   messageSound: true,
   historyRetention: '7',
@@ -114,11 +170,49 @@ const settings = ref({
   pitch: 1.0
 })
 
+// 更新 Element Plus 语言
+const updateElementPlusLocale = (lang: string) => {
+  const elementLocale = lang === 'en' ? en : zhCN
+  ElementPlus.locale(elementLocale)
+}
+
+// 处理语言切换
+const handleLanguageChange = (newLang: string) => {
+  locale.value = newLang
+  updateElementPlusLocale(newLang)
+  // 立即保存语言设置
+  const currentSettings = { ...settings.value, language: newLang }
+  localStorage.setItem('appSettings', JSON.stringify(currentSettings))
+  ElMessage.success(t('settings.saveSuccess'))
+}
+
+const applyTheme = () => {
+  const root = document.documentElement
+  if (settings.value.primaryColor) {
+    root.style.setProperty('--primary-color', settings.value.primaryColor)
+  }
+  
+  if (settings.value.backgroundStyle === 'mesh') {
+    document.body.style.backgroundImage = 'radial-gradient(at 0% 0%, var(--primary-fade) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%)'
+  } else if (settings.value.backgroundStyle === 'default') {
+    document.body.style.backgroundImage = ''
+  }
+}
+
 const loadSettings = () => {
   const saved = localStorage.getItem('appSettings')
   if (saved) {
     try {
-      settings.value = { ...settings.value, ...JSON.parse(saved) }
+      const savedSettings = JSON.parse(saved)
+      settings.value = { ...settings.value, ...savedSettings }
+      
+      // 恢复语言设置
+      if (savedSettings.language) {
+        locale.value = savedSettings.language
+        updateElementPlusLocale(savedSettings.language)
+      }
+      
+      applyTheme()
     } catch (e) {
       console.error('加载设置失败', e)
     }
@@ -127,7 +221,8 @@ const loadSettings = () => {
 
 const saveSettings = () => {
   localStorage.setItem('appSettings', JSON.stringify(settings.value))
-  ElMessage.success('设置已保存')
+  applyTheme()
+  ElMessage.success(t('settings.saveSuccess'))
 }
 
 const resetSettings = () => {
@@ -144,8 +239,10 @@ const resetSettings = () => {
     speed: 1.0,
     pitch: 1.0
   }
+  locale.value = 'zh-CN'
+  updateElementPlusLocale('zh-CN')
   localStorage.removeItem('appSettings')
-  ElMessage.success('设置已重置')
+  ElMessage.success(t('settings.resetSuccess'))
 }
 
 const handleVoiceSettingsChange = (voiceSettings: { voice: string; speed: number; pitch: number }) => {
@@ -162,16 +259,22 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .settings-view {
-  padding: var(--spacing-xl);
-  max-width: 1200px;
-  margin: 0 auto;
-  background: var(--bg-color-page);
-  min-height: calc(100vh - 64px);
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  .el-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
   
   .el-header {
-    padding: var(--spacing-lg) 0;
+    flex-shrink: 0;
+    padding: var(--spacing-lg) var(--spacing-xl);
     border-bottom: 1px solid var(--border-color-base);
-    margin-bottom: var(--spacing-xl);
     
     h2 {
       margin: 0;
@@ -183,7 +286,13 @@ onMounted(() => {
   }
   
   .el-main {
-    padding: 0;
+    flex: 1;
+    padding: var(--spacing-xl);
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
   }
 }
 

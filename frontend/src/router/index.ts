@@ -110,6 +110,24 @@ const routes = [
       title: '知识库查询',
       requiresAuth: true
     }
+  },
+  {
+    path: '/federated-models',
+    name: 'FederatedModelManagement',
+    component: () => import('@/views/FederatedModelManagementView.vue'),
+    meta: {
+      title: '联邦学习模型管理',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/federated-learning',
+    name: 'FederatedLearning',
+    component: () => import('@/views/FederatedLearningView.vue'),
+    meta: {
+      title: '联邦学习全局模型',
+      requiresAuth: true
+    }
   }
 ]
 

@@ -2,6 +2,7 @@ package com.kinlin.ai.service;
 
 import com.kinlin.ai.dto.ChatResponse;
 import com.kinlin.ai.dto.VoiceRecognitionResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -19,6 +20,7 @@ import java.util.Map;
  * AI服务调用类
  * 负责与Python AI服务通信
  */
+@Slf4j
 @Service
 public class AiService {
 
@@ -61,13 +63,34 @@ public class AiService {
             requestBody.put("context_id", contextId);
         }
 
-        return webClient.post()
-                .uri("/ai/chat/text")
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(ChatResponse.class)
-                .timeout(Duration.ofMillis(timeout))
-                .block();
+        try {
+            return webClient.post()
+                    .uri("/ai/chat/text")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(ChatResponse.class)
+                    .timeout(Duration.ofMillis(timeout))
+                    .onErrorResume(e -> {
+                        // 如果Python服务不可用，返回默认响应
+                        log.error("调用Python AI服务失败", e);
+                        ChatResponse fallbackResponse = new ChatResponse();
+                        fallbackResponse.setText("抱歉，AI服务当前不可用。请确保Python AI服务已启动（端口8000）。");
+                        fallbackResponse.setConfidence(0.0);
+                        return Mono.just(fallbackResponse);
+                    })
+                    .block();
+        } catch (Exception e) {
+            // 如果调用失败，返回默认响应
+            log.error("调用Python AI服务失败", e);
+            ChatResponse fallbackResponse = new ChatResponse();
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "请确保Python AI服务已启动（端口8000）";
+            }
+            fallbackResponse.setText("抱歉，AI服务当前不可用: " + errorMessage);
+            fallbackResponse.setConfidence(0.0);
+            return fallbackResponse;
+        }
     }
 
     /**

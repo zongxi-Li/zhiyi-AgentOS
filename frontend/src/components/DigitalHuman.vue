@@ -44,19 +44,22 @@
         <p class="empty-message">选择一个角色以加载数字人</p>
       </div>
     </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { Loading, WarningFilled, UserFilled } from '@element-plus/icons-vue'
 import * as THREE from 'three'
 import { digitalHumanApi } from '@/services/api/digitalHuman'
 import { ElMessage } from 'element-plus'
 import { kylinOSRenderer } from '@/utils/kylinOSRenderer'
+import { useRoleStore } from '@/stores/role'
 
 interface Props {
   roleId?: string
+  avatarId?: string  // 形象ID（可选，不提供则使用角色的第一个形象）
   isSpeaking?: boolean
   audioUrl?: string
   style?: string
@@ -68,6 +71,8 @@ const props = withDefaults(defineProps<Props>(), {
   style: 'realistic',
   transparent: false
 })
+
+const emit = defineEmits(['update:style'])
 
 const containerRef = ref<HTMLElement>()
 const canvasRef = ref<HTMLCanvasElement>()
@@ -103,21 +108,46 @@ watch(() => props.isSpeaking, (speaking) => {
   }
 })
 
-watch(() => props.roleId, async (newRoleId) => {
-  if (newRoleId) {
-    await createDigitalHuman()
+watch(() => props.roleId, async (newRoleId, oldRoleId) => {
+  if (newRoleId && newRoleId !== oldRoleId) {
+    // 清除旧模型
+    if (digitalHumanModel && scene) {
+      scene.remove(digitalHumanModel)
+      digitalHumanModel = null
+    }
+    await loadDigitalHuman()
   }
 })
 
-watch(() => props.style, async (newStyle) => {
-  if (props.roleId && newStyle) {
+watch(() => props.style, async (newStyle, oldStyle) => {
+  if (props.roleId && newStyle && newStyle !== oldStyle) {
     try {
+      loading.value = true
       const response = await digitalHumanApi.switchStyle(props.roleId, newStyle)
-      if (response.success) {
+      if (response.success && response.data) {
+        // 重新加载数字人模型或图像
+        const modelData = response.data
+        // 优先使用2D图像（如果存在）
+        const imageUrl = modelData.avatar || modelData.local_image_url || modelData.image_url
+        if (imageUrl) {
+          await load2DImage(imageUrl)
+        } else if (modelData.modelUrl) {
+          await load3DModel(modelData.modelUrl)
+        } else if (modelData.modelPath) {
+          await load3DModel(modelData.modelPath)
+        } else {
+          createPlaceholderModel()
+        }
         ElMessage.success('风格切换成功')
+      } else {
+        ElMessage.warning('风格切换失败，已显示占位符')
+        createPlaceholderModel()
       }
     } catch (e: any) {
-      ElMessage.error('风格切换失败: ' + e.message)
+      ElMessage.warning('风格切换失败: ' + (e.message || '未知错误') + '，已显示占位符')
+      createPlaceholderModel()
+    } finally {
+      loading.value = false
     }
   }
 })
@@ -146,29 +176,16 @@ const initThreeJS = async () => {
     const settings = kylinOSRenderer.getRecommendedSettings()
     renderer.setPixelRatio(settings.pixelRatio)
 
-    // 添加光源
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7)
+    // 添加光源（使用柔和的白色光源）
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8)
     scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6)
     directionalLight.position.set(5, 5, 5)
     scene.add(directionalLight)
 
-    // 添加点光源增强效果
-    const pointLight = new THREE.PointLight(0x409eff, 0.5, 10)
-    pointLight.position.set(0, 2, 3)
-    scene.add(pointLight)
-
-    // 创建简单的几何体作为占位符（实际应该加载3D模型）
-    const geometry = new THREE.BoxGeometry(1, 2, 0.5)
-    const material = new THREE.MeshStandardMaterial({ 
-      color: 0x409eff,
-      metalness: 0.3,
-      roughness: 0.4
-    })
-    const cube = new THREE.Mesh(geometry, material)
-    cube.rotation.y = Math.PI / 4
-    scene.add(cube)
+    // 不创建任何占位符，场景保持空白，等待加载实际数字人图像
+    // 这样避免显示蓝色方块或其他占位符
 
     // 开始渲染循环
     animate()
@@ -183,7 +200,10 @@ const initThreeJS = async () => {
 /**
  * 创建数字人
  */
-const createDigitalHuman = async () => {
+/**
+ * 加载数字人（自动检测是否已存在，如果不存在则创建）
+ */
+const loadDigitalHuman = async () => {
   if (!props.roleId) {
     error.value = '角色ID不能为空'
     return
@@ -193,36 +213,117 @@ const createDigitalHuman = async () => {
     loading.value = true
     error.value = ''
     
-    const response = await digitalHumanApi.createDigitalHuman({
-      roleId: props.roleId,
-      style: props.style
-    })
-
-    if (response && response.success) {
-      // 使用返回的数据加载3D模型
-      const modelData = response.data
-      if (modelData?.modelUrl) {
+    // 确保Three.js已初始化
+    if (!scene || !camera || !renderer) {
+      await initThreeJS()
+    }
+    
+    // 先尝试获取已存在的数字人
+    let modelData = null
+    try {
+      const getResponse = await digitalHumanApi.getDigitalHuman(props.roleId, props.avatarId)
+      // 检查响应是否成功
+      if (getResponse && getResponse.success && getResponse.data) {
+        modelData = getResponse.data
+        console.log('加载已存在的数字人:', modelData)
+      } else if (getResponse && !getResponse.success) {
+        // 如果返回了响应但 success 为 false（比如 404），尝试创建新的
+        console.log('数字人不存在，创建新的数字人')
+        const createResponse = await digitalHumanApi.createDigitalHuman({
+          roleId: props.roleId,
+          style: props.style || 'realistic'
+        })
+        if (createResponse && createResponse.success) {
+          modelData = createResponse.data
+          console.log('✅ 数字人创建成功:', modelData)
+          console.log('📦 数据字段:', Object.keys(modelData))
+        }
+      }
+    } catch (e: any) {
+      // 如果数字人不存在（404），则创建新的
+      // 检查多种可能的错误格式
+      const is404 = e.response?.status === 404 || 
+                    e.status === 404 || 
+                    (e.response?.data && e.response.data.success === false && e.response.data.message?.includes('不存在'))
+      
+      if (is404) {
+        console.log('数字人不存在，创建新的数字人')
+        try {
+          const createResponse = await digitalHumanApi.createDigitalHuman({
+            roleId: props.roleId,
+            style: props.style || 'realistic'
+          })
+          if (createResponse && createResponse.success) {
+        modelData = createResponse.data
+        console.log('✅ 数字人创建成功:', modelData)
+        console.log('📦 数据字段:', Object.keys(modelData || {}))
+            // 更新角色头像
+            const avatarUrl = modelData.avatar || modelData.local_image_url
+            if (avatarUrl && props.roleId) {
+              const roleStore = useRoleStore()
+              roleStore.updateRoleAvatar(props.roleId, avatarUrl)
+            }
+          }
+        } catch (createError: any) {
+          console.error('创建数字人失败:', createError)
+          // 如果创建也失败，继续使用占位符，不抛出错误
+        }
+      } else {
+        // 其他错误直接抛出
+        throw e
+      }
+    }
+    
+    // 如果获取或创建成功，加载模型或图像
+    if (modelData) {
+      console.log('📦 数字人数据:', JSON.stringify(modelData, null, 2))
+      
+      // 优先使用2D图像（如果存在）
+      const imageUrl = modelData.avatar || modelData.local_image_url || modelData.image_url
+      console.log('🖼️ 图像URL检查:', {
+        avatar: modelData.avatar,
+        local_image_url: modelData.local_image_url,
+        image_url: modelData.image_url,
+        selected: imageUrl
+      })
+      
+      if (imageUrl) {
+        // 确保URL是完整的（如果是相对路径，使用相对路径，Vite代理会处理）
+        let fullImageUrl = imageUrl
+        if (!imageUrl.startsWith('http')) {
+          // 如果不是完整URL，确保是相对路径（以/开头）
+          if (!imageUrl.startsWith('/')) {
+            fullImageUrl = '/' + imageUrl
+          }
+          // 相对路径会被Vite代理处理，不需要添加window.location.origin
+          // /ai 路径会被代理到 http://localhost:8090/ai
+          // /api 路径会被代理到 http://localhost:8090/api
+        }
+        console.log('🖼️ 完整图像URL:', fullImageUrl)
+        await load2DImage(fullImageUrl)
+      } else if (modelData.modelUrl) {
+        // 如果没有图像，尝试加载3D模型
+        console.log('📦 尝试加载3D模型:', modelData.modelUrl)
         await load3DModel(modelData.modelUrl)
-      } else if (modelData?.modelPath) {
+      } else if (modelData.modelPath) {
+        console.log('📦 尝试加载3D模型路径:', modelData.modelPath)
         await load3DModel(modelData.modelPath)
       } else {
-        // 如果没有模型URL，使用默认占位符
+        // 如果都没有，使用占位符
+        console.warn('⚠️ 没有找到图像或模型，使用占位符')
         createPlaceholderModel()
       }
-      ElMessage.success('数字人创建成功')
+      
+      ElMessage.success('数字人加载成功')
       loading.value = false
     } else {
-      const errorMsg = response?.message || response?.error || '创建数字人失败'
-      error.value = errorMsg
-      ElMessage.error(errorMsg)
-      loading.value = false
+      console.error('❌ 无法获取数字人数据')
+      throw new Error('无法获取数字人数据')
     }
   } catch (e: any) {
-    // 处理各种错误情况
-    let errorMsg = '创建数字人失败'
+    let errorMsg = '加载数字人失败'
     
     if (e.response && e.response.data) {
-      // 后端返回的错误响应
       const errorData = e.response.data
       errorMsg = errorData.message || errorData.error || errorData.msg || errorMsg
     } else if (e.message) {
@@ -233,29 +334,41 @@ const createDigitalHuman = async () => {
     
     error.value = errorMsg
     
+    // 即使加载失败，也显示占位符
+    if (!scene || !camera || !renderer) {
+      await initThreeJS()
+    }
+    createPlaceholderModel()
+    
     // 更友好的错误提示
     if (e.response?.status === 500) {
-      ElMessage.error({
-        message: errorMsg || '创建数字人失败: 服务器内部错误，请检查Python服务是否运行',
-        duration: 5000
+      ElMessage.warning({
+        message: '数字人服务暂时不可用，已显示占位符',
+        duration: 3000
       })
-      // 触发全局错误提示
-      const errorEvent = new CustomEvent('global-error', {
-        detail: { message: errorMsg || '服务器内部错误', duration: 5000 }
-      })
-      window.dispatchEvent(errorEvent)
     } else if (e.response?.status === 404) {
-      ElMessage.warning('数字人服务未找到，请检查后端服务是否正常运行')
+      ElMessage.warning('数字人服务未找到，已显示占位符')
     } else {
-      ElMessage.error(error.value)
+      ElMessage.warning(errorMsg + '，已显示占位符')
     }
-  } finally {
+    
     loading.value = false
   }
 }
 
-const animate = () => {
+/**
+ * 创建数字人（兼容旧接口，实际调用loadDigitalHuman）
+ */
+const createDigitalHuman = async () => {
+  await loadDigitalHuman()
+}
+
+// 使用 let 而不是 const，以便在需要时重新赋值
+let animate = () => {
   if (!scene || !camera || !renderer) return
+
+  // 移除旋转动画，保持静态显示
+  // 如果需要动画效果，可以在特定场景下添加（如说话时的口型同步）
 
   animationId = requestAnimationFrame(animate)
   renderer.render(scene, camera)
@@ -297,6 +410,189 @@ const load3DModel = async (modelUrl: string) => {
 }
 
 /**
+ * 加载2D图像（作为纹理应用到平面）
+ */
+const load2DImage = async (imageUrl: string) => {
+  if (!scene) {
+    console.error('❌ 场景未初始化，无法加载图像')
+    return
+  }
+  
+  console.log('🖼️ 开始加载2D图像:', imageUrl)
+  
+  try {
+    // 清除旧模型和所有占位符
+    if (digitalHumanModel) {
+      scene.remove(digitalHumanModel)
+      digitalHumanModel = null
+    }
+    
+    // 清除场景中所有其他Mesh对象（确保没有残留的占位符或蓝色方块）
+    const objectsToRemove: THREE.Object3D[] = []
+    scene.traverse((object) => {
+      // 移除所有Mesh对象（除了光源和相机）
+      if (object instanceof THREE.Mesh) {
+        objectsToRemove.push(object)
+      }
+    })
+    objectsToRemove.forEach(obj => {
+      if (obj.parent) {
+        obj.parent.remove(obj)
+      }
+      // 清理资源
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose()
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => mat.dispose())
+        } else {
+          obj.material.dispose()
+        }
+      }
+    })
+    
+    console.log('🧹 已清除所有旧对象，准备加载新图像')
+    
+    // 创建纹理加载器
+    const textureLoader = new THREE.TextureLoader()
+    
+    // 设置跨域（如果需要）
+    textureLoader.setCrossOrigin('anonymous')
+    
+    // 加载图像纹理
+    const texture = await new Promise<THREE.Texture>((resolve, reject) => {
+      console.log('📥 开始加载纹理:', imageUrl)
+      
+      textureLoader.load(
+        imageUrl,
+        (texture) => {
+          console.log('✅ 纹理加载成功:', {
+            width: texture.image.width,
+            height: texture.image.height,
+            url: imageUrl
+          })
+          
+          // 设置纹理参数
+          texture.flipY = false
+          texture.minFilter = THREE.LinearFilter
+          texture.magFilter = THREE.LinearFilter
+          texture.needsUpdate = true
+          resolve(texture)
+        },
+        (progress) => {
+          // 加载进度
+          if (progress.total > 0) {
+            const percent = (progress.loaded / progress.total) * 100
+            console.log(`📊 图像加载进度: ${percent.toFixed(1)}%`)
+          }
+        },
+        (error) => {
+          console.error('❌ 加载图像纹理失败:', {
+            error,
+            url: imageUrl,
+            message: error?.message || '未知错误'
+          })
+          reject(error)
+        }
+      )
+    })
+    
+    // 获取容器尺寸
+    const containerWidth = containerRef.value?.clientWidth || 1
+    const containerHeight = containerRef.value?.clientHeight || 1
+    const containerAspect = containerWidth / containerHeight
+    
+    // 获取图像尺寸和比例
+    const imageWidth = texture.image.width
+    const imageHeight = texture.image.height
+    const imageAspect = imageWidth / imageHeight
+    
+    console.log('📐 容器和图像尺寸:', {
+      container: { width: containerWidth, height: containerHeight, aspect: containerAspect },
+      image: { width: imageWidth, height: imageHeight, aspect: imageAspect }
+    })
+    
+    // 计算缩放以填满容器，同时保持图像比例
+    let planeWidth: number
+    let planeHeight: number
+    
+    if (imageAspect > containerAspect) {
+      // 图像更宽，以宽度为准
+      planeWidth = 3
+      planeHeight = 3 / imageAspect
+    } else {
+      // 图像更高，以高度为准
+      planeHeight = 3
+      planeWidth = 3 * imageAspect
+    }
+    
+    const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight)
+    
+    console.log('📐 创建平面几何体:', { width: planeWidth, height: planeHeight })
+    
+    // 创建材质
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide
+    })
+    
+    // 创建网格
+    digitalHumanModel = new THREE.Group()
+    const plane = new THREE.Mesh(geometry, material)
+    // 旋转图像180度（绕Y轴和Z轴旋转）
+    plane.rotation.y = Math.PI
+    plane.rotation.z = Math.PI
+    digitalHumanModel.add(plane)
+    
+    // 添加到场景
+    scene.add(digitalHumanModel)
+    
+    console.log('✅ 图像网格已添加到场景')
+    
+    // 调整相机位置以适应图像，确保图像填满视口
+    if (camera) {
+      // 计算相机距离，使图像填满视口
+      const fov = camera.fov * (Math.PI / 180)
+      const distance = Math.max(
+        planeHeight / (2 * Math.tan(fov / 2)),
+        planeWidth / (2 * Math.tan(fov / 2) * containerAspect)
+      ) * 1.1 // 稍微远一点，确保完全可见
+      
+      camera.position.z = distance
+      camera.lookAt(0, 0, 0)
+      camera.updateProjectionMatrix()
+      console.log('📷 相机位置已调整:', { z: distance, fov: camera.fov })
+    }
+    
+    console.log('✅ 2D图像加载并显示成功:', imageUrl)
+  } catch (e: any) {
+    console.error('❌ 加载2D图像失败:', {
+      error: e,
+      message: e?.message,
+      url: imageUrl,
+      stack: e?.stack
+    })
+    
+    // 尝试使用img标签预加载，检查图像是否可访问
+    const img = new Image()
+    img.onload = () => {
+      console.log('✅ 图像可以访问，但Three.js加载失败，可能是CORS问题')
+    }
+    img.onerror = (err) => {
+      console.error('❌ 图像无法访问:', {
+        url: imageUrl,
+        error: err
+      })
+    }
+    img.src = imageUrl
+    
+    // 如果加载失败，使用占位符
+    console.warn('⚠️ 使用占位符替代')
+    createPlaceholderModel()
+  }
+}
+
+/**
  * 创建占位符模型
  */
 const createPlaceholderModel = () => {
@@ -305,46 +601,26 @@ const createPlaceholderModel = () => {
   // 清除旧模型
   if (digitalHumanModel) {
     scene.remove(digitalHumanModel)
+    digitalHumanModel = null
   }
   
-  // 创建更美观的占位符（人形轮廓）
+  // 创建一个简洁的灰色占位符（不使用蓝色，不使用复杂形状）
   const group = new THREE.Group()
   
-  // 头部
-  const headGeometry = new THREE.SphereGeometry(0.3, 32, 32)
-  const headMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0xffdbac,
-    metalness: 0.1,
-    roughness: 0.7
+  // 简单的灰色平面作为占位符
+  const placeholderGeometry = new THREE.PlaneGeometry(2, 3)
+  const placeholderMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0xe0e0e0,  // 浅灰色
+    transparent: true,
+    opacity: 0.5
   })
-  const head = new THREE.Mesh(headGeometry, headMaterial)
-  head.position.y = 1.2
-  group.add(head)
+  const placeholder = new THREE.Mesh(placeholderGeometry, placeholderMaterial)
+  // 旋转占位符180度（与图像保持一致）
+  placeholder.rotation.y = Math.PI
+  placeholder.rotation.z = Math.PI
+  group.add(placeholder)
   
-  // 身体
-  const bodyGeometry = new THREE.CylinderGeometry(0.25, 0.3, 0.8, 32)
-  const bodyMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0x409eff,
-    metalness: 0.2,
-    roughness: 0.6
-  })
-  const body = new THREE.Mesh(bodyGeometry, bodyMaterial)
-  body.position.y = 0.4
-  group.add(body)
-  
-  // 添加旋转动画
-  const animateRotation = () => {
-    if (group && !isLipSyncing) {
-      group.rotation.y += 0.005
-    }
-  }
-  
-  // 在animate函数中调用
-  const originalAnimate = animate
-  animate = () => {
-    originalAnimate()
-    animateRotation()
-  }
+  // 不添加任何动画，保持完全静态
   
   digitalHumanModel = group
   scene.add(digitalHumanModel)
@@ -457,6 +733,26 @@ const handleResize = () => {
   camera.aspect = width / height
   camera.updateProjectionMatrix()
   renderer.setSize(width, height)
+  
+  // 如果已有数字人模型，重新调整相机位置以适应新尺寸
+  if (digitalHumanModel && scene) {
+    const plane = digitalHumanModel.children[0] as THREE.Mesh
+    if (plane && plane.geometry instanceof THREE.PlaneGeometry) {
+      const planeWidth = plane.geometry.parameters.width
+      const planeHeight = plane.geometry.parameters.height
+      const containerAspect = width / height
+      
+      const fov = camera.fov * (Math.PI / 180)
+      const distance = Math.max(
+        planeHeight / (2 * Math.tan(fov / 2)),
+        planeWidth / (2 * Math.tan(fov / 2) * containerAspect)
+      ) * 1.1
+      
+      camera.position.z = distance
+      camera.lookAt(0, 0, 0)
+      camera.updateProjectionMatrix()
+    }
+  }
 }
 
 const handleRetry = async () => {
@@ -467,7 +763,7 @@ const handleRetry = async () => {
   
   retrying.value = true
   error.value = ''
-  await createDigitalHuman()
+  await loadDigitalHuman()
   retrying.value = false
 }
 
@@ -561,6 +857,8 @@ onUnmounted(() => {
   border-radius: 2px;
   animation: progress 1.5s ease-in-out infinite;
 }
+
+/* 设置面板已移至右侧面板，相关样式已移除 */
 
 @keyframes progress {
   0% {

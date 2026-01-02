@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Optional
-from app.services.emotion_aware_service import emotion_aware_service
+from app.services.emotionawareservice import emotion_aware_service
 
 router = APIRouter()
 
@@ -28,7 +28,7 @@ class EmotionAwareResponseRequest(BaseModel):
 async def analyze_emotion(request: EmotionAnalyzeRequest):
     """多模态情感分析"""
     try:
-        from app.services.emotion_aware_service import MultiModalEmotionAnalyzer
+        from app.services.emotionawareservice import MultiModalEmotionAnalyzer
         
         analyzer = MultiModalEmotionAnalyzer()
         emotions = []
@@ -72,5 +72,8 @@ async def generate_emotion_aware_response(request: EmotionAwareResponseRequest):
         return {"success": True, "data": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 

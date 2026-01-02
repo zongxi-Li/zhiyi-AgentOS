@@ -9,6 +9,11 @@ export interface Conversation {
   updatedAt: string
 }
 
+export interface ConversationDetail {
+  conversation: Conversation
+  preview: string
+}
+
 export const conversationApi = {
   // 获取用户的对话列表
   async getUserConversations(userId?: string): Promise<Conversation[]> {
@@ -26,9 +31,21 @@ export const conversationApi = {
     return response.data
   },
 
+  // 获取对话详情（包含预览）
+  async getConversationDetail(conversationId: string): Promise<ConversationDetail> {
+    const response = await request.get<ConversationDetail>(`/conversations/${conversationId}/detail`)
+    return response.data
+  },
+
   // 删除对话
   async deleteConversation(conversationId: string): Promise<void> {
     await request.delete(`/conversations/${conversationId}`)
+  },
+
+  // 更新对话标题
+  async updateTitle(conversationId: string, title: string): Promise<Conversation> {
+    const response = await request.put<Conversation>(`/conversations/${conversationId}/title`, { title })
+    return response.data
   }
 }
 

@@ -1,15 +1,39 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { roleApi, type Role, type RoleCreateRequest } from '@/services/api/role'
+import { digitalHumanApi } from '@/services/api/digitalHuman'
 
 export const useRoleStore = defineStore('role', () => {
   const builtinRoles = ref<Role[]>([])
   const customRoles = ref<Role[]>([])
   const currentRole = ref<Role | null>(null)
+  const favorites = ref<string[]>([])
   const loading = ref(false)
 
   // 计算属性：所有角色
   const roles = computed(() => [...builtinRoles.value, ...customRoles.value])
+
+  const favoriteRoles = computed(() => {
+    return roles.value.filter(r => favorites.value.includes(r.id))
+  })
+
+  // 收藏/取消收藏
+  const toggleFavorite = (roleId: string) => {
+    const index = favorites.value.indexOf(roleId)
+    if (index === -1) {
+      favorites.value.push(roleId)
+    } else {
+      favorites.value.splice(index, 1)
+    }
+    // In a real app, save to localStorage or API
+    localStorage.setItem('role_favorites', JSON.stringify(favorites.value))
+  }
+
+  // 加载收藏
+  const loadFavorites = () => {
+    const stored = localStorage.getItem('role_favorites')
+    if (stored) favorites.value = JSON.parse(stored)
+  }
 
   // 加载内置角色
   const loadBuiltinRoles = async () => {
@@ -44,14 +68,63 @@ export const useRoleStore = defineStore('role', () => {
     }
   }
 
-  // 选择角色
-  const selectRole = (role: Role) => {
+  // 选择角色（同时尝试获取数字人图像作为头像）
+  const selectRole = async (role: Role) => {
     currentRole.value = role
+    // 尝试获取数字人图像，如果存在则更新角色头像
+    try {
+      const dhResponse = await digitalHumanApi.getDigitalHuman(role.id)
+      if (dhResponse && dhResponse.success && dhResponse.data) {
+        const avatarUrl = dhResponse.data.avatar || dhResponse.data.local_image_url
+        if (avatarUrl && role.avatar !== avatarUrl) {
+          // 更新当前角色的头像
+          role.avatar = avatarUrl
+          // 同时更新列表中的角色头像
+          const roleInList = roles.value.find(r => r.id === role.id)
+          if (roleInList) {
+            roleInList.avatar = avatarUrl
+          }
+        }
+      }
+    } catch (e) {
+      // 数字人不存在或获取失败，忽略错误
+      console.debug('获取数字人图像失败:', e)
+    }
   }
 
-  // 设置当前角色（别名方法）
-  const setCurrentRole = (role: Role) => {
+  // 设置当前角色（别名方法，同时尝试获取数字人图像）
+  const setCurrentRole = async (role: Role) => {
     currentRole.value = role
+    // 尝试获取数字人图像，如果存在则更新角色头像
+    try {
+      const dhResponse = await digitalHumanApi.getDigitalHuman(role.id)
+      if (dhResponse && dhResponse.success && dhResponse.data) {
+        const avatarUrl = dhResponse.data.avatar || dhResponse.data.local_image_url
+        if (avatarUrl) {
+          // 更新当前角色的头像
+          role.avatar = avatarUrl
+          // 同时更新列表中的角色头像
+          const roleInList = roles.value.find(r => r.id === role.id)
+          if (roleInList) {
+            roleInList.avatar = avatarUrl
+          }
+        }
+      }
+    } catch (e) {
+      // 数字人不存在或获取失败，忽略错误
+      console.debug('获取数字人图像失败:', e)
+    }
+  }
+  
+  // 更新角色头像（用于数字人创建成功后）
+  const updateRoleAvatar = (roleId: string, avatarUrl: string) => {
+    const role = roles.value.find(r => r.id === roleId)
+    if (role) {
+      role.avatar = avatarUrl
+    }
+    if (currentRole.value && currentRole.value.id === roleId) {
+      currentRole.value.avatar = avatarUrl
+    }
   }
 
   // 添加角色（用于创建后添加到列表）
@@ -113,6 +186,10 @@ export const useRoleStore = defineStore('role', () => {
     roles,
     currentRole,
     loading,
+    favorites,
+    favoriteRoles,
+    toggleFavorite,
+    loadFavorites,
     loadBuiltinRoles,
     loadCustomRoles,
     loadRoles,

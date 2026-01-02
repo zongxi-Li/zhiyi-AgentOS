@@ -1,72 +1,78 @@
 <template>
   <div class="history-view">
-    <!-- 背景装饰 -->
-    <div class="history-bg-decoration">
-      <div class="glow-orb orb-1"></div>
-      <div class="glow-orb orb-2"></div>
-      <div class="grid-overlay"></div>
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <div class="header-icon-wrapper">
+            <el-icon class="header-icon"><Clock /></el-icon>
+          </div>
+          <div class="header-text">
+            <h1 class="page-title">历史记录</h1>
+            <p class="page-subtitle">查看和管理您的对话与文件历史</p>
+          </div>
+        </div>
+        
+        <div class="header-actions">
+          <div class="search-box">
+            <el-icon class="search-icon"><Search /></el-icon>
+            <input
+              v-model="searchKeyword"
+              type="text"
+              placeholder="搜索历史记录..."
+              class="search-input"
+            />
+          </div>
+          <button class="action-button danger" @click="clearAll">
+            <el-icon><Delete /></el-icon>
+            <span>清空全部</span>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="history-content-wrapper">
-      <el-card class="history-card">
-        <template #header>
-          <div class="card-header">
-            <div class="header-left">
-              <div class="icon-box">
-                <el-icon><Clock /></el-icon>
+    <!-- 主要内容区域 -->
+    <div class="page-content">
+      <div class="content-inner">
+        <!-- 标签导航 -->
+        <div class="tabs-nav">
+          <button
+            class="tab-button"
+            :class="{ active: activeTab === 'conversations' }"
+            @click="activeTab = 'conversations'"
+          >
+            <el-icon><ChatLineRound /></el-icon>
+            <span>对话历史</span>
+          </button>
+          <button
+            class="tab-button"
+            :class="{ active: activeTab === 'files' }"
+            @click="activeTab = 'files'"
+          >
+            <el-icon><Document /></el-icon>
+            <span>文件历史</span>
+          </button>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="content-section">
+          <ConversationList
+            v-if="activeTab === 'conversations'"
+            :search-keyword="searchKeyword"
+            @select="handleSelectConversation"
+          />
+          
+          <div v-else class="files-content">
+            <div class="empty-state">
+              <div class="empty-icon-wrapper">
+                <el-icon class="empty-icon"><Document /></el-icon>
               </div>
-              <div>
-                <h3>历史记录</h3>
-                <p class="subtitle">查看和管理您的对话与文件历史</p>
-              </div>
-            </div>
-            
-            <div class="header-actions">
-              <el-input
-                v-model="searchKeyword"
-                placeholder="搜索历史记录..."
-                :prefix-icon="Search"
-                class="search-input"
-                clearable
-              />
-              <el-button 
-                type="danger" 
-                plain 
-                class="clear-btn"
-                @click="clearAll"
-              >
-                <el-icon><Delete /></el-icon>
-                <span>清空全部</span>
-              </el-button>
+              <h3 class="empty-title">暂无文件历史</h3>
+              <p class="empty-desc">上传的文件将显示在这里</p>
             </div>
           </div>
-        </template>
-        
-        <el-tabs v-model="activeTab" class="history-tabs">
-          <el-tab-pane name="conversations">
-            <template #label>
-              <span class="custom-tab-label">
-                <el-icon><ChatLineRound /></el-icon> 对话历史
-              </span>
-            </template>
-            <ConversationList
-              :search-keyword="searchKeyword"
-              @select="handleSelectConversation"
-            />
-          </el-tab-pane>
-          
-          <el-tab-pane name="files">
-            <template #label>
-              <span class="custom-tab-label">
-                <el-icon><Document /></el-icon> 文件历史
-              </span>
-            </template>
-            <div class="empty-state-wrapper">
-              <el-empty description="暂无文件历史" :image-size="120" />
-            </div>
-          </el-tab-pane>
-        </el-tabs>
-      </el-card>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -91,8 +97,7 @@ const clearAll = async () => {
     await ElMessageBox.confirm('确定要清空所有历史记录吗？此操作不可恢复。', '确认清空', {
       confirmButtonText: '确定清空',
       cancelButtonText: '取消',
-      type: 'warning',
-      customClass: 'glass-message-box'
+      type: 'warning'
     })
     ElMessage.success('历史记录已清空')
   } catch {
@@ -102,247 +107,315 @@ const clearAll = async () => {
 </script>
 
 <style scoped lang="scss">
-// 变量定义 - 保持一致性
-$primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-$surface-color: rgba(255, 255, 255, 0.75);
-$glass-border: 1px solid rgba(255, 255, 255, 0.5);
-$shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 .history-view {
-  min-height: calc(100vh - 64px);
-  padding: 40px;
-  position: relative;
-  overflow: hidden;
-  background: #f0f2f5;
-}
-
-.history-bg-decoration {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
   height: 100%;
-  z-index: 0;
-  pointer-events: none;
-  background: radial-gradient(circle at 80% 20%, #eef2ff, #f3f4f6);
-  
-  .glow-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.5;
-  }
-  
-  .orb-1 {
-    top: -5%;
-    left: 20%;
-    width: 600px;
-    height: 600px;
-    background: rgba(99, 102, 241, 0.1);
-  }
-  
-  .orb-2 {
-    bottom: -10%;
-    right: 10%;
-    width: 500px;
-    height: 500px;
-    background: rgba(236, 72, 153, 0.1);
-  }
-  
-  .grid-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: 
-      linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    opacity: 0.5;
-  }
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.history-content-wrapper {
-  position: relative;
-  z-index: 1;
-  max-width: 1200px;
+/* 页面头部 */
+.page-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-light);
+  padding: 32px 40px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-inner {
+  max-width: 1400px;
   margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
 }
 
-.history-card {
-  min-height: 700px;
-  background: $surface-color !important;
-  backdrop-filter: blur(20px) !important;
-  border: $glass-border !important;
-  box-shadow: $shadow-soft !important;
-  border-radius: 20px !important;
-  transition: transform 0.3s;
-  
-  :deep(.el-card__header) {
-    padding: 24px 32px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  }
-}
-
-.card-header {
+.header-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 20px;
+}
+
+.header-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-icon {
+  font-size: 28px;
+  color: #ffffff;
+}
+
+.header-text {
+  .page-title {
+    margin: 0 0 6px 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
   
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    
-    .icon-box {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 24px;
-      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
-    }
-    
-    h3 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 700;
-      color: #303133;
-    }
-    
-    .subtitle {
-      margin: 4px 0 0;
-      font-size: 13px;
-      color: #909399;
-    }
+  .page-subtitle {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    letter-spacing: 0.01em;
   }
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
-  
-  .search-input {
-    width: 280px;
-    
-    :deep(.el-input__wrapper) {
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.5);
-      box-shadow: none;
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      padding-left: 16px;
-      
-      &.is-focus {
-        background: white;
-        border-color: #f59e0b;
-        box-shadow: 0 0 0 1px #f59e0b;
-      }
-    }
-  }
-  
-  .clear-btn {
-    border-radius: 20px;
-    padding: 8px 20px;
-    
-    &:hover {
-      background: #fef0f0;
-      color: #f56c6c;
-      border-color: #fbc4c4;
-    }
-    
-    .el-icon {
-      margin-right: 6px;
-    }
-  }
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.history-tabs {
-  :deep(.el-tabs__nav-wrap::after) {
-    height: 1px;
-    background-color: rgba(0, 0, 0, 0.05);
-  }
-  
-  :deep(.el-tabs__header) {
-    margin: 0 0 24px;
-    padding: 0 32px;
-  }
-  
-  :deep(.el-tabs__item) {
-    font-size: 15px;
-    height: 50px;
-    color: #909399;
-    transition: all 0.3s;
-    
-    &.is-active {
-      color: #303133;
-      font-weight: 600;
-      
-      .custom-tab-label {
-        color: #d97706; // Matching the icon color
-      }
-    }
-    
-    &:hover {
-      color: #606266;
-    }
-  }
-  
-  :deep(.el-tabs__active-bar) {
-    background-color: #d97706;
-    height: 3px;
-    border-radius: 3px;
-  }
-  
-  .custom-tab-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .el-icon {
-      font-size: 18px;
-    }
-  }
-}
-
-.empty-state-wrapper {
-  padding: 60px 0;
+.search-box {
+  position: relative;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  width: 320px;
+  height: 40px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 0 14px;
+  transition: all 0.2s ease;
 }
 
+.search-box:focus-within {
+  background: #ffffff;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-fade);
+}
+
+.search-icon {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.search-input::placeholder {
+  color: var(--text-disabled);
+}
+
+.action-button {
+  height: 40px;
+  padding: 0 20px;
+  border: 1px solid var(--border-light);
+  background: #ffffff;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.action-button:hover {
+  background: var(--bg-input);
+  border-color: var(--border-hover);
+}
+
+.action-button.danger {
+  color: var(--danger);
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
+.action-button.danger:hover {
+  background: rgba(220, 38, 38, 0.05);
+  border-color: var(--danger);
+}
+
+/* 主要内容区域 */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px;
+}
+
+.content-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 标签导航 */
+.tabs-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 0;
+}
+
+.tab-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab-button:hover {
+  color: var(--text-primary);
+}
+
+.tab-button.active {
+  color: var(--primary-color);
+  font-weight: 600;
+  border-bottom-color: var(--primary-color);
+}
+
+.tab-button .el-icon {
+  font-size: 18px;
+}
+
+/* 内容区域 */
+.content-section {
+  min-height: 400px;
+}
+
+.files-content {
+  padding: 80px 0;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.empty-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: var(--primary-fade);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.empty-icon {
+  font-size: 40px;
+  color: var(--primary-color);
+}
+
+.empty-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.empty-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* 响应式设计 */
 @media (max-width: 768px) {
-  .history-view {
-    padding: 16px;
+  .page-header {
+    padding: 24px 20px;
   }
   
-  .card-header {
+  .header-inner {
     flex-direction: column;
     align-items: stretch;
+    gap: 20px;
+  }
+  
+  .header-left {
     gap: 16px;
   }
   
-  .header-actions {
-    flex-direction: column;
+  .header-icon-wrapper {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .header-icon {
+    font-size: 24px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .search-box {
+    width: 100%;
+  }
+  
+  .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .page-content {
+    padding: 24px 20px;
+  }
+  
+  .tabs-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     
-    .search-input {
-      width: 100%;
-    }
-    
-    .clear-btn {
-      width: 100%;
+    &::-webkit-scrollbar {
+      display: none;
     }
   }
   
-  :deep(.el-tabs__header) {
-    padding: 0 16px;
+  .tab-button {
+    white-space: nowrap;
+    padding: 12px 20px;
   }
 }
 </style>

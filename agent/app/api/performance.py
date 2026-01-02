@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Optional
-from app.services.performance_monitor import performance_monitor, performance_optimizer
+from app.services.performancemonitor import performance_monitor, performance_optimizer
 
 router = APIRouter()
 
@@ -123,5 +123,8 @@ async def cleanup_old_metrics(days: int = 7):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"清理指标失败: {str(e)}")
+
+
+
 
 

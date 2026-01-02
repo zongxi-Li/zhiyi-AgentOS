@@ -35,6 +35,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         
+        // 跳过认证路径，避免在登录/注册时验证Token
+        // 同时跳过 /ai 路径（Python AI服务代理，包括图像文件）
+        String path = request.getRequestURI();
+        if (path != null && (
+            path.startsWith("/auth/") || path.equals("/auth") ||
+            path.startsWith("/ai/") || path.equals("/ai") ||
+            path.startsWith("/health") ||
+            path.startsWith("/swagger-ui/") ||
+            path.startsWith("/v3/api-docs/") ||
+            path.startsWith("/ws/")
+        )) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         String authHeader = request.getHeader("Authorization");
         
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
@@ -62,6 +77,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             } catch (Exception e) {
                 log.error("JWT验证失败", e);
+                // 对于认证路径，即使Token验证失败也继续执行
+                // 对于其他路径，Security会处理未认证的请求
             }
         }
         

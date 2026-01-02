@@ -1,5 +1,5 @@
 <template>
-  <div :class="['message-bubble', message.role]">
+  <div v-if="message && message.role && message.content !== undefined" :class="['message-bubble', message.role]">
     <div class="message-avatar">
       <el-avatar :size="36" shape="square" :src="roleAvatar">
         {{ message.role === 'user' ? 'Me' : roleName?.charAt(0) }}
@@ -96,15 +96,40 @@
             </el-collapse-item>
           </el-collapse>
         </div>
+
+        <!-- Message Actions Area -->
+        <div class="message-actions">
+           <el-tooltip content="复制" placement="top">
+             <div class="action-item" @click="handleAction('copy')"><el-icon><CopyDocument /></el-icon></div>
+           </el-tooltip>
+           <el-tooltip content="引用" placement="top">
+             <div class="action-item" @click="handleAction('quote')"><el-icon><ChatLineSquare /></el-icon></div>
+           </el-tooltip>
+           <el-tooltip content="生成语音" placement="top">
+             <div class="action-item" @click="handleAction('tts')"><el-icon><Microphone /></el-icon></div>
+           </el-tooltip>
+           <el-tooltip content="导出" placement="top">
+             <div class="action-item" @click="handleAction('export')"><el-icon><Download /></el-icon></div>
+           </el-tooltip>
+           <el-tooltip content="删除" placement="top">
+             <div class="action-item delete" @click="handleAction('delete')"><el-icon><Delete /></el-icon></div>
+           </el-tooltip>
+        </div>
       </div>
+    </div>
+  </div>
+  <div v-else class="message-bubble error">
+    <div class="message-content">
+      <div class="message-text">消息数据无效</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Document, InfoFilled, Link } from '@element-plus/icons-vue'
+import { Document, InfoFilled, Link, CopyDocument, ChatLineSquare, Delete, Microphone, Download } from '@element-plus/icons-vue'
 import { useRoleStore } from '@/stores/role'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 interface Source {
   title?: string
@@ -134,8 +159,26 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits(['copy', 'quote', 'delete', 'tts', 'export'])
 const roleStore = useRoleStore()
 const activeCollapse = ref<string[]>([])
+
+const handleAction = (type: string) => {
+  if (type === 'copy') {
+    navigator.clipboard.writeText(props.message.content)
+    ElMessage.success('已复制到剪贴板')
+  } else if (type === 'delete') {
+    ElMessageBox.confirm('确定要删除这条消息吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }).then(() => {
+      emit('delete', props.message.id)
+    }).catch(() => {})
+  } else {
+    emit(type, props.message)
+  }
+}
 
 const roleName = computed(() => {
   return roleStore.currentRole?.name || 'Assistant'
@@ -232,21 +275,110 @@ const formatTime = (date: Date) => {
   transition: all 0.2s ease;
 }
 
-/* User Bubble Style - Solid Primary, No Gradient */
+/* User Bubble Style - Purple, No Gradient */
 .message-bubble.user .message-content {
-  background-color: var(--primary-color);
+  background-color: #7c3aed; /* Vibrant Purple */
   color: white;
   border-top-right-radius: 2px;
-  box-shadow: var(--box-shadow-base);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
 }
 
-/* Assistant Bubble Style - White, Bordered */
+/* Assistant Bubble Style - Grey-white, Bordered */
 .message-bubble.assistant .message-content {
-  background-color: var(--bg-color);
+  background-color: #f8fafc; /* Slate 50 */
   color: var(--text-color-primary);
-  border: 1px solid var(--border-color-base);
+  border: 1px solid #e2e8f0; /* Slate 200 */
   border-top-left-radius: 2px;
-  box-shadow: var(--box-shadow-base);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* System/History Messages (Placeholder for role='system') */
+.message-bubble.system {
+  justify-content: center;
+  margin: 16px 0;
+}
+.message-bubble.system .message-content {
+  background-color: #f1f5f9; /* Slate 100 */
+  color: #64748b; /* Slate 500 */
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: none;
+  box-shadow: none;
+}
+.message-bubble.system .message-avatar, 
+.message-bubble.system .message-meta {
+  display: none;
+}
+
+/* Error Message Style */
+.message-bubble.error {
+  justify-content: center;
+  margin: 16px 0;
+}
+.message-bubble.error .message-content {
+  background-color: #fee2e2; /* Red 100 */
+  color: #dc2626; /* Red 600 */
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #fecaca; /* Red 200 */
+}
+.message-bubble.error .message-avatar, 
+.message-bubble.error .message-meta {
+  display: none;
+}
+
+/* Message Actions Area */
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 4px 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.message-content:hover .message-actions {
+  opacity: 1;
+}
+
+.action-item {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #94a3b8; /* Slate 400 */
+  transition: all 0.2s;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.action-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.action-item.delete:hover {
+  color: var(--danger-color);
+}
+
+.action-item .el-icon {
+  font-size: 14px;
+}
+
+.message-bubble.user .action-item {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.message-bubble.user .action-item:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* File Attachments */

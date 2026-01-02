@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import axios from 'axios'
+import request from '@/utils/request'
 
 export interface User {
   id: string
@@ -18,11 +18,12 @@ export const useUserStore = defineStore('user', () => {
     try {
       const userId = localStorage.getItem('userId')
       if (userId) {
-        const response = await axios.get(`/api/users/${userId}`)
+        const response = await request.get(`/users/${userId}`)
         currentUser.value = response.data
       }
     } catch (error) {
       console.error('加载用户信息失败', error)
+      currentUser.value = null
     } finally {
       loading.value = false
     }

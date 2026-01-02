@@ -1,0 +1,74 @@
+{
+  "avatar_config": {
+    "model_type": "humanoid",
+    "gender": "neutral",
+    "age_range": "25-35",
+    "appearance": {
+      "hair_style": "professional",
+      "clothing": "casual",
+      "accessories": []
+    },
+    "render_style": "realistic",
+    "exaggeration": 1.0
+  },
+  "expressions": {
+    "neutral": {
+      "intensity": 0.0
+    },
+    "happy": {
+      "intensity": 0.8,
+      "mouth": "smile",
+      "eyes": "bright"
+    },
+    "sad": {
+      "intensity": 0.6,
+      "mouth": "frown",
+      "eyes": "down"
+    },
+    "angry": {
+      "intensity": 0.7,
+      "mouth": "tight",
+      "eyes": "narrow"
+    },
+    "surprised": {
+      "intensity": 0.8,
+      "mouth": "open",
+      "eyes": "wide"
+    },
+    "confused": {
+      "intensity": 0.6,
+      "mouth": "slight_open",
+      "eyes": "squint"
+    }
+  },
+  "animations": {
+    "idle": {
+      "duration": 2.0,
+      "loop": true
+    },
+    "speaking": {
+      "duration": 0.1,
+      "loop": true
+    },
+    "nodding": {
+      "duration": 1.0,
+      "loop": false
+    },
+    "gesturing": {
+      "duration": 1.5,
+      "loop": false
+    }
+  },
+  "role_id": "2f04ef66-cc64-478f-98cb-23685b99e269",
+  "modelUrl": "/models/digital-human/realistic/2f04ef66-cc64-478f-98cb-23685b99e269.glb",
+  "modelPath": "/models/digital-human/realistic/2f04ef66-cc64-478f-98cb-23685b99e269.glb",
+  "style": "realistic",
+  "status": "ready",
+  "created_at": "2026-01-03T05:33:33.348005",
+  "image_prompt": "一位25-35岁的专业人士，专业人士，写实风格，高清渲染，细节丰富，真实感强，专业摄影，全身像，正面视角，背景简洁，高质量，4K分辨率",
+  "image_url": "https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/1d/db/20260103/a620f5ad/9748997-a43d8389-9b35-4ac3-96ee-9cae34f731f2.png?Expires=1767476013&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=brANiWdFRgesQ0LbFsIE3C9ihTU%3D",
+  "image_base64": "",
+  "local_image_path": "E:\\Project\\Kinlin_AI\\agent\\agent\\data\\digital-human\\images\\realistic\\2f04ef66-cc64-478f-98cb-23685b99e269_20260103_053333.png",
+  "local_image_url": "/ai/digital-human/image/2f04ef66-cc64-478f-98cb-23685b99e269_20260103_053333.png",
+  "avatar": "/ai/digital-human/image/2f04ef66-cc64-478f-98cb-23685b99e269_20260103_053333.png"
+}

@@ -1,0 +1,45 @@
+import request from '@/utils/request'
+
+export interface User {
+  id?: string
+  username?: string
+  email?: string
+  avatar?: string
+  createdAt?: Date | string
+}
+
+export interface UpdateUserRequest {
+  username?: string
+  email?: string
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+export const userApi = {
+  // 获取当前用户信息
+  async getCurrentUser(): Promise<User> {
+    const response = await request.get<User>('/users/me')
+    return response.data
+  },
+
+  // 获取用户信息
+  async getUser(userId: string): Promise<User> {
+    const response = await request.get<User>(`/users/${userId}`)
+    return response.data
+  },
+
+  // 更新用户信息
+  async updateUser(userId: string, userData: UpdateUserRequest): Promise<User> {
+    const response = await request.put<User>(`/users/${userId}`, userData)
+    return response.data
+  },
+
+  // 修改密码
+  async changePassword(userId: string, passwordData: ChangePasswordRequest): Promise<void> {
+    await request.post(`/users/${userId}/password`, passwordData)
+  }
+}
+

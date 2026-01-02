@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import base64
-from app.services.multimodal_service import multimodal_fusion_service
+from app.services.multimodalservice import multimodal_fusion_service
 
 router = APIRouter()
 
@@ -82,26 +82,34 @@ async def process_multimodal(request: MultimodalRequest):
 @router.post("/multimodal/image")
 async def process_image(
     file: UploadFile = File(...),
-    task: str = "auto"
+    task: str = "auto",
+    question: Optional[str] = None
 ):
     """
-    处理图像上传
+    处理图像上传（支持真实多模态API）
     
     支持任务类型：
-    - ocr: 文字识别
-    - caption: 图像描述
-    - qa: 视觉问答
+    - ocr: 文字识别（使用通义千问qwen-vl）
+    - caption: 图像描述（使用通义千问qwen-vl）
+    - qa: 视觉问答（使用通义千问qwen-vl）
     - auto: 自动检测
+    
+    注意：需要配置DASHSCOPE_API_KEY或QWEN_API_KEY
     """
     try:
         image_data = await file.read()
-        result = multimodal_fusion_service.image_processor.process_image(image_data, task)
+        result = await multimodal_fusion_service.image_processor.process_image(
+            image_data, 
+            task,
+            question=question
+        )
         
         return {
             "success": True,
             "data": result
         }
     except Exception as e:
+        logger.error(f"图像处理失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)}")
 
 
@@ -130,5 +138,8 @@ async def process_document(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文档处理失败: {str(e)}")
+
+
+
 
 

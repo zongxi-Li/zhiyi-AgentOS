@@ -108,6 +108,25 @@ export const knowledgeGraphApi = {
       }
     )
     return response.data.data || {}
+  },
+
+  /**
+   * 获取完整的知识图谱数据（用于可视化）
+   */
+  async getGraphData(): Promise<{
+    nodes: Array<{ id: string; label: string; type: string; properties: any }>
+    edges: Array<{ from: string; to: string; label: string; arrows: string }>
+    stats: { entities_count: number; triples_count: number; relations_count: number }
+  }> {
+    const response = await api.get<{
+      success: boolean
+      data: {
+        nodes: Array<{ id: string; label: string; type: string; properties: any }>
+        edges: Array<{ from: string; to: string; label: string; arrows: string }>
+        stats: { entities_count: number; triples_count: number; relations_count: number }
+      }
+    }>('/knowledge-graph/graph-data')
+    return response.data.data
   }
 }
 

@@ -58,9 +58,16 @@ public class ChatService {
         }
         messageRepository.save(userMessage);
 
-        // 获取对话历史作为上下文
-        List<Message> history = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId());
-        List<Map<String, String>> context = buildContext(history);
+        // 获取对话上下文：优先使用请求中提供的context，否则从数据库构建
+        List<Map<String, String>> context;
+        if (request.getContext() != null && !request.getContext().isEmpty()) {
+            // 使用前端提供的上下文
+            context = request.getContext();
+        } else {
+            // 从数据库构建上下文
+            List<Message> history = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId());
+            context = buildContext(history);
+        }
 
         // 可选：使用RAG增强（如果启用）
         String enhancedText = request.getText();
@@ -72,10 +79,11 @@ public class ChatService {
                         conversation.getContextId()
                 );
                 // 将RAG检索结果融入查询
-                if (ragResponse != null && !ragResponse.sources().isEmpty()) {
+                if (ragResponse != null && ragResponse.sources() != null && !ragResponse.sources().isEmpty()) {
                     enhancedText = request.getText() + "\n\n相关参考信息：" + 
                             ragResponse.sources().stream()
-                                    .map(s -> s.get("excerpt").toString())
+                                    .map(s -> s.get("excerpt") != null ? s.get("excerpt").toString() : "")
+                                    .filter(s -> !s.isEmpty())
                                     .limit(3)
                                     .collect(java.util.stream.Collectors.joining("\n"));
                 }

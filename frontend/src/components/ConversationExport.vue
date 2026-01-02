@@ -9,6 +9,8 @@
         <el-radio-group v-model="exportFormat">
           <el-radio label="json">JSON</el-radio>
           <el-radio label="txt">TXT</el-radio>
+          <el-radio label="csv">CSV</el-radio>
+          <el-radio label="md">Markdown</el-radio>
         </el-radio-group>
       </el-form-item>
     </el-form>
@@ -23,7 +25,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { exportConversationToJson, exportConversationToTxt, downloadFile } from '@/utils/export'
+import { 
+  exportConversationToJson, 
+  exportConversationToTxt, 
+  exportConversationToCsv,
+  exportConversationToMarkdown,
+  downloadFile 
+} from '@/utils/export'
 import type { ConversationExport } from '@/utils/export'
 
 interface Props {
@@ -43,7 +51,7 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
-const exportFormat = ref<'json' | 'txt'>('txt')
+const exportFormat = ref<'json' | 'txt' | 'csv' | 'md'>('txt')
 
 const handleExport = () => {
   try {
@@ -56,6 +64,14 @@ const handleExport = () => {
       content = exportConversationToJson(props.conversation)
       filename = `conversation-${timestamp}.json`
       mimeType = 'application/json'
+    } else if (exportFormat.value === 'csv') {
+      content = exportConversationToCsv(props.conversation)
+      filename = `conversation-${timestamp}.csv`
+      mimeType = 'text/csv;charset=utf-8'
+    } else if (exportFormat.value === 'md') {
+      content = exportConversationToMarkdown(props.conversation)
+      filename = `conversation-${timestamp}.md`
+      mimeType = 'text/markdown'
     } else {
       content = exportConversationToTxt(props.conversation)
       filename = `conversation-${timestamp}.txt`

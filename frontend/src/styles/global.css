@@ -73,6 +73,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  overflow: hidden;
+  height: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-app);
@@ -82,11 +87,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+  height: 100%;
   /* Subtle mesh gradient background for atmosphere */
   background-image: 
     radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.03) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%);
   background-attachment: fixed;
+}
+
+#app {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Typography Enhancements */
@@ -105,7 +119,12 @@ p {
   margin-bottom: 0.5em;
 }
 
-/* Scrollbar - Minimal Light */
+/* 确保主框架容器没有滚动条 */
+html, body, #app {
+  overflow: hidden !important;
+}
+
+/* Scrollbar - Minimal Light - 只在内容区域显示 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -119,6 +138,18 @@ p {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.2);
+}
+
+/* 确保内容区域可以有滚动条 */
+.scrollable-content,
+.messages-container,
+.page-content,
+.config-content,
+.role-scroll-area,
+.chat-messages,
+.sidebar-nav {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* --- Element Plus Overrides for Light/Premium Theme --- */

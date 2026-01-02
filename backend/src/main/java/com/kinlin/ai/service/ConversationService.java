@@ -1,7 +1,9 @@
 package com.kinlin.ai.service;
 
 import com.kinlin.ai.entity.Conversation;
+import com.kinlin.ai.entity.Message;
 import com.kinlin.ai.repository.ConversationRepository;
+import com.kinlin.ai.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,12 +21,24 @@ import java.util.UUID;
 public class ConversationService {
 
     private final ConversationRepository conversationRepository;
+    private final MessageRepository messageRepository;
 
     /**
-     * 获取用户的对话列表
+     * 获取用户的对话列表（包含预览内容）
      */
     public List<Conversation> getUserConversations(UUID userId) {
-        return conversationRepository.findByUserId(userId);
+        List<Conversation> conversations = conversationRepository.findByUserId(userId);
+        // 为每个对话自动生成标题（如果还没有）
+        conversations.forEach(conv -> {
+            if (conv.getTitle() == null || conv.getTitle().isEmpty()) {
+                try {
+                    autoGenerateTitle(conv.getId());
+                } catch (Exception e) {
+                    // 忽略错误，继续处理
+                }
+            }
+        });
+        return conversations;
     }
 
     /**
@@ -32,6 +46,13 @@ public class ConversationService {
      */
     public Optional<Conversation> getConversationByContextId(String contextId) {
         return conversationRepository.findByContextId(contextId);
+    }
+
+    /**
+     * 根据ID获取对话
+     */
+    public Optional<Conversation> getConversationById(UUID conversationId) {
+        return conversationRepository.findById(conversationId);
     }
 
     /**
@@ -64,6 +85,58 @@ public class ConversationService {
                     .orElseGet(() -> createConversation(userId, roleId));
         }
         return createConversation(userId, roleId);
+    }
+
+    /**
+     * 更新对话标题
+     */
+    @Transactional
+    public Conversation updateTitle(UUID conversationId, String title) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("对话不存在"));
+        conversation.setTitle(title);
+        return conversationRepository.save(conversation);
+    }
+
+    /**
+     * 获取对话预览内容（第一条用户消息的前50个字符）
+     */
+    public String getPreviewContent(UUID conversationId) {
+        List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        if (messages.isEmpty()) {
+            return "暂无消息";
+        }
+        // 查找第一条用户消息
+        for (Message message : messages) {
+            if (message.getRole() == Message.MessageRole.USER) {
+                String content = message.getContent();
+                if (content.length() > 50) {
+                    return content.substring(0, 50) + "...";
+                }
+                return content;
+            }
+        }
+        return "暂无预览";
+    }
+
+    /**
+     * 自动生成对话标题（基于第一条用户消息）
+     */
+    @Transactional
+    public Conversation autoGenerateTitle(UUID conversationId) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("对话不存在"));
+        
+        // 如果已有标题，不自动生成
+        if (conversation.getTitle() != null && !conversation.getTitle().isEmpty()) {
+            return conversation;
+        }
+        
+        String preview = getPreviewContent(conversationId);
+        // 生成标题（最多30个字符）
+        String title = preview.length() > 30 ? preview.substring(0, 30) + "..." : preview;
+        conversation.setTitle(title);
+        return conversationRepository.save(conversation);
     }
 }
 

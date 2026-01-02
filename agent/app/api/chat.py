@@ -4,7 +4,7 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from app.services.ai_service import AIService
+from app.services.aiservice import AIService
 
 router = APIRouter()
 

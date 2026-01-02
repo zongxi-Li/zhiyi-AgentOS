@@ -31,6 +31,9 @@ public class Conversation {
     @Column(name = "context_id", unique = true, length = 100)
     private String contextId;
 
+    @Column(name = "title", length = 200)
+    private String title; // 对话标题
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

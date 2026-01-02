@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -24,6 +25,10 @@ import java.util.Map;
 public class DigitalHumanService {
 
     private final WebClient webClient;
+    
+    // 类型引用，用于避免类型安全警告
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE_REF = 
+        new ParameterizedTypeReference<Map<String, Object>>() {};
 
     @Value("${ai.service.url}")
     private String aiServiceUrl;
@@ -76,7 +81,7 @@ public class DigitalHumanService {
                             log.error("Python服务返回错误状态: {}", clientResponse.statusCode());
                             return Mono.error(new RuntimeException("Python服务返回错误: " + clientResponse.statusCode()));
                         })
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_TYPE_REF)
                     .timeout(Duration.ofMillis(timeout))
                     .onErrorResume(e -> {
                         log.error("调用Python服务失败", e);
@@ -98,7 +103,9 @@ public class DigitalHumanService {
                         response.setSuccess(true);
                     }
                 }
-                response.setData((Map<String, Object>) responseMap.get("data"));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = (Map<String, Object>) responseMap.get("data");
+                response.setData(data);
                 response.setMessage((String) responseMap.get("message"));
             } else {
                 response.setSuccess(false);
@@ -156,23 +163,125 @@ public class DigitalHumanService {
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(BodyInserters.fromMultipartData(builder.build()))
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), 
+                        clientResponse -> {
+                            log.error("Python服务返回错误状态: {}", clientResponse.statusCode());
+                            return Mono.error(new RuntimeException("Python服务返回错误: " + clientResponse.statusCode()));
+                        })
+                    .bodyToMono(MAP_TYPE_REF)
                     .timeout(Duration.ofMillis(timeout))
+                    .onErrorResume(e -> {
+                        log.error("调用Python服务失败", e);
+                        return Mono.just(createErrorResponseMap(e));
+                    })
                     .block();
 
             DigitalHumanResponse response = new DigitalHumanResponse();
             if (responseMap != null) {
-                response.setSuccess((Boolean) responseMap.get("success"));
-                response.setData((Map<String, Object>) responseMap.get("data"));
+                Boolean success = (Boolean) responseMap.get("success");
+                if (success != null) {
+                    response.setSuccess(success);
+                } else {
+                    response.setSuccess(false);
+                    response.setMessage("Python服务响应格式错误");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = (Map<String, Object>) responseMap.get("data");
+                response.setData(data);
+                response.setMessage((String) responseMap.get("message"));
+            } else {
+                response.setSuccess(false);
+                response.setMessage("Python服务无响应");
             }
             return response;
         } catch (Exception e) {
             log.error("更新数字人动画失败", e);
             DigitalHumanResponse response = new DigitalHumanResponse();
             response.setSuccess(false);
-            response.setMessage("更新数字人动画失败: " + e.getMessage());
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "更新数字人动画失败，请检查Python服务是否运行";
+            }
+            response.setMessage(errorMessage);
             return response;
         }
+    }
+
+    /**
+     * 获取数字人信息
+     */
+    public DigitalHumanResponse getDigitalHuman(String roleId) {
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("role_id", roleId);
+
+            Map<String, Object> responseMap = webClient.get()
+                    .uri("/ai/digital-human/{roleId}", roleId)
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), 
+                        clientResponse -> {
+                            if (clientResponse.statusCode().value() == 404) {
+                                log.info("数字人不存在: {}", roleId);
+                                // 创建一个包含404信息的异常，在onErrorResume中处理
+                                return Mono.error(new RuntimeException("NOT_FOUND:" + roleId));
+                            }
+                            log.error("Python服务返回错误状态: {}", clientResponse.statusCode());
+                            return Mono.error(new RuntimeException("Python服务返回错误: " + clientResponse.statusCode()));
+                        })
+                    .bodyToMono(MAP_TYPE_REF)
+                    .timeout(Duration.ofMillis(timeout))
+                    .onErrorResume(e -> {
+                        // 检查是否是404错误
+                        if (e.getMessage() != null && e.getMessage().startsWith("NOT_FOUND:")) {
+                            String notFoundRoleId = e.getMessage().substring("NOT_FOUND:".length());
+                            log.info("数字人不存在，返回404响应: {}", notFoundRoleId);
+                            return Mono.just(createNotFoundResponseMap(notFoundRoleId));
+                        }
+                        log.error("调用Python服务失败", e);
+                        return Mono.just(createErrorResponseMap(e));
+                    })
+                    .block();
+
+            DigitalHumanResponse response = new DigitalHumanResponse();
+            if (responseMap != null) {
+                Boolean success = (Boolean) responseMap.get("success");
+                if (success != null) {
+                    response.setSuccess(success);
+                } else {
+                    response.setSuccess(false);
+                    response.setMessage("Python服务响应格式错误");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = (Map<String, Object>) responseMap.get("data");
+                response.setData(data);
+                response.setMessage((String) responseMap.get("message"));
+            } else {
+                response.setSuccess(false);
+                response.setMessage("Python服务无响应");
+            }
+            return response;
+        } catch (Exception e) {
+            log.error("获取数字人失败", e);
+            DigitalHumanResponse response = new DigitalHumanResponse();
+            response.setSuccess(false);
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "获取数字人失败，请检查Python服务是否运行";
+            }
+            response.setMessage(errorMessage);
+            return response;
+        }
+    }
+
+    /**
+     * 创建404响应Map
+     */
+    private Map<String, Object> createNotFoundResponseMap(String roleId) {
+        Map<String, Object> notFoundMap = new HashMap<>();
+        notFoundMap.put("success", false);
+        notFoundMap.put("error", "数字人不存在: " + roleId);
+        notFoundMap.put("message", "数字人不存在: " + roleId);
+        return notFoundMap;
     }
 
     /**
@@ -188,21 +297,46 @@ public class DigitalHumanService {
                     .uri("/ai/digital-human/style")
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), 
+                        clientResponse -> {
+                            log.error("Python服务返回错误状态: {}", clientResponse.statusCode());
+                            return Mono.error(new RuntimeException("Python服务返回错误: " + clientResponse.statusCode()));
+                        })
+                    .bodyToMono(MAP_TYPE_REF)
                     .timeout(Duration.ofMillis(timeout))
+                    .onErrorResume(e -> {
+                        log.error("调用Python服务失败", e);
+                        return Mono.just(createErrorResponseMap(e));
+                    })
                     .block();
 
             DigitalHumanResponse response = new DigitalHumanResponse();
             if (responseMap != null) {
-                response.setSuccess((Boolean) responseMap.get("success"));
-                response.setData((Map<String, Object>) responseMap.get("data"));
+                Boolean success = (Boolean) responseMap.get("success");
+                if (success != null) {
+                    response.setSuccess(success);
+                } else {
+                    response.setSuccess(false);
+                    response.setMessage("Python服务响应格式错误");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = (Map<String, Object>) responseMap.get("data");
+                response.setData(data);
+                response.setMessage((String) responseMap.get("message"));
+            } else {
+                response.setSuccess(false);
+                response.setMessage("Python服务无响应");
             }
             return response;
         } catch (Exception e) {
             log.error("切换数字人风格失败", e);
             DigitalHumanResponse response = new DigitalHumanResponse();
             response.setSuccess(false);
-            response.setMessage("切换数字人风格失败: " + e.getMessage());
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "切换数字人风格失败，请检查Python服务是否运行";
+            }
+            response.setMessage(errorMessage);
             return response;
         }
     }

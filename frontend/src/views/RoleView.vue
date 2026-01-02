@@ -1,61 +1,98 @@
 <template>
   <div class="role-view">
-    <el-container>
-      <el-header class="header">
-        <div class="header-content">
-          <h2>角色管理</h2>
-          <el-button type="primary" @click="handleCreateRole" :icon="Plus">
-            创建自定义角色
-          </el-button>
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <div class="header-icon-wrapper">
+            <el-icon class="header-icon"><UserFilled /></el-icon>
+          </div>
+          <div class="header-text">
+            <h1 class="page-title">角色管理</h1>
+            <p class="page-subtitle">管理和配置您的AI角色</p>
+          </div>
         </div>
-      </el-header>
+        <button class="create-button" @click="handleCreateRole">
+          <el-icon><Plus /></el-icon>
+          <span>创建角色</span>
+        </button>
+      </div>
+    </div>
 
-      <el-main>
+    <!-- 主要内容区域 -->
+    <div class="page-content">
+      <div class="content-inner">
+        <!-- 常用角色 -->
+        <div class="role-section" v-if="roleStore.favoriteRoles.length > 0">
+          <div class="section-header">
+            <h2 class="section-title">常用角色</h2>
+            <span class="section-count">{{ roleStore.favoriteRoles.length }}</span>
+          </div>
+          <div class="role-grid">
+            <RoleCard
+              v-for="role in roleStore.favoriteRoles"
+              :key="'fav-' + role.id"
+              :role="role"
+              :selected="roleStore.currentRole?.id === role.id"
+              @select="handleSelectRole"
+            />
+          </div>
+        </div>
+
         <!-- 内置角色 -->
         <div class="role-section">
-          <h3>内置角色</h3>
-          <el-row :gutter="20" v-loading="roleStore.loading">
-            <el-col
+          <div class="section-header">
+            <h2 class="section-title">内置角色</h2>
+            <span class="section-count">{{ roleStore.builtinRoles.length }}</span>
+          </div>
+          <div class="role-grid" v-loading="roleStore.loading">
+            <RoleCard
               v-for="role in roleStore.builtinRoles"
               :key="role.id"
-              :xs="24" :sm="12" :md="8" :lg="6"
-            >
-              <RoleCard
-                :role="role"
-                :selected="roleStore.currentRole?.id === role.id"
-                @select="handleSelectRole"
-              />
-            </el-col>
-          </el-row>
+              :role="role"
+              :selected="roleStore.currentRole?.id === role.id"
+              @select="handleSelectRole"
+            />
+          </div>
         </div>
 
         <!-- 自定义角色 -->
-        <div class="role-section" v-if="roleStore.customRoles.length > 0">
-          <h3>自定义角色</h3>
-          <el-row :gutter="20" v-loading="roleStore.loading">
-            <el-col
+        <div class="role-section">
+          <div class="section-header">
+            <h2 class="section-title">自定义角色</h2>
+            <span class="section-count">{{ roleStore.customRoles.length }}</span>
+          </div>
+          <div class="role-grid" v-loading="roleStore.loading">
+            <RoleCard
               v-for="role in roleStore.customRoles"
               :key="role.id"
-              :xs="24" :sm="12" :md="8" :lg="6"
-            >
-              <RoleCard
-                :role="role"
-                :selected="roleStore.currentRole?.id === role.id"
-                @select="handleSelectRole"
-                @edit="handleEditRole"
-                @delete="handleDeleteRole"
-              />
-            </el-col>
-          </el-row>
+              :role="role"
+              :selected="roleStore.currentRole?.id === role.id"
+              @select="handleSelectRole"
+              @edit="handleEditRole"
+              @delete="handleDeleteRole"
+            />
+            <!-- 添加角色卡片 -->
+            <div class="add-role-card" @click="handleCreateRole">
+              <div class="add-icon-wrapper">
+                <el-icon class="add-icon"><Plus /></el-icon>
+              </div>
+              <div class="add-text">创建新角色</div>
+              <div class="add-hint">自定义您的专属AI助手</div>
+            </div>
+          </div>
         </div>
 
         <!-- 空状态 -->
-        <el-empty
-          v-if="!roleStore.loading && roleStore.builtinRoles.length === 0"
-          description="暂无角色数据"
-        />
-      </el-main>
-    </el-container>
+        <div v-if="!roleStore.loading && roleStore.builtinRoles.length === 0" class="empty-state">
+          <div class="empty-icon-wrapper">
+            <el-icon class="empty-icon"><UserFilled /></el-icon>
+          </div>
+          <h3 class="empty-title">暂无角色数据</h3>
+          <p class="empty-desc">创建您的第一个AI角色开始使用</p>
+        </div>
+      </div>
+    </div>
 
     <!-- 编辑角色对话框 -->
     <EditRoleDialog
@@ -70,7 +107,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, UserFilled } from '@element-plus/icons-vue'
 import { useRoleStore } from '@/stores/role'
 import RoleCard from '@/components/RoleCard.vue'
 import EditRoleDialog from '@/components/EditRoleDialog.vue'
@@ -128,60 +165,305 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 .role-view {
-  height: calc(100vh - 64px);
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-color-page);
+  overflow: hidden;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.header {
-  background: var(--bg-color);
-  border-bottom: 1px solid var(--border-color-base);
-  padding: 0 var(--spacing-xl);
-  box-shadow: var(--box-shadow-base);
+/* 页面头部 */
+.page-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-light);
+  padding: 32px 40px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.header-content {
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 100%;
-  
-  h2 {
-    margin: 0;
-    font-size: var(--font-size-2xl);
+  gap: 32px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-icon {
+  font-size: 28px;
+  color: #ffffff;
+}
+
+.header-text {
+  .page-title {
+    margin: 0 0 6px 0;
+    font-size: 28px;
     font-weight: 700;
-    color: var(--text-color-primary);
-    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  
+  .page-subtitle {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    letter-spacing: 0.01em;
   }
 }
 
-:deep(.el-main) {
-  padding: var(--spacing-xl);
-  overflow-y: auto;
+.create-button {
+  height: 40px;
+  padding: 0 20px;
+  background: var(--primary-color);
+  border: none;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-family: inherit;
 }
 
+.create-button:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+/* 主要内容区域 */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px;
+}
+
+.content-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 角色区域 */
 .role-section {
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: 56px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  position: relative;
+  padding-left: 12px;
+}
+
+.section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--primary-color);
+  border-radius: 2px;
+}
+
+.section-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  padding: 4px 10px;
+  background: var(--bg-input);
+  border-radius: 12px;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.add-role-card {
+  height: 200px;
+  border: 2px dashed var(--border-light);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 24px;
+  text-align: center;
+}
+
+.add-role-card:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+  transform: translateY(-2px);
+}
+
+.add-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--primary-fade);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.add-role-card:hover .add-icon-wrapper {
+  background: var(--primary-color);
+}
+
+.add-icon {
+  font-size: 24px;
+  color: var(--primary-color);
+  transition: color 0.2s ease;
+}
+
+.add-role-card:hover .add-icon {
+  color: #ffffff;
+}
+
+.add-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.add-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* 空状态 */
+.empty-state {
+  padding: 100px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.empty-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: var(--primary-fade);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.empty-icon {
+  font-size: 40px;
+  color: var(--primary-color);
+}
+
+.empty-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.empty-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-header {
+    padding: 24px 20px;
+  }
   
-  h3 {
-    margin-bottom: var(--spacing-lg);
-    color: var(--text-color-primary);
-    font-size: var(--font-size-xl);
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    letter-spacing: -0.01em;
-    
-    &::before {
-      content: '';
-      width: 4px;
-      height: 20px;
-      background: var(--primary-color);
-      border-radius: 2px;
-    }
+  .header-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+  }
+  
+  .header-left {
+    gap: 16px;
+  }
+  
+  .header-icon-wrapper {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .header-icon {
+    font-size: 24px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .create-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .page-content {
+    padding: 24px 20px;
+  }
+  
+  .role-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

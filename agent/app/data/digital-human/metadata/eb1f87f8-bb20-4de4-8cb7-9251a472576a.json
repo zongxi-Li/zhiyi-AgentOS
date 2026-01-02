@@ -1,0 +1,73 @@
+{
+  "avatar": {
+    "model_type": "humanoid",
+    "gender": "neutral",
+    "age_range": "25-35",
+    "appearance": {
+      "hair_style": "professional",
+      "clothing": "casual",
+      "accessories": []
+    },
+    "render_style": "realistic",
+    "exaggeration": 1.0
+  },
+  "expressions": {
+    "neutral": {
+      "intensity": 0.0
+    },
+    "happy": {
+      "intensity": 0.8,
+      "mouth": "smile",
+      "eyes": "bright"
+    },
+    "sad": {
+      "intensity": 0.6,
+      "mouth": "frown",
+      "eyes": "down"
+    },
+    "angry": {
+      "intensity": 0.7,
+      "mouth": "tight",
+      "eyes": "narrow"
+    },
+    "surprised": {
+      "intensity": 0.8,
+      "mouth": "open",
+      "eyes": "wide"
+    },
+    "confused": {
+      "intensity": 0.6,
+      "mouth": "slight_open",
+      "eyes": "squint"
+    }
+  },
+  "animations": {
+    "idle": {
+      "duration": 2.0,
+      "loop": true
+    },
+    "speaking": {
+      "duration": 0.1,
+      "loop": true
+    },
+    "nodding": {
+      "duration": 1.0,
+      "loop": false
+    },
+    "gesturing": {
+      "duration": 1.5,
+      "loop": false
+    }
+  },
+  "role_id": "eb1f87f8-bb20-4de4-8cb7-9251a472576a",
+  "modelUrl": "/models/digital-human/realistic/eb1f87f8-bb20-4de4-8cb7-9251a472576a.glb",
+  "modelPath": "/models/digital-human/realistic/eb1f87f8-bb20-4de4-8cb7-9251a472576a.glb",
+  "style": "realistic",
+  "status": "ready",
+  "created_at": "2026-01-03T04:23:17.844761",
+  "image_prompt": "一位25-35岁的专业人士，专业人士，写实风格，高清渲染，细节丰富，真实感强，专业摄影，全身像，正面视角，背景简洁，高质量，4K分辨率",
+  "image_url": "/api/static/digital-human/images/realistic/eb1f87f8-bb20-4de4-8cb7-9251a472576a_20260103_040415.png",
+  "image_base64": "",
+  "local_image_path": "data\\digital-human\\images\\realistic\\eb1f87f8-bb20-4de4-8cb7-9251a472576a_20260103_040415.png",
+  "local_image_url": "/api/static/digital-human/images/realistic/eb1f87f8-bb20-4de4-8cb7-9251a472576a_20260103_040415.png"
+}

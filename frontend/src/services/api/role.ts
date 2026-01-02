@@ -9,6 +9,7 @@ export interface Role {
   dialogueStyle?: any
   personality?: any
   avatarConfig?: any
+  avatar?: string  // 角色头像URL（可能来自数字人图像）
 }
 
 export interface RoleCreateRequest {

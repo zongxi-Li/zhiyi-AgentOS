@@ -155,5 +155,151 @@ class ChatServiceTest {
         verify(messageRepository).deleteAll(anyList());
         verify(conversationRepository).delete(conversation);
     }
+
+    @Test
+    void testSendMessage_EmptyText() {
+        // Given
+        chatRequest.setText("");
+        Conversation conversation = new Conversation();
+        conversation.setId(UUID.randomUUID());
+        conversation.setContextId(UUID.randomUUID().toString());
+
+        ChatResponse aiResponse = new ChatResponse();
+        aiResponse.setText("AI回复");
+
+        when(conversationRepository.findByContextId(anyString())).thenReturn(Optional.empty());
+        when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(any(UUID.class)))
+                .thenReturn(Collections.emptyList());
+        when(aiService.sendTextMessage(anyString(), anyString(), anyList(), anyString()))
+                .thenReturn(aiResponse);
+
+        // When
+        ChatResponse response = chatService.sendMessage(chatRequest, userId);
+
+        // Then
+        assertNotNull(response);
+        verify(aiService).sendTextMessage(eq(""), anyString(), anyList(), anyString());
+    }
+
+    @Test
+    void testSendMessage_VeryLongText() {
+        // Given
+        String longText = "测试".repeat(1000); // 2000字符
+        chatRequest.setText(longText);
+        Conversation conversation = new Conversation();
+        conversation.setId(UUID.randomUUID());
+        conversation.setContextId(UUID.randomUUID().toString());
+
+        ChatResponse aiResponse = new ChatResponse();
+        aiResponse.setText("AI回复");
+
+        when(conversationRepository.findByContextId(anyString())).thenReturn(Optional.empty());
+        when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(any(UUID.class)))
+                .thenReturn(Collections.emptyList());
+        when(aiService.sendTextMessage(anyString(), anyString(), anyList(), anyString()))
+                .thenReturn(aiResponse);
+
+        // When
+        ChatResponse response = chatService.sendMessage(chatRequest, userId);
+
+        // Then
+        assertNotNull(response);
+        verify(aiService).sendTextMessage(eq(longText), anyString(), anyList(), anyString());
+    }
+
+    @Test
+    void testSendMessage_SpecialCharacters() {
+        // Given
+        chatRequest.setText("测试特殊字符：!@#$%^&*()_+-=[]{}|;':\",./<>?");
+        Conversation conversation = new Conversation();
+        conversation.setId(UUID.randomUUID());
+        conversation.setContextId(UUID.randomUUID().toString());
+
+        ChatResponse aiResponse = new ChatResponse();
+        aiResponse.setText("AI回复");
+
+        when(conversationRepository.findByContextId(anyString())).thenReturn(Optional.empty());
+        when(conversationRepository.save(any(Conversation.class))).thenReturn(conversation);
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(any(UUID.class)))
+                .thenReturn(Collections.emptyList());
+        when(aiService.sendTextMessage(anyString(), anyString(), anyList(), anyString()))
+                .thenReturn(aiResponse);
+
+        // When
+        ChatResponse response = chatService.sendMessage(chatRequest, userId);
+
+        // Then
+        assertNotNull(response);
+    }
+
+    @Test
+    void testGetHistory_EmptyHistory() {
+        // Given
+        String contextId = UUID.randomUUID().toString();
+        Conversation conversation = new Conversation();
+        conversation.setId(UUID.randomUUID());
+
+        when(conversationRepository.findByContextId(contextId))
+                .thenReturn(Optional.of(conversation));
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId()))
+                .thenReturn(Collections.emptyList());
+
+        // When
+        List<Message> history = chatService.getHistory(contextId);
+
+        // Then
+        assertNotNull(history);
+        assertTrue(history.isEmpty());
+    }
+
+    @Test
+    void testGetHistory_ConversationNotFound() {
+        // Given
+        String contextId = UUID.randomUUID().toString();
+
+        when(conversationRepository.findByContextId(contextId))
+                .thenReturn(Optional.empty());
+
+        // When
+        List<Message> history = chatService.getHistory(contextId);
+
+        // Then
+        assertNotNull(history);
+        assertTrue(history.isEmpty());
+    }
+
+    @Test
+    void testSendMessage_WithHistory() {
+        // Given
+        String contextId = UUID.randomUUID().toString();
+        chatRequest.setContextId(contextId);
+
+        Conversation conversation = new Conversation();
+        conversation.setId(UUID.randomUUID());
+        conversation.setContextId(contextId);
+
+        Message previousMessage = new Message();
+        previousMessage.setContent("之前的消息");
+        previousMessage.setRole(Message.MessageRole.USER);
+
+        ChatResponse aiResponse = new ChatResponse();
+        aiResponse.setText("AI回复");
+
+        when(conversationRepository.findByContextId(contextId))
+                .thenReturn(Optional.of(conversation));
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId()))
+                .thenReturn(List.of(previousMessage));
+        when(aiService.sendTextMessage(anyString(), anyString(), anyList(), anyString()))
+                .thenReturn(aiResponse);
+
+        // When
+        ChatResponse response = chatService.sendMessage(chatRequest, userId);
+
+        // Then
+        assertNotNull(response);
+        verify(aiService).sendTextMessage(anyString(), anyString(), argThat(list -> list.size() > 0), anyString());
+    }
 }
 

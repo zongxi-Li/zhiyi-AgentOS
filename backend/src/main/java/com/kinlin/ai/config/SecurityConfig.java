@@ -29,20 +29,21 @@ public class SecurityConfig {
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // 允许OPTIONS预检请求
-                .requestMatchers("OPTIONS").permitAll()
+                // 允许OPTIONS预检请求（CORS预检）
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 // 公开接口
                 .requestMatchers(
                     "/health",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/ws/**",
-                    "/auth/**"  // 允许所有 /auth 路径
+                    "/auth/**",  // 允许所有 /auth 路径（登录、注册、验证Token）
+                    "/ai/**"     // 允许所有 /ai 路径（Python AI服务代理，包括图像文件）
                 ).permitAll()
                 // 其他接口需要认证
                 .anyRequest().authenticated()
             )
-            // 添加JWT过滤器
+            // 添加JWT过滤器（在UsernamePasswordAuthenticationFilter之前）
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
         return http.build();

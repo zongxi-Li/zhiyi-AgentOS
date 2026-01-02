@@ -38,6 +38,9 @@ export interface DigitalHumanRequest {
   personality?: string
   profession?: string
   style?: string
+  name?: string  // 形象名称
+  description?: string  // 形象描述
+  avatarId?: string  // 形象ID（可选，不提供则自动生成）
 }
 
 export interface DigitalHumanResponse {
@@ -89,6 +92,62 @@ export const digitalHumanApi = {
         roleId,
         newStyle
       }
+    })
+    return response.data
+  },
+
+  /**
+   * 获取数字人信息（用于加载已创建的数字人）
+   */
+  async getDigitalHuman(roleId: string, avatarId?: string): Promise<DigitalHumanResponse> {
+    try {
+      const params = avatarId ? { avatar_id: avatarId } : {}
+      const response = await api.get<DigitalHumanResponse>(`/digital-human/${roleId}`, { params })
+      return response.data
+    } catch (error: any) {
+      // 检查是否是 404 错误
+      const status = error.response?.status || error.status
+      const is404 = status === 404 || 
+                    (error.message && error.message.includes('404')) ||
+                    (error.detail && error.detail.includes('不存在')) ||
+                    (error.success === false && (error.message?.includes('不存在') || error.detail?.includes('不存在')))
+      
+      if (is404) {
+        // 如果是 404 错误，返回一个明确的错误响应，而不是抛出异常
+        // 这是正常情况，数字人不存在时会返回 404
+        return {
+          success: false,
+          message: `数字人不存在: ${roleId}`
+        }
+      }
+      // 其他错误继续抛出
+      throw error
+    }
+  },
+
+  /**
+   * 列出角色的所有数字人形象
+   */
+  async listRoleAvatars(roleId: string): Promise<DigitalHumanResponse> {
+    const response = await api.get<DigitalHumanResponse>(`/digital-human/${roleId}/avatars`)
+    return response.data
+  },
+
+  /**
+   * 删除数字人形象
+   */
+  async deleteAvatar(avatarId: string): Promise<DigitalHumanResponse> {
+    const response = await api.delete<DigitalHumanResponse>(`/digital-human/avatar/${avatarId}`)
+    return response.data
+  },
+
+  /**
+   * 更新形象显示设置
+   */
+  async updateAvatarSettings(avatarId: string, settings: any): Promise<DigitalHumanResponse> {
+    const response = await api.put<DigitalHumanResponse>(`/digital-human/avatar/${avatarId}/settings`, {
+      avatar_id: avatarId,
+      settings
     })
     return response.data
   }
