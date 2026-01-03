@@ -146,10 +146,20 @@ html, body, #app {
 .page-content,
 .config-content,
 .role-scroll-area,
-.chat-messages,
-.sidebar-nav {
+.chat-messages {
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* 导航栏不显示滚动条 */
+.sidebar-nav {
+  overflow: hidden !important;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* --- Element Plus Overrides for Light/Premium Theme --- */

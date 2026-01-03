@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { User, ArrowRight, ChatLineRound, Edit, Delete } from '@element-plus/icons-vue'
 import { conversationApi, type Conversation as ApiConversation } from '@/services/api/conversation'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -229,12 +229,23 @@ const handleDelete = async (conv: Conversation) => {
   }
 }
 
+const handleRefresh = () => {
+  loadConversations()
+}
+
 onMounted(async () => {
   // 如果userStore中没有用户信息，先加载
   if (!userStore.currentUser) {
     await userStore.loadCurrentUser()
   }
   loadConversations()
+  
+  // 监听刷新事件
+  window.addEventListener('history-refresh', handleRefresh)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('history-refresh', handleRefresh)
 })
 
 // 监听userId变化

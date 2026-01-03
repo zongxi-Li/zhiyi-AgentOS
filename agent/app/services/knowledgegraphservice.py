@@ -118,18 +118,20 @@ class KnowledgeGraphService:
         self.entity_extractor = EntityExtractor()
         self.relation_extractor = RelationExtractor()
         
-    def build_from_documents(self, documents: List[Dict]):
+    def build_from_documents(self, documents: List[Dict], role_id: Optional[str] = None):
         """
         从文档构建知识图谱
         
         Args:
             documents: 文档列表，每个文档包含text、metadata等
+            role_id: 角色ID（用于分类知识图谱）
         """
-        logger.info(f"开始从 {len(documents)} 个文档构建知识图谱")
+        logger.info(f"开始从 {len(documents)} 个文档构建知识图谱 (角色: {role_id or '通用'})")
         
         for doc in documents:
             text = doc.get("text", "")
             doc_id = doc.get("doc_id", "")
+            doc_role_id = doc.get("role_id") or doc.get("metadata", {}).get("role_id") or role_id
             
             # 1. 实体识别
             entities = self.entity_extractor.extract(text, doc_id)
@@ -137,12 +139,15 @@ class KnowledgeGraphService:
             # 2. 关系抽取
             relations = self.relation_extractor.extract(text, entities, doc_id)
             
-            # 3. 添加到知识图谱
+            # 3. 添加到知识图谱（包含role_id信息）
             for entity in entities:
+                entity_properties = entity.get("properties", {})
+                if doc_role_id:
+                    entity_properties["role_id"] = doc_role_id
                 self.kg.add_entity(
                     entity["id"],
                     entity["type"],
-                    entity.get("properties", {})
+                    entity_properties
                 )
             
             for relation in relations:

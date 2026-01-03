@@ -2,6 +2,9 @@
   <div class="role-view">
     <!-- 页面头部 -->
     <div class="page-header">
+      <!-- <button class="back-btn" @click="handleBack" title="返回">
+        <el-icon><ArrowLeft /></el-icon>
+      </button> -->
       <div class="header-inner">
         <div class="header-left">
           <div class="header-icon-wrapper">
@@ -104,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, UserFilled } from '@element-plus/icons-vue'
@@ -124,6 +127,7 @@ const handleSelectRole = (role: any) => {
 }
 
 const handleCreateRole = () => {
+  // 跳转到创建角色页面
   router.push('/create-role')
 }
 
@@ -158,9 +162,21 @@ const handleDeleteRole = async (role: any) => {
   }
 }
 
+// 监听角色创建事件
+const handleRoleCreatedEvent = () => {
+  roleStore.loadCustomRoles()
+}
+
 onMounted(async () => {
   await roleStore.loadBuiltinRoles()
   await roleStore.loadCustomRoles()
+  
+  // 监听角色创建事件（从CreateRoleView页面创建后）
+  window.addEventListener('role-created', handleRoleCreatedEvent)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('role-created', handleRoleCreatedEvent)
 })
 </script>
 
@@ -187,6 +203,36 @@ onMounted(async () => {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.back-btn {
+  position: absolute;
+  top: 32px;
+  left: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  z-index: 11;
+
+  &:hover {
+    background: var(--bg-input);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateX(-2px);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 .header-inner {

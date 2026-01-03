@@ -172,8 +172,7 @@
       <div class="upload-container">
         <el-upload
           class="upload-area"
-          :action="uploadUrl"
-          :headers="uploadHeaders"
+          :http-request="handleUpload"
           :on-success="handleUploadSuccess"
           :on-error="handleUploadError"
           :before-upload="beforeUpload"
@@ -199,22 +198,18 @@ import { UploadFilled, Reading, Document, Files, Upload, Delete, Search, Share }
 import RagQuery from '@/components/RagQuery.vue'
 import KnowledgeGraphVisualization from '@/components/KnowledgeGraphVisualization.vue'
 import { ragApi } from '@/services/api/rag'
+import { useRoleStore } from '@/stores/role'
 
+const roleStore = useRoleStore()
 const showUploadDialog = ref(false)
 const activeTab = ref('query')
 const documents = ref<Array<{
   doc_id: string
   filename: string
   upload_time: string
+  role_id?: string
   metadata: any
 }>>([])
-
-const uploadUrl = computed(() => '/api/rag/documents')
-
-const uploadHeaders = computed(() => {
-  const token = localStorage.getItem('token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-})
 
 const beforeUpload = (file: File) => {
   const maxSize = 10 * 1024 * 1024 // 10MB
@@ -222,7 +217,25 @@ const beforeUpload = (file: File) => {
     ElMessage.error('文件大小不能超过10MB')
     return false
   }
+  
+  // 如果有当前角色，提示用户文档将分类到该角色
+  if (currentRoleId.value) {
+    const roleName = roleStore.currentRole?.name || '当前角色'
+    ElMessage.info(`文档将添加到"${roleName}"的知识库`)
+  } else {
+    ElMessage.warning('未选择角色，文档将添加到通用知识库')
+  }
+  
   return true
+}
+
+const handleUpload = async (options: any) => {
+  try {
+    await ragApi.uploadDocument(options.file, currentRoleId.value)
+    handleUploadSuccess()
+  } catch (error: any) {
+    handleUploadError(error)
+  }
 }
 
 const handleUploadSuccess = () => {
@@ -230,6 +243,8 @@ const handleUploadSuccess = () => {
   showUploadDialog.value = false
   loadDocuments()
 }
+
+const currentRoleId = computed(() => roleStore.currentRole?.id)
 
 const handleUploadError = () => {
   ElMessage.error('文档上传失败')
@@ -247,7 +262,8 @@ const handleDelete = async (docId: string) => {
 
 const loadDocuments = async () => {
   try {
-    const response = await ragApi.listDocuments()
+    // 只加载当前角色的文档
+    const response = await ragApi.listDocuments(currentRoleId.value)
     documents.value = response.documents || []
   } catch (error: any) {
     ElMessage.error('加载文档列表失败: ' + (error.message || '未知错误'))

@@ -65,6 +65,19 @@ class Settings(BaseSettings):
     # - wanx-v1: 通义万相v1（旧版API，兼容）
     # - wanx-v1.5: 通义万相v1.5（旧版API，兼容）
     
+    # 文档处理配置
+    DOCUMENT_PROCESSOR_METHOD: str = "auto"  # 文档处理方法：auto/mineru/easydoc/pdfplumber/pypdf2
+    DOCUMENT_PROCESSOR_USE_ENHANCED: bool = True  # 是否使用增强文档处理工具
+    
+    # RAG工具配置
+    RAG_TOOL_PROVIDER: str = "auto"  # RAG工具提供商：auto/ragflow/qanything/fastgpt/builtin
+    FASTGPT_API_URL: str = ""  # FastGPT API地址（可选）
+    FASTGPT_API_KEY: str = ""  # FastGPT API密钥（可选）
+    RAGFLOW_API_URL: str = ""  # RagFlow API地址（可选）
+    RAGFLOW_API_KEY: str = ""  # RagFlow API密钥（可选）
+    QANYTHING_API_URL: str = ""  # QAnything API地址（可选）
+    QANYTHING_API_KEY: str = ""  # QAnything API密钥（可选）
+    
     # CORS配置
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

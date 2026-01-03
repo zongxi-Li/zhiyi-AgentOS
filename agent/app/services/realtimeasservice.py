@@ -68,8 +68,14 @@ class RealtimeASRService:
         
         session = self.active_sessions[session_id]
         
-        # 添加到缓冲区
-        self.audio_buffer[session_id].extend(audio_chunk)
+        # 添加到缓冲区（确保是bytes类型）
+        if isinstance(audio_chunk, bytes):
+            self.audio_buffer[session_id].extend(audio_chunk)
+        elif isinstance(audio_chunk, (list, tuple)):
+            # 如果是列表或元组，直接extend
+            self.audio_buffer[session_id].extend(bytes(audio_chunk))
+        else:
+            logger.warning(f"音频块类型错误: {type(audio_chunk)}")
         
         # 噪音过滤
         filtered_audio = self._filter_noise(audio_chunk, session["sample_rate"])
@@ -118,7 +124,12 @@ class RealtimeASRService:
             
             if session_id and session_id in self.audio_buffer:
                 # 获取累积的音频数据（最近2秒）
-                accumulated_audio = b''.join(list(self.audio_buffer[session_id])[-32000:])  # 2秒@16kHz
+                try:
+                    audio_bytes = bytes(self.audio_buffer[session_id])
+                    accumulated_audio = audio_bytes[-32000:]  # 2秒@16kHz
+                except Exception as e:
+                    logger.error(f"转换音频缓冲区失败: {e}")
+                    return ""
                 
                 # 如果音频数据足够大，进行识别
                 if len(accumulated_audio) >= 16000:  # 至少1秒的音频
@@ -182,7 +193,7 @@ class RealtimeASRService:
             final_text = " ".join(session["partial_results"])
         else:
             # 如果没有部分结果，进行完整识别
-            audio_data = b''.join(self.audio_buffer[session_id])
+            audio_data = bytes(self.audio_buffer[session_id])
             final_text = await self._full_recognize(audio_data, session)
         
         return final_text

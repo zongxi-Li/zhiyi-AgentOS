@@ -11,6 +11,7 @@ router = APIRouter()
 
 class BuildGraphRequest(BaseModel):
     documents: List[Dict]  # [{doc_id, text, metadata}]
+    role_id: Optional[str] = None  # 角色ID（用于分类知识图谱）
 
 
 class HybridSearchRequest(BaseModel):
@@ -40,7 +41,7 @@ async def build_knowledge_graph(request: BuildGraphRequest):
     }
     """
     try:
-        knowledge_graph_service.build_from_documents(request.documents)
+        knowledge_graph_service.build_from_documents(request.documents, request.role_id)
         
         # 获取图谱统计信息
         kg = knowledge_graph_service.kg
@@ -148,14 +149,39 @@ async def get_entity_info(entity_id: str, relation: Optional[str] = None, limit:
 
 
 @router.get("/knowledge-graph/graph-data")
-async def get_graph_data():
-    """获取完整的知识图谱数据（用于可视化）"""
+async def get_graph_data(role_id: Optional[str] = None):
+    """
+    获取完整的知识图谱数据（用于可视化）
+    
+    参数：
+    - role_id: 角色ID，如果提供则只返回该角色的知识图谱
+    """
     try:
         kg = knowledge_graph_service.kg
+        
+        # 如果知识图谱为空，返回空数据而不是错误
+        if not kg.entities and not kg.triples:
+            return {
+                "success": True,
+                "data": {
+                    "nodes": [],
+                    "edges": [],
+                    "stats": {
+                        "entities_count": 0,
+                        "triples_count": 0,
+                        "relations_count": 0
+                    }
+                }
+            }
         
         # 构建节点数据
         nodes = []
         for entity_id, entity_data in kg.entities.items():
+            # 如果指定了role_id，只返回匹配的实体
+            entity_role_id = entity_data.get("properties", {}).get("role_id")
+            if role_id and entity_role_id != role_id:
+                continue
+                
             nodes.append({
                 "id": entity_id,
                 "label": entity_id,
@@ -167,6 +193,15 @@ async def get_graph_data():
         edges = []
         for triple in kg.triples:
             subject, relation, obj = triple
+            # 如果指定了role_id，只返回匹配的边（两个实体都属于该角色）
+            if role_id:
+                subject_entity = kg.entities.get(subject, {})
+                obj_entity = kg.entities.get(obj, {})
+                subject_role_id = subject_entity.get("properties", {}).get("role_id")
+                obj_role_id = obj_entity.get("properties", {}).get("role_id")
+                if subject_role_id != role_id or obj_role_id != role_id:
+                    continue
+                    
             edges.append({
                 "from": subject,
                 "to": obj,
@@ -180,13 +215,14 @@ async def get_graph_data():
                 "nodes": nodes,
                 "edges": edges,
                 "stats": {
-                    "entities_count": len(kg.entities),
-                    "triples_count": len(kg.triples),
-                    "relations_count": len(kg.relations)
+                    "entities_count": len(nodes),
+                    "triples_count": len(edges),
+                    "relations_count": len(set(e["label"] for e in edges)) if edges else 0
                 }
             }
         }
     except Exception as e:
+        logger.error(f"获取图谱数据失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取图谱数据失败: {str(e)}")
 
 

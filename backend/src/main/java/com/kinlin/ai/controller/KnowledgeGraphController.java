@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +78,21 @@ public class KnowledgeGraphController {
     ) {
         Map<String, Object> result = knowledgeGraphService.getEntityInfo(entityId, relation, limit);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 获取完整的知识图谱数据（用于可视化）
+     */
+    @GetMapping("/graph-data")
+    public ResponseEntity<Map<String, Object>> getGraphData(
+            @RequestParam(value = "role_id", required = false) String roleId
+    ) {
+        Map<String, Object> result = knowledgeGraphService.getGraphData(roleId);
+        // 包装为统一的响应格式
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("data", result);
+        return ResponseEntity.ok(response);
     }
 }
 

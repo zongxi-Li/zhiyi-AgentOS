@@ -70,7 +70,10 @@ class FederatedRAGOptimizer:
         # 查询模式分析
         self.global_query_patterns = []
         
-        logger.info("RAG联邦优化器已初始化")
+        # 只在第一次初始化时记录日志
+        if not hasattr(FederatedRAGOptimizer, '_init_logged'):
+            logger.info("✅ RAG联邦优化器已初始化")
+            FederatedRAGOptimizer._init_logged = True
     
     def collect_client_stats(
         self,

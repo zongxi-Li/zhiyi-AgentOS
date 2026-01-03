@@ -67,25 +67,29 @@ _data_dir = _project_root / "agent" / "data"
 # 确保目录存在
 _data_dir.mkdir(parents=True, exist_ok=True)
 
-# 使用StaticFiles挂载静态文件，并允许目录浏览
-try:
-    static_files = StaticFiles(
-        directory=str(_data_dir),
-        html=False,  # 不允许HTML文件
-        check_dir=True  # 检查目录是否存在
-    )
-    app.mount("/api/static", static_files, name="static")
-    logger.info(f"静态文件服务已注册: {_data_dir}")
-except Exception as e:
-    logger.error(f"注册静态文件服务失败: {e}", exc_info=True)
+# 静态文件服务（仅在主进程中注册一次）
+import os
+_is_main_process = os.environ.get("RUN_MAIN", "false") != "true"
+
+if _is_main_process:
+    try:
+        static_files = StaticFiles(
+            directory=str(_data_dir),
+            html=False,
+            check_dir=True
+        )
+        app.mount("/api/static", static_files, name="static")
+        logger.info(f"静态文件服务已注册: {_data_dir}")
+    except Exception as e:
+        logger.error(f"注册静态文件服务失败: {e}", exc_info=True)
 
 # 创新功能路由
 try:
-    from app.api import digitalhuman, emotion, rolefusion, knowledgegraph, adaptivelearning, multimodal, aigc, modelselector, performance, realtimeasr, rolestylelearning, collaborativechat, emotiondriven, federateddigitalhuman, digitalhumanmodelselector, kylinos, ragenhanced, communicationoptimizer, performanceoptimizer, federatedmodelmanagement, federatedglobal, federatedrag
+    from app.api import digitalhuman, emotion, rolefusion, knowledgegraph, adaptivelearning, multimodal, aigc, modelselector, performance, realtimeasr, rolestylelearning, collaborativechat, emotiondriven, federateddigitalhuman, digitalhumanmodelselector, kylinos, ragenhanced, communicationoptimizer, performanceoptimizer, federatedmodelmanagement, federatedglobal, federatedrag, voice
     app.include_router(digitalhuman.router, prefix="/ai", tags=["DigitalHuman"])
     app.include_router(emotion.router, prefix="/ai", tags=["Emotion"])
     app.include_router(rolefusion.router, prefix="/ai", tags=["RoleFusion"])
-    app.include_router(knowledgegraph.router, prefix="/ai", tags=["KnowledgeGraph"])
+    app.include_router(knowledgegraph.router, prefix="/api", tags=["KnowledgeGraph"])
     app.include_router(adaptivelearning.router, prefix="/ai", tags=["AdaptiveLearning"])
     app.include_router(multimodal.router, prefix="/ai", tags=["Multimodal"])
     app.include_router(aigc.router, prefix="/ai", tags=["AIGC"])
@@ -104,9 +108,11 @@ try:
     app.include_router(federatedmodelmanagement.router, prefix="/ai", tags=["FederatedModelManagement"])
     app.include_router(federatedglobal.router, prefix="/ai", tags=["FederatedGlobal"])
     app.include_router(federatedrag.router, prefix="/ai", tags=["FederatedRAG"])
-    # 注意：这个日志在config.py的配置日志之后输出是正常的
-    # 因为路由导入发生在配置加载之后（config.py在main.py导入时已执行）
-    logger.info("所有创新功能路由已加载")
+    app.include_router(voice.router, prefix="/ai", tags=["Voice"])
+    
+    # 只在主进程中输出日志（避免重载时重复输出）
+    if _is_main_process:
+        logger.info("✅ 所有创新功能路由已加载")
 except ImportError as e:
     logger.warning(f"部分创新功能路由未加载: {e}")
 
@@ -120,11 +126,12 @@ async def health_check():
         "version": "1.0.0"
     }
 
-# RAG路由（待完善）
+# RAG路由
 try:
     from app.api import rag
     app.include_router(rag.router, prefix="/rag", tags=["RAG"])
-    logger.info("RAG路由已加载")
+    if _is_main_process:
+        logger.info("✅ RAG路由已加载")
 except ImportError:
     logger.warning("RAG模块未实现，跳过注册")
 

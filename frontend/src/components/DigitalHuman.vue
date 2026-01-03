@@ -128,8 +128,24 @@ watch(() => props.style, async (newStyle, oldStyle) => {
         // 重新加载数字人模型或图像
         const modelData = response.data
         // 优先使用2D图像（如果存在）
-        const imageUrl = modelData.avatar || modelData.local_image_url || modelData.image_url
+        // 优先使用avatar字段，如果没有则使用local_image_url或image_url
+        // 确保URL是完整的API路径（/ai/digital-human/image/...）
+        let imageUrl = modelData.avatar || modelData.local_image_url || modelData.image_url
         if (imageUrl) {
+          // 如果URL是静态文件路径（/api/static/...），转换为API路径
+          if (imageUrl.includes('/api/static/digital-human')) {
+            // 从静态路径提取文件名
+            const filename = imageUrl.split('/').pop()
+            imageUrl = `/ai/digital-human/image/${filename}`
+          } else if (imageUrl.includes('/static/digital-human')) {
+            // 处理 /static/digital-human/... 路径
+            const filename = imageUrl.split('/').pop()
+            imageUrl = `/ai/digital-human/image/${filename}`
+          }
+          // 确保URL以/开头
+          if (!imageUrl.startsWith('/') && !imageUrl.startsWith('http')) {
+            imageUrl = '/' + imageUrl
+          }
           await load2DImage(imageUrl)
         } else if (modelData.modelUrl) {
           await load3DModel(modelData.modelUrl)
@@ -284,7 +300,9 @@ const loadDigitalHuman = async () => {
         avatar: modelData.avatar,
         local_image_url: modelData.local_image_url,
         image_url: modelData.image_url,
-        selected: imageUrl
+        selected: imageUrl,
+        avatar_id: modelData.avatar_id,
+        role_id: modelData.role_id
       })
       
       if (imageUrl) {

@@ -11,6 +11,7 @@
 - **智能角色融合**: 多角色协同，融合不同专业角度的回答
 - **知识图谱增强RAG**: 结构化知识检索，支持知识推理
 - **联邦学习优化**: 隐私保护的模型持续优化
+- ⭐ **联邦学习全局最优模型系统**: 数据不动模型动、参数可用不可见、RAG联邦优化（**业界首创**）
 - **联邦学习模型管理中心**: 提供艺术感十足的大屏可视化展示，支持模型效果深度评估、联邦节点同步监控与隐私安全管理
 - **联邦网络可视化系统**: 实时展示联邦学习集群中各节点与中心模型的同步状态和数据交互
 
@@ -33,11 +34,14 @@
 - [📑 文档索引](./docs/Kinlin-AI技术文档-索引.md) - 文档导航和快速查找
 - [📋 项目概述和技术架构](./docs/Kinlin-AI技术文档-01-项目概述.md) - 项目简介、架构设计、技术栈
 - [⚙️ 核心功能详解](./docs/Kinlin-AI技术文档-02-核心功能详解.md) - 文本对话、语音对话、角色管理、RAG等核心功能
-- [🚀 创新功能详解](./docs/Kinlin-AI技术文档-03-创新功能详解.md) - 数字人、情感感知、角色融合等创新功能
+- [🚀 创新功能详解](./docs/Kinlin-AI技术文档-03-创新功能详解.md) - 数字人、情感感知、角色融合、**联邦学习全局最优模型**等创新功能
 - [🔧 部署和运维指南](./docs/Kinlin-AI技术文档-04-部署和运维指南.md) - 部署步骤、运维管理、故障排查
 - [📡 API接口文档](./docs/Kinlin-AI技术文档-05-API接口文档.md) - 完整的API接口说明和使用示例
+- ⭐ [🌐 联邦学习专题文档](./docs/Kinlin-AI技术文档-06-联邦学习专题.md) - 联邦学习全局最优模型系统完整说明
 
-**快速开始**: 建议先阅读 [文档索引](./docs/Kinlin-AI技术文档-索引.md) 了解文档结构，然后根据您的角色 and 需求选择相应的文档。
+**快速开始**: 建议先阅读 [文档索引](./docs/Kinlin-AI技术文档-索引.md) 了解文档结构，然后根据您的角色和需求选择相应的文档。
+
+**🌟 特别推荐**: 查看 [联邦学习专题文档](./docs/Kinlin-AI技术文档-06-联邦学习专题.md) 了解业界首创的RAG联邦优化技术！
 
 ### 🎨 全新设计系统 (2025 Refactor - Premium Experience)
 
@@ -321,11 +325,17 @@ locale.value = 'zh-CN' // 切换到简体中文
 ## 技术架构
 
 ### 核心技术栈
-- **操作系统**：银河麒麟操作系统
-- **AI SDK**：麒麟AI SDK
+- **操作系统**：银河麒麟操作系统（智能检测，自动适配）
+- **AI SDK**：
+  - 麒麟操作系统：优先使用麒麟AI SDK
+  - 其他系统：使用通义千问大模型（OpenAI兼容模式）
 - **编程语言**：Python 3.x
-- **文档处理**：easydoc, mineru
-- **RAG技术**：ragflow, qanything, fastgpt
+- **文档处理**：
+  - 基础：PyPDF2、pdfplumber、python-docx、openpyxl、beautifulsoup4
+  - 高级（可选）：easydoc、mineru
+- **RAG技术**：
+  - 内置：ChromaDB + sentence-transformers（向量数据库 + Embedding）
+  - 可选集成：ragflow、qanything、fastgpt（支持API接入）
 
 ### 系统架构设计
 
@@ -950,6 +960,118 @@ Kinlin_AI/              # 主目录
 
 **详细配置指南**：请参考 [Windows系统通义千问配置指南](./docs/Windows系统通义千问配置指南.md)
 
+### 🔧 麒麟SDK与通义千问智能切换配置
+
+**系统架构特性**:
+- **智能检测**：系统自动检测当前操作系统
+- **自动切换**：麒麟OS使用麒麟SDK，其他系统使用通义千问
+- **降级保护**：SDK不可用时自动降级到备用方案
+
+**配置方法**:
+
+1. **麒麟操作系统用户**:
+   ```env
+   # 主目录的 .env 文件
+   KYLIN_AI_API_KEY=your_kylin_api_key
+   KYLIN_AI_ENDPOINT=https://api.kylin.ai
+   ```
+   系统将自动检测麒麟OS并使用麒麟SDK
+
+2. **其他系统用户（Windows/Linux/Mac）**:
+   ```env
+   # 主目录的 .env 文件
+   DASHSCOPE_API_KEY=sk-your_api_key_here
+   # 或
+   QWEN_API_KEY=sk-your_api_key_here
+   ```
+   系统将自动使用通义千问大模型
+
+3. **双重配置（推荐）**:
+   ```env
+   # 同时配置麒麟SDK和通义千问
+   KYLIN_AI_API_KEY=your_kylin_api_key
+   KYLIN_AI_ENDPOINT=https://api.kylin.ai
+   DASHSCOPE_API_KEY=sk-your_api_key_here
+   ```
+   系统会根据操作系统智能选择
+
+### 📄 文档处理配置
+
+**已集成的文档处理工具**:
+
+| 工具 | 用途 | 安装状态 |
+|------|------|----------|
+| PyPDF2 | PDF基础解析 | 已包含 |
+| pdfplumber | PDF增强解析 | 已包含 |
+| python-docx | Word文档解析 | 已包含 |
+| openpyxl | Excel解析 | 已包含 |
+| beautifulsoup4 | HTML解析 | 已包含 |
+| easydoc | 高级文档处理 | 可选 |
+| mineru | 高级PDF解析 | 可选 |
+
+**配置文档处理策略**:
+```env
+# 主目录的 .env 文件
+DOCUMENT_PROCESSOR_METHOD=auto  # auto/mineru/easydoc/pdfplumber/pypdf2
+DOCUMENT_PROCESSOR_USE_ENHANCED=true  # 是否使用增强工具
+```
+
+**安装可选工具**:
+```bash
+# 安装高级文档处理工具（可选）
+pip install easydoc mineru
+```
+
+### 🔍 RAG工具配置
+
+**已集成的RAG工具**:
+
+| 工具 | 类型 | 使用方式 |
+|------|------|----------|
+| ChromaDB + Embedding | 内置 | 默认启用 |
+| RagFlow | 可选库 | pip安装 |
+| QAnything | 可选库 | pip安装 |
+| FastGPT | API服务 | API配置 |
+
+**配置RAG策略**:
+```env
+# 主目录的 .env 文件
+RAG_TOOL_PROVIDER=auto  # auto/ragflow/qanything/fastgpt/builtin
+
+# FastGPT API配置（可选）
+FASTGPT_API_URL=https://your-fastgpt-api.com
+FASTGPT_API_KEY=your_fastgpt_key
+
+# RagFlow API配置（可选）
+RAGFLOW_API_URL=https://your-ragflow-api.com
+RAGFLOW_API_KEY=your_ragflow_key
+
+# QAnything API配置（可选）
+QANYTHING_API_URL=https://your-qanything-api.com
+QANYTHING_API_KEY=your_qanything_key
+```
+
+**安装可选RAG工具**:
+```bash
+# 安装RagFlow（可选）
+pip install ragflow
+
+# 安装QAnything（可选）
+pip install qanything
+
+# 内置RAG工具已包含（ChromaDB + sentence-transformers）
+# 无需额外安装
+```
+
+**智能选择策略**:
+- 配置 `RAG_TOOL_PROVIDER=auto` 时，系统会按优先级自动选择：
+  1. RagFlow（如果已安装）
+  2. QAnything（如果已安装）
+  3. FastGPT（如果已配置API）
+  4. 内置RAG服务（始终可用）
+
+**详细配置指南**：请参考 [Windows系统通义千问配置指南](./docs/Windows系统通义千问配置指南.md)
+
 ### ✅ 最新功能更新（2025-01-02）
 
 **已完成的修复**:
@@ -1264,7 +1386,90 @@ Kinlin AI系统已经完成了核心功能的开发，具备了基本的使用�
 
 **项目状态**：✅ 核心功能已完成，系统可投入使用，持续优化中
 
-**最后更新**：2025-01-02
+16. **知识库按角色分类功能实现（2025-01-03）**
+    - **知识库角色分类**:
+      - ✅ 实现知识库按职业/角色分类存储
+      - ✅ 文档上传时自动分类到当前角色的知识库
+      - ✅ RAG查询时自动过滤，只检索当前角色的知识库
+      - ✅ 文档列表按角色过滤显示
+    - **示例知识文档**:
+      - ✅ 创建律师职业知识库（法律知识）
+      - ✅ 创建教师职业知识库（教育知识）
+      - ✅ 创建程序员职业知识库（技术知识）
+      - ✅ 创建作家职业知识库（文学知识）
+    - **知识图谱分类**:
+      - ✅ 知识图谱构建时考虑角色分类
+      - ✅ 不同角色的知识图谱相互独立
+    - **初始化脚本**:
+      - ✅ 创建知识库初始化脚本，自动导入示例文档
+      - ✅ 支持批量导入知识文档到对应角色
+    - **技术实现**:
+      - 后端：RAGService支持role_id参数，文档存储和检索时按角色过滤
+      - 后端：RAG API支持role_id参数，上传和查询时传递角色ID
+      - 前端：RagQuery组件自动获取当前角色ID并传递给查询API
+      - 前端：RagView组件在文档上传时传递当前角色ID
+      - 前端：文档列表按当前角色过滤显示
+    - **文件**:
+      - `agent/app/services/ragservice.py` - 添加role_id支持
+      - `agent/app/api/rag.py` - 添加role_id参数
+      - `agent/app/data/rag/knowledge_base/` - 示例知识文档
+      - `agent/app/scripts/init_knowledge_base.py` - 初始化脚本
+      - `frontend/src/services/api/rag.ts` - 添加roleId参数
+      - `frontend/src/components/RagQuery.vue` - 自动获取角色ID
+      - `frontend/src/views/RagView.vue` - 上传时传递角色ID
+
+17. **问题修复 - Pydantic和ChromaDB（2025-01-03）**
+    - **Pydantic命名空间警告修复**:
+      - ✅ 修复 `model_type` 字段与保护命名空间冲突
+      - ✅ 修复 `model_params` 字段与保护命名空间冲突
+      - ✅ 在所有受影响的Pydantic模型中添加 `model_config`
+    - **ChromaDB版本兼容性修复**:
+      - ✅ 改进向量数据库初始化逻辑
+      - ✅ 添加版本兼容性处理
+      - ✅ 添加错误降级保护
+      - ✅ 创建数据库修复脚本
+    - **修复工具**:
+      - ✅ `agent/fix_chromadb.py` - ChromaDB修复脚本
+      - ✅ `agent/quick_fix.bat` - Windows一键修复
+      - ✅ `agent/quick_fix.sh` - Linux/Mac一键修复
+    - **文档**:
+      - ✅ `docs/问题修复指南-ChromaDB和Pydantic.md` - 详细修复指南
+    - **文件**:
+      - `agent/app/api/federatedmodelmanagement.py` - 添加model_config
+      - `agent/app/api/federatedglobal.py` - 添加model_config
+      - `agent/app/services/ragservice.py` - 改进ChromaDB初始化
+      - `agent/requirements.txt` - 调整ChromaDB版本为0.4.15
+
+18. **麒麟SDK与通义千问智能切换（2025-01-03）**
+    - **智能操作系统检测**:
+      - ✅ 自动检测是否为麒麟操作系统
+      - ✅ 麒麟OS：优先使用麒麟AI SDK
+      - ✅ 其他系统：自动使用通义千问大模型
+      - ✅ 降级策略：SDK不可用时自动降级
+    - **文档处理工具集成**:
+      - ✅ 集成基础工具：PyPDF2、pdfplumber、python-docx、openpyxl
+      - ✅ 支持高级工具：easydoc、mineru（可选安装）
+      - ✅ 多格式支持：PDF、Word、Excel、HTML、Markdown等
+      - ✅ 智能选择策略：自动选择最佳处理工具
+    - **RAG工具集成**:
+      - ✅ 内置RAG：ChromaDB + sentence-transformers
+      - ✅ 支持RagFlow集成（可选）
+      - ✅ 支持QAnything集成（可选）
+      - ✅ 支持FastGPT API集成（可选）
+      - ✅ 统一接口：自动选择最佳RAG工具
+    - **配置优化**:
+      - ✅ 添加文档处理配置项
+      - ✅ 添加RAG工具配置项
+      - ✅ 更新依赖管理
+    - **文件**:
+      - `agent/app/ai_engine/kylin_sdk/client.py` - 智能SDK切换
+      - `agent/app/services/kylinosintegration.py` - 麒麟OS检测
+      - `agent/app/services/documentprocessoradvanced.py` - 高级文档处理
+      - `agent/app/services/ragtoolsintegration.py` - RAG工具集成
+      - `agent/app/config.py` - 配置更新
+      - `agent/requirements.txt` - 依赖更新
+
+**最后更新**：2025-01-03
 
 ## 许可证
 

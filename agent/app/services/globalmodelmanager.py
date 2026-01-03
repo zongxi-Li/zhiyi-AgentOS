@@ -43,7 +43,10 @@ class GlobalModelManager:
         # 待聚合的参数更新
         self.pending_updates: List[Dict] = []
         
-        logger.info("全局模型管理器已初始化")
+        # 只在第一次初始化时记录日志
+        if not hasattr(GlobalModelManager, '_init_logged'):
+            logger.info("✅ 全局模型管理器已初始化")
+            GlobalModelManager._init_logged = True
     
     def initialize_base_model(
         self,

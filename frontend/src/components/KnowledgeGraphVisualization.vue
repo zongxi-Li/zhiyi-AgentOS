@@ -7,6 +7,9 @@
           <span class="stat-item">实体: {{ stats.entities_count || 0 }}</span>
           <span class="stat-item">关系: {{ stats.relations_count || 0 }}</span>
           <span class="stat-item">三元组: {{ stats.triples_count || 0 }}</span>
+          <span v-if="currentRoleId" class="stat-item role-badge">
+            角色: {{ roleStore.currentRole?.name || '当前角色' }}
+          </span>
         </div>
       </div>
       <div class="header-actions">
@@ -59,12 +62,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Network } from 'vis-network'
 import { DataSet } from 'vis-data'
 import { Loading, Refresh, FullScreen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { knowledgeGraphApi } from '@/services/api/knowledgeGraph'
+import { useRoleStore } from '@/stores/role'
 
 const graphContainerRef = ref<HTMLElement>()
 const graphCanvasRef = ref<HTMLElement>()
@@ -73,6 +77,9 @@ const error = ref<string>('')
 const stats = ref<Record<string, any>>({})
 const entitySearch = ref('')
 const layout = ref('hierarchical')
+
+const roleStore = useRoleStore()
+const currentRoleId = computed(() => roleStore.currentRole?.id)
 
 let network: Network | null = null
 let nodes = new DataSet<any>([])
@@ -86,6 +93,13 @@ onUnmounted(() => {
   if (network) {
     network.destroy()
     network = null
+  }
+})
+
+// 监听角色变化，重新加载图谱
+watch(() => currentRoleId.value, async () => {
+  if (currentRoleId.value) {
+    await refreshGraph()
   }
 })
 
@@ -120,27 +134,44 @@ const refreshGraph = async () => {
  */
 const buildGraphData = async () => {
   try {
-    // 从后端获取完整的图谱数据
-    const graphData = await knowledgeGraphApi.getGraphData()
+    // 从后端获取完整的图谱数据（只获取当前角色的）
+    const graphData = await knowledgeGraphApi.getGraphData(currentRoleId.value)
+    
+    // 检查响应是否有效
+    if (!graphData) {
+      console.warn('知识图谱数据为空')
+      nodes.clear()
+      edges.clear()
+      stats.value = {
+        entities_count: 0,
+        triples_count: 0,
+        relations_count: 0
+      }
+      return
+    }
     
     // 更新统计信息
-    stats.value = graphData.stats
+    stats.value = graphData.stats || {
+      entities_count: graphData.nodes?.length || 0,
+      triples_count: graphData.edges?.length || 0,
+      relations_count: 0
+    }
     
     // 构建节点数据
-    const nodeData = graphData.nodes.map(node => ({
+    const nodeData = (graphData.nodes || []).map(node => ({
       id: node.id,
-      label: node.label,
-      title: `${node.label}\n类型: ${node.type}`,
-      group: node.type,
+      label: node.label || node.id,
+      title: `${node.label || node.id}\n类型: ${node.type || 'unknown'}`,
+      group: node.type || 'unknown',
       shape: 'dot',
       size: 20
     }))
     
     // 构建边数据
-    const edgeData = graphData.edges.map(edge => ({
+    const edgeData = (graphData.edges || []).map(edge => ({
       from: edge.from,
       to: edge.to,
-      label: edge.label,
+      label: edge.label || '',
       arrows: edge.arrows || 'to',
       smooth: {
         type: 'continuous',
@@ -158,11 +189,30 @@ const buildGraphData = async () => {
       edges.add(edgeData)
     }
     
+    console.log('知识图谱数据构建完成:', {
+      nodes: nodeData.length,
+      edges: edgeData.length,
+      stats: stats.value
+    })
+    
   } catch (e: any) {
     console.error('构建图谱数据失败:', e)
     // 如果获取失败，使用空数据
     nodes.clear()
     edges.clear()
+    stats.value = {
+      entities_count: 0,
+      triples_count: 0,
+      relations_count: 0
+    }
+    
+    // 如果是404错误，说明知识图谱还没有构建，这是正常的
+    if (e.response?.status === 404 || e.status === 404) {
+      console.log('知识图谱尚未构建，这是正常的')
+      error.value = '知识图谱尚未构建，请先上传文档并构建知识图谱'
+    } else {
+      error.value = '加载知识图谱失败: ' + (e.message || '未知错误')
+    }
   }
 }
 
@@ -371,11 +421,21 @@ const searchEntity = async () => {
     .stats {
       display: flex;
       gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
       
       .stat-item {
         font-size: 13px;
         color: var(--text-secondary);
         font-weight: 500;
+        
+        &.role-badge {
+          padding: 4px 12px;
+          background: rgba(99, 102, 241, 0.1);
+          border-radius: 6px;
+          color: #6366f1;
+          font-weight: 600;
+        }
       }
     }
   }

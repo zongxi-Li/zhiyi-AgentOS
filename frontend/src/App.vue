@@ -130,12 +130,13 @@ const currentRoleId = computed(() => roleStore.currentRole?.id || null)
 const isSpeaking = computed(() => false) // 可以从chatStore获取
 const currentAudioUrl = computed(() => '') // 可以从chatStore获取
 
-// 判断是否为沉浸式模式（如语音交互界面、登录页面、联邦学习管理中心等）
+// 判断是否为沉浸式模式（如语音交互界面、登录页面、联邦学习管理中心、设置页面等）
 const isImmersive = computed(() => {
   const path = route.path
   return path.startsWith('/voice') || 
          path.startsWith('/login') || 
-         path.startsWith('/federated-models')
+         path.startsWith('/federated-models') ||
+         path.startsWith('/settings')
 })
 
 const activeMenu = computed(() => {
@@ -234,7 +235,7 @@ onUnmounted(() => {
 .sidebar-nav {
   flex: 1;
   padding: 16px 8px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .menu-group-title {

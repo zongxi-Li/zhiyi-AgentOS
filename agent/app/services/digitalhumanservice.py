@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 class DigitalHumanGenerator:
     """数字人形象生成器（AIGC）"""
     
+    # 类级别标志，避免重复日志
+    _init_logged = False
+    
     def __init__(self):
         self.avatar_cache = {}  # 数字人形象缓存
         self._ai_client = None  # AI客户端（延迟初始化）
@@ -26,7 +29,11 @@ class DigitalHumanGenerator:
         _project_root = Path(__file__).resolve().parent.parent.parent
         self.avatar_image_dir = _project_root / "agent" / "data" / "digital-human" / "images" / "realistic"
         self.avatar_image_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"数字人图像保存目录: {self.avatar_image_dir.absolute()}")
+        
+        # 只在第一次初始化时记录日志
+        if not DigitalHumanGenerator._init_logged:
+            logger.info(f"数字人图像保存目录: {self.avatar_image_dir.absolute()}")
+            DigitalHumanGenerator._init_logged = True
         
     async def generate_avatar(self, role_config: Dict, avatar_id: Optional[str] = None) -> Dict:
         """
@@ -65,7 +72,10 @@ class DigitalHumanGenerator:
                 logger.info(f"✅ 发现已存在的数字人形象: {role_id}，跳过生成")
                 # 更新本地图像路径
                 existing_avatar_data["local_image_path"] = str(image_file)
-                existing_avatar_data["local_image_url"] = f"/api/static/digital-human/images/realistic/{image_file.name}"
+                image_filename = image_file.name
+                existing_avatar_data["local_image_url"] = f"/ai/digital-human/image/{image_filename}"
+                existing_avatar_data["avatar"] = f"/ai/digital-human/image/{image_filename}"
+                existing_avatar_data["image_url"] = f"/ai/digital-human/image/{image_filename}"
                 # 更新缓存
                 self.avatar_cache[role_id] = existing_avatar_data
                 return existing_avatar_data
@@ -92,8 +102,9 @@ class DigitalHumanGenerator:
         if image_file and image_file.exists():
             logger.info(f"✅ 图像文件已存在: {image_file}，跳过AI生成")
             # 使用已存在的图像
+            image_filename = image_file.name
             image_result = {
-                "image_url": f"/api/static/digital-human/images/realistic/{image_file.name}",
+                "image_url": f"/ai/digital-human/image/{image_filename}",
                 "image_base64": "",
                 "success": True,
                 "local_path": str(image_file)  # 添加本地路径，确保后续能正确生成URL

@@ -22,6 +22,7 @@ class RAGQuery(BaseModel):
     top_k: int = 5
     context_id: Optional[str] = None
     use_knowledge_graph: bool = False  # 是否使用知识图谱增强
+    role_id: Optional[str] = None  # 角色ID（用于过滤知识库）
 
 class RAGResponse(BaseModel):
     """RAG响应"""
@@ -45,7 +46,8 @@ async def query_rag(request: RAGQuery):
             enhanced_result = rag_service.enhanced_search(
                 query=request.query,
                 top_k=request.top_k,
-                use_knowledge_graph=True
+                use_knowledge_graph=True,
+                role_id=request.role_id
             )
             search_results = enhanced_result.get("fused_results", enhanced_result.get("vector_results", []))
             kg_info = {
@@ -57,7 +59,8 @@ async def query_rag(request: RAGQuery):
             search_results = rag_service.search(
                 query=request.query,
                 top_k=request.top_k,
-                context_id=request.context_id
+                context_id=request.context_id,
+                role_id=request.role_id
             )
             kg_info = {"use_kg": False}
         
@@ -103,13 +106,17 @@ async def query_rag(request: RAGQuery):
 @router.post("/documents")
 async def upload_document(
     file: UploadFile = File(...),
-    metadata: Optional[str] = Form(None)
+    metadata: Optional[str] = Form(None),
+    role_id: Optional[str] = Form(None)
 ):
     """
     上传文档到知识库
     
     支持格式：txt, md, pdf, doc, docx等
     文档会被解析、分块并建立索引
+    
+    参数：
+    - role_id: 角色ID，用于将文档分类到特定角色的知识库
     """
     try:
         # 读取文件数据
@@ -128,7 +135,8 @@ async def upload_document(
         doc_id = rag_service.upload_document(
             file_data=file_data,
             filename=file.filename or "unknown",
-            metadata=doc_metadata
+            metadata=doc_metadata,
+            role_id=role_id
         )
         
         return {
@@ -141,17 +149,24 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=f"文档上传失败: {str(e)}")
 
 @router.get("/documents")
-async def list_documents():
+async def list_documents(role_id: Optional[str] = None):
     """
-    列出所有已上传的文档
+    列出已上传的文档
+    
+    参数：
+    - role_id: 角色ID，如果提供则只返回该角色的文档
     """
     try:
         documents = []
         for doc_id, doc_data in rag_service.documents.items():
+            # 如果指定了role_id，只返回匹配的文档
+            if role_id and doc_data.get("role_id") != role_id:
+                continue
             documents.append({
                 "doc_id": doc_id,
                 "filename": doc_data.get("filename", ""),
                 "upload_time": doc_data.get("upload_time", ""),
+                "role_id": doc_data.get("role_id"),
                 "metadata": doc_data.get("metadata", {})
             })
         return {"documents": documents, "count": len(documents)}

@@ -138,5 +138,22 @@ public class ConversationService {
         conversation.setTitle(title);
         return conversationRepository.save(conversation);
     }
+
+    /**
+     * 删除用户的所有对话
+     */
+    @Transactional
+    public void deleteAllConversations(UUID userId) {
+        List<Conversation> conversations = conversationRepository.findByUserId(userId);
+        // 删除所有相关的消息
+        for (Conversation conversation : conversations) {
+            List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId());
+            if (!messages.isEmpty()) {
+                messageRepository.deleteAll(messages);
+            }
+        }
+        // 删除所有对话
+        conversationRepository.deleteAll(conversations);
+    }
 }
 

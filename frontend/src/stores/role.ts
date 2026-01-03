@@ -68,52 +68,19 @@ export const useRoleStore = defineStore('role', () => {
     }
   }
 
-  // 选择角色（同时尝试获取数字人图像作为头像）
+  // 选择角色
   const selectRole = async (role: Role) => {
     currentRole.value = role
-    // 尝试获取数字人图像，如果存在则更新角色头像
-    try {
-      const dhResponse = await digitalHumanApi.getDigitalHuman(role.id)
-      if (dhResponse && dhResponse.success && dhResponse.data) {
-        const avatarUrl = dhResponse.data.avatar || dhResponse.data.local_image_url
-        if (avatarUrl && role.avatar !== avatarUrl) {
-          // 更新当前角色的头像
-          role.avatar = avatarUrl
-          // 同时更新列表中的角色头像
-          const roleInList = roles.value.find(r => r.id === role.id)
-          if (roleInList) {
-            roleInList.avatar = avatarUrl
-          }
-        }
-      }
-    } catch (e) {
-      // 数字人不存在或获取失败，忽略错误
-      console.debug('获取数字人图像失败:', e)
-    }
+    // 注意：不再自动更新角色头像
+    // 数字人图像由数字人组件独立管理
+    // 角色的avatar字段保持不变，避免缓存问题
   }
 
-  // 设置当前角色（别名方法，同时尝试获取数字人图像）
+  // 设置当前角色
   const setCurrentRole = async (role: Role) => {
     currentRole.value = role
-    // 尝试获取数字人图像，如果存在则更新角色头像
-    try {
-      const dhResponse = await digitalHumanApi.getDigitalHuman(role.id)
-      if (dhResponse && dhResponse.success && dhResponse.data) {
-        const avatarUrl = dhResponse.data.avatar || dhResponse.data.local_image_url
-        if (avatarUrl) {
-          // 更新当前角色的头像
-          role.avatar = avatarUrl
-          // 同时更新列表中的角色头像
-          const roleInList = roles.value.find(r => r.id === role.id)
-          if (roleInList) {
-            roleInList.avatar = avatarUrl
-          }
-        }
-      }
-    } catch (e) {
-      // 数字人不存在或获取失败，忽略错误
-      console.debug('获取数字人图像失败:', e)
-    }
+    // 注意：不再自动更新角色头像
+    // 数字人图像由数字人组件独立管理
   }
   
   // 更新角色头像（用于数字人创建成功后）
@@ -141,8 +108,18 @@ export const useRoleStore = defineStore('role', () => {
     loading.value = true
     try {
       const role = await roleApi.createRole(request)
-      customRoles.value.push(role)
+      // 检查角色是否已存在（避免重复添加）
+      const existingIndex = customRoles.value.findIndex(r => r.id === role.id)
+      if (existingIndex === -1) {
+        customRoles.value.push(role)
+      } else {
+        // 如果已存在，更新它
+        customRoles.value[existingIndex] = role
+      }
       return role
+    } catch (error) {
+      // 创建失败时，不添加到列表
+      throw error
     } finally {
       loading.value = false
     }

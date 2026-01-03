@@ -113,11 +113,12 @@ export const knowledgeGraphApi = {
   /**
    * 获取完整的知识图谱数据（用于可视化）
    */
-  async getGraphData(): Promise<{
+  async getGraphData(roleId?: string): Promise<{
     nodes: Array<{ id: string; label: string; type: string; properties: any }>
     edges: Array<{ from: string; to: string; label: string; arrows: string }>
     stats: { entities_count: number; triples_count: number; relations_count: number }
   }> {
+    const params = roleId ? { role_id: roleId } : {}
     const response = await api.get<{
       success: boolean
       data: {
@@ -125,7 +126,7 @@ export const knowledgeGraphApi = {
         edges: Array<{ from: string; to: string; label: string; arrows: string }>
         stats: { entities_count: number; triples_count: number; relations_count: number }
       }
-    }>('/knowledge-graph/graph-data')
+    }>('/knowledge-graph/graph-data', { params })
     return response.data.data
   }
 }

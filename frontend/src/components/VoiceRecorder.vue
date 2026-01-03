@@ -84,10 +84,10 @@ const startRecording = async () => {
       }
     })
     
-    // 如果启用实时识别，启动WebSocket连接
-    if (props.enableRealtime) {
-      await startRealtimeASR()
-    }
+    // 禁用实时识别（有bug，暂时不使用）
+    // if (props.enableRealtime) {
+    //   await startRealtimeASR()
+    // }
     
     mediaRecorder = new MediaRecorder(audioStream, {
       mimeType: 'audio/webm;codecs=opus'
@@ -97,10 +97,10 @@ const startRecording = async () => {
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         audioChunks.push(event.data)
-        // 如果启用实时识别，发送音频数据
-        if (props.enableRealtime && realtimeASR) {
-          realtimeASR.sendAudio(event.data)
-        }
+        // 禁用实时识别
+        // if (props.enableRealtime && realtimeASR) {
+        //   realtimeASR.sendAudio(event.data)
+        // }
       }
     }
 
@@ -114,13 +114,13 @@ const startRecording = async () => {
         audioStream = null
       }
       // 结束实时识别
-      if (props.enableRealtime && realtimeASR) {
-        realtimeASR.endSession()
-      }
+      // if (props.enableRealtime && realtimeASR) {
+      //   realtimeASR.endSession()
+      // }
     }
 
-    // 设置时间片，每100ms发送一次数据（用于实时识别）
-    mediaRecorder.start(props.enableRealtime ? 100 : undefined)
+    // 正常录音，不使用时间片
+    mediaRecorder.start()
     isRecording.value = true
     emit('recording-start')
   } catch (error: any) {

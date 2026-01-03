@@ -1,7 +1,7 @@
 """
 数字人API路由
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Dict, Optional
 import logging

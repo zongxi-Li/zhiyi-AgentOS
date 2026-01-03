@@ -99,6 +99,20 @@ public class ConversationController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * 清空用户的所有对话
+     */
+    @DeleteMapping("/all")
+    public ResponseEntity<Void> deleteAllConversations(
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId
+    ) {
+        if (userId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        conversationService.deleteAllConversations(userId);
+        return ResponseEntity.ok().build();
+    }
+
     @Data
     static class UpdateTitleRequest {
         private String title;

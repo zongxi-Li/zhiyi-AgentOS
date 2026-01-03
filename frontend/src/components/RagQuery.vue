@@ -87,6 +87,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, ArrowRight, Link, Loading } from '@element-plus/icons-vue'
 import { ragApi } from '@/services/api/rag'
+import { useRoleStore } from '@/stores/role'
 
 const emit = defineEmits<{
   refresh: []
@@ -98,6 +99,9 @@ const loading = ref(false)
 const result = ref<any>(null)
 
 
+const roleStore = useRoleStore()
+const currentRoleId = computed(() => roleStore.currentRole?.id)
+
 const handleQuery = async () => {
   if (!queryText.value.trim()) {
     ElMessage.warning('请输入查询内容')
@@ -108,8 +112,8 @@ const handleQuery = async () => {
   result.value = null // Clear previous result for animation
   
   try {
-    // Simulate delay for effect if needed, but API call is enough
-    result.value = await ragApi.query(queryText.value, topK.value)
+    // 传递当前角色ID，确保只查询该角色的知识库
+    result.value = await ragApi.query(queryText.value, topK.value, undefined, currentRoleId.value)
     ElMessage.success('查询成功')
   } catch (error: any) {
     ElMessage.error('查询失败: ' + (error.message || '未知错误'))

@@ -21,6 +21,9 @@ class ModelEvaluationRequest(BaseModel):
     
     # 解决 Pydantic v2 命名空间冲突
     model_config = {"protected_namespaces": ()}
+    
+    # 解决 Pydantic v2 命名空间冲突
+    model_config = {"protected_namespaces": ()}
 
 
 class ModelOptimizationRequest(BaseModel):
@@ -28,6 +31,9 @@ class ModelOptimizationRequest(BaseModel):
     model_type: str
     optimization_method: str = "federated"  # federated/fine_tune/hyperparameter
     target_metric: str = "quality"  # quality/speed/balance
+    
+    # 解决 Pydantic v2 命名空间冲突
+    model_config = {"protected_namespaces": ()}
     epochs: Optional[int] = 10
     
     # 解决 Pydantic v2 命名空间冲突
@@ -41,6 +47,9 @@ class BatchEvaluationRequest(BaseModel):
     
     # 解决 Pydantic v2 命名空间冲突
     model_config = {"protected_namespaces": ()}
+    
+    # 解决 Pydantic v2 命名空间冲突
+    model_config = {"protected_namespaces": ()}
 
 
 @router.get("/federated-models/list")
@@ -49,73 +58,105 @@ async def list_federated_models():
     try:
         models = {
             "text_generation": {
-                "fast": {
-                    "name": "快速文本生成模型",
-                    "type": "fast",
-                    "status": "active",
-                    "optimized": True,
-                    "version": "v2.1",
-                    "performance": {
-                        "accuracy": 0.85,
-                        "speed": 0.95,
-                        "efficiency": 0.88
-                    }
-                },
-                "balanced": {
-                    "name": "平衡文本生成模型",
-                    "type": "balanced",
-                    "status": "active",
-                    "optimized": True,
-                    "version": "v2.3",
-                    "performance": {
-                        "accuracy": 0.92,
-                        "speed": 0.75,
-                        "efficiency": 0.82
-                    }
-                },
-                "advanced": {
-                    "name": "高级文本生成模型",
+                "lawyer": {
+                    "name": "法学认知增强模型",
                     "type": "advanced",
                     "status": "active",
                     "optimized": True,
-                    "version": "v2.5",
+                    "version": "v3.2",
                     "performance": {
                         "accuracy": 0.98,
-                        "speed": 0.45,
-                        "efficiency": 0.65
+                        "speed": 0.85,
+                        "efficiency": 0.92
+                    }
+                },
+                "teacher": {
+                    "name": "教育逻辑协同模型",
+                    "type": "balanced",
+                    "status": "active",
+                    "optimized": True,
+                    "version": "v2.8",
+                    "performance": {
+                        "accuracy": 0.94,
+                        "speed": 0.90,
+                        "efficiency": 0.88
+                    }
+                },
+                "programmer": {
+                    "name": "工程代码优化模型",
+                    "type": "fast",
+                    "status": "active",
+                    "optimized": True,
+                    "version": "v4.1",
+                    "performance": {
+                        "accuracy": 0.91,
+                        "speed": 0.98,
+                        "efficiency": 0.95
+                    }
+                },
+                "writer": {
+                    "name": "文学创意扩散模型",
+                    "type": "advanced",
+                    "status": "active",
+                    "optimized": False,
+                    "version": "v1.5",
+                    "performance": {
+                        "accuracy": 0.88,
+                        "speed": 0.75,
+                        "efficiency": 0.82
                     }
                 }
             },
             "digital_human": {
                 "avatar_generation": {
-                    "name": "数字人形象生成模型",
+                    "name": "多模态形象合成模型",
                     "type": "avatar",
                     "status": "active",
                     "optimized": True,
-                    "version": "v1.8"
+                    "version": "v1.8",
+                    "performance": {
+                        "accuracy": 0.95,
+                        "speed": 0.88,
+                        "efficiency": 0.90
+                    }
                 },
                 "animation": {
-                    "name": "数字人动画模型",
+                    "name": "情感驱动动作引擎",
                     "type": "animation",
                     "status": "active",
                     "optimized": True,
-                    "version": "v1.6"
+                    "version": "v1.6",
+                    "performance": {
+                        "accuracy": 0.92,
+                        "speed": 0.95,
+                        "efficiency": 0.85
+                    }
                 }
             },
             "emotion_recognition": {
                 "fast": {
-                    "name": "快速情感识别模型",
+                    "name": "实时情感流解析模型",
                     "type": "fast",
                     "status": "active",
-                    "optimized": False,
-                    "version": "v1.2"
+                    "optimized": True,
+                    "version": "v1.2",
+                    "performance": {
+                        "accuracy": 0.85,
+                        "speed": 0.99,
+                        "efficiency": 0.94
+                    }
                 },
                 "advanced": {
-                    "name": "高级情感识别模型",
+                    "name": "微表情语义分析模型",
                     "type": "advanced",
                     "status": "active",
                     "optimized": True,
-                    "version": "v1.5"
+                    "version": "v1.5",
+                    "performance": {
+                        "accuracy": 0.97,
+                        "speed": 0.72,
+                        "efficiency": 0.80
+                    }
                 }
             }
         }

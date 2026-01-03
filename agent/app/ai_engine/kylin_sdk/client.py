@@ -1,10 +1,12 @@
 """
 麒麟AI SDK客户端封装
-支持通义千问大模型和模拟响应模式
+支持麒麟OS原生SDK和通义千问大模型
+智能选择：麒麟操作系统使用麒麟SDK，其他系统使用通义千问
 """
 import logging
 from typing import List, Dict, Optional
 import httpx
+import platform
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +14,11 @@ logger = logging.getLogger(__name__)
 _api_key_warning_printed = False
 # 全局标志：是否已打印通义千问启用日志
 _qwen_enabled_logged = False
+# 全局标志：是否已打印麒麟SDK日志
+_kylin_sdk_logged = False
 
 class KylinSDKClient:
-    """麒麟AI SDK客户端"""
+    """麒麟AI SDK客户端 - 智能选择SDK策略"""
     
     def __init__(self, api_key: str, api_endpoint: str, timeout: int = 30, qwen_api_key: Optional[str] = None, qwen_model: str = "qwen-plus"):
         """
@@ -31,11 +35,29 @@ class KylinSDKClient:
         self.api_endpoint = api_endpoint.rstrip('/')
         self.timeout = timeout
         
-        # 初始化通义千问适配器（如果提供了API密钥）
+        # 检测操作系统类型
+        self.is_kylin_os = self._detect_kylin_os()
+        
+        # 智能选择SDK策略
         self.qwen_adapter = None
         self.use_qwen = False
+        self.use_kylin_sdk = False
         
-        if qwen_api_key:
+        # 策略选择：麒麟OS优先使用麒麟SDK，其他系统使用通义千问
+        if self.is_kylin_os and self.api_key:
+            # 麒麟OS系统：尝试使用麒麟SDK
+            try:
+                global _kylin_sdk_logged
+                if not _kylin_sdk_logged:
+                    logger.info(f"检测到麒麟操作系统，使用麒麟AI SDK")
+                    _kylin_sdk_logged = True
+                self.use_kylin_sdk = True
+            except Exception as e:
+                logger.warning(f"麒麟SDK初始化失败: {e}，降级到通义千问")
+                self.use_kylin_sdk = False
+        
+        # 如果不是麒麟OS或麒麟SDK不可用，使用通义千问
+        if not self.use_kylin_sdk and qwen_api_key:
             try:
                 from app.ai_engine.qwenadapter import QwenAdapter
                 # 从配置读取base_url（如果可用）
@@ -50,7 +72,7 @@ class KylinSDKClient:
                 # 只在第一次启用时打印日志，避免重复
                 global _qwen_enabled_logged
                 if not _qwen_enabled_logged:
-                    logger.info(f"已启用通义千问大模型: {qwen_model}")
+                    logger.info(f"使用通义千问大模型: {qwen_model}")
                     _qwen_enabled_logged = True
             except Exception as e:
                 logger.warning(f"初始化通义千问适配器失败: {e}，将使用模拟响应")
@@ -65,8 +87,47 @@ class KylinSDKClient:
             timeout=timeout
         )
         
-        if not self.use_qwen:
-            logger.info(f"Kylin AI SDK Client initialized: {api_endpoint} ")
+        if not self.use_qwen and not self.use_kylin_sdk:
+            logger.info(f"SDK未配置，将使用模拟响应模式")
+    
+    def _detect_kylin_os(self) -> bool:
+        """
+        检测是否为麒麟操作系统
+        
+        Returns:
+            是否为麒麟OS
+        """
+        try:
+            # 检测Windows系统
+            if platform.system().lower() == 'windows':
+                return False
+            
+            # 导入麒麟OS集成服务（如果可用）
+            try:
+                from app.services.kylinosintegration import kylin_os_integration_service
+                return kylin_os_integration_service.is_kylin_os
+            except ImportError:
+                pass
+            
+            # 回退检测方法
+            import os
+            
+            # 检查麒麟特有文件
+            if os.path.exists('/etc/kylin-release'):
+                return True
+            
+            # 检查系统信息
+            try:
+                system_info = platform.platform().lower()
+                if 'kylin' in system_info or 'neokylin' in system_info:
+                    return True
+            except:
+                pass
+            
+            return False
+        except Exception as e:
+            logger.debug(f"检测麒麟OS失败: {e}")
+            return False
     
     async def generate_text(
         self,
@@ -466,7 +527,27 @@ class KylinSDKClient:
             logger.warning("使用模拟响应，请配置以下任一选项以使用真实TTS：")
             logger.warning("1. DASHSCOPE_API_KEY 或 QWEN_API_KEY（推荐，使用通义千问TTS）")
             logger.warning("2. KYLIN_AI_API_KEY 和 KYLIN_AI_ENDPOINT（使用麒麟AI TTS API）")
-            return b""
+            
+            # 生成简单的音频数据作为占位符（避免返回空数据）
+            import wave
+            import struct
+            import io
+            
+            # 生成1秒的静音音频
+            sample_rate = 16000
+            duration = 1
+            num_samples = sample_rate * duration
+            
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                # 写入静音数据
+                for _ in range(num_samples):
+                    wav_file.writeframes(struct.pack('<h', 0))
+            
+            return wav_buffer.getvalue()
             
         except Exception as e:
             logger.error(f"Speech synthesis error: {e}", exc_info=True)

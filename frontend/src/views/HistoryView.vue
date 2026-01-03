@@ -23,6 +23,10 @@
               class="search-input"
             />
           </div>
+          <button class="action-button" @click="refresh" title="刷新">
+            <el-icon><Refresh /></el-icon>
+            <span>刷新</span>
+          </button>
           <button class="action-button danger" @click="clearAll">
             <el-icon><Delete /></el-icon>
             <span>清空全部</span>
@@ -58,18 +62,16 @@
         <div class="content-section">
           <ConversationList
             v-if="activeTab === 'conversations'"
+            :key="`conversations-${refreshKey}`"
             :search-keyword="searchKeyword"
             @select="handleSelectConversation"
           />
           
           <div v-else class="files-content">
-            <div class="empty-state">
-              <div class="empty-icon-wrapper">
-                <el-icon class="empty-icon"><Document /></el-icon>
-              </div>
-              <h3 class="empty-title">暂无文件历史</h3>
-              <p class="empty-desc">上传的文件将显示在这里</p>
-            </div>
+            <FileHistoryList 
+              :key="`files-${refreshKey}`"
+              :search-keyword="searchKeyword" 
+            />
           </div>
         </div>
       </div>
@@ -80,16 +82,27 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Delete, Clock, ChatLineRound, Document } from '@element-plus/icons-vue'
+import { Search, Delete, Clock, ChatLineRound, Document, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ConversationList from '@/components/ConversationList.vue'
+import FileHistoryList from '@/components/FileHistoryList.vue'
+import { conversationApi } from '@/services/api/conversation'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const searchKeyword = ref('')
 const activeTab = ref('conversations')
+const refreshKey = ref(0)
 
 const handleSelectConversation = (conversation: any) => {
-  router.push(`/chat?contextId=${conversation.id}`)
+  router.push(`/chat?contextId=${conversation.contextId || conversation.id}`)
+}
+
+// 刷新当前标签页的数据
+const refresh = () => {
+  refreshKey.value++
+  ElMessage.success('已刷新')
 }
 
 const clearAll = async () => {
@@ -99,9 +112,22 @@ const clearAll = async () => {
       cancelButtonText: '取消',
       type: 'warning'
     })
+    
+    const userId = userStore.currentUser?.id
+    if (!userId) {
+      ElMessage.error('无法获取用户信息')
+      return
+    }
+    
+    await conversationApi.deleteAllConversations(userId)
     ElMessage.success('历史记录已清空')
-  } catch {
-    // 用户取消
+    
+    // 刷新对话列表
+    window.location.reload()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('清空失败: ' + (error.message || '未知错误'))
+    }
   }
 }
 </script>

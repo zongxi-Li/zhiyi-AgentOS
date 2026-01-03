@@ -1,13 +1,25 @@
 """
 语音服务适配器
 支持阿里云语音识别（ASR）和语音合成（TTS）API
-使用DashScope API，与通义千问共用API密钥
+使用DashScope SDK，与通义千问共用API密钥
 """
 import logging
 import base64
 import httpx
+import os
 from typing import Dict, Optional, AsyncIterator
 import json
+
+# 尝试导入dashscope SDK
+try:
+    import dashscope
+    from dashscope.audio.qwen_tts import SpeechSynthesizer
+    DASHSCOPE_SDK_AVAILABLE = True
+except ImportError:
+    DASHSCOPE_SDK_AVAILABLE = False
+    dashscope = None
+    SpeechSynthesizer = None
+    logging.warning("dashscope SDK未安装，请运行: pip install dashscope>=1.23.1")
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +37,12 @@ class SpeechAdapter:
         self.api_key = api_key
         self.base_url = "https://dashscope.aliyuncs.com/api/v1"
         self.client = httpx.AsyncClient(timeout=60.0)
-        logger.info("语音服务适配器初始化成功")
+        
+        # 设置环境变量，供dashscope SDK使用
+        if api_key:
+            os.environ["DASHSCOPE_API_KEY"] = api_key
+        
+        logger.info(f"语音服务适配器初始化成功 (SDK可用: {DASHSCOPE_SDK_AVAILABLE})")
     
     async def recognize_speech(
         self,
@@ -140,7 +157,7 @@ class SpeechAdapter:
     async def synthesize_speech(
         self,
         text: str,
-        voice: str = "zhitian_emo",
+        voice: str = "Cherry",
         speed: float = 1.0,
         pitch: float = 1.0,
         format: str = "wav",
@@ -148,11 +165,11 @@ class SpeechAdapter:
         **kwargs
     ) -> bytes:
         """
-        语音合成（TTS）
+        语音合成（TTS）- 使用通义千问qwen-tts模型
         
         Args:
             text: 要合成的文本
-            voice: 语音类型（zhitian_emo/zhitian_tech/zhimiao_emo等）
+            voice: 语音类型（Cherry/Bella/Bob/Alex等）
             speed: 语速（0.5-2.0，默认1.0）
             pitch: 音调（0.5-2.0，默认1.0）
             format: 音频格式（wav/pcm/mp3）
@@ -167,22 +184,64 @@ class SpeechAdapter:
             speed = max(0.5, min(2.0, speed))
             pitch = max(0.5, min(2.0, pitch))
             
-            # 映射前端语音类型到阿里云语音ID
+            # 映射前端语音类型到qwen-tts支持的voice
             voice_mapping = {
-                "default": "zhitian_emo",
-                "female": "zhimiao_emo",
-                "male": "zhitian_tech",
-                "gentle": "zhitian_emo",
-                "lively": "zhimiao_emo"
+                "default": "Cherry",  # 女声，温柔
+                "female": "Bella",    # 女声，优雅
+                "male": "Bob",        # 男声，稳重
+                "gentle": "Cherry",   # 温柔
+                "lively": "Bella"     # 活泼
             }
             actual_voice = voice_mapping.get(voice, voice)
             
-            # 阿里云DashScope TTS API端点
-            tts_url = f"{self.base_url}/services/audio/tts/text-to-speech"
+            # 优先使用DashScope SDK（如果可用）
+            if DASHSCOPE_SDK_AVAILABLE and self.api_key:
+                try:
+                    logger.info(f"使用qwen-tts SDK合成语音: {len(text)}字符, voice={actual_voice}, speed={speed}, pitch={pitch}")
+                    
+                    # 使用同步API（在异步函数中调用）
+                    import asyncio
+                    
+                    def call_tts():
+                        return SpeechSynthesizer.call(
+                            model="qwen-tts",
+                            api_key=self.api_key,
+                            text=text,
+                            voice=actual_voice,
+                            format=format,
+                            sample_rate=sample_rate,
+                            rate=speed,
+                            pitch_rate=pitch
+                        )
+                    
+                    # 在线程池中执行同步调用
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(None, call_tts)
+                    
+                    logger.info(f"qwen-tts响应: status_code={response.status_code}")
+                    
+                    # 检查响应状态
+                    if response.status_code == 200:
+                        # 获取音频数据
+                        audio_data = response.get_audio_data()
+                        if audio_data and len(audio_data) > 0:
+                            logger.info(f"✅ qwen-tts语音合成成功: 音频长度={len(audio_data)}字节")
+                            return audio_data
+                        else:
+                            logger.warning("qwen-tts返回空音频数据，尝试HTTP API")
+                    else:
+                        error_msg = getattr(response, 'message', '未知错误')
+                        logger.warning(f"qwen-tts SDK错误 ({response.status_code}): {error_msg}，尝试HTTP API")
+                        
+                except Exception as sdk_error:
+                    logger.warning(f"使用DashScope SDK失败: {sdk_error}，尝试HTTP API", exc_info=True)
+            
+            # 如果SDK不可用或失败，使用HTTP API（备用方案）
+            tts_url = f"{self.base_url}/services/audio/tts"
             
             # 构建请求数据
             request_data = {
-                "model": "sambert-zhitian-v1",  # 语音合成模型
+                "model": "qwen-tts",
                 "input": {
                     "text": text
                 },
@@ -190,47 +249,61 @@ class SpeechAdapter:
                     "voice": actual_voice,
                     "format": format,
                     "sample_rate": sample_rate,
-                    "speed": speed,
-                    "pitch": pitch
+                    "rate": speed,
+                    "pitch_rate": pitch
                 }
             }
             
-            # 调用API
+            # 使用HTTP API调用
+            logger.info(f"使用HTTP API调用TTS: {tts_url}")
+            
             response = await self.client.post(
                 tts_url,
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "X-DashScope-Async": "disable"  # 禁用异步，直接返回音频
                 },
                 json=request_data
             )
             
             # 检查响应状态
             response.raise_for_status()
-            result = response.json()
             
-            # 解析响应 - 兼容多种响应格式
-            audio_base64 = ""
+            # TTS API可能直接返回音频流或返回JSON
+            content_type = response.headers.get("content-type", "")
             
-            # 格式1: output.audio
-            if result.get("output"):
-                output = result["output"]
-                if isinstance(output, dict):
-                    audio_base64 = output.get("audio", "")
-            
-            # 格式2: 直接在result中
-            if not audio_base64:
-                audio_base64 = result.get("audio", "")
-            
-            if audio_base64:
-                # 解码base64音频数据
-                audio_data = base64.b64decode(audio_base64)
-                logger.info(f"语音合成成功: {len(text)} 字符, 音频长度: {len(audio_data)} 字节")
+            if "audio" in content_type or "octet-stream" in content_type:
+                # 直接返回音频数据
+                audio_data = response.content
+                logger.info(f"HTTP API语音合成成功: 音频长度={len(audio_data)}字节")
                 return audio_data
             else:
-                error_msg = result.get("message", result.get("error", "API返回格式错误"))
-                logger.error(f"语音合成API返回错误: {result}")
-                raise ValueError(f"语音合成API错误: {error_msg}")
+                # 解析JSON响应
+                result = response.json()
+                
+                # 解析响应 - 兼容多种响应格式
+                audio_base64 = ""
+                
+                # 格式1: output.audio
+                if result.get("output"):
+                    output = result["output"]
+                    if isinstance(output, dict):
+                        audio_base64 = output.get("audio", "")
+                
+                # 格式2: 直接在result中
+                if not audio_base64:
+                    audio_base64 = result.get("audio", "")
+                
+                if audio_base64:
+                    # 解码base64音频数据
+                    audio_data = base64.b64decode(audio_base64)
+                    logger.info(f"语音合成成功: {len(text)} 字符, 音频长度: {len(audio_data)} 字节")
+                    return audio_data
+                else:
+                    error_msg = result.get("message", result.get("error", "API返回格式错误"))
+                    logger.error(f"语音合成API返回错误: {result}")
+                    raise ValueError(f"语音合成API错误: {error_msg}")
                 
         except httpx.HTTPStatusError as e:
             error_detail = ""

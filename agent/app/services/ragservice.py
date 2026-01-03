@@ -51,16 +51,39 @@ class RAGService:
             chroma_dir = self.data_dir / "chroma_db"
             chroma_dir.mkdir(exist_ok=True)
             
-            self.vector_client = chromadb.PersistentClient(
-                path=str(chroma_dir),
-                settings=Settings(anonymized_telemetry=False)
-            )
+            # 兼容不同版本的ChromaDB
+            try:
+                # 尝试新版本API（0.4.x+）
+                self.vector_client = chromadb.PersistentClient(
+                    path=str(chroma_dir),
+                    settings=Settings(
+                        anonymized_telemetry=False,
+                        allow_reset=True
+                    )
+                )
+            except TypeError:
+                # 回退到旧版本API
+                self.vector_client = chromadb.PersistentClient(
+                    path=str(chroma_dir)
+                )
             
-            # 创建或获取集合
-            self.vector_collection = self.vector_client.get_or_create_collection(
-                name="rag_documents",
-                metadata={"hnsw:space": "cosine"}
-            )
+            # 创建或获取集合（处理版本兼容性）
+            try:
+                self.vector_collection = self.vector_client.get_or_create_collection(
+                    name="rag_documents",
+                    metadata={"hnsw:space": "cosine"}
+                )
+            except Exception as e:
+                # 如果失败，尝试删除并重新创建集合
+                logger.warning(f"获取集合失败，尝试重新创建: {e}")
+                try:
+                    self.vector_client.delete_collection("rag_documents")
+                except:
+                    pass
+                self.vector_collection = self.vector_client.create_collection(
+                    name="rag_documents",
+                    metadata={"hnsw:space": "cosine"}
+                )
             
             self.use_vector_db = True
             logger.info("向量数据库初始化成功（ChromaDB）")
@@ -70,6 +93,9 @@ class RAGService:
         except Exception as e:
             logger.warning(f"向量数据库初始化失败: {e}，使用关键词索引")
             self.use_vector_db = False
+            # 确保不使用向量数据库
+            self.vector_client = None
+            self.vector_collection = None
     
     def _load_documents(self):
         """从文件加载文档"""
@@ -78,7 +104,10 @@ class RAGService:
             try:
                 with open(doc_file, 'r', encoding='utf-8') as f:
                     self.documents = json.load(f)
-                logger.info(f"加载了 {len(self.documents)} 个文档")
+                # 只在第一次加载时记录日志
+        if not hasattr(RAGService, '_load_logged'):
+            logger.info(f"✅ 加载了 {len(self.documents)} 个文档")
+            RAGService._load_logged = True
             except Exception as e:
                 logger.error(f"加载文档失败: {e}")
     
@@ -95,26 +124,51 @@ class RAGService:
         """
         从文件数据中提取文本
         
-        已集成easydoc、mineru等文档处理工具支持
+        优先级：高级文档处理器 > 增强文档处理器 > 基础实现
+        已集成easydoc、mineru、pdfplumber等文档处理工具支持
         """
         try:
-            # 使用增强文档处理器
-            from app.services.documentprocessorenhanced import enhanced_document_processor
+            # 优先使用高级文档处理器（集成easydoc、mineru等）
+            try:
+                from app.services.documentprocessoradvanced import document_processor_advanced
+                from app.config import settings
+                
+                use_enhanced = getattr(settings, 'DOCUMENT_PROCESSOR_USE_ENHANCED', True)
+                method = getattr(settings, 'DOCUMENT_PROCESSOR_METHOD', 'auto')
+                
+                result = document_processor_advanced.extract_text(
+                    file_data=file_data,
+                    filename=filename,
+                    use_enhanced=use_enhanced,
+                    method=None if method == 'auto' else method
+                )
+                
+                if result.get("success"):
+                    logger.debug(f"使用 {result.get('method')} 提取文本: {filename}")
+                    return result.get("text", "")
+                else:
+                    logger.warning(f"高级文档处理器提取失败: {result.get('error')}")
+            except ImportError:
+                logger.debug("高级文档处理器不可用，尝试增强文档处理器")
             
-            result = enhanced_document_processor.extract_text(
-                file_data=file_data,
-                filename=filename,
-                use_enhanced=True
-            )
+            # 回退到增强文档处理器
+            try:
+                from app.services.documentprocessorenhanced import enhanced_document_processor
+                
+                result = enhanced_document_processor.extract_text(
+                    file_data=file_data,
+                    filename=filename,
+                    use_enhanced=True
+                )
+                
+                if result.get("success"):
+                    return result.get("text", "")
+                else:
+                    logger.warning(f"增强文档处理器提取失败: {result.get('error')}")
+            except ImportError:
+                logger.debug("增强文档处理器不可用，使用基础实现")
             
-            if result.get("success"):
-                return result.get("text", "")
-            else:
-                logger.warning(f"文档提取失败: {result.get('error')}")
-                return ""
-        except ImportError:
-            # 回退到基础实现
-            logger.warning("增强文档处理器不可用，使用基础实现")
+            # 最终回退到基础实现
             try:
                 if filename.endswith('.txt') or filename.endswith('.md'):
                     return file_data.decode('utf-8')
@@ -127,6 +181,9 @@ class RAGService:
             except Exception as e:
                 logger.error(f"提取文本失败: {e}")
                 return ""
+        except Exception as e:
+            logger.error(f"文档处理异常: {e}", exc_info=True)
+            return ""
     
     def _build_index(self, doc_id: str, text: str):
         """构建文档索引"""
@@ -208,7 +265,8 @@ class RAGService:
         self,
         file_data: bytes,
         filename: str,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        role_id: Optional[str] = None
     ) -> str:
         """
         上传文档到知识库
@@ -217,23 +275,30 @@ class RAGService:
             file_data: 文件数据
             filename: 文件名
             metadata: 元数据
+            role_id: 角色ID（用于分类知识库）
         
         Returns:
             文档ID
         """
         try:
-            # 生成文档ID
-            doc_id = hashlib.md5(file_data).hexdigest()
+            # 生成文档ID（包含role_id以确保不同角色的文档ID不同）
+            doc_id_base = f"{role_id}_{filename}" if role_id else filename
+            doc_id = hashlib.md5(f"{doc_id_base}_{file_data}".encode()).hexdigest()
             
             # 提取文本
             text = self._extract_text(file_data, filename)
             
             # 保存文档
+            doc_metadata = metadata or {}
+            if role_id:
+                doc_metadata["role_id"] = role_id
+            
             self.documents[doc_id] = {
                 "doc_id": doc_id,
                 "filename": filename,
                 "text": text,
-                "metadata": metadata or {},
+                "metadata": doc_metadata,
+                "role_id": role_id,  # 添加角色ID字段
                 "upload_time": datetime.now().isoformat(),
                 "size": len(file_data)
             }
@@ -256,7 +321,8 @@ class RAGService:
         query: str,
         top_k: int = 5,
         context_id: Optional[str] = None,
-        use_vector_search: bool = True
+        use_vector_search: bool = True,
+        role_id: Optional[str] = None
     ) -> List[Dict]:
         """
         搜索相关文档
@@ -266,6 +332,7 @@ class RAGService:
             top_k: 返回结果数量
             context_id: 上下文ID（可选）
             use_vector_search: 是否使用向量搜索（如果可用）
+            role_id: 角色ID（用于过滤知识库）
         
         Returns:
             搜索结果列表
@@ -273,15 +340,21 @@ class RAGService:
         try:
             # 优先使用向量搜索
             if use_vector_search and self.use_vector_db and self.vector_collection:
-                return self._vector_search(query, top_k)
+                results = self._vector_search(query, top_k, role_id)
             else:
-                return self._keyword_search(query, top_k)
+                results = self._keyword_search(query, top_k, role_id)
+            
+            # 如果指定了role_id，过滤结果
+            if role_id:
+                results = [r for r in results if r.get("role_id") == role_id or r.get("metadata", {}).get("role_id") == role_id]
+            
+            return results[:top_k]
         except Exception as e:
             logger.error(f"搜索失败: {e}", exc_info=True)
             # 回退到关键词搜索
-            return self._keyword_search(query, top_k)
+            return self._keyword_search(query, top_k, role_id)
     
-    def _vector_search(self, query: str, top_k: int) -> List[Dict]:
+    def _vector_search(self, query: str, top_k: int, role_id: Optional[str] = None) -> List[Dict]:
         """向量搜索"""
         try:
             # 生成查询向量
@@ -308,27 +381,35 @@ class RAGService:
             if results['ids'] and len(results['ids'][0]) > 0:
                 for i, doc_id in enumerate(results['ids'][0]):
                     doc_data = self.documents.get(doc_id, {})
+                    # 如果指定了role_id，只返回匹配的文档
+                    if role_id and doc_data.get("role_id") != role_id and doc_data.get("metadata", {}).get("role_id") != role_id:
+                        continue
                     search_results.append({
                         "doc_id": doc_id,
                         "filename": doc_data.get("filename", ""),
                         "score": 1.0 - results['distances'][0][i] if 'distances' in results else 0.5,  # 距离转分数
                         "content": doc_data.get("text", "")[:500],
                         "metadata": doc_data.get("metadata", {}),
+                        "role_id": doc_data.get("role_id"),
                         "method": "vector_search"
                     })
             
             return search_results
         except Exception as e:
             logger.warning(f"向量搜索失败: {e}，回退到关键词搜索")
-            return self._keyword_search(query, top_k)
+            return self._keyword_search(query, top_k, role_id)
     
-    def _keyword_search(self, query: str, top_k: int) -> List[Dict]:
+    def _keyword_search(self, query: str, top_k: int, role_id: Optional[str] = None) -> List[Dict]:
         """关键词搜索"""
         query_words = query.lower().split()
         results = []
         
         # 关键词匹配
         for doc_id, doc_data in self.documents.items():
+            # 如果指定了role_id，只搜索匹配的文档
+            if role_id and doc_data.get("role_id") != role_id and doc_data.get("metadata", {}).get("role_id") != role_id:
+                continue
+                
             text = doc_data.get("text", "").lower()
             score = 0
             
@@ -344,6 +425,7 @@ class RAGService:
                     "score": score,
                     "content": doc_data.get("text", "")[:500],
                     "metadata": doc_data.get("metadata", {}),
+                    "role_id": doc_data.get("role_id"),
                     "method": "keyword_search"
                 })
         
@@ -380,7 +462,8 @@ class RAGService:
         self,
         query: str,
         top_k: int = 5,
-        use_knowledge_graph: bool = False
+        use_knowledge_graph: bool = False,
+        role_id: Optional[str] = None
     ) -> Dict:
         """
         增强检索（可选知识图谱）
@@ -389,13 +472,14 @@ class RAGService:
             query: 查询文本
             top_k: 返回结果数量
             use_knowledge_graph: 是否使用知识图谱增强
+            role_id: 角色ID（用于过滤知识库）
         
         Returns:
             检索结果（包含向量检索和知识图谱结果）
         """
         try:
             # 向量检索
-            vector_results = self.search(query, top_k)
+            vector_results = self.search(query, top_k, role_id=role_id)
             
             # 如果启用知识图谱
             if use_knowledge_graph:

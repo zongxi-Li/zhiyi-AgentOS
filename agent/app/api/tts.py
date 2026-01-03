@@ -27,8 +27,11 @@ async def text_to_speech(request: TtsRequest):
         request: 语音合成请求，包含文本、语音类型、语速、音调
     
     Returns:
-        音频数据（WAV格式）
+        音频流（WAV格式）
     """
+    from fastapi.responses import StreamingResponse
+    import io
+    
     audio_data = await ai_service.synthesize_speech(
         text=request.text,
         voice=request.voice,
@@ -36,11 +39,12 @@ async def text_to_speech(request: TtsRequest):
         pitch=request.pitch
     )
     
-    return {
-        "audio": audio_data,
-        "format": "wav",
-        "text": request.text,
-        "voice": request.voice,
-        "speed": request.speed,
-        "pitch": request.pitch
-    }
+    # 返回音频流而不是JSON
+    return StreamingResponse(
+        io.BytesIO(audio_data),
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f'attachment; filename="tts_audio.wav"',
+            "Cache-Control": "no-cache"
+        }
+    )

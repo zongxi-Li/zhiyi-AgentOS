@@ -15,6 +15,9 @@ class InitializeModelRequest(BaseModel):
     model_type: str
     model_params: Dict
     training_data_info: Dict
+    
+    # 解决 Pydantic v2 命名空间冲突
+    model_config = {"protected_namespaces": ()}
 
 
 class RegisterClientRequest(BaseModel):

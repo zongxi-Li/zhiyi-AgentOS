@@ -46,6 +46,15 @@ export const conversationApi = {
   async updateTitle(conversationId: string, title: string): Promise<Conversation> {
     const response = await request.put<Conversation>(`/conversations/${conversationId}/title`, { title })
     return response.data
+  },
+
+  // 清空所有对话
+  async deleteAllConversations(userId?: string): Promise<void> {
+    const headers: Record<string, string> = {}
+    if (userId) {
+      headers['X-User-Id'] = userId
+    }
+    await request.delete('/conversations/all', { headers })
   }
 }
 

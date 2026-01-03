@@ -190,5 +190,37 @@ public class KnowledgeGraphService {
             return errorResponse;
         }
     }
+
+    /**
+     * 获取完整的知识图谱数据（用于可视化）
+     */
+    public Map<String, Object> getGraphData(String roleId) {
+        try {
+            StringBuilder uriBuilder = new StringBuilder("/api/knowledge-graph/graph-data");
+            if (roleId != null && !roleId.isEmpty()) {
+                uriBuilder.append("?role_id=").append(roleId);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseMap = webClient.get()
+                    .uri(uriBuilder.toString())
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofMillis(timeout))
+                    .block();
+
+            if (responseMap != null && Boolean.TRUE.equals(responseMap.get("success"))) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = (Map<String, Object>) responseMap.get("data");
+                return data != null ? data : new HashMap<>();
+            }
+            return new HashMap<>();
+        } catch (Exception e) {
+            log.error("获取知识图谱数据失败", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "获取知识图谱数据失败: " + e.getMessage());
+            return errorResponse;
+        }
+    }
 }
 

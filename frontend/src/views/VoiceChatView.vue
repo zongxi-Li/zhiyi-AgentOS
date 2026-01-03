@@ -12,6 +12,11 @@
       <div class="glow-orb orb-2" :class="{ 'active': isRecording || isSpeaking }"></div>
     </div>
 
+    <!-- 返回按钮 -->
+    <button class="back-button" @click="handleBack" title="返回">
+      <el-icon><ArrowLeft /></el-icon>
+    </button>
+
     <!-- 主体内容区 -->
     <div class="main-content">
       <!-- 数字人展示区 -->
@@ -66,7 +71,7 @@
             @recording-end="handleRecordingEnd"
             @realtime-text="handleRealtimeText"
             :disabled="processing"
-            :enable-realtime="true"
+            :enable-realtime="false"
             class="main-recorder-btn"
           />
           
@@ -153,13 +158,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Microphone, Setting, VideoPlay } from '@element-plus/icons-vue'
+import { Microphone, Setting, VideoPlay, ArrowLeft } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { useRoleStore } from '@/stores/role'
 import DigitalHuman from '@/components/DigitalHuman.vue'
 import VoiceRecorder from '@/components/VoiceRecorder.vue'
 import VoicePlayer from '@/components/VoicePlayer.vue'
 import { voiceApi } from '@/services/api/voice'
 
+const router = useRouter()
 const roleStore = useRoleStore()
 const isSpeaking = ref(false)
 const isRecording = ref(false)
@@ -208,28 +215,126 @@ const handleVoiceRecorded = async (audioBlob: Blob) => {
   recognizedText.value = ''
 
   try {
+    // 转换音频格式为 WAV（如果需要）
     const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' })
     
+    // 发送语音消息到后端处理
     const response = await voiceApi.sendVoiceMessage({
       audio: audioFile,
-      roleId: roleStore.currentRole?.id
+      roleId: roleStore.currentRole?.id || ''
     })
 
+    // 显示识别的文本
     recognizedText.value = response.recognizedText || response.text
 
+    // 如果有回复文本，转换为语音并播放
     if (response.text) {
-      const audioBlob = await voiceApi.textToSpeech(
-        response.text, 
-        voiceType.value,
-        voiceSpeed.value, 
-        voicePitch.value
-      )
-      responseAudioUrl.value = URL.createObjectURL(audioBlob)
+      try {
+        console.log('开始TTS合成，文本:', response.text)
+        const audioBlob = await voiceApi.textToSpeech(
+          response.text, 
+          voiceType.value,
+          voiceSpeed.value, 
+          voicePitch.value
+        )
+        
+        console.log('TTS合成成功，音频大小:', audioBlob.size, 'bytes')
+        
+        if (!audioBlob || audioBlob.size === 0) {
+          throw new Error('TTS返回的音频为空')
+        }
+        
+        // 创建音频URL
+        const audioUrl = URL.createObjectURL(audioBlob)
+        responseAudioUrl.value = audioUrl
+        
+        // 设置音频URL给数字人组件
+        currentAudioUrl.value = audioUrl
+        
+        console.log('创建音频URL:', audioUrl)
+        
+        // 创建音频对象并加载
+        const audio = new Audio(audioUrl)
+        
+        // 设置音频属性
+        audio.preload = 'auto'
+        audio.volume = 1.0
+        
+        // 等待音频元数据加载完成
+        audio.addEventListener('loadedmetadata', () => {
+          console.log('音频元数据加载完成，时长:', audio.duration, '秒')
+        })
+        
+        audio.addEventListener('canplay', () => {
+          console.log('音频可以播放')
+          // 尝试播放
+          audio.play().then(() => {
+            console.log('音频播放成功')
+            isSpeaking.value = true
+          }).catch((playError) => {
+            console.error('播放失败:', playError)
+            // 如果是用户交互限制，提示用户
+            if (playError.name === 'NotAllowedError' || playError.name === 'NotSupportedError') {
+              ElMessage.warning('请点击页面后重试播放音频')
+            } else {
+              ElMessage.error('音频播放失败: ' + (playError.message || '未知错误'))
+            }
+            isSpeaking.value = false
+          })
+        })
+        
+        audio.addEventListener('play', () => {
+          console.log('音频开始播放')
+          isSpeaking.value = true
+        })
+        
+        audio.addEventListener('ended', () => {
+          console.log('音频播放结束')
+          isSpeaking.value = false
+          URL.revokeObjectURL(audioUrl)
+          responseAudioUrl.value = ''
+          currentAudioUrl.value = ''
+        })
+        
+        audio.addEventListener('error', (error) => {
+          console.error('音频加载/播放失败:', error, audio.error)
+          isSpeaking.value = false
+          
+          if (audio.error) {
+            const errorMessages: Record<number, string> = {
+              1: '音频加载被中止',
+              2: '网络错误',
+              3: '音频解码失败',
+              4: '不支持的音频格式'
+            }
+            const errorMsg = errorMessages[audio.error.code] || '未知错误'
+            ElMessage.error(`音频播放失败: ${errorMsg}`)
+          } else {
+            ElMessage.error('音频播放失败: ' + (error.message || '未知错误'))
+          }
+          
+          // 清理资源
+          URL.revokeObjectURL(audioUrl)
+          responseAudioUrl.value = ''
+          currentAudioUrl.value = ''
+        })
+        
+        // 开始加载音频
+        audio.load()
+      } catch (ttsError: any) {
+        console.error('语音合成失败:', ttsError)
+        ElMessage.error('语音合成失败: ' + (ttsError.message || '未知错误'))
+      }
     }
   } catch (error: any) {
+    console.error('语音处理失败:', error)
     ElMessage.error('语音处理失败: ' + (error.message || '未知错误'))
   } finally {
     processing.value = false
+    // 3秒后清除识别文本
+    setTimeout(() => {
+      recognizedText.value = ''
+    }, 3000)
   }
 }
 
@@ -261,6 +366,10 @@ const handleTestVoice = async () => {
   } catch (error: any) {
     ElMessage.error('试听失败: ' + (error.message || '未知错误'))
   }
+}
+
+const handleBack = () => {
+  router.push('/chat')
 }
 
 // 粒子样式生成
@@ -311,6 +420,37 @@ const startWaveAnimation = () => {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Back Button */
+.back-button {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  font-size: 20px;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateX(-2px);
+}
+
+.back-button:active {
+  transform: scale(0.95);
 }
 
 /* --- 背景氛围层 - 丰富的动效 --- */

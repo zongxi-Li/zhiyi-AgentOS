@@ -148,11 +148,11 @@ const handleSubmit = async () => {
       loading.value = true
       try {
         const request: RoleCreateRequest = {
-          name: form.name,
-          description: form.description,
-          systemPrompt: form.systemPrompt,
-          dialogueStyle: parseJson(form.dialogueStyleText),
-          personality: parseJson(form.personalityText)
+          name: form.name.trim(),
+          description: form.description.trim() || undefined,
+          systemPrompt: form.systemPrompt.trim(),
+          dialogueStyle: parseJson(form.dialogueStyleText, '对话风格'),
+          personality: parseJson(form.personalityText, '性格特点')
         }
 
         const role = await roleStore.createRole(request)
@@ -168,11 +168,14 @@ const handleSubmit = async () => {
   })
 }
 
-const parseJson = (text: string): any => {
+const parseJson = (text: string, fieldName: string = ''): any => {
   if (!text || !text.trim()) return undefined
   try {
     return JSON.parse(text)
-  } catch {
+  } catch (error) {
+    if (text.trim()) {
+      ElMessage.warning(`${fieldName || 'JSON'}格式错误，将忽略该配置`)
+    }
     return undefined
   }
 }

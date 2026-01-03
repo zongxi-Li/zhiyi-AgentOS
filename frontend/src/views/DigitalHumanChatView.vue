@@ -1,5 +1,9 @@
 <template>
   <div class="dh-view-container">
+    <button class="back-btn" @click="handleBack" title="返回">
+      <el-icon><ArrowLeft /></el-icon>
+    </button>
+    
     <div class="main-layout">
       
       <!-- Left: Digital Human Management -->
@@ -468,7 +472,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import {
   Search, Plus, Microphone, Loading, ArrowUp, Setting,
-  Download, Delete, ArrowRight, ChatLineRound, Edit, Check
+  Download, Delete, ArrowRight, ChatLineRound, Edit, Check, ArrowLeft
 } from '@element-plus/icons-vue'
 import AvatarSettingsPanel from '@/components/AvatarSettingsPanel.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -476,12 +480,18 @@ import DigitalHuman from '@/components/DigitalHuman.vue'
 import CreateRoleDialog from '@/components/CreateRoleDialog.vue'
 import { useRoleStore } from '@/stores/role'
 import { useChatStore } from '@/stores/chat'
+import { useRouter } from 'vue-router'
 import { chatApi } from '@/services/api/chat'
 import { voiceApi } from '@/services/api/voice'
 import { digitalHumanApi } from '@/services/api/digitalHuman'
 
+const router = useRouter()
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
+
+const handleBack = () => {
+  router.push('/chat')
+}
 
 // State
 const searchKeyword = ref('')
@@ -1042,6 +1052,37 @@ onMounted(async () => {
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
+  position: relative;
+}
+
+.back-btn {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  z-index: 100;
+
+  &:hover {
+    background: var(--bg-input);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateX(-2px);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 .main-layout {
