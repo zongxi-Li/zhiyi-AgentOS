@@ -27,7 +27,7 @@
       </div>
 
       <!-- Chat Messages Scroll Area -->
-      <div class="messages-container" ref="messagesRef">
+      <div class="messages-container" ref="messagesRef" @wheel="handleMessagesWheel">
         <div v-if="chatStore.messages.length === 0" class="empty-state">
            <div class="hero-content">
              <div class="logo-mark">Kinlin AI</div>
@@ -80,13 +80,15 @@
         <!-- Recommendations -->
         <div v-if="recommendations.length > 0" class="recommendations-container">
           <div class="recommendations-label">💡 推荐问题</div>
-          <div 
-            v-for="rec in recommendations" 
-            :key="rec"
-            class="recommendation-tag"
-            @click="useRecommendation(rec)"
-          >
-            {{ rec }}
+          <div class="recommendations-tags">
+            <div 
+              v-for="rec in recommendations" 
+              :key="rec"
+              class="recommendation-tag"
+              @click="useRecommendation(rec)"
+            >
+              {{ rec }}
+            </div>
           </div>
         </div>
 
@@ -100,7 +102,7 @@
             resize="none"
             :placeholder="$t('chat.placeholder')"
             class="dock-input"
-            @keydown.enter.prevent="sendMessage"
+            @keydown="handleKeydown"
           />
 
           <!-- Dock Footer -->
@@ -287,12 +289,26 @@ const currentTemplates = computed(() => {
 // Methods
 const useTemplate = (text: string) => {
   inputText.value = text
+  // 自动聚焦到输入框
+  nextTick(() => {
+    const textarea = document.querySelector('.dock-input textarea') as HTMLTextAreaElement
+    if (textarea) {
+      textarea.focus()
+      textarea.setSelectionRange(text.length, text.length)
+    }
+  })
 }
 
 const useRecommendation = (text: string) => {
   inputText.value = text
-  // 可选：自动发送
-  // sendMessage()
+  // 自动聚焦到输入框
+  nextTick(() => {
+    const textarea = document.querySelector('.dock-input textarea') as HTMLTextAreaElement
+    if (textarea) {
+      textarea.focus()
+      textarea.setSelectionRange(text.length, text.length)
+    }
+  })
 }
 
 const autoSegment = () => {
@@ -304,59 +320,62 @@ const autoSegment = () => {
 }
 
 const selectRole = async (role: any) => {
+  // 如果当前有对话历史，询问用户如何处理
   if (chatStore.messages.length > 0) {
     try {
-      const confirm = await ElMessageBox.confirm(
-        t('role.deleteConfirm'),
-        t('role.title'),
+      const result = await ElMessageBox.confirm(
+        `切换角色到"${role.name}"将清空当前对话，是否继续？`,
+        '切换角色',
         {
-          confirmButtonText: t('common.confirm'),
-          cancelButtonText: t('common.cancel'),
-          distinguishCancelAndClose: true,
-          type: 'info'
+          confirmButtonText: '继续',
+          cancelButtonText: '取消',
+          type: 'warning'
         }
       )
-      // If "保留" is clicked
-      if (confirm === 'confirm') {
-        // Keep context logic (if implemented in chatStore)
-      }
-    } catch (action) {
-      if (action === 'cancel') {
+      
+      // 用户确认切换角色
+      if (result) {
         chatStore.clearMessages()
       } else {
-        return // Closed without action
+        return // 用户取消切换
       }
+    } catch (error) {
+      // 用户关闭对话框，不进行任何操作
+      return
     }
   }
 
-  // 同步更新 selectedRoleId 和 roleStore.currentRole
+  // 更新选中的角色
   selectedRoleId.value = role.id
   await roleStore.setCurrentRole(role)
-  showRoleDrawer.value = false // Auto close for smoother experience
-}
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesRef.value) {
-      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-    }
-  })
+  showRoleDrawer.value = false // 自动关闭抽屉提供更流畅的体验
+  
+  // 显示角色切换成功提示
+  ElMessage.success(`已切换到角色: ${role.name}`)
 }
 
 const sendMessage = async () => {
   if (!inputText.value.trim() && !isRecording.value) return
-  if (!selectedRoleId.value) {
-    ElMessage.warning('Please select a role first')
+  
+  // 确保有选中的角色
+  if (!selectedRoleId.value && roles.value.length > 0) {
+    // 如果没有选中角色，自动选择第一个角色
+    const firstRole = roles.value[0]
+    await roleStore.setCurrentRole(firstRole)
+    selectedRoleId.value = firstRole.id
+    ElMessage.success(`已自动选择角色: ${firstRole.name}`)
+  } else if (!selectedRoleId.value) {
+    ElMessage.warning('请先选择角色')
     showRoleDrawer.value = true
     return
   }
 
   loading.value = true
   const userText = inputText.value
-  inputText.value = '' // Optimistic clear
+  inputText.value = '' // 乐观清除
 
   try {
-    // Add User Message
+    // 添加用户消息
     const userMessage = {
       id: Date.now().toString(),
       role: 'user' as const,
@@ -367,14 +386,15 @@ const sendMessage = async () => {
     chatStore.addMessage(userMessage)
     scrollToBottom()
 
+    // 发送消息到AI服务
     const response = await chatApi.sendMessage({
       roleId: selectedRoleId.value,
       message: userText,
       emotionTag: emotionTag.value,
-      context: [] // Simplified
+      context: [] // 简化上下文
     })
     
-    // Add AI Message
+    // 添加AI回复消息
     if (response && response.text) {
       const assistantMessage = {
         id: (Date.now() + 1).toString(),
@@ -394,19 +414,17 @@ const sendMessage = async () => {
     }
     scrollToBottom()
 
+    // 处理语音回复
     if (response.audioUrl) {
       currentAudioUrl.value = response.audioUrl
       isSpeaking.value = true
-      // Mock stop
+      // 模拟语音播放结束
       setTimeout(() => isSpeaking.value = false, 5000)
     }
 
-    // 加载推荐问题
-    // await loadRecommendations()
-
   } catch (err: any) {
-    ElMessage.error(err.message || 'Failed to send message')
-    inputText.value = userText // Restore on error
+    ElMessage.error(err.message || '发送消息失败')
+    inputText.value = userText // 出错时恢复文本
   } finally {
     loading.value = false
   }
@@ -416,13 +434,100 @@ const sendMessage = async () => {
 const startVoiceInput = () => { isRecording.value = true }
 const stopVoiceInput = () => { isRecording.value = false }
 
+const handleKeydown = (event: KeyboardEvent) => {
+  // 处理回车键发送消息（Ctrl+Enter 或 Shift+Enter 换行）
+  if (event.key === 'Enter') {
+    if (event.ctrlKey || event.shiftKey) {
+      // Ctrl+Enter 或 Shift+Enter：插入换行
+      event.preventDefault()
+      const textarea = event.target as HTMLTextAreaElement
+      const cursorPosition = textarea.selectionStart
+      const textBefore = inputText.value.substring(0, cursorPosition)
+      const textAfter = inputText.value.substring(cursorPosition)
+      inputText.value = textBefore + '\n' + textAfter
+      
+      // 设置光标位置到新行
+      nextTick(() => {
+        textarea.selectionStart = cursorPosition + 1
+        textarea.selectionEnd = cursorPosition + 1
+      })
+    } else {
+      // 普通回车键：发送消息
+      event.preventDefault()
+      sendMessage()
+    }
+  }
+}
+
 const handleControl = (type: string) => {
   if (type === 'folder') showFileManager.value = true
 }
 
 const handleFileSelected = (file: any) => {
-  ElMessage.success(`File selected: ${file.name}`)
+  ElMessage.success(`已选择文件: ${file.name}`)
 }
+
+// 处理消息容器滚动
+const handleMessagesWheel = (event: WheelEvent) => {
+  if (!messagesRef.value) return
+  
+  // 阻止默认滚动行为
+  event.preventDefault()
+  
+  // 计算滚动距离（平滑滚动）
+  const scrollAmount = event.deltaY * 0.8
+  
+  // 平滑滚动消息容器
+  messagesRef.value.scrollBy({
+    top: scrollAmount,
+    behavior: 'smooth'
+  })
+}
+
+// 自动滚动到底部（当有新消息时）
+const scrollToBottom = () => {
+  if (!messagesRef.value) return
+  
+  nextTick(() => {
+    messagesRef.value!.scrollTo({
+      top: messagesRef.value!.scrollHeight,
+      behavior: 'smooth'
+    })
+  })
+}
+
+// 监听消息变化，自动滚动到底部
+watch(() => chatStore.messages.length, () => {
+  scrollToBottom()
+})
+
+// 滚动状态检测
+const checkScrollState = () => {
+  if (!messagesRef.value) return
+  
+  const { scrollTop, scrollHeight, clientHeight } = messagesRef.value
+  const isAtTop = scrollTop === 0
+  const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
+  
+  // 添加或移除滚动状态类
+  messagesRef.value.classList.toggle('scrolled-top', !isAtTop)
+  messagesRef.value.classList.toggle('scrolled-bottom', !isAtBottom)
+}
+
+// 监听滚动事件
+onMounted(() => {
+  if (messagesRef.value) {
+    messagesRef.value.addEventListener('scroll', checkScrollState)
+    // 初始检查滚动状态
+    checkScrollState()
+  }
+})
+
+onUnmounted(() => {
+  if (messagesRef.value) {
+    messagesRef.value.removeEventListener('scroll', checkScrollState)
+  }
+})
 
 // 监听 roleStore.currentRole 变化，同步 selectedRoleId
 watch(() => roleStore.currentRole, (newRole) => {
@@ -570,68 +675,62 @@ onMounted(async () => {
   position: absolute;
   top: 24px;
   right: 24px;
-  z-index: 10;
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  z-index: 10;
 }
 
 .action-btn {
-  height: 44px;
-  padding: 0 12px 0 8px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--border-light);
-  border-radius: 22px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all 0.2s ease;
-  color: var(--text-primary);
-  font-family: inherit;
-}
-
-.action-btn.icon-only {
-  width: 44px;
-  justify-content: center;
-  padding: 0;
+  user-select: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
 }
 
 .action-btn:hover {
-  background: #ffffff;
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn:active {
+  transform: translateY(0);
+}
+
+.action-btn.icon-only {
+  padding: 8px;
 }
 
 .current-role-avatar {
   flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .role-name-label {
-  font-weight: 600;
   font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
   white-space: nowrap;
-  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 120px;
 }
 
 .icon-right {
-  font-size: 14px;
-  color: var(--text-secondary);
-  transition: transform 0.2s ease;
-  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
 }
 
 .action-btn:hover .icon-right {
-  color: var(--primary-color);
-  transform: translateY(1px);
+  opacity: 1;
 }
 
 /* --- Messages Container --- */
@@ -645,6 +744,82 @@ onMounted(async () => {
   z-index: 1;
   scroll-behavior: smooth;
   min-height: 0; /* 确保可以滚动 */
+  cursor: default;
+}
+
+/* 消息容器滚动条样式 */
+.messages-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.3s ease;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.messages-container::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* 滚动时显示滚动条 */
+.messages-container:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* 滚动容器阴影效果 */
+.messages-container {
+  scrollbar-gutter: stable;
+}
+
+/* 滚动时添加渐变遮罩 */
+.messages-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(to bottom, var(--bg-app), transparent);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+.messages-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(to top, var(--bg-app), transparent);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+.messages-container.scrolled-top::before {
+  opacity: 1;
+}
+
+.messages-container.scrolled-bottom::after {
+  opacity: 1;
 }
 
 /* Empty State */
@@ -713,12 +888,32 @@ onMounted(async () => {
   max-width: 1400px; /* 拓宽模板容器以匹配输入框 */
   width: 100%;
   padding: 6px 4px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
   scroll-behavior: smooth;
+  cursor: grab;
 }
 
+.templates-container:active {
+  cursor: grabbing;
+}
+
+/* 模板容器滚动条样式 */
 .templates-container::-webkit-scrollbar {
-  display: none;
+  height: 4px;
+  display: block;
+}
+
+.templates-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.templates-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.templates-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .template-tag {
@@ -753,6 +948,38 @@ onMounted(async () => {
   max-width: 1400px; /* 拓宽推荐问题容器以匹配输入框 */
   width: 100%;
   padding: 6px 4px;
+}
+
+.recommendations-tags {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  cursor: grab;
+}
+
+.recommendations-tags:active {
+  cursor: grabbing;
+}
+
+/* 推荐问题容器滚动条样式 */
+.recommendations-tags::-webkit-scrollbar {
+  height: 4px;
+}
+
+.recommendations-tags::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.recommendations-tags::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.recommendations-tags::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .recommendations-label {
