@@ -27,7 +27,7 @@
       </div>
 
       <!-- Chat Messages Scroll Area -->
-      <div class="messages-container" ref="messagesRef" @wheel="handleMessagesWheel">
+      <div class="messages-container" ref="messagesRef">
         <div v-if="chatStore.messages.length === 0" class="empty-state">
            <div class="hero-content">
              <div class="logo-mark">Kinlin AI</div>
@@ -193,7 +193,7 @@
                </el-avatar>
                <div class="role-info">
                   <div class="name">{{ role.name }}</div>
-                  <div class="desc">{{ role.tag || 'AI Assistant' }}</div>
+                  <div class="desc">{{ role.description || 'AI Assistant' }}</div>
                </div>
                <div class="check-mark" v-if="roleStore.currentRole?.id === role.id || selectedRoleId === role.id">
                  <el-icon><Check /></el-icon>
@@ -212,8 +212,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   ArrowUp, ArrowDown, Microphone, Folder, MoreFilled, 
   Close, Check, Loading, CirclePlus, Picture
@@ -223,10 +224,9 @@ import MessageBubble from '@/components/MessageBubble.vue'
 import FileManager from '@/components/FileManager.vue'
 import { useRoleStore } from '@/stores/role'
 import { useChatStore } from '@/stores/chat'
-import { chatApi } from '@/services/api/chat'
-import { recommendationApi } from '@/services/api/recommendation'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
@@ -238,13 +238,11 @@ const emotionTag = ref('')
 const loading = ref(false)
 const isSpeaking = ref(false)
 const currentAudioUrl = ref('')
-const currentStyle = ref('realistic')
 const showRoleDrawer = ref(false)
 const showFileManager = ref(false)
 const isRecording = ref(false)
 const messagesRef = ref<HTMLElement | null>(null)
 const recommendations = ref<string[]>([])
-const loadingRecommendations = ref(false)
 
 // Computed
 const roles = computed(() => roleStore.roles)
@@ -348,6 +346,7 @@ const selectRole = async (role: any) => {
   // 更新选中的角色
   selectedRoleId.value = role.id
   await roleStore.setCurrentRole(role)
+  chatStore.setRole(role.id)
   showRoleDrawer.value = false // 自动关闭抽屉提供更流畅的体验
   
   // 显示角色切换成功提示
@@ -363,6 +362,7 @@ const sendMessage = async () => {
     const firstRole = roles.value[0]
     await roleStore.setCurrentRole(firstRole)
     selectedRoleId.value = firstRole.id
+    chatStore.setRole(firstRole.id)
     ElMessage.success(`已自动选择角色: ${firstRole.name}`)
   } else if (!selectedRoleId.value) {
     ElMessage.warning('请先选择角色')
@@ -371,47 +371,13 @@ const sendMessage = async () => {
   }
 
   loading.value = true
-  const userText = inputText.value
+  const userText = inputText.value.trim()
   inputText.value = '' // 乐观清除
 
   try {
-    // 添加用户消息
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user' as const,
-      content: userText,
-      createdAt: new Date(),
-      timestamp: Date.now()
-    }
-    chatStore.addMessage(userMessage)
-    scrollToBottom()
+    const response = await chatStore.sendMessage(userText)
+    if (!response) throw new Error('消息发送失败')
 
-    // 发送消息到AI服务
-    const response = await chatApi.sendMessage({
-      roleId: selectedRoleId.value,
-      message: userText,
-      emotionTag: emotionTag.value,
-      context: [] // 简化上下文
-    })
-    
-    // 添加AI回复消息
-    if (response && response.text) {
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant' as const,
-        content: response.text || '',
-        createdAt: new Date(),
-        timestamp: Date.now(),
-        confidence: response.confidence,
-        tokensUsed: response.tokensUsed,
-        sources: response.sources,
-        reasoningPath: response.reasoningPath,
-        audioUrl: response.audioUrl
-      }
-      chatStore.addMessage(assistantMessage)
-    } else {
-      throw new Error('AI服务返回无效响应')
-    }
     scrollToBottom()
 
     // 处理语音回复
@@ -460,28 +426,37 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 const handleControl = (type: string) => {
-  if (type === 'folder') showFileManager.value = true
+  if (type === 'folder' || type === 'image') {
+    showFileManager.value = true
+  }
 }
 
-const handleFileSelected = (file: any) => {
-  ElMessage.success(`已选择文件: ${file.name}`)
-}
+const handleFileSelected = async (file: any) => {
+  const fileUrl = file?.path ? `/api/files/download/${file.path}` : (file?.url || file?.fileUrl)
+  if (!fileUrl) {
+    ElMessage.warning('文件地址无效，无法发送')
+    return
+  }
 
-// 处理消息容器滚动
-const handleMessagesWheel = (event: WheelEvent) => {
-  if (!messagesRef.value) return
-  
-  // 阻止默认滚动行为
-  event.preventDefault()
-  
-  // 计算滚动距离（平滑滚动）
-  const scrollAmount = event.deltaY * 0.8
-  
-  // 平滑滚动消息容器
-  messagesRef.value.scrollBy({
-    top: scrollAmount,
-    behavior: 'smooth'
-  })
+  if (!selectedRoleId.value && roles.value.length > 0) {
+    const firstRole = roles.value[0]
+    await roleStore.setCurrentRole(firstRole)
+    selectedRoleId.value = firstRole.id
+    chatStore.setRole(firstRole.id)
+  }
+
+  showFileManager.value = false
+  loading.value = true
+
+  try {
+    await chatStore.sendMessage('', fileUrl)
+    scrollToBottom()
+    ElMessage.success(`已发送文件: ${file.name}`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '发送文件失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 // 自动滚动到底部（当有新消息时）
@@ -533,8 +508,22 @@ onUnmounted(() => {
 watch(() => roleStore.currentRole, (newRole) => {
   if (newRole) {
     selectedRoleId.value = newRole.id
+    chatStore.setRole(newRole.id)
   }
 }, { immediate: true })
+
+watch(
+  () => route.query.contextId,
+  async (contextId) => {
+    const targetContextId = typeof contextId === 'string' ? contextId.trim() : ''
+    if (!targetContextId) return
+    if (chatStore.contextId === targetContextId) return
+
+    await chatStore.loadHistory(targetContextId)
+    scrollToBottom()
+  },
+  { immediate: true }
+)
 
 onMounted(async () => {
   await roleStore.loadRoles()
@@ -545,9 +534,11 @@ onMounted(async () => {
     if (!roleStore.currentRole) {
       await roleStore.setCurrentRole(firstRole)
       selectedRoleId.value = firstRole.id
+      chatStore.setRole(firstRole.id)
     } else {
       // 如果已有当前角色，同步 selectedRoleId
       selectedRoleId.value = roleStore.currentRole.id
+      chatStore.setRole(roleStore.currentRole.id)
     }
   }
   // 初始加载推荐问题
@@ -565,6 +556,7 @@ onMounted(async () => {
   background-color: var(--bg-app);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .chat-stage {
@@ -572,6 +564,7 @@ onMounted(async () => {
   position: relative;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* Ambient Background */
@@ -735,7 +728,8 @@ onMounted(async () => {
 
 /* --- Messages Container --- */
 .messages-container {
-  flex: 1;
+  flex: 1 1 auto;
+  height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px 8% 200px; /* 进一步减少左右padding，拓宽对话窗口 */
@@ -744,6 +738,8 @@ onMounted(async () => {
   z-index: 1;
   scroll-behavior: smooth;
   min-height: 0; /* 确保可以滚动 */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   cursor: default;
 }
 
