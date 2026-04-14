@@ -26,41 +26,52 @@
         </el-tooltip>
       </div>
 
-      <!-- Chat Messages Scroll Area -->
-      <div class="messages-container" ref="messagesRef">
-        <div v-if="chatStore.messages.length === 0" class="empty-state">
-           <div class="hero-content">
-             <div class="logo-mark">Kinlin AI</div>
-             <h1 class="welcome-text">{{ $t('chat.noMessages') }}</h1>
-             <p class="subtitle">{{ $t('chat.newChat') }}</p>
-           </div>
-        </div>
-
-        <div v-else class="message-list">
-          <div 
-            v-for="msg in chatStore.messages" 
-            :key="msg.id" 
-            class="message-row"
-            :class="msg.role"
-          >
-             <div class="message-content-wrapper">
-                <MessageBubble 
-                  :message="{
-                    id: msg.id,
-                    role: msg.role,
-                    content: msg.content || '',
-                    createdAt: msg.createdAt || (msg.timestamp ? new Date(msg.timestamp) : new Date()),
-                    confidence: msg.confidence,
-                    fileUrl: msg.fileUrl,
-                    tokensUsed: msg.tokensUsed,
-                    sources: msg.sources,
-                    reasoningPath: msg.reasoningPath,
-                    modelInfo: msg.modelInfo
-                  }"
-                />
+      <div class="chat-body" :class="{ 'with-lawyer-panel': isLawyerMode }">
+        <!-- Chat Messages Scroll Area -->
+        <div class="messages-container" ref="messagesRef">
+          <div v-if="chatStore.messages.length === 0" class="empty-state">
+             <div class="hero-content">
+               <div class="logo-mark">联邦智能枢</div>
+               <h1 class="welcome-text">{{ $t('chat.noMessages') }}</h1>
+               <p class="subtitle">{{ $t('chat.newChat') }}</p>
              </div>
           </div>
+
+          <div v-else class="message-list">
+            <div 
+              v-for="msg in chatStore.messages" 
+              :key="msg.id" 
+              class="message-row"
+              :class="msg.role"
+            >
+               <div class="message-content-wrapper">
+                  <MessageBubble 
+                    :message="{
+                      id: msg.id,
+                      role: msg.role,
+                      content: msg.content || '',
+                      createdAt: msg.createdAt || (msg.timestamp ? new Date(msg.timestamp) : new Date()),
+                      confidence: msg.confidence,
+                      fileUrl: msg.fileUrl,
+                      tokensUsed: msg.tokensUsed,
+                      sources: msg.sources,
+                      reasoningPath: msg.reasoningPath,
+                      modelInfo: msg.modelInfo
+                    }"
+                  />
+               </div>
+            </div>
+          </div>
         </div>
+
+        <aside v-if="isLawyerMode" class="lawyer-panel-wrap">
+          <LawyerSkillPanel
+            :skills-used="latestLawyerMeta.skillsUsed"
+            :trace="latestLawyerMeta.trace"
+            :federated="latestLawyerMeta.federated"
+            :risk-level="latestLawyerMeta.riskLevel"
+          />
+        </aside>
       </div>
 
       <!-- Bottom: Input Area (Floating) -->
@@ -222,6 +233,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MessageBubble from '@/components/MessageBubble.vue'
 import FileManager from '@/components/FileManager.vue'
+import LawyerSkillPanel from '@/components/agent/LawyerSkillPanel.vue'
 import { useRoleStore } from '@/stores/role'
 import { useChatStore } from '@/stores/chat'
 
@@ -248,6 +260,23 @@ const recommendations = ref<string[]>([])
 const roles = computed(() => roleStore.roles)
 // 直接使用 roleStore 的 currentRole，确保显示一致
 const currentRole = computed(() => roleStore.currentRole)
+const isLawyerMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('\u5f8b\u5e08') || name.includes('lawyer') || name.includes('\u6cd5\u5f8b')
+})
+
+const latestLawyerMeta = computed(() => {
+  const lastAssistant = [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && (msg.agentMode === 'lawyer' || (msg.trace && msg.trace.length > 0)))
+
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {},
+    riskLevel: lastAssistant?.riskLevel || ''
+  }
+})
 
 const currentTemplates = computed(() => {
   const roleName = currentRole.value?.name || ''
@@ -375,13 +404,15 @@ const sendMessage = async () => {
   inputText.value = '' // 乐观清除
 
   try {
-    const response = await chatStore.sendMessage(userText)
+    const response = isLawyerMode.value
+      ? await chatStore.sendLawyerMessage(userText)
+      : await chatStore.sendMessage(userText)
     if (!response) throw new Error('消息发送失败')
 
     scrollToBottom()
 
     // 处理语音回复
-    if (response.audioUrl) {
+    if ('audioUrl' in response && response.audioUrl) {
       currentAudioUrl.value = response.audioUrl
       isSpeaking.value = true
       // 模拟语音播放结束
@@ -567,6 +598,25 @@ onMounted(async () => {
   min-height: 0;
 }
 
+.chat-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.chat-body.with-lawyer-panel {
+  gap: 12px;
+  padding-right: 12px;
+}
+
+.lawyer-panel-wrap {
+  width: 360px;
+  flex: 0 0 360px;
+  padding-top: 84px;
+  padding-bottom: 210px;
+  min-height: 0;
+}
+
 /* Ambient Background */
 .ambient-glow {
   position: absolute;
@@ -741,6 +791,10 @@ onMounted(async () => {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   cursor: default;
+}
+
+.chat-body.with-lawyer-panel .messages-container {
+  padding-right: 16px;
 }
 
 /* 消息容器滚动条样式 */
@@ -1347,7 +1401,27 @@ onMounted(async () => {
   filter: blur(10px);
 }
 
+@media (max-width: 1280px) {
+  .chat-body.with-lawyer-panel {
+    padding-right: 0;
+  }
+
+  .lawyer-panel-wrap {
+    width: 320px;
+    flex-basis: 320px;
+  }
+}
+
 @media (max-width: 1024px) {
+  .chat-body.with-lawyer-panel {
+    display: block;
+  }
+
+  .lawyer-panel-wrap {
+    width: 100%;
+    padding: 8px 16px 0;
+  }
+
   .messages-container {
     padding: 120px 16px 200px; /* 调整底部padding以匹配输入框高度 */
   }

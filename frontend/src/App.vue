@@ -7,7 +7,7 @@
           <!-- Logo Section -->
           <div class="sidebar-header" @click="router.push('/chat')">
             <div class="logo-icon">K</div>
-            <span class="logo-text">Kinlin AI</span>
+            <span class="logo-text">联邦智能枢</span>
           </div>
 
           <!-- Main Navigation -->
@@ -123,29 +123,29 @@ const route = useRoute()
 const router = useRouter()
 const globalError = ref('')
 
-// 鑾峰彇瑙掕壊鍜岃亰澶╃姸鎬?
+// Sidebar navigation state
 
-// 瀵艰埅鏍忔粴鍔ㄧ浉鍏?
+// Sidebar scroll container reference
 const sidebarNav = ref<HTMLElement | null>(null)
 
-// 澶勭悊瀵艰埅鏍忔粴鍔?
+// Handle mouse-wheel scrolling inside sidebar
 const handleSidebarWheel = (event: WheelEvent) => {
   if (!sidebarNav.value) return
   
-  // 闃绘榛樿婊氬姩琛屼负
+  // Prevent page-level scrolling when pointer is on sidebar
   event.preventDefault()
   
-  // 璁＄畻婊氬姩璺濈锛堝钩婊戞粴鍔級
+  // Slow down scroll speed for smoother navigation
   const scrollAmount = event.deltaY * 0.5
   
-  // 骞虫粦婊氬姩瀵艰埅鏍?
+  // Scroll only the sidebar container
   sidebarNav.value.scrollBy({
     top: scrollAmount,
     behavior: 'smooth'
   })
 }
 
-// 鍒ゆ柇鏄惁涓烘矇娴稿紡妯″紡锛堝璇煶浜や簰鐣岄潰銆佺櫥褰曢〉闈€佽仈閭﹀涔犵鐞嗕腑蹇冦€佽缃〉闈㈢瓑锛?
+// Immersive mode: hide sidebar for focused pages
 const isImmersive = computed(() => {
   const path = route.path
   return path.startsWith('/voice') || 
@@ -186,7 +186,7 @@ const handleGlobalError = (event: CustomEvent) => {
   }
 }
 
-// 閫€鍑虹櫥褰曞鐞?
+// Logout with confirmation dialog
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm(
@@ -282,7 +282,7 @@ onUnmounted(() => {
   max-height: calc(100vh - 200px); /* 减少底部空白，优化高度 */
 }
 
-/* 瀵艰埅鏍忔粴鍔ㄦ潯鏍峰紡 */
+/* Sidebar menu scrolling */
 .sidebar-nav::-webkit-scrollbar {
   width: 4px;
 }
@@ -318,13 +318,13 @@ onUnmounted(() => {
   padding: 16px;
   border-top: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light);
-  height: 320px; /* 澧炲姞楂樺害浠ユ洿濂藉湴鏄剧ず鏁板瓧浜?*/
+  height: 320px; /* Keep a stable user card height */
   min-height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.02);
-  overflow: hidden; /* 纭繚鍐呭涓嶆孩鍑?*/
+  overflow: hidden; /* Prevent overflow artifacts */
 }
 
 .sidebar-digital-human :deep(.digital-human-container) {
@@ -385,7 +385,7 @@ onUnmounted(() => {
   color: var(--success);
 }
 
-/* 閫€鍑虹櫥褰曟寜閽牱寮?*/
+/* Footer layout */
 .logout-section {
   margin-top: 12px;
   padding: 0 12px;
@@ -462,7 +462,7 @@ onUnmounted(() => {
   overflow-y: auto;
 }
 
-/* 鑹烘湳鎰熻嚜瀹氫箟婊氬姩鏉?*/
+/* Responsive optimization */
 .app-main::-webkit-scrollbar {
   width: 6px;
 }

@@ -1,4 +1,5 @@
 ﻿import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
 import ChatView from '@/views/ChatView.vue'
 import RoleView from '@/views/RoleView.vue'
 import SettingsView from '@/views/SettingsView.vue'
@@ -7,7 +8,7 @@ import LoginView from '@/views/LoginView.vue'
 import RagView from '@/views/RagView.vue'
 import { authApi } from '@/services/api/auth'
 
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: '/',
     redirect: '/chat'
@@ -17,7 +18,7 @@ const routes = [
     name: 'Login',
     component: LoginView,
     meta: {
-      title: '鐧诲綍',
+      title: '登录',
       requiresAuth: false
     }
   },
@@ -26,7 +27,7 @@ const routes = [
     name: 'User',
     component: () => import('@/views/UserView.vue'),
     meta: {
-      title: '鐢ㄦ埛涓績',
+      title: '用户中心',
       requiresAuth: true
     }
   },
@@ -35,7 +36,7 @@ const routes = [
     name: 'Info',
     component: () => import('@/views/InfoView.vue'),
     meta: {
-      title: '淇℃伅鍏ュ彛',
+      title: '信息入口',
       requiresAuth: true
     }
   },
@@ -44,7 +45,7 @@ const routes = [
     name: 'History',
     component: () => import('@/views/HistoryView.vue'),
     meta: {
-      title: '鍘嗗彶璁板綍',
+      title: '历史记录',
       requiresAuth: true
     }
   },
@@ -71,7 +72,7 @@ const routes = [
     name: 'VoiceChat',
     component: VoiceChatView,
     meta: {
-      title: '璇煶瀵硅瘽',
+      title: '语音对话',
       requiresAuth: true
     }
   },
@@ -80,7 +81,7 @@ const routes = [
     name: 'Roles',
     component: RoleView,
     meta: {
-      title: '瑙掕壊绠＄悊',
+      title: '角色管理',
       requiresAuth: true
     }
   },
@@ -89,7 +90,7 @@ const routes = [
     name: 'CreateRole',
     component: () => import('@/views/CreateRoleView.vue'),
     meta: {
-      title: '鍒涘缓瑙掕壊',
+      title: '创建角色',
       requiresAuth: true
     }
   },
@@ -98,7 +99,7 @@ const routes = [
     name: 'Settings',
     component: SettingsView,
     meta: {
-      title: '璁剧疆',
+      title: '设置',
       requiresAuth: true
     }
   },
@@ -116,7 +117,7 @@ const routes = [
     name: 'FederatedModelManagement',
     component: () => import('@/views/FederatedModelManagementView.vue'),
     meta: {
-      title: '鑱旈偊瀛︿範妯″瀷绠＄悊',
+      title: '联邦模型管理',
       requiresAuth: true
     }
   },
@@ -125,7 +126,7 @@ const routes = [
     name: 'FederatedLearning',
     component: () => import('@/views/FederatedLearningView.vue'),
     meta: {
-      title: '鑱旈偊瀛︿範鍏ㄥ眬妯″瀷',
+      title: '联邦学习管理',
       requiresAuth: true
     }
   }
@@ -147,14 +148,14 @@ const normalizeRedirect = (redirect?: string) => {
   return redirect
 }
 
-// 璺敱瀹堝崼
+// Global route guard
 router.beforeEach(async (to, _from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - Kinlin AI` : 'Kinlin AI'
+  document.title = to.meta.title ? `${to.meta.title} - 联邦智能枢` : '联邦智能枢'
 
   const token = localStorage.getItem('token')
   const requiresAuth = Boolean(to.meta.requiresAuth)
 
-  // 璁块棶鍙椾繚鎶ら〉闈㈡椂锛岀粺涓€杩涜鐧诲綍鎬佹牎楠屻€?
+  // Validate login state for protected routes
   if (requiresAuth) {
     if (!token) {
       next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
@@ -194,4 +195,5 @@ router.beforeEach(async (to, _from, next) => {
 })
 
 export default router
+
 
