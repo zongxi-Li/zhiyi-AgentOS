@@ -6,7 +6,8 @@
 
     <!-- Main Chat Content -->
     <main class="chat-stage">
-      
+      <div class="top-zone">
+
       <!-- Top Right: Header Actions (Role & Settings) -->
       <div class="header-actions">
         <el-tooltip :content="t('role.title')" placement="bottom" effect="light">
@@ -20,7 +21,7 @@
         </el-tooltip>
         
         <el-tooltip :content="t('settings.title')" placement="bottom" effect="light">
-          <div class="action-btn glass-btn icon-only">
+          <div class="action-btn glass-btn icon-only" @click="goToSettings">
              <el-icon><MoreFilled /></el-icon>
           </div>
         </el-tooltip>
@@ -54,6 +55,7 @@
           </div>
         </div>
       </section>
+      </div>
 
       <div class="chat-body" :class="{ 'with-lawyer-panel': isLawyerMode }">
         <!-- Chat Messages Scroll Area -->
@@ -63,6 +65,18 @@
                <div class="logo-mark">联邦智能枢</div>
                <h1 class="welcome-text">{{ $t('chat.noMessages') }}</h1>
                <p class="subtitle">{{ $t('chat.newChat') }}</p>
+               <div class="empty-actions">
+                 <button
+                   type="button"
+                   class="empty-action-btn"
+                   @click="useTemplate(currentTemplates[0] || '请帮我梳理这个案件的关键法律风险')"
+                 >
+                   开始提问
+                 </button>
+                 <button type="button" class="empty-action-btn ghost" @click="showRoleDrawer = true">
+                   选择角色
+                 </button>
+               </div>
              </div>
           </div>
 
@@ -91,7 +105,27 @@
                </div>
             </div>
           </div>
+
+          <div v-if="loading" class="typing-row">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-text">AI is thinking...</span>
+          </div>
         </div>
+
+        <button
+          v-if="showScrollToBottom"
+          class="jump-bottom-btn"
+          type="button"
+          title="回到底部"
+          @click="handleScrollToBottom"
+        >
+          <el-icon><ArrowDownBold /></el-icon>
+          <span v-if="pendingMessageCount > 0" class="jump-bottom-badge">
+            {{ pendingMessageCount > 9 ? '9+' : pendingMessageCount }}
+          </span>
+        </button>
 
         <aside v-if="isLawyerMode" class="lawyer-panel-wrap">
           <LawyerSkillPanel
@@ -105,8 +139,15 @@
 
       <!-- Bottom: Input Area (Floating) -->
       <div class="input-dock-wrapper">
+        <div class="assist-toolbar">
+          <button type="button" class="assist-toggle-btn" @click="toggleAssistTools">
+            {{ showAssistTools ? '收起快捷操作' : '展开快捷操作' }}
+          </button>
+          <span class="assist-tip">Enter 发送，Shift/Ctrl + Enter 换行</span>
+        </div>
+
         <!-- Quick Reply Templates -->
-        <div v-if="currentTemplates.length > 0" class="templates-container">
+        <div v-if="showAssistTools && currentTemplates.length > 0" class="templates-container">
           <div 
             v-for="template in currentTemplates" 
             :key="template"
@@ -118,7 +159,7 @@
         </div>
 
         <!-- Recommendations -->
-        <div v-if="recommendations.length > 0" class="recommendations-container">
+        <div v-if="showAssistTools && recommendations.length > 0" class="recommendations-container">
           <div class="recommendations-label">💡 推荐问题</div>
           <div class="recommendations-tags">
             <div 
@@ -196,7 +237,7 @@
                   <span class="label">Emotion</span>
                   <input v-model="emotionTag" placeholder="Auto" class="transparent-input" />
                 </div>
-                <button class="send-trigger" @click="sendMessage" :disabled="loading || (!inputText.trim() && !isRecording)">
+                <button class="send-trigger" @click="sendMessage" :disabled="isSendDisabled">
                    <el-icon v-if="!loading"><ArrowUp /></el-icon>
                    <el-icon v-else class="is-loading"><Loading /></el-icon>
                 </button>
@@ -254,10 +295,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowUp, ArrowDown, Microphone, Folder, MoreFilled, 
-  Close, Check, Loading, CirclePlus, Picture
+  Close, Check, Loading, CirclePlus, Picture, ArrowDownBold
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MessageBubble from '@/components/MessageBubble.vue'
@@ -268,6 +309,7 @@ import { useChatStore } from '@/stores/chat'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
@@ -284,6 +326,10 @@ const showFileManager = ref(false)
 const isRecording = ref(false)
 const messagesRef = ref<HTMLElement | null>(null)
 const recommendations = ref<string[]>([])
+const showAssistTools = ref(true)
+const isNearBottom = ref(true)
+const pendingMessageCount = ref(0)
+const ASSIST_TOOL_VISIBLE_KEY = 'chat.assist_tools_visible'
 
 // Computed
 const roles = computed(() => roleStore.roles)
@@ -306,6 +352,9 @@ const latestLawyerMeta = computed(() => {
     riskLevel: lastAssistant?.riskLevel || ''
   }
 })
+
+const showScrollToBottom = computed(() => !isNearBottom.value && chatStore.messages.length > 0)
+const isSendDisabled = computed(() => loading.value || (!inputText.value.trim() && !isRecording.value))
 
 const currentTemplates = computed(() => {
   const roleName = currentRole.value?.name || ''
@@ -366,7 +415,16 @@ const activateLawyerAgent = async () => {
   await selectRole(lawyerRole)
 }
 
+const goToSettings = () => {
+  router.push('/settings')
+}
+
+const toggleAssistTools = () => {
+  showAssistTools.value = !showAssistTools.value
+}
+
 const useTemplate = (text: string) => {
+  if (!text) return
   inputText.value = text
   // 自动聚焦到输入框
   nextTick(() => {
@@ -435,6 +493,7 @@ const selectRole = async (role: any) => {
 }
 
 const sendMessage = async () => {
+  if (loading.value) return
   if (!inputText.value.trim() && !isRecording.value) return
   
   // 确保有选中的角色
@@ -484,6 +543,8 @@ const startVoiceInput = () => { isRecording.value = true }
 const stopVoiceInput = () => { isRecording.value = false }
 
 const handleKeydown = (event: KeyboardEvent) => {
+  if (event.isComposing || event.keyCode === 229) return
+
   // 处理回车键发送消息（Ctrl+Enter 或 Shift+Enter 换行）
   if (event.key === 'Enter') {
     if (event.ctrlKey || event.shiftKey) {
@@ -554,10 +615,27 @@ const scrollToBottom = () => {
   })
 }
 
-// 监听消息变化，自动滚动到底部
-watch(() => chatStore.messages.length, () => {
+const handleScrollToBottom = () => {
+  pendingMessageCount.value = 0
   scrollToBottom()
-})
+}
+
+// 监听消息变化：如果用户正在查看历史，不强制打断滚动
+watch(
+  () => chatStore.messages.length,
+  (newLen, oldLen) => {
+    if (newLen <= oldLen) return
+    const latest = chatStore.messages[newLen - 1]
+    const isUserMessage = latest?.role === 'user'
+
+    if (isNearBottom.value || isUserMessage) {
+      scrollToBottom()
+      return
+    }
+
+    pendingMessageCount.value = Math.min(99, pendingMessageCount.value + 1)
+  }
+)
 
 // 滚动状态检测
 const checkScrollState = () => {
@@ -565,7 +643,11 @@ const checkScrollState = () => {
   
   const { scrollTop, scrollHeight, clientHeight } = messagesRef.value
   const isAtTop = scrollTop === 0
-  const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
+  const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 24
+  isNearBottom.value = isAtBottom
+  if (isAtBottom) {
+    pendingMessageCount.value = 0
+  }
   
   // 添加或移除滚动状态类
   messagesRef.value.classList.toggle('scrolled-top', !isAtTop)
@@ -610,6 +692,10 @@ watch(
 
 onMounted(async () => {
   await roleStore.loadRoles()
+  const assistToolVisible = localStorage.getItem(ASSIST_TOOL_VISIBLE_KEY)
+  if (assistToolVisible === '0') {
+    showAssistTools.value = false
+  }
   // 如果有角色，设置第一个为当前角色，并同步 selectedRoleId
   if (roles.value.length > 0) {
     const firstRole = roles.value[0]
@@ -626,6 +712,10 @@ onMounted(async () => {
   }
   // 初始加载推荐问题
   // await loadRecommendations()
+})
+
+watch(showAssistTools, (visible) => {
+  localStorage.setItem(ASSIST_TOOL_VISIBLE_KEY, visible ? '1' : '0')
 })
 </script>
 
@@ -650,8 +740,16 @@ onMounted(async () => {
   min-height: 0;
 }
 
+.top-zone {
+  margin: 20px 8% 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 2;
+}
+
 .agent-spotlight {
-  margin: 88px 8% 10px;
+  margin: 0;
   padding: 18px 20px;
   border-radius: 18px;
   border: 1px solid rgba(59, 130, 246, 0.16);
@@ -730,6 +828,7 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   min-height: 0;
+  position: relative;
 }
 
 .chat-body.with-lawyer-panel {
@@ -740,7 +839,7 @@ onMounted(async () => {
 .lawyer-panel-wrap {
   width: 360px;
   flex: 0 0 360px;
-  padding-top: 84px;
+  padding-top: 12px;
   padding-bottom: 210px;
   min-height: 0;
 }
@@ -843,12 +942,11 @@ onMounted(async () => {
 
 /* --- Header Actions (Top-Right Floating) --- */
 .header-actions {
-  position: absolute;
-  top: 24px;
-  right: 24px;
+  position: static;
+  align-self: flex-end;
   display: flex;
   gap: 8px;
-  z-index: 10;
+  z-index: 2;
 }
 
 .action-btn {
@@ -910,7 +1008,7 @@ onMounted(async () => {
   height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 8% 200px; /* 进一步减少左右padding，拓宽对话窗口 */
+  padding: 16px 8% 200px;
   display: flex;
   flex-direction: column;
   z-index: 1;
@@ -923,6 +1021,78 @@ onMounted(async () => {
 
 .chat-body.with-lawyer-panel .messages-container {
   padding-right: 16px;
+}
+
+.typing-row {
+  margin: 8px auto 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.08);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  animation: typing-pulse 1.1s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+.typing-text {
+  margin-left: 4px;
+}
+
+.jump-bottom-btn {
+  position: absolute;
+  right: 32px;
+  bottom: 224px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.92);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 18;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.jump-bottom-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.32);
+}
+
+.jump-bottom-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
 }
 
 /* 消息容器滚动条样式 */
@@ -1031,6 +1201,39 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
+.empty-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.empty-action-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.empty-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(37, 99, 235, 0.25);
+}
+
+.empty-action-btn.ghost {
+  color: var(--text-regular);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+}
+
 /* --- Message List --- */
 .message-list {
   display: flex;
@@ -1056,6 +1259,40 @@ onMounted(async () => {
   z-index: 20;
   background: linear-gradient(to top, var(--bg-app) 60%, transparent);
   max-width: 100%;
+}
+
+.assist-toolbar {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 1400px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.assist-toggle-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text-regular);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.assist-toggle-btn:hover {
+  background: #fff;
+  color: var(--primary-color);
+}
+
+.assist-tip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .templates-container {
@@ -1521,6 +1758,11 @@ onMounted(async () => {
   100% { transform: scale(1); opacity: 1; }
 }
 
+@keyframes typing-pulse {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
 .role-fade-enter-active, .role-fade-leave-active {
   transition: opacity 0.5s ease, filter 0.5s ease;
 }
@@ -1530,8 +1772,8 @@ onMounted(async () => {
 }
 
 @media (max-width: 1280px) {
-  .agent-spotlight {
-    margin: 84px 16px 8px;
+  .top-zone {
+    margin: 16px 16px 8px;
   }
 
   .chat-body.with-lawyer-panel {
@@ -1545,8 +1787,16 @@ onMounted(async () => {
 }
 
 @media (max-width: 1024px) {
+  .top-zone {
+    margin: 14px 12px 6px;
+  }
+
+  .header-actions {
+    align-self: stretch;
+    justify-content: flex-end;
+  }
+
   .agent-spotlight {
-    margin: 84px 16px 8px;
     padding: 14px;
     flex-direction: column;
     align-items: stretch;
@@ -1576,9 +1826,24 @@ onMounted(async () => {
     padding: 8px 16px 0;
   }
 
-  .messages-container {
-    padding: 120px 16px 200px; /* 调整底部padding以匹配输入框高度 */
+  .jump-bottom-btn {
+    right: 16px;
+    bottom: 214px;
   }
+
+  .messages-container {
+    padding: 10px 16px 200px;
+  }
+
+  .assist-toolbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .assist-tip {
+    white-space: normal;
+  }
+
   .message-list {
     max-width: 100%; /* 小屏幕上使用全宽 */
   }
