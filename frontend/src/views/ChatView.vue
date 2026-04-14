@@ -62,20 +62,82 @@
         <div class="messages-container" ref="messagesRef">
           <div v-if="chatStore.messages.length === 0" class="empty-state">
              <div class="hero-content">
-               <div class="logo-mark">联邦智能枢</div>
-               <h1 class="welcome-text">{{ $t('chat.noMessages') }}</h1>
-               <p class="subtitle">{{ $t('chat.newChat') }}</p>
+               <!-- 动态Logo和欢迎动画 -->
+               <div class="logo-mark-container">
+                 <div class="logo-mark animated-logo">
+                   <span class="logo-icon">🌐</span>
+                   <span class="logo-text">联邦智能枢</span>
+                 </div>
+                 <div class="logo-pulse"></div>
+               </div>
+               
+               <!-- 动态欢迎文本 -->
+               <div class="welcome-section">
+                 <h1 class="welcome-text">{{ $t('chat.noMessages') }}</h1>
+                 <p class="subtitle">{{ $t('chat.newChat') }}</p>
+                 
+                 <!-- 快速启动按钮组 -->
+                 <div class="quick-start-grid">
+                   <div class="quick-action-card" @click="useTemplate('请帮我分析这个法律案件的关键风险点')">
+                     <div class="action-icon">⚖️</div>
+                     <div class="action-text">法律咨询</div>
+                     <div class="action-hint">分析案件风险</div>
+                   </div>
+                   
+                   <div class="quick-action-card" @click="useTemplate('请帮我撰写一份商业合同草案')">
+                     <div class="action-icon">📝</div>
+                     <div class="action-text">文书起草</div>
+                     <div class="action-hint">生成专业文档</div>
+                   </div>
+                   
+                   <div class="quick-action-card" @click="useTemplate('请帮我检索相关法律条文')">
+                     <div class="action-icon">🔍</div>
+                     <div class="action-text">法条检索</div>
+                     <div class="action-hint">查找相关法规</div>
+                   </div>
+                   
+                   <div class="quick-action-card" @click="useTemplate('请帮我评估这个商业决策的法律风险')">
+                     <div class="action-icon">📊</div>
+                     <div class="action-text">风险评估</div>
+                     <div class="action-hint">分析潜在风险</div>
+                   </div>
+                 </div>
+               </div>
+               
+               <!-- 主要操作按钮 -->
                <div class="empty-actions">
                  <button
                    type="button"
-                   class="empty-action-btn"
+                   class="empty-action-btn primary"
                    @click="useTemplate(currentTemplates[0] || '请帮我梳理这个案件的关键法律风险')"
                  >
-                   开始提问
+                   <el-icon><ChatDotRound /></el-icon>
+                   开始智能对话
                  </button>
-                 <button type="button" class="empty-action-btn ghost" @click="showRoleDrawer = true">
-                   选择角色
+                 <button type="button" class="empty-action-btn secondary" @click="showRoleDrawer = true">
+                   <el-icon><User /></el-icon>
+                   选择专业角色
                  </button>
+                 <button type="button" class="empty-action-btn ghost" @click="toggleLawyerMode">
+                   <el-icon><Scale /></el-icon>
+                   {{ isLawyerMode ? '退出律师模式' : '进入律师工作台' }}
+                 </button>
+               </div>
+               
+               <!-- 功能提示 -->
+               <div class="feature-hints">
+                 <div class="hint-item">
+                   <el-icon><Check /></el-icon>
+                   <span>支持多轮对话和上下文记忆</span>
+                 </div>
+                 <div class="hint-item">
+                   <el-icon><Check /></el-icon>
+                   <span>提供专业法律分析和建议</span>
+                 </div>
+                 <div class="hint-item">
+                   <el-icon><Check /></el-icon>
+                   <span>支持文件上传和文档处理</span>
+                 </div>
                </div>
              </div>
           </div>
@@ -1005,15 +1067,17 @@ watch(showAssistTools, (visible) => {
 /* --- Messages Container --- */
 .messages-container {
   flex: 1 1 auto;
-  height: 0;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px 8% 200px;
+  padding: 40px 10% 200px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
   z-index: 1;
   scroll-behavior: smooth;
-  min-height: 0; /* 确保可以滚动 */
+  min-height: 0;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   cursor: default;
@@ -1174,8 +1238,22 @@ watch(showAssistTools, (visible) => {
 .empty-state {
   margin: auto;
   text-align: center;
-  opacity: 0.8;
-  max-width: 400px;
+  opacity: 0.9;
+  max-width: 800px;
+  width: 100%;
+  padding: 80px 0;
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 动态Logo容器 */
+.logo-mark-container {
+  position: relative;
+  margin-bottom: 32px;
+  display: inline-block;
 }
 
 .logo-mark {
@@ -1183,9 +1261,51 @@ watch(showAssistTools, (visible) => {
   font-size: 14px;
   font-weight: 700;
   color: var(--primary-color);
-  margin-bottom: 24px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(79, 70, 229, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  transition: all 0.3s ease;
+}
+
+.logo-mark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.15);
+}
+
+.logo-icon {
+  font-size: 18px;
+}
+
+.logo-text {
+  font-size: 14px;
+}
+
+.logo-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60px;
+  height: 60px;
+  background: rgba(79, 70, 229, 0.1);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: pulse 2s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.7; }
+}
+
+.welcome-section {
+  margin-bottom: 32px;
 }
 
 .welcome-text {
@@ -1199,32 +1319,90 @@ watch(showAssistTools, (visible) => {
 .subtitle {
   font-size: 16px;
   color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+/* 快速启动网格 */
+.quick-start-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 40px;
+  width: 100%;
+  max-width: 900px;
+}
+
+.quick-action-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 30px 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.quick-action-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.action-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.action-text {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.action-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 
 .empty-actions {
-  margin-top: 18px;
+  margin-top: 40px;
+  margin-bottom: 40px;
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 16px;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 800px;
 }
 
 .empty-action-btn {
   border: none;
-  border-radius: 999px;
-  padding: 8px 16px;
+  border-radius: 16px;
+  padding: 16px 32px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: #fff;
   background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+  transition: all 0.3s ease;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .empty-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 22px rgba(37, 99, 235, 0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 35px rgba(37, 99, 235, 0.4);
 }
 
 .empty-action-btn.ghost {
@@ -1232,6 +1410,53 @@ watch(showAssistTools, (visible) => {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: none;
+}
+
+.empty-action-btn.primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-active));
+  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
+}
+
+.empty-action-btn.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.empty-action-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* 功能提示样式 */
+.feature-hints {
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 40px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 800px;
+}
+
+.hint-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.hint-item .el-icon {
+  color: var(--success);
+  font-size: 16px;
 }
 
 /* --- Message List --- */
