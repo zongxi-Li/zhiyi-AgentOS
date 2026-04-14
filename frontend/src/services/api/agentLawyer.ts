@@ -1,5 +1,7 @@
 import request from '@/utils/request'
 
+const LAWYER_AGENT_TIMEOUT_MS = 120000
+
 export interface AgentTraceStep {
   step: number
   thought: string
@@ -34,7 +36,11 @@ export interface LawyerAgentResponse {
 
 export const agentLawyerApi = {
   async chat(payload: LawyerAgentRequest): Promise<LawyerAgentResponse> {
-    const response = await request.post<LawyerAgentResponse>('/agent/lawyer/chat', payload)
+    const response = await request.post<LawyerAgentResponse>(
+      '/agent/lawyer/chat',
+      payload,
+      { timeout: LAWYER_AGENT_TIMEOUT_MS }
+    )
     return response.data
   }
 }
