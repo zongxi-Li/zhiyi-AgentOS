@@ -1,705 +1,541 @@
 <template>
   <div class="federated-learning-view">
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <span class="icon">🌐</span>
-          联邦学习全局最优模型
-        </h1>
-        <p class="page-subtitle">数据不动模型动 · 参数可用不可见</p>
+    <div class="ambient-glow top-left"></div>
+    <div class="ambient-glow bottom-right"></div>
+
+    <div class="page-header glass-panel">
+      <div>
+        <h1>联邦管理</h1>
+        <p>联邦训练节点协同状态、轮次演进与系统健康监控</p>
+      </div>
+      <div class="header-actions">
+        <el-button :loading="refreshing" @click="refreshData">
+          <el-icon><Refresh /></el-icon>
+          刷新状态
+        </el-button>
+        <el-button v-if="!demoRunning" type="primary" @click="startDemo">
+          <el-icon><VideoPlay /></el-icon>
+          启动演示
+        </el-button>
+        <el-button v-else type="danger" @click="stopDemo">
+          <el-icon><CloseBold /></el-icon>
+          停止演示
+        </el-button>
       </div>
     </div>
 
-    <!-- 统计卡片 -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">🖥️</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ statistics.totalClients }}</div>
-          <div class="stat-label">总客户端数</div>
-        </div>
+      <div class="stat-card glass-panel">
+        <div class="label">在线节点</div>
+        <div class="value">{{ onlineClients }}/{{ clients.length }}</div>
       </div>
-
-      <div class="stat-card">
-        <div class="stat-icon">✅</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ statistics.activeClients }}</div>
-          <div class="stat-label">活跃客户端</div>
-        </div>
+      <div class="stat-card glass-panel">
+        <div class="label">当前轮次</div>
+        <div class="value">Round {{ currentRound }}</div>
       </div>
-
-      <div class="stat-card">
-        <div class="stat-icon">🔄</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ statistics.modelVersion }}</div>
-          <div class="stat-label">当前模型版本</div>
-        </div>
+      <div class="stat-card glass-panel">
+        <div class="label">全局精度</div>
+        <div class="value">{{ globalAccuracy }}%</div>
       </div>
-
-      <div class="stat-card">
-        <div class="stat-icon">📊</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ statistics.trainingRounds }}</div>
-          <div class="stat-label">训练轮次</div>
-        </div>
+      <div class="stat-card glass-panel">
+        <div class="label">平均延迟</div>
+        <div class="value">{{ avgLatency }}ms</div>
       </div>
     </div>
 
-    <!-- 主要内容区域 -->
     <div class="content-grid">
-      <!-- 左侧：联邦网络可视化 -->
-      <div class="content-card network-card">
-        <div class="card-header">
-          <h2 class="card-title">联邦网络拓扑</h2>
-          <el-button size="small" @click="refreshNetwork">
-            <span class="icon">🔄</span> 刷新
-          </el-button>
+      <section class="glass-panel section-card">
+        <div class="section-title">
+          <el-icon><Connection /></el-icon>
+          <span>节点状态</span>
         </div>
-        <div class="card-body">
-          <div ref="networkCanvas" class="network-canvas"></div>
-        </div>
-      </div>
+        <el-table :data="clients" stripe height="360">
+          <el-table-column prop="name" label="节点" min-width="140" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }">
+              <el-tag :type="getStatusTag(row.status)">{{ getStatusText(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="贡献度" min-width="130">
+            <template #default="{ row }">
+              <span>{{ row.contribution }}%</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="训练进度" min-width="180">
+            <template #default="{ row }">
+              <el-progress :percentage="row.progress" :stroke-width="8" :show-text="false" />
+            </template>
+          </el-table-column>
+          <el-table-column label="精度" width="90">
+            <template #default="{ row }">{{ row.accuracy.toFixed(1) }}%</template>
+          </el-table-column>
+          <el-table-column label="延迟" width="90">
+            <template #default="{ row }">{{ row.latency }}ms</template>
+          </el-table-column>
+        </el-table>
+      </section>
 
-      <!-- 右侧：模型历史和客户端列表 -->
-      <div class="right-panel">
-        <!-- 模型版本历史 -->
-        <div class="content-card">
-          <div class="card-header">
-            <h2 class="card-title">模型版本历史</h2>
-          </div>
-          <div class="card-body">
-            <el-timeline v-if="modelHistory.length > 0">
-              <el-timeline-item
-                v-for="version in modelHistory"
-                :key="version.version_id"
-                :timestamp="formatTime(version.created_at)"
-              >
-                <div class="version-item">
-                  <div class="version-header">
-                    <span class="version-tag">{{ version.version }}</span>
-                    <span class="clients-badge">{{ version.clients_count }} 客户端</span>
-                  </div>
-                  <div class="version-id">ID: {{ version.version_id }}</div>
-                </div>
-              </el-timeline-item>
-            </el-timeline>
-            <el-empty v-else description="暂无模型历史"></el-empty>
-          </div>
+      <section class="glass-panel section-card">
+        <div class="section-title">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>轮次历史</span>
         </div>
-
-        <!-- 客户端列表 -->
-        <div class="content-card">
-          <div class="card-header">
-            <h2 class="card-title">客户端列表</h2>
-          </div>
-          <div class="card-body">
-            <div class="client-list">
-              <div
-                v-for="client in clients"
-                :key="client.client_id"
-                class="client-item"
-              >
-                <div class="client-header">
-                  <div class="client-name">{{ client.info?.name || client.client_id }}</div>
-                  <el-tag
-                    :type="client.upload_count > 0 ? 'success' : 'info'"
-                    size="small"
-                  >
-                    {{ client.upload_count > 0 ? '活跃' : '待激活' }}
-                  </el-tag>
-                </div>
-                <div class="client-stats">
-                  <span class="stat-item">
-                    <span class="stat-label">上传次数:</span>
-                    <span class="stat-value">{{ client.upload_count }}</span>
-                  </span>
-                  <span class="stat-item" v-if="client.last_upload">
-                    <span class="stat-label">最后上传:</span>
-                    <span class="stat-value">{{ formatTime(client.last_upload) }}</span>
-                  </span>
-                </div>
+        <el-timeline class="timeline">
+          <el-timeline-item
+            v-for="round in rounds"
+            :key="round.id"
+            :timestamp="formatTime(round.startedAt)"
+            :type="round.delta >= 0 ? 'success' : 'warning'"
+          >
+            <div class="round-card">
+              <div class="round-title">Round {{ round.id }}</div>
+              <div class="round-metrics">
+                <span>参与节点 {{ round.participants }}</span>
+                <span>精度 {{ round.globalAccuracy }}%</span>
+                <span>耗时 {{ round.duration }}</span>
+                <span :class="round.delta >= 0 ? 'up' : 'down'">
+                  {{ round.delta >= 0 ? '+' : '' }}{{ round.delta }}%
+                </span>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </el-timeline-item>
+        </el-timeline>
+      </section>
     </div>
 
-    <!-- RAG优化面板 -->
-    <div class="content-card rag-optimization-card">
-      <div class="card-header">
-        <h2 class="card-title">🎯 RAG联邦优化</h2>
-        <div class="header-actions">
-          <el-button size="small" @click="analyzeRAGPatterns">
-            <span class="icon">📊</span> 分析模式
-          </el-button>
-          <el-select
-            v-model="ragOptimizationStrategy"
-            size="small"
-            style="width: 150px; margin-left: 10px"
-          >
-            <el-option label="平衡策略" value="balanced"></el-option>
-            <el-option label="精确率优先" value="precision"></el-option>
-            <el-option label="召回率优先" value="recall"></el-option>
-            <el-option label="速度优先" value="speed"></el-option>
-          </el-select>
-          <el-button
-            type="primary"
-            size="small"
-            @click="optimizeRAGParams"
-            style="margin-left: 10px"
-          >
-            <span class="icon">⚡</span> 优化参数
-          </el-button>
+    <section class="glass-panel log-card">
+      <div class="section-title">
+        <el-icon><TrendCharts /></el-icon>
+        <span>实时事件</span>
+      </div>
+      <div class="log-list">
+        <div v-for="(item, index) in events" :key="index" class="log-item" :class="item.level">
+          <span class="log-time">{{ item.time }}</span>
+          <span class="log-text">{{ item.message }}</span>
         </div>
       </div>
-      <div class="card-body">
-        <div v-if="ragAnalysis" class="rag-analysis">
-          <div class="analysis-grid">
-            <div class="analysis-item">
-              <div class="analysis-label">总查询数</div>
-              <div class="analysis-value">{{ ragAnalysis.total_queries }}</div>
-            </div>
-            <div class="analysis-item">
-              <div class="analysis-label">平均检索时间</div>
-              <div class="analysis-value">{{ ragAnalysis.avg_retrieval_time?.toFixed(2) }}s</div>
-            </div>
-            <div class="analysis-item">
-              <div class="analysis-label">平均成功率</div>
-              <div class="analysis-value">{{ (ragAnalysis.avg_success_rate * 100).toFixed(1) }}%</div>
-            </div>
-            <div class="analysis-item">
-              <div class="analysis-label">最优Top-K</div>
-              <div class="analysis-value">{{ ragAnalysis.top_k_distribution?.median }}</div>
-            </div>
-          </div>
-
-          <!-- 优化建议 -->
-          <div v-if="ragAnalysis.insights && ragAnalysis.insights.length > 0" class="insights">
-            <h3 class="insights-title">💡 优化建议</h3>
-            <ul class="insights-list">
-              <li v-for="(insight, index) in ragAnalysis.insights" :key="index">
-                {{ insight }}
-              </li>
-            </ul>
-          </div>
-        </div>
-        <el-empty v-else description="点击“分析模式”开始RAG优化"></el-empty>
-      </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
+import { Refresh, VideoPlay, CloseBold, Connection, DataAnalysis, TrendCharts } from '@element-plus/icons-vue'
 
-// 统计数据
-const statistics = ref({
-  totalClients: 0,
-  activeClients: 0,
-  modelVersion: '-',
-  trainingRounds: 0
+type ClientStatus = 'online' | 'training' | 'offline'
+type LogLevel = 'info' | 'success' | 'warning'
+
+interface FederatedClient {
+  id: string
+  name: string
+  status: ClientStatus
+  contribution: number
+  progress: number
+  accuracy: number
+  latency: number
+  lastSeen: string
+}
+
+interface RoundHistory {
+  id: number
+  startedAt: string
+  participants: number
+  globalAccuracy: number
+  duration: string
+  delta: number
+}
+
+interface LogEvent {
+  time: string
+  level: LogLevel
+  message: string
+}
+
+const makeInitialClients = (): FederatedClient[] => [
+  {
+    id: 'edge-01',
+    name: '华东节点 A',
+    status: 'online',
+    contribution: 23,
+    progress: 82,
+    accuracy: 91.4,
+    latency: 42,
+    lastSeen: new Date().toISOString()
+  },
+  {
+    id: 'edge-02',
+    name: '华南节点 B',
+    status: 'training',
+    contribution: 19,
+    progress: 66,
+    accuracy: 89.8,
+    latency: 57,
+    lastSeen: new Date().toISOString()
+  },
+  {
+    id: 'edge-03',
+    name: '西南节点 C',
+    status: 'online',
+    contribution: 27,
+    progress: 91,
+    accuracy: 92.7,
+    latency: 39,
+    lastSeen: new Date().toISOString()
+  },
+  {
+    id: 'edge-04',
+    name: '华北节点 D',
+    status: 'offline',
+    contribution: 0,
+    progress: 0,
+    accuracy: 0,
+    latency: 0,
+    lastSeen: new Date(Date.now() - 20 * 60 * 1000).toISOString()
+  }
+]
+
+const makeInitialRounds = (): RoundHistory[] => [
+  { id: 12, startedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(), participants: 3, globalAccuracy: 92.3, duration: '2m 10s', delta: 0.4 },
+  { id: 11, startedAt: new Date(Date.now() - 18 * 60 * 1000).toISOString(), participants: 3, globalAccuracy: 91.9, duration: '2m 03s', delta: 0.6 },
+  { id: 10, startedAt: new Date(Date.now() - 28 * 60 * 1000).toISOString(), participants: 2, globalAccuracy: 91.3, duration: '1m 58s', delta: 0.3 }
+]
+
+const makeInitialEvents = (): LogEvent[] => [
+  { time: nowTime(), level: 'success', message: '全局模型 v1.2.0 已发布到聚合器。' },
+  { time: nowTime(), level: 'info', message: '节点 华南节点 B 正在进行本地增量训练。' },
+  { time: nowTime(), level: 'warning', message: '节点 华北节点 D 当前离线，已切换容错策略。' }
+]
+
+const clients = ref<FederatedClient[]>(makeInitialClients())
+const rounds = ref<RoundHistory[]>(makeInitialRounds())
+const events = ref<LogEvent[]>(makeInitialEvents())
+
+const demoRunning = ref(false)
+const refreshing = ref(false)
+const currentRound = ref(12)
+
+let demoTimer: ReturnType<typeof setInterval> | null = null
+
+const onlineClients = computed(() => clients.value.filter((item) => item.status !== 'offline').length)
+const globalAccuracy = computed(() => {
+  const valid = clients.value.filter((item) => item.status !== 'offline')
+  if (valid.length === 0) return '0.0'
+  const avg = valid.reduce((sum, item) => sum + item.accuracy, 0) / valid.length
+  return avg.toFixed(1)
+})
+const avgLatency = computed(() => {
+  const valid = clients.value.filter((item) => item.status !== 'offline')
+  if (valid.length === 0) return 0
+  return Math.round(valid.reduce((sum, item) => sum + item.latency, 0) / valid.length)
 })
 
-// 模型历史
-const modelHistory = ref<any[]>([])
+function nowTime(): string {
+  return new Date().toLocaleTimeString('zh-CN', { hour12: false })
+}
 
-// 客户端列表
-const clients = ref<any[]>([])
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString('zh-CN', { hour12: false })
+}
 
-// RAG优化
-const ragOptimizationStrategy = ref('balanced')
-const ragAnalysis = ref<any>(null)
+function getStatusTag(status: ClientStatus): 'success' | 'warning' | 'info' {
+  if (status === 'online') return 'success'
+  if (status === 'training') return 'warning'
+  return 'info'
+}
 
-// 网络画布
-const networkCanvas = ref<HTMLElement | null>(null)
+function getStatusText(status: ClientStatus): string {
+  if (status === 'online') return '在线'
+  if (status === 'training') return '训练中'
+  return '离线'
+}
 
-// 加载数据
-const loadData = async () => {
-  try {
-    // 加载客户端统计
-    const clientsRes = await axios.get('/ai/global-model/clients')
-    if (clientsRes.data.success) {
-      const stats = clientsRes.data.statistics
-      statistics.value.totalClients = stats.total_clients
-      statistics.value.activeClients = stats.active_clients
-      clients.value = stats.clients || []
-    }
-
-    // 加载模型历史
-    const historyRes = await axios.get('/ai/global-model/history')
-    if (historyRes.data.success) {
-      modelHistory.value = historyRes.data.history || []
-      if (modelHistory.value.length > 0) {
-        statistics.value.modelVersion = modelHistory.value[modelHistory.value.length - 1].version
-        statistics.value.trainingRounds = modelHistory.value.length
-      }
-    }
-  } catch (error: any) {
-    console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败: ' + (error.response?.data?.detail || error.message))
+function pushEvent(message: string, level: LogLevel = 'info'): void {
+  events.value.unshift({ time: nowTime(), level, message })
+  if (events.value.length > 12) {
+    events.value = events.value.slice(0, 12)
   }
 }
 
-// 刷新网络
-const refreshNetwork = () => {
-  loadData()
-  renderNetwork()
-  ElMessage.success('网络已刷新')
-}
-
-// 渲染网络拓扑
-const renderNetwork = () => {
-  if (!networkCanvas.value) return
-
-  // 简化实现：使用CSS绘制网络拓扑
-  // 实际应该使用D3.js或Three.js
-  const canvas = networkCanvas.value
-  canvas.innerHTML = ''
-
-  // 创建中心节点（云端服务器）
-  const centerNode = document.createElement('div')
-  centerNode.className = 'network-node center-node'
-  centerNode.innerHTML = '<div class="node-label">云端服务器</div>'
-  canvas.appendChild(centerNode)
-
-  // 创建客户端节点
-  clients.value.forEach((client, index) => {
-    const angle = (index / clients.value.length) * 2 * Math.PI
-    const radius = 150
-
-    const clientNode = document.createElement('div')
-    clientNode.className = `network-node client-node ${client.upload_count > 0 ? 'active' : ''}`
-    clientNode.style.left = `calc(50% + ${radius * Math.cos(angle)}px)`
-    clientNode.style.top = `calc(50% + ${radius * Math.sin(angle)}px)`
-    clientNode.innerHTML = `<div class="node-label">${client.info?.name || client.client_id}</div>`
-
-    // 创建连接线
-    const line = document.createElement('div')
-    line.className = 'network-line'
-    line.style.width = `${radius}px`
-    line.style.left = '50%'
-    line.style.top = '50%'
-    line.style.transform = `rotate(${angle}rad)`
-
-    canvas.appendChild(line)
-    canvas.appendChild(clientNode)
-  })
-}
-
-// 分析RAG模式
-const analyzeRAGPatterns = async () => {
-  try {
-    const res = await axios.get('/ai/federated-rag/analyze-patterns')
-    if (res.data.success) {
-      ragAnalysis.value = res.data.analysis
-      ElMessage.success('RAG模式分析完成')
-    }
-  } catch (error: any) {
-    console.error('分析失败:', error)
-    ElMessage.error('分析失败: ' + (error.response?.data?.detail || error.message))
-  }
-}
-
-// 优化RAG参数
-const optimizeRAGParams = async () => {
-  try {
-    const res = await axios.post('/ai/federated-rag/optimize-params', {
-      strategy: ragOptimizationStrategy.value
+function refreshData(): void {
+  refreshing.value = true
+  window.setTimeout(() => {
+    clients.value = clients.value.map((item) => {
+      if (item.status === 'offline') return item
+      const progress = Math.min(100, item.progress + Math.floor(Math.random() * 5))
+      const accuracy = Math.min(99.9, Math.max(80, item.accuracy + (Math.random() - 0.4) * 0.8))
+      const latency = Math.max(20, Math.round(item.latency + (Math.random() - 0.5) * 8))
+      return { ...item, progress, accuracy, latency, lastSeen: new Date().toISOString() }
     })
-    if (res.data.success) {
-      ElMessage.success('RAG参数优化完成')
-      // 更新分析数据
-      ragAnalysis.value = res.data.analysis
+    refreshing.value = false
+    pushEvent('已完成一次手动刷新。', 'success')
+  }, 700)
+}
+
+function runOneRound(): void {
+  currentRound.value += 1
+  clients.value = clients.value.map((item) => {
+    if (item.status === 'offline') return item
+    return {
+      ...item,
+      status: Math.random() > 0.75 ? 'training' : 'online',
+      progress: 35 + Math.floor(Math.random() * 65),
+      accuracy: Math.min(99.9, Math.max(85, item.accuracy + (Math.random() - 0.35) * 1.2)),
+      latency: Math.max(20, Math.round(item.latency + (Math.random() - 0.5) * 10)),
+      lastSeen: new Date().toISOString()
     }
-  } catch (error: any) {
-    console.error('优化失败:', error)
-    ElMessage.error('优化失败: ' + (error.response?.data?.detail || error.message))
+  })
+
+  const accuracy = Number(globalAccuracy.value)
+  const delta = Number((Math.random() * 1.2 - 0.2).toFixed(1))
+  rounds.value.unshift({
+    id: currentRound.value,
+    startedAt: new Date().toISOString(),
+    participants: onlineClients.value,
+    globalAccuracy: Number((accuracy + delta).toFixed(1)),
+    duration: `${1 + Math.floor(Math.random() * 2)}m ${10 + Math.floor(Math.random() * 40)}s`,
+    delta
+  })
+  rounds.value = rounds.value.slice(0, 10)
+  pushEvent(`Round ${currentRound.value} 聚合完成，精度变化 ${delta >= 0 ? '+' : ''}${delta}%`, delta >= 0 ? 'success' : 'warning')
+}
+
+function startDemo(): void {
+  if (demoRunning.value) return
+  demoRunning.value = true
+  pushEvent('联邦训练演示已启动。', 'info')
+  ElMessage.success('联邦训练演示已启动')
+  demoTimer = setInterval(runOneRound, 3000)
+}
+
+function stopDemo(): void {
+  if (!demoRunning.value) return
+  demoRunning.value = false
+  if (demoTimer) {
+    clearInterval(demoTimer)
+    demoTimer = null
   }
+  pushEvent('联邦训练演示已停止。', 'warning')
 }
 
-// 格式化时间
-const formatTime = (time: string) => {
-  if (!time) return '-'
-  const date = new Date(time)
-  return date.toLocaleString('zh-CN')
-}
-
-// 初始化
-onMounted(() => {
-  loadData()
-  renderNetwork()
+onUnmounted(() => {
+  if (demoTimer) {
+    clearInterval(demoTimer)
+  }
 })
 </script>
 
 <style scoped>
 .federated-learning-view {
-  padding: 24px;
-  max-width: 1600px;
-  margin: 0 auto;
-}
-
-/* 页面标题 */
-.page-header {
-  margin-bottom: 24px;
-}
-
-.header-content {
-  text-align: center;
-}
-
-.page-title {
-  font-size: 32px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 8px 0;
+  position: relative;
+  min-height: 100%;
+  padding: 20px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--text-primary);
+  overflow: auto;
+}
+
+.ambient-glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ambient-glow.top-left {
+  top: -120px;
+  left: -120px;
+  background: #5b8ff9;
+}
+
+.ambient-glow.bottom-right {
+  right: -120px;
+  bottom: -140px;
+  background: #36cfc9;
+}
+
+.glass-panel {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(15, 35, 95, 0.06);
+}
+
+.page-header {
+  padding: 16px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
 }
 
-.page-title .icon {
-  font-size: 36px;
-}
-
-.page-subtitle {
-  font-size: 16px;
-  color: #666;
+.page-header h1 {
   margin: 0;
-}
-
-/* 统计卡片 */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: white;
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all 0.3s ease;
-}
-
-.stat-card:hover {
-  border-color: #9333ea;
-  box-shadow: 0 2px 8px rgba(147, 51, 234, 0.1);
-}
-
-.stat-icon {
-  font-size: 40px;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  border-radius: 8px;
-}
-
-.stat-content {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 4px;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #666;
-}
-
-/* 内容网格 */
-.content-grid {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.right-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* 卡片 */
-.content-card {
-  background: white;
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.network-card {
-  min-height: 500px;
-}
-
-.card-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e8e8e8;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.card-body {
-  padding: 20px;
-}
-
-/* 网络可视化 */
-.network-canvas {
-  position: relative;
-  width: 100%;
-  height: 440px;
-  background: #fafafa;
-  border-radius: 4px;
-}
-
-.network-node {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: translate(-50%, -50%);
-  transition: all 0.3s ease;
-}
-
-.center-node {
-  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
-  color: white;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3);
-  left: 50%;
-  top: 50%;
-}
-
-.client-node {
-  background: white;
-  border: 2px solid #e8e8e8;
-  color: #666;
-  font-size: 12px;
-}
-
-.client-node.active {
-  border-color: #22c55e;
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
-}
-
-.node-label {
-  text-align: center;
-  padding: 0 8px;
+  font-size: 24px;
   line-height: 1.2;
 }
 
-.network-line {
-  position: absolute;
-  height: 2px;
-  background: linear-gradient(to right, #9333ea, transparent);
-  transform-origin: left center;
-}
-
-/* 版本历史 */
-.version-item {
-  padding: 4px 0;
-}
-
-.version-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.version-tag {
-  background: #9333ea;
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.clients-badge {
-  background: #f5f5f5;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #666;
-}
-
-.version-id {
-  font-size: 12px;
-  color: #999;
-  font-family: monospace;
-}
-
-/* 客户端列表 */
-.client-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.client-item {
-  padding: 12px;
-  background: #fafafa;
-  border-radius: 4px;
-  border: 1px solid #e8e8e8;
-  transition: all 0.3s ease;
-}
-
-.client-item:hover {
-  border-color: #9333ea;
-  background: white;
-}
-
-.client-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.client-name {
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.client-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: #666;
-}
-
-.stat-item {
-  display: flex;
-  gap: 4px;
-}
-
-.stat-label {
-  color: #999;
-}
-
-/* RAG优化 */
-.rag-optimization-card {
-  margin-top: 24px;
+.page-header p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .header-actions {
   display: flex;
-  align-items: center;
+  gap: 10px;
 }
 
-.rag-analysis {
+.stats-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stat-card {
+  padding: 14px 16px;
+}
+
+.stat-card .label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.stat-card .value {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.content-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.2fr 1fr;
+}
+
+.section-card {
+  padding: 14px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.timeline {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.round-card {
+  background: rgba(91, 143, 249, 0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.round-title {
+  font-weight: 600;
+}
+
+.round-metrics {
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.up {
+  color: #389e0d;
+}
+
+.down {
+  color: #cf1322;
+}
+
+.log-card {
+  position: relative;
+  z-index: 1;
+  padding: 14px;
+}
+
+.log-list {
+  max-height: 220px;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 8px;
 }
 
-.analysis-grid {
+.log-item {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: 84px 1fr;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
-.analysis-item {
-  padding: 16px;
-  background: #fafafa;
-  border-radius: 4px;
-  text-align: center;
+.log-item.info {
+  background: rgba(91, 143, 249, 0.08);
 }
 
-.analysis-label {
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 8px;
+.log-item.success {
+  background: rgba(82, 196, 26, 0.1);
 }
 
-.analysis-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #9333ea;
+.log-item.warning {
+  background: rgba(250, 173, 20, 0.12);
 }
 
-.insights {
-  padding: 16px;
-  background: #f0fdf4;
-  border: 1px solid #86efac;
-  border-radius: 4px;
+.log-time {
+  color: var(--text-secondary);
 }
 
-.insights-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #166534;
-  margin: 0 0 12px 0;
-}
+@media (max-width: 1100px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
-.insights-list {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.insights-list li {
-  color: #166534;
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 8px;
-}
-
-.insights-list li:last-child {
-  margin-bottom: 0;
-}
-
-/* 响应式 */
-@media (max-width: 1200px) {
   .content-grid {
     grid-template-columns: 1fr;
   }
-
-  .right-panel {
-    flex-direction: row;
-  }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 720px) {
+  .federated-learning-view {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
   .stats-grid {
     grid-template-columns: 1fr;
   }
-
-  .right-panel {
-    flex-direction: column;
-  }
-
-  .page-title {
-    font-size: 24px;
-  }
 }
 </style>
-

@@ -23,10 +23,6 @@
                 <el-icon><ChatDotRound /></el-icon>
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
-              <el-menu-item index="/digital-human">
-                <el-icon><UserFilled /></el-icon>
-                <span>{{ $t('nav.digitalHuman') }}</span>
-              </el-menu-item>
               <el-menu-item index="/voice">
                 <el-icon><Microphone /></el-icon>
                 <span>{{ $t('nav.voice') }}</span>
@@ -47,24 +43,19 @@
                 <el-icon><User /></el-icon>
                 <span>{{ $t('nav.roles') }}</span>
               </el-menu-item>
-              <!-- <el-menu-item index="/federated-models">
+              <el-menu-item index="/federated-learning">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>联邦管理</span>
+              </el-menu-item>
+              <el-menu-item index="/federated-models">
                 <el-icon><DataAnalysis /></el-icon>
                 <span>模型管理</span>
-              </el-menu-item> -->
+              </el-menu-item>
               <el-menu-item index="/settings">
                 <el-icon><Setting /></el-icon>
                 <span>{{ $t('nav.settings') }}</span>
               </el-menu-item>
             </el-menu>
-          </div>
-
-          <!-- Digital Human Widget -->
-          <div class="sidebar-digital-human">
-            <DigitalHuman
-              :role-id="currentRoleId"
-              :is-speaking="isSpeaking"
-              :audio-url="currentAudioUrl"
-            />
           </div>
 
           <!-- User Profile / Bottom Section -->
@@ -121,12 +112,10 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
-  ChatDotRound, User, UserFilled, Microphone, Search, 
-  Clock, Setting, SwitchButton
+  ChatDotRound, User, Microphone, Search, 
+  Clock, Setting, SwitchButton, DataAnalysis
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
-import DigitalHuman from '@/components/DigitalHuman.vue'
-import { useRoleStore } from '@/stores/role'
 import { authApi } from '@/services/api/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -134,53 +123,45 @@ const route = useRoute()
 const router = useRouter()
 const globalError = ref('')
 
-// 获取角色和聊天状态
-const roleStore = useRoleStore()
+// 鑾峰彇瑙掕壊鍜岃亰澶╃姸鎬?
 
-// 计算当前角色ID和状态
-const currentRoleId = computed(() => roleStore.currentRole?.id || null)
-const isSpeaking = computed(() => false) // 可以从chatStore获取
-const currentAudioUrl = computed(() => '') // 可以从chatStore获取
-
-// 导航栏滚动相关
+// 瀵艰埅鏍忔粴鍔ㄧ浉鍏?
 const sidebarNav = ref<HTMLElement | null>(null)
 
-// 处理导航栏滚动
+// 澶勭悊瀵艰埅鏍忔粴鍔?
 const handleSidebarWheel = (event: WheelEvent) => {
   if (!sidebarNav.value) return
   
-  // 阻止默认滚动行为
+  // 闃绘榛樿婊氬姩琛屼负
   event.preventDefault()
   
-  // 计算滚动距离（平滑滚动）
+  // 璁＄畻婊氬姩璺濈锛堝钩婊戞粴鍔級
   const scrollAmount = event.deltaY * 0.5
   
-  // 平滑滚动导航栏
+  // 骞虫粦婊氬姩瀵艰埅鏍?
   sidebarNav.value.scrollBy({
     top: scrollAmount,
     behavior: 'smooth'
   })
 }
 
-// 判断是否为沉浸式模式（如语音交互界面、登录页面、联邦学习管理中心、设置页面等）
+// 鍒ゆ柇鏄惁涓烘矇娴稿紡妯″紡锛堝璇煶浜や簰鐣岄潰銆佺櫥褰曢〉闈€佽仈閭﹀涔犵鐞嗕腑蹇冦€佽缃〉闈㈢瓑锛?
 const isImmersive = computed(() => {
   const path = route.path
   return path.startsWith('/voice') || 
-         path.startsWith('/login') || 
-         path.startsWith('/federated-models') ||
-         path.startsWith('/settings')
+         path.startsWith('/login')
 })
 
 const activeMenu = computed(() => {
   const path = route.path
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
-  if (path === '/digital-human' || path.startsWith('/digital-human')) return '/digital-human'
   if (path === '/voice' || path.startsWith('/voice')) return '/voice'
   if (path === '/roles' || path.startsWith('/roles')) return '/roles'
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
   if (path === '/settings' || path.startsWith('/settings')) return '/settings'
   if (path.startsWith('/history')) return '/history'
   if (path.startsWith('/federated-models')) return '/federated-models'
+  if (path.startsWith('/federated-learning')) return '/federated-learning'
   if (path.startsWith('/user')) return '/settings' // User goes to settings
   return path
 })
@@ -205,10 +186,9 @@ const handleGlobalError = (event: CustomEvent) => {
   }
 }
 
-// 退出登录处理
+// 閫€鍑虹櫥褰曞鐞?
 const handleLogout = async () => {
   try {
-    // 确认退出
     await ElMessageBox.confirm(
       '确定要退出登录吗？退出后将需要重新登录。',
       '确认退出',
@@ -219,25 +199,16 @@ const handleLogout = async () => {
         customClass: 'logout-confirm'
       }
     )
-    
-    // 执行退出登录
+
     const result = await authApi.logout()
-    
     if (result.success) {
       ElMessage.success(result.message || '退出登录成功')
-      
-      // 跳转到登录页面
       router.push('/login')
     } else {
       ElMessage.error(result.message || '退出登录失败')
     }
   } catch (error) {
-    // 用户取消退出
-    if (error === 'cancel') {
-      return
-    }
-    
-    // 其他错误
+    if (error === 'cancel') return
     console.error('退出登录失败:', error)
     ElMessage.error('退出登录失败，请重试')
   }
@@ -308,10 +279,10 @@ onUnmounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  max-height: calc(100vh - 480px); /* 限制最大高度，确保可以滚动 */
+  max-height: calc(100vh - 200px); /* 减少底部空白，优化高度 */
 }
 
-/* 导航栏滚动条样式 */
+/* 瀵艰埅鏍忔粴鍔ㄦ潯鏍峰紡 */
 .sidebar-nav::-webkit-scrollbar {
   width: 4px;
 }
@@ -347,13 +318,13 @@ onUnmounted(() => {
   padding: 16px;
   border-top: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light);
-  height: 320px; /* 增加高度以更好地显示数字人 */
+  height: 320px; /* 澧炲姞楂樺害浠ユ洿濂藉湴鏄剧ず鏁板瓧浜?*/
   min-height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.02);
-  overflow: hidden; /* 确保内容不溢出 */
+  overflow: hidden; /* 纭繚鍐呭涓嶆孩鍑?*/
 }
 
 .sidebar-digital-human :deep(.digital-human-container) {
@@ -375,6 +346,7 @@ onUnmounted(() => {
 
 .sidebar-footer {
   padding: 16px;
+  margin-top: auto; /* 确保底部区域始终在底部 */
 }
 
 .user-profile {
@@ -413,7 +385,7 @@ onUnmounted(() => {
   color: var(--success);
 }
 
-/* 退出登录按钮样式 */
+/* 閫€鍑虹櫥褰曟寜閽牱寮?*/
 .logout-section {
   margin-top: 12px;
   padding: 0 12px;
@@ -490,7 +462,7 @@ onUnmounted(() => {
   overflow-y: auto;
 }
 
-/* 艺术感自定义滚动条 */
+/* 鑹烘湳鎰熻嚜瀹氫箟婊氬姩鏉?*/
 .app-main::-webkit-scrollbar {
   width: 6px;
 }
@@ -508,3 +480,5 @@ onUnmounted(() => {
   background: rgba(99, 102, 241, 0.2);
 }
 </style>
+
+''
