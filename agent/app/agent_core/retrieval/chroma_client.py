@@ -2,7 +2,10 @@ import logging
 import os
 from typing import Dict, List, Optional
 
-import chromadb
+try:
+    import chromadb  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    chromadb = None
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +23,31 @@ class ChromaLegalClient:
         )
         os.makedirs(self.persist_directory, exist_ok=True)
 
-        self.client = chromadb.PersistentClient(path=self.persist_directory)
-        self.embedding_function = self._build_embedding_function()
+        self.client = None
+        self.embedding_function = None
+        self.available = False
+
+        if chromadb is None:
+            logger.warning("chromadb is not installed. vector retrieval will fallback to keyword search.")
+            return
+
+        try:
+            try:
+                from chromadb.config import Settings
+
+                self.client = chromadb.PersistentClient(
+                    path=self.persist_directory,
+                    settings=Settings(anonymized_telemetry=False, allow_reset=True),
+                )
+            except Exception:
+                self.client = chromadb.PersistentClient(path=self.persist_directory)
+            self.embedding_function = self._build_embedding_function()
+            self.available = True
+        except Exception as exc:
+            logger.warning("Failed to initialize chromadb client, fallback enabled. error=%s", exc)
+            self.client = None
+            self.embedding_function = None
+            self.available = False
 
     def _build_embedding_function(self):
         try:
@@ -44,30 +70,44 @@ class ChromaLegalClient:
             )
             return None
 
+    def is_available(self) -> bool:
+        return self.available and self.client is not None
+
     def get_or_create_collection(self, name: str):
+        if not self.is_available():
+            return None
         if self.embedding_function is not None:
             return self.client.get_or_create_collection(name=name, embedding_function=self.embedding_function)
         return self.client.get_or_create_collection(name=name)
 
     def collection_count(self, name: str) -> int:
         collection = self.get_or_create_collection(name)
+        if collection is None:
+            return 0
         try:
             return collection.count()
         except Exception:
             return 0
 
     def upsert_documents(self, collection_name: str, documents: List[Dict[str, str]]) -> None:
-        if not documents:
+        if not documents or not self.is_available():
             return
 
         collection = self.get_or_create_collection(collection_name)
+        if collection is None:
+            return
         ids = [item["id"] for item in documents]
         texts = [item["text"] for item in documents]
         metadatas = [item["metadata"] for item in documents]
         collection.upsert(ids=ids, documents=texts, metadatas=metadatas)
 
     def query(self, collection_name: str, query_text: str, top_k: int = 5) -> List[Dict[str, object]]:
+        if not self.is_available():
+            return []
+
         collection = self.get_or_create_collection(collection_name)
+        if collection is None:
+            return []
         result = collection.query(query_texts=[query_text], n_results=max(1, top_k))
 
         ids = result.get("ids", [[]])[0]

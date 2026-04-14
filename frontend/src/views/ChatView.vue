@@ -26,6 +26,35 @@
         </el-tooltip>
       </div>
 
+      <section class="agent-spotlight glass-panel" :class="{ 'is-active': isLawyerMode }">
+        <div class="agent-spotlight-main">
+          <div class="agent-kicker">AGENT WORKSPACE</div>
+          <h2 class="agent-title">律师 Agent 工作台</h2>
+          <p class="agent-subtitle">
+            ReAct 自主规划 + 五项法律技能，支持案情理解、法条检索、判例检索、文书生成和风险评估。
+          </p>
+          <div class="agent-skill-chips">
+            <span>案情理解</span>
+            <span>法条检索</span>
+            <span>判例检索</span>
+            <span>文书生成</span>
+            <span>风险评估</span>
+          </div>
+        </div>
+        <div class="agent-spotlight-actions">
+          <el-tag :type="isLawyerMode ? 'success' : 'info'" effect="dark">
+            {{ isLawyerMode ? '律师 Agent 已启用' : '当前为普通对话模式' }}
+          </el-tag>
+          <el-button type="primary" @click="activateLawyerAgent">
+            {{ isLawyerMode ? '保持律师 Agent 模式' : '一键切换律师 Agent' }}
+          </el-button>
+          <el-button plain @click="showRoleDrawer = true">角色选择</el-button>
+          <div class="agent-runtime-hint">
+            本轮已记录 {{ latestLawyerMeta.trace.length }} 条执行轨迹
+          </div>
+        </div>
+      </section>
+
       <div class="chat-body" :class="{ 'with-lawyer-panel': isLawyerMode }">
         <!-- Chat Messages Scroll Area -->
         <div class="messages-container" ref="messagesRef">
@@ -292,6 +321,13 @@ const currentTemplates = computed(() => {
   return ['日常打招呼', '今日天气如何', '帮我安排日程', '写一段总结']
 })
 
+const getLawyerRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('律师') || roleName.includes('法律') || roleName.includes('lawyer')
+  })
+}
+
 // 加载推荐问题
 // const loadRecommendations = async () => {
 //   if (loadingRecommendations.value) return
@@ -314,6 +350,22 @@ const currentTemplates = computed(() => {
 // }
 
 // Methods
+const activateLawyerAgent = async () => {
+  if (isLawyerMode.value) {
+    ElMessage.success('当前已是律师 Agent 模式')
+    return
+  }
+
+  const lawyerRole = getLawyerRole()
+  if (!lawyerRole) {
+    ElMessage.warning('未找到律师角色，请先在角色管理中创建或启用律师角色')
+    showRoleDrawer.value = true
+    return
+  }
+
+  await selectRole(lawyerRole)
+}
+
 const useTemplate = (text: string) => {
   inputText.value = text
   // 自动聚焦到输入框
@@ -596,6 +648,82 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.agent-spotlight {
+  margin: 88px 8% 10px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  background:
+    linear-gradient(120deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.06) 55%, rgba(255, 255, 255, 0.9) 100%);
+  backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  z-index: 2;
+}
+
+.agent-spotlight.is-active {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 8px 28px rgba(16, 185, 129, 0.14);
+}
+
+.agent-spotlight-main {
+  min-width: 0;
+}
+
+.agent-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+  margin-bottom: 6px;
+}
+
+.agent-title {
+  margin: 0;
+  font-size: 23px;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.agent-subtitle {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agent-skill-chips {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agent-skill-chips span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: rgba(255, 255, 255, 0.68);
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-spotlight-actions {
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.agent-runtime-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .chat-body {
@@ -1402,6 +1530,10 @@ onMounted(async () => {
 }
 
 @media (max-width: 1280px) {
+  .agent-spotlight {
+    margin: 84px 16px 8px;
+  }
+
   .chat-body.with-lawyer-panel {
     padding-right: 0;
   }
@@ -1413,6 +1545,28 @@ onMounted(async () => {
 }
 
 @media (max-width: 1024px) {
+  .agent-spotlight {
+    margin: 84px 16px 8px;
+    padding: 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .agent-title {
+    font-size: 20px;
+  }
+
+  .agent-spotlight-actions {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .agent-spotlight-actions :deep(.el-button),
+  .agent-spotlight-actions :deep(.el-tag) {
+    width: 100%;
+    justify-content: center;
+  }
+
   .chat-body.with-lawyer-panel {
     display: block;
   }
