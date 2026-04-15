@@ -1,5 +1,5 @@
 <template>
-  <section class="lawyer-panel">
+  <section class="skill-panel">
     <div class="panel-header">
       <h3>律师 Agent 面板</h3>
       <span class="risk-pill" :class="riskLevelClass">风险：{{ displayRiskLevel }}</span>
@@ -10,8 +10,7 @@
       <div class="federated-row">
         <span class="status-pill" :class="federatedStatusClass">{{ federatedStatusText }}</span>
         <span class="meta" v-if="federated?.applied">
-          调整：{{ formatAdjustment(federated?.risk_adjustment) }} |
-          置信度：{{ formatPercent(federated?.confidence) }} |
+          调整：{{ formatAdjustment(federated?.risk_adjustment) }} | 置信度：{{ formatPercent(federated?.confidence) }} |
           节点：{{ federated?.federated_nodes_count ?? 0 }}
         </span>
       </div>
@@ -36,8 +35,12 @@
     </div>
 
     <div class="section">
-      <div class="section-title">调用轨迹</div>
-      <TraceTimeline :trace="trace" />
+      <details class="trace-details" open>
+        <summary class="trace-summary">调用轨迹</summary>
+        <div class="trace-container">
+          <TraceTimeline :trace="trace" />
+        </div>
+      </details>
     </div>
   </section>
 </template>
@@ -71,7 +74,7 @@ const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
   case_understanding: { icon: '🧠', tone: 'indigo' },
   statute_retrieval: { icon: '📚', tone: 'blue' },
   case_retrieval: { icon: '⚖️', tone: 'blue' },
-  evidence_analysis: { icon: '🔍', tone: 'green' },
+  evidence_analysis: { icon: '📋', tone: 'green' },
   limitation_calculation: { icon: '⏳', tone: 'orange' },
   jurisdiction_determination: { icon: '📍', tone: 'purple' },
   hearing_outline_generation: { icon: '📝', tone: 'green' },
@@ -82,7 +85,7 @@ const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '⚙️', tone: 'blue' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: '🧩', tone: 'blue' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),
@@ -120,17 +123,17 @@ const formatAdjustment = (v?: number) => {
 </script>
 
 <style scoped>
-.lawyer-panel {
-  height: auto;
+.skill-panel {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--border-light);
   border-radius: 14px;
-  backdrop-filter: blur(6px);
-  overflow: auto;
+  max-height: min(56vh, 640px);
+  overflow: hidden;
 }
 
 .panel-header {
@@ -153,6 +156,7 @@ const formatAdjustment = (v?: number) => {
   padding: 4px 10px;
   background: #eef2ff;
   color: #4338ca;
+  white-space: nowrap;
 }
 
 .risk-pill.high {
@@ -174,6 +178,7 @@ const formatAdjustment = (v?: number) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .section-title {
@@ -214,12 +219,18 @@ const formatAdjustment = (v?: number) => {
 .meta {
   font-size: 12px;
   color: var(--text-secondary);
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 .skill-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .skill-item {
@@ -227,6 +238,7 @@ const formatAdjustment = (v?: number) => {
   grid-template-columns: 24px 1fr auto;
   align-items: center;
   gap: 8px;
+  min-height: 36px;
   border: 1px solid;
   border-radius: 10px;
   padding: 6px 8px;
@@ -269,15 +281,64 @@ const formatAdjustment = (v?: number) => {
 
 .skill-name {
   font-weight: 600;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .skill-state {
   font-size: 11px;
   opacity: 0.9;
+  white-space: nowrap;
 }
 
 .empty {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.trace-container {
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.trace-details {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.trace-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  padding: 9px 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.trace-summary::-webkit-details-marker {
+  display: none;
+}
+
+.trace-summary::after {
+  content: '展开';
+  float: right;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.trace-details[open] .trace-summary::after {
+  content: '收起';
+}
+
+.trace-details .trace-container {
+  max-height: 240px;
+  padding: 10px;
 }
 </style>

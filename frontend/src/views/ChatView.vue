@@ -111,12 +111,14 @@
       </section>
 
       <aside v-if="isLawyerMode" class="lawyer-panel">
-        <LawyerSkillPanel
-          :skills-used="latestLawyerMeta.skillsUsed"
-          :trace="latestLawyerMeta.trace"
-          :federated="latestLawyerMeta.federated"
-          :risk-level="latestLawyerMeta.riskLevel"
-        />
+        <div class="lawyer-summary">
+          <LawyerSkillPanel
+            :skills-used="latestLawyerMeta.skillsUsed"
+            :trace="latestLawyerMeta.trace"
+            :federated="latestLawyerMeta.federated"
+            :risk-level="latestLawyerMeta.riskLevel"
+          />
+        </div>
 
         <div v-if="availableResultPanels.length" class="lawyer-results">
           <el-collapse v-model="activeResultPanels">
@@ -748,14 +750,23 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 10px;
   padding: 10px;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.lawyer-summary {
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .lawyer-results {
+  flex: 1 1 auto;
+  min-height: 0;
   border: 1px solid var(--border-light);
   border-radius: 12px;
   background: #fff;
   padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .lawyer-results :deep(.el-collapse) {
@@ -764,8 +775,27 @@ onUnmounted(() => {
 }
 
 .lawyer-results :deep(.el-collapse-item__header) {
+  min-height: 40px;
+  height: auto;
+  line-height: 1.45;
+  padding: 8px 0;
+  align-items: flex-start;
   font-size: 13px;
   font-weight: 600;
+  white-space: normal;
+}
+
+.lawyer-results :deep(.el-collapse-item__arrow) {
+  margin-top: 2px;
+}
+
+.lawyer-results :deep(.el-collapse-item__wrap) {
+  overflow: hidden;
+}
+
+.lawyer-results :deep(.el-collapse-item__content) {
+  padding-bottom: 10px;
+  word-break: break-word;
 }
 
 .drawer-head {
