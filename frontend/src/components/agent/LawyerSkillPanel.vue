@@ -2,31 +2,41 @@
   <section class="lawyer-panel">
     <div class="panel-header">
       <h3>律师 Agent 面板</h3>
-      <span class="risk-pill" :class="riskLevelClass">风险: {{ displayRiskLevel }}</span>
+      <span class="risk-pill" :class="riskLevelClass">风险：{{ displayRiskLevel }}</span>
     </div>
 
     <div class="section">
-      <div class="section-title">联邦增强开关</div>
+      <div class="section-title">联邦增强状态</div>
       <div class="federated-row">
         <span class="status-pill" :class="federatedStatusClass">{{ federatedStatusText }}</span>
         <span class="meta" v-if="federated?.applied">
-          调整: {{ formatAdjustment(federated?.risk_adjustment) }} |
-          置信度: {{ formatPercent(federated?.confidence) }} |
-          节点: {{ federated?.federated_nodes_count ?? 0 }}
+          调整：{{ formatAdjustment(federated?.risk_adjustment) }} |
+          置信度：{{ formatPercent(federated?.confidence) }} |
+          节点：{{ federated?.federated_nodes_count ?? 0 }}
         </span>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Skills 调用</div>
-      <div v-if="!skillsUsed.length" class="empty">当前暂无技能调用记录</div>
-      <div v-else class="skill-tags">
-        <span v-for="name in skillsUsed" :key="name" class="skill-tag">{{ name }}</span>
+      <div class="section-title">技能调用</div>
+      <div v-if="!skillVisuals.length" class="empty">当前暂无技能调用记录</div>
+      <div v-else class="skill-list">
+        <div
+          v-for="item in skillVisuals"
+          :key="item.raw"
+          class="skill-item"
+          :class="item.tone"
+          :title="item.raw"
+        >
+          <span class="skill-icon">{{ item.icon }}</span>
+          <span class="skill-name">{{ item.zh }}</span>
+          <span class="skill-state">已调用</span>
+        </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">ReAct 轨迹</div>
+      <div class="section-title">调用轨迹</div>
       <TraceTimeline :trace="trace" />
     </div>
   </section>
@@ -35,6 +45,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import TraceTimeline, { type TraceStep } from './TraceTimeline.vue'
+import { toRiskLevelZh, toSkillNameZh } from '@/utils/agentDisplay'
 
 interface FederatedInfo {
   enabled?: boolean
@@ -44,6 +55,11 @@ interface FederatedInfo {
   federated_nodes_count?: number
 }
 
+interface SkillVisual {
+  icon: string
+  tone: 'blue' | 'green' | 'orange' | 'purple' | 'indigo'
+}
+
 const props = defineProps<{
   skillsUsed: string[]
   trace: TraceStep[]
@@ -51,10 +67,32 @@ const props = defineProps<{
   riskLevel?: string
 }>()
 
-const displayRiskLevel = computed(() => {
-  if (!props.riskLevel) return 'unknown'
-  return props.riskLevel
+const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
+  case_understanding: { icon: '🧠', tone: 'indigo' },
+  statute_retrieval: { icon: '📚', tone: 'blue' },
+  case_retrieval: { icon: '⚖️', tone: 'blue' },
+  evidence_analysis: { icon: '🔍', tone: 'green' },
+  limitation_calculation: { icon: '⏳', tone: 'orange' },
+  jurisdiction_determination: { icon: '📍', tone: 'purple' },
+  hearing_outline_generation: { icon: '📝', tone: 'green' },
+  document_generation: { icon: '✍️', tone: 'indigo' },
+  risk_assessment: { icon: '🛡️', tone: 'orange' }
+}
+
+const skillVisuals = computed(() => {
+  return (props.skillsUsed || []).map(raw => {
+    const key = (raw || '').trim().toLowerCase()
+    const visual = SKILL_VISUAL_MAP[key] || { icon: '⚙️', tone: 'blue' as const }
+    return {
+      raw,
+      zh: toSkillNameZh(raw),
+      icon: visual.icon,
+      tone: visual.tone
+    }
+  })
 })
+
+const displayRiskLevel = computed(() => toRiskLevelZh(props.riskLevel))
 
 const riskLevelClass = computed(() => {
   const level = (props.riskLevel || '').toLowerCase()
@@ -65,8 +103,8 @@ const riskLevelClass = computed(() => {
 })
 
 const federatedStatusText = computed(() => {
-  if (!props.federated?.enabled) return '关闭'
-  return props.federated?.applied ? '已启用' : '已开启(本轮未命中)'
+  if (!props.federated?.enabled) return '已关闭'
+  return props.federated?.applied ? '已启用（本轮生效）' : '已开启（本轮未生效）'
 })
 
 const federatedStatusClass = computed(() => {
@@ -77,13 +115,13 @@ const federatedStatusClass = computed(() => {
 const formatPercent = (v?: number) => `${Math.max(0, Math.round((v || 0) * 100))}%`
 const formatAdjustment = (v?: number) => {
   const value = v || 0
-  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}`
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`
 }
 </script>
 
 <style scoped>
 .lawyer-panel {
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -142,7 +180,7 @@ const formatAdjustment = (v?: number) => {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 .federated-row {
@@ -178,19 +216,64 @@ const formatAdjustment = (v?: number) => {
   color: var(--text-secondary);
 }
 
-.skill-tags {
+.skill-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
 }
 
-.skill-tag {
+.skill-item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 6px 8px;
   font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  border: 1px solid #dbeafe;
+}
+
+.skill-item.blue {
   background: #eff6ff;
+  border-color: #bfdbfe;
   color: #1d4ed8;
+}
+
+.skill-item.green {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.skill-item.orange {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.skill-item.purple {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
+}
+
+.skill-item.indigo {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+.skill-icon {
+  text-align: center;
+}
+
+.skill-name {
+  font-weight: 600;
+}
+
+.skill-state {
+  font-size: 11px;
+  opacity: 0.9;
 }
 
 .empty {

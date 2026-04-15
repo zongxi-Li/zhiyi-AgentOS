@@ -1,13 +1,13 @@
-<template>
+﻿<template>
   <div class="trace-timeline">
     <div v-if="!trace.length" class="empty">暂无执行轨迹</div>
     <div v-else class="trace-list">
-      <div v-for="item in trace" :key="item.step" class="trace-item">
+      <div v-for="item in displayTrace" :key="item.step" class="trace-item">
         <div class="step-index">#{{ item.step }}</div>
         <div class="step-content">
-          <div class="line"><span class="label">Thought</span>{{ item.thought }}</div>
-          <div class="line"><span class="label">Action</span>{{ item.action }}</div>
-          <div class="line"><span class="label">Observation</span>{{ item.observation }}</div>
+          <div class="line"><span class="label">思考</span>{{ item.thoughtZh }}</div>
+          <div class="line"><span class="label">动作</span>{{ item.actionZh }}</div>
+          <div class="line"><span class="label">观察</span>{{ item.observationZh }}</div>
         </div>
       </div>
     </div>
@@ -15,16 +15,31 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { summarizeObservationZh, toActionLabelZh, toThoughtZh } from '@/utils/agentDisplay'
+
 export interface TraceStep {
   step: number
-  thought: string
-  action: string
-  observation: string
+  thought?: string
+  action?: string
+  observation?: string
 }
 
-defineProps<{
+const props = defineProps<{
   trace: TraceStep[]
 }>()
+
+const displayTrace = computed(() => {
+  return (props.trace || []).map(item => {
+    const action = item.action || ''
+    return {
+      ...item,
+      thoughtZh: toThoughtZh(item.thought || '', action),
+      actionZh: toActionLabelZh(action),
+      observationZh: summarizeObservationZh(action, item.observation || '')
+    }
+  })
+})
 </script>
 
 <style scoped>
@@ -77,7 +92,7 @@ defineProps<{
 
 .label {
   display: inline-block;
-  min-width: 86px;
+  min-width: 56px;
   margin-right: 6px;
   color: var(--text-secondary);
   font-weight: 600;

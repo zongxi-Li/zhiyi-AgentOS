@@ -1,7 +1,60 @@
 ﻿import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
-import { agentLawyerApi, type AgentTraceStep, type FederatedInfo } from '@/services/api/agentLawyer'
+import {
+  agentLawyerApi,
+  type AgentTraceStep,
+  type FederatedInfo
+} from '@/services/api/agentLawyer'
+
+export interface EvidenceAnalysisResult {
+  evidence_items: Array<{ name: string; type: string; strength: string; notes: string }>
+  missing_evidence: string[]
+  overall_assessment: string
+  legal_basis: string[]
+}
+
+export interface LimitationCalcResult {
+  limitation_period?: string
+  start_date?: string
+  deadline?: string
+  expiry_date?: string
+  is_expired?: boolean
+  days_remaining?: number
+  interruption_events?: string[]
+  interruption_hints?: string[]
+  legal_basis?: string[] | string
+  status?: string
+  suggestion?: string
+  limitation_years?: number
+}
+
+export interface JurisdictionResult {
+  courts?: Array<{ name: string; basis: string }>
+  recommended_courts?: Array<{ court: string; reason: string; priority?: string }>
+  recommendation?: string
+  legal_basis?: string[] | string
+}
+
+export interface HearingOutlineResult {
+  outline_markdown?: string
+  outline?: string
+  agenda?: string[]
+  question_points?: string[]
+  risk_focus?: string[]
+}
+
+const parseTraceObservation = (trace: AgentTraceStep[] | undefined, action: string) => {
+  if (!trace?.length) return undefined
+  const target = [...trace].reverse().find(item => item.action === action)
+  if (!target?.observation) return undefined
+  try {
+    const parsed = JSON.parse(target.observation)
+    return parsed && typeof parsed === 'object' ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export interface Message {
   id: number | string
@@ -21,6 +74,10 @@ export interface Message {
   trace?: AgentTraceStep[]
   federated?: FederatedInfo
   riskLevel?: string
+  evidenceAnalysis?: EvidenceAnalysisResult
+  limitationCalc?: LimitationCalcResult
+  jurisdiction?: JurisdictionResult
+  hearingOutline?: HearingOutlineResult
   agentMode?: 'default' | 'lawyer'
 }
 
@@ -94,6 +151,10 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       lawyerSessionId.value = response.sessionId || lawyerSessionId.value
+      const traceEvidence = parseTraceObservation(response.trace, 'evidence_analysis')
+      const traceLimitation = parseTraceObservation(response.trace, 'limitation_calculation')
+      const traceJurisdiction = parseTraceObservation(response.trace, 'jurisdiction_determination')
+      const traceHearing = parseTraceObservation(response.trace, 'hearing_outline_generation')
 
       const assistantMessage: Message = {
         id: Date.now() + 1,
@@ -105,6 +166,10 @@ export const useChatStore = defineStore('chat', () => {
         trace: response.trace || [],
         federated: response.federated || {},
         riskLevel: response.riskLevel,
+        evidenceAnalysis: response.evidenceAnalysis || response.evidence_analysis || traceEvidence,
+        limitationCalc: response.limitationCalc || response.limitation_calculation || traceLimitation,
+        jurisdiction: response.jurisdiction || response.jurisdiction_determination || traceJurisdiction,
+        hearingOutline: response.hearingOutline || response.hearing_outline_generation || traceHearing,
         agentMode: 'lawyer'
       }
       messages.value.push(assistantMessage)

@@ -26,7 +26,14 @@ class RiskAssessmentSkill(BaseSkill):
             return "medium"
         return "low"
 
-    def _calc_score(self, case_info: Dict[str, Any], statutes: List[Dict[str, Any]], cases: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _calc_score(
+        self,
+        case_info: Dict[str, Any],
+        statutes: List[Dict[str, Any]],
+        cases: List[Dict[str, Any]],
+        evidence_analysis: Dict[str, Any],
+        limitation_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
         score = 20
         matrix: List[Dict[str, Any]] = []
         key_risks: List[str] = []
@@ -50,6 +57,12 @@ class RiskAssessmentSkill(BaseSkill):
             evidence_score += 10
             key_risks.append("当事人身份不清晰")
             suggestions.append("明确原被告主体资格与关联关系")
+
+        missing_evidence = self._to_list(evidence_analysis.get("missing_evidence"))
+        if len(missing_evidence) >= 2:
+            evidence_score += 10
+            key_risks.append("证据链存在缺口")
+            suggestions.append("按证据分析结果优先补齐关键证据")
         score += min(evidence_score, 40)
         matrix.append({"dimension": "evidence", "score": min(evidence_score, 40), "note": "证据与事实完整性"})
 
@@ -75,6 +88,15 @@ class RiskAssessmentSkill(BaseSkill):
             procedure_score += 10
             key_risks.append("可能存在诉讼时效争议")
             suggestions.append("核查权利被侵害时间点，准备时效中断/中止证据")
+
+        if limitation_result.get("is_expired") is True:
+            procedure_score += 20
+            key_risks.append("时效结果显示可能已过期")
+            suggestions.append("优先核查时效中断/中止证据并评估可诉性")
+        elif limitation_result.get("status") == "临近时效":
+            procedure_score += 12
+            key_risks.append("案件临近时效截止")
+            suggestions.append("立即采取仲裁/诉讼等程序动作锁定时效")
         score += min(procedure_score, 20)
         matrix.append({"dimension": "procedure", "score": min(procedure_score, 20), "note": "程序性风险"})
 
@@ -138,8 +160,16 @@ class RiskAssessmentSkill(BaseSkill):
         case_info = observations.get("case_understanding", {})
         statutes = observations.get("statute_retrieval", {}).get("statutes", [])
         cases = observations.get("case_retrieval", {}).get("cases", [])
+        evidence_analysis = observations.get("evidence_analysis", {})
+        limitation_result = observations.get("limitation_calculation", {})
 
-        output = self._calc_score(case_info=case_info, statutes=statutes, cases=cases)
+        output = self._calc_score(
+            case_info=case_info,
+            statutes=statutes,
+            cases=cases,
+            evidence_analysis=evidence_analysis if isinstance(evidence_analysis, dict) else {},
+            limitation_result=limitation_result if isinstance(limitation_result, dict) else {},
+        )
         output = self._merge_federated_enhancement(output, case_info)
 
         federated_tag = "federated:on" if output.get("federated", {}).get("applied") else "federated:off"

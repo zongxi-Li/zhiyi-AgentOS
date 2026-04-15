@@ -391,13 +391,16 @@ onMounted(() => {
 <style scoped>
 .model-management-view {
   position: relative;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   color: var(--text-primary);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .ambient-glow {
@@ -493,6 +496,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
   gap: 12px;
+  align-items: start;
 }
 
 .card-grid {
@@ -562,6 +566,9 @@ onMounted(() => {
 .inline-panel {
   padding: 14px;
   min-height: 420px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .panel-title {
@@ -644,6 +651,11 @@ onMounted(() => {
 
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inline-panel {
+    max-height: none;
+    overflow: visible;
   }
 }
 

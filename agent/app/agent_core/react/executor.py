@@ -12,7 +12,7 @@ from app.agent_core.schema.agent_types import (
 class ReactExecutor:
     """Executes ReAct plan loop and collects trace."""
 
-    def __init__(self, tool_router: ToolRouter, max_steps: int = 5):
+    def __init__(self, tool_router: ToolRouter, max_steps: int = 10):
         self.tool_router = tool_router
         self.max_steps = max_steps
 
