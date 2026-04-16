@@ -1,5 +1,3 @@
-import importlib
-import logging
 from typing import Dict, Optional
 
 from app.agent_core.schema.agent_types import PlannedAction, SkillRequest, SkillResult
@@ -13,24 +11,20 @@ from app.agent_core.skills.jurisdiction_determination_skill import JurisdictionD
 from app.agent_core.skills.limitation_calculation_skill import LimitationCalculationSkill
 from app.agent_core.skills.risk_assessment_skill import RiskAssessmentSkill
 from app.agent_core.skills.statute_retrieval_skill import StatuteRetrievalSkill
-
-logger = logging.getLogger(__name__)
-
+from app.agent_core.skills.teacher import (
+    ClassroomInteractionDesignSkill,
+    ErrorAnalysisQuestionPushSkill,
+    HomeworkGradingSkill,
+    LearningPathPlanningSkill,
+    LessonPlanGenerationSkill,
+    ParentCommunicationSuggestionSkill,
+    ProgressReportGenerationSkill,
+    StudentDiagnosisSkill,
+    TutoringQASkill,
+)
 
 class ToolRouter:
     """Routes planned actions to concrete skills by role."""
-
-    TEACHER_SKILL_SPECS = {
-        "student_diagnosis": "app.agent_core.skills.teacher.student_diagnosis_skill:StudentDiagnosisSkill",
-        "lesson_plan_generation": "app.agent_core.skills.teacher.lesson_plan_generation_skill:LessonPlanGenerationSkill",
-        "homework_grading": "app.agent_core.skills.teacher.homework_grading_skill:HomeworkGradingSkill",
-        "error_analysis_question_push": "app.agent_core.skills.teacher.error_analysis_question_push_skill:ErrorAnalysisQuestionPushSkill",
-        "tutoring_qa": "app.agent_core.skills.teacher.tutoring_qa_skill:TutoringQASkill",
-        "learning_path_planning": "app.agent_core.skills.teacher.learning_path_planning_skill:LearningPathPlanningSkill",
-        "progress_report_generation": "app.agent_core.skills.teacher.progress_report_generation_skill:ProgressReportGenerationSkill",
-        "classroom_interaction_design": "app.agent_core.skills.teacher.classroom_interaction_design_skill:ClassroomInteractionDesignSkill",
-        "parent_communication_suggestion": "app.agent_core.skills.teacher.parent_communication_suggestion_skill:ParentCommunicationSuggestionSkill",
-    }
 
     def __init__(self, skills: Optional[Dict[str, BaseSkill]] = None):
         self.skills_by_role: Dict[str, Dict[str, BaseSkill]] = {}
@@ -51,24 +45,18 @@ class ToolRouter:
             "risk_assessment": RiskAssessmentSkill(),
         }
 
-    def _load_teacher_skill(self, action_name: str, spec: str) -> BaseSkill:
-        module_name, class_name = spec.split(":", maxsplit=1)
-        try:
-            module = importlib.import_module(module_name)
-            skill_cls = getattr(module, class_name)
-            skill = skill_cls()
-            if isinstance(skill, BaseSkill):
-                return skill
-            logger.warning("Loaded teacher skill for %s is not a BaseSkill, using NoOp.", action_name)
-        except Exception as exc:
-            logger.info("Teacher skill %s not ready yet, using NoOp placeholder. error=%s", action_name, exc)
-        return NoOpSkill(action_name)
-
     def _build_default_teacher_skills(self) -> Dict[str, BaseSkill]:
-        skills: Dict[str, BaseSkill] = {}
-        for action_name, spec in self.TEACHER_SKILL_SPECS.items():
-            skills[action_name] = self._load_teacher_skill(action_name, spec)
-        return skills
+        return {
+            "student_diagnosis": StudentDiagnosisSkill(),
+            "lesson_plan_generation": LessonPlanGenerationSkill(),
+            "homework_grading": HomeworkGradingSkill(),
+            "error_analysis_question_push": ErrorAnalysisQuestionPushSkill(),
+            "tutoring_qa": TutoringQASkill(),
+            "learning_path_planning": LearningPathPlanningSkill(),
+            "progress_report_generation": ProgressReportGenerationSkill(),
+            "classroom_interaction_design": ClassroomInteractionDesignSkill(),
+            "parent_communication_suggestion": ParentCommunicationSuggestionSkill(),
+        }
 
     def register_skills_for_role(self, role: str, skills: Dict[str, BaseSkill]) -> None:
         normalized_role = (role or "").strip().lower()
