@@ -1,8 +1,19 @@
 <template>
-  <section class="skill-panel">
+  <section class="skill-panel teacher-panel">
     <div class="panel-header">
-      <h3>教师 Agent 工作台</h3>
-      <span class="meta-pill">技能 {{ skillsUsed?.length || 0 }}</span>
+      <div class="header-left">
+        <div class="agent-avatar">👩‍🏫</div>
+        <div class="header-text">
+          <h3>教师 Agent 工作台</h3>
+          <span class="header-sub">智能教学助手</span>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="skill-pill">
+          <span class="pill-dot"></span>
+          技能 {{ skillsUsed?.length || 0 }}
+        </span>
+      </div>
     </div>
 
     <div class="panel-tabs">
@@ -35,15 +46,22 @@
         <div class="sub-section">
           <div class="sub-title">已调用技能</div>
           <div v-if="!skillVisuals.length" class="empty">
-            <span class="empty-icon">📭</span>
+            <div class="empty-illustration">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <path d="M18 22h12M18 26h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
             <span>暂无技能调用记录</span>
+            <span class="empty-hint">发送消息后，教师 Agent 将自动调用相关技能</span>
           </div>
           <div v-else class="skill-list">
             <div
-              v-for="item in skillVisuals"
+              v-for="(item, idx) in skillVisuals"
               :key="item.raw"
               class="skill-item"
               :class="item.tone"
+              :style="{ animationDelay: `${idx * 0.06}s` }"
               :title="item.raw"
             >
               <span class="skill-icon">{{ item.icon }}</span>
@@ -59,8 +77,14 @@
 
       <div v-show="activeTab === 'trace'" class="tab-content">
         <div v-if="!trace.length" class="empty">
-          <span class="empty-icon">🧭</span>
+          <div class="empty-illustration">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+              <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <path d="M16 20l4 4-4 4M24 28h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
           <span>暂无执行轨迹</span>
+          <span class="empty-hint">对话过程中将展示技能调用链路</span>
         </div>
         <div v-else class="trace-container">
           <TraceTimeline :trace="trace" />
@@ -70,8 +94,15 @@
       <div v-show="activeTab === 'results'" class="tab-content results-tab">
         <slot name="results">
           <div class="empty">
-            <span class="empty-icon">📦</span>
+            <div class="empty-illustration">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <rect x="16" y="18" width="16" height="12" rx="2" stroke="#9ca3af" stroke-width="1.5"/>
+                <path d="M20 22h8M20 26h5" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
             <span>暂无技能结果</span>
+            <span class="empty-hint">技能执行完成后将展示结构化结果</span>
           </div>
         </slot>
       </div>
@@ -94,7 +125,7 @@ interface FederatedInfo {
 
 interface SkillVisual {
   icon: string
-  tone: 'blue' | 'green' | 'orange' | 'purple' | 'indigo'
+  tone: 'emerald' | 'amber' | 'teal' | 'violet' | 'rose'
 }
 
 const props = defineProps<{
@@ -113,21 +144,21 @@ const tabs = computed(() => [
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
-  student_diagnosis: { icon: '🩺', tone: 'blue' },
-  lesson_plan_generation: { icon: '📝', tone: 'indigo' },
-  homework_grading: { icon: '✅', tone: 'green' },
-  error_analysis_question_push: { icon: '🎯', tone: 'orange' },
-  tutoring_qa: { icon: '💡', tone: 'purple' },
-  learning_path_planning: { icon: '🗺️', tone: 'indigo' },
-  progress_report_generation: { icon: '📈', tone: 'blue' },
-  classroom_interaction_design: { icon: '🤝', tone: 'green' },
-  parent_communication_suggestion: { icon: '👪', tone: 'purple' }
+  student_diagnosis: { icon: '🩺', tone: 'emerald' },
+  lesson_plan_generation: { icon: '📝', tone: 'violet' },
+  homework_grading: { icon: '✅', tone: 'teal' },
+  error_analysis_question_push: { icon: '🎯', tone: 'amber' },
+  tutoring_qa: { icon: '💡', tone: 'amber' },
+  learning_path_planning: { icon: '🗺️', tone: 'violet' },
+  progress_report_generation: { icon: '📈', tone: 'emerald' },
+  classroom_interaction_design: { icon: '🤝', tone: 'teal' },
+  parent_communication_suggestion: { icon: '👪', tone: 'rose' }
 }
 
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '📌', tone: 'blue' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: '📌', tone: 'emerald' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),
@@ -159,11 +190,15 @@ const formatAdjustment = (v?: number) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid var(--border-light);
   border-radius: 14px;
   overflow: hidden;
   height: 100%;
+}
+
+.teacher-panel {
+  border-top: 3px solid #059669;
 }
 
 .panel-header {
@@ -171,9 +206,33 @@ const formatAdjustment = (v?: number) => {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #f6fdf8, #eef7ff);
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 40%, #fefce8 100%);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .panel-header h3 {
@@ -183,14 +242,43 @@ const formatAdjustment = (v?: number) => {
   color: var(--text-primary);
 }
 
-.meta-pill {
+.header-sub {
+  font-size: 11px;
+  color: #059669;
+  font-weight: 500;
+}
+
+.header-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   border-radius: 999px;
   padding: 3px 10px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #ecfdf5;
+  color: #059669;
   white-space: nowrap;
   font-weight: 600;
+  border: 1px solid #a7f3d0;
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #059669;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .panel-tabs {
@@ -218,14 +306,14 @@ const formatAdjustment = (v?: number) => {
 }
 
 .tab-btn:hover {
-  background: rgba(59, 130, 246, 0.05);
+  background: rgba(5, 150, 105, 0.05);
   color: var(--text-primary);
 }
 
 .tab-btn.active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
-  background: rgba(59, 130, 246, 0.06);
+  color: #059669;
+  border-bottom-color: #059669;
+  background: rgba(5, 150, 105, 0.06);
 }
 
 .tab-icon {
@@ -243,14 +331,14 @@ const formatAdjustment = (v?: number) => {
   line-height: 16px;
   text-align: center;
   border-radius: 999px;
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #d1fae5;
+  color: #065f46;
   padding: 0 4px;
   font-weight: 700;
 }
 
 .tab-btn.active .tab-badge {
-  background: #2563eb;
+  background: #059669;
   color: #fff;
 }
 
@@ -264,20 +352,37 @@ const formatAdjustment = (v?: number) => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 14px;
+  padding: 14px 16px;
+}
+
+.tab-content::-webkit-scrollbar {
+  width: 5px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.tab-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .sub-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .sub-title {
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: #059669;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -307,8 +412,8 @@ const formatAdjustment = (v?: number) => {
 }
 
 .status-pill.idle {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .meta {
@@ -329,47 +434,59 @@ const formatAdjustment = (v?: number) => {
   grid-template-columns: 28px 1fr auto;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: 40px;
   border: 1px solid;
   border-radius: 10px;
   padding: 8px 10px;
   font-size: 12px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: skill-slide-in 0.3s ease-out both;
+}
+
+@keyframes skill-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .skill-item:hover {
-  transform: translateX(2px);
+  transform: translateX(3px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.skill-item.blue {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
-}
-
-.skill-item.green {
-  background: #ecfdf5;
+.skill-item.emerald {
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
   border-color: #a7f3d0;
   color: #047857;
 }
 
-.skill-item.orange {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
+.skill-item.amber {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-color: #fcd34d;
+  color: #b45309;
 }
 
-.skill-item.purple {
-  background: #f5f3ff;
-  border-color: #ddd6fe;
+.skill-item.teal {
+  background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
+  border-color: #5eead4;
+  color: #0f766e;
+}
+
+.skill-item.violet {
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border-color: #c4b5fd;
   color: #6d28d9;
 }
 
-.skill-item.indigo {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #4338ca;
+.skill-item.rose {
+  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+  border-color: #fda4af;
+  color: #be123c;
 }
 
 .skill-icon {
@@ -411,9 +528,16 @@ const formatAdjustment = (v?: number) => {
   font-size: 13px;
 }
 
-.empty-icon {
-  font-size: 28px;
-  opacity: 0.6;
+.empty-illustration {
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+
+.empty-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+  line-height: 1.4;
 }
 
 .trace-container {

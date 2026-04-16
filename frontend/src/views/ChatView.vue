@@ -1,21 +1,28 @@
 <template>
   <div class="chat-view">
-    <header class="chat-header">
+    <header class="chat-header" :class="{ 'lawyer-active': isLawyerMode, 'teacher-active': isTeacherMode }">
       <div class="left">
         <span class="title">联邦智能体对话中心</span>
-        <el-tag size="small" :type="modeTagType">
-          {{ modeTagText }}
-        </el-tag>
+        <div class="mode-switcher">
+          <button
+            class="mode-btn"
+            :class="{ active: isLawyerMode }"
+            @click="toggleLawyerMode"
+          >
+            <span class="mode-icon">⚖️</span>
+            <span class="mode-label">律师</span>
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: isTeacherMode }"
+            @click="toggleTeacherMode"
+          >
+            <span class="mode-icon">👩‍🏫</span>
+            <span class="mode-label">教师</span>
+          </button>
+        </div>
       </div>
       <div class="right">
-        <el-button size="small" type="primary" @click="toggleLawyerMode">
-          <el-icon><ScaleToOriginal /></el-icon>
-          {{ isLawyerMode ? '保持律师模式' : '切换律师模式' }}
-        </el-button>
-        <el-button size="small" type="success" @click="toggleTeacherMode">
-          <el-icon><Reading /></el-icon>
-          {{ isTeacherMode ? '保持教师模式' : '切换教师模式' }}
-        </el-button>
         <el-button size="small" @click="showRoleDrawer = true">
           <el-icon><User /></el-icon>
           角色
@@ -31,12 +38,15 @@
       <section class="chat-panel">
         <div class="messages" ref="messagesRef">
           <div v-if="chatStore.messages.length === 0" class="empty-state">
-            <h2>开始一次新对话</h2>
-            <p>你可以直接输入问题，或使用下方快捷模板。</p>
+            <div class="empty-icon">{{ isLawyerMode ? '⚖️' : isTeacherMode ? '👩‍🏫' : '💬' }}</div>
+            <h2>{{ isLawyerMode ? '律师 Agent 对话' : isTeacherMode ? '教师 Agent 对话' : '开始一次新对话' }}</h2>
+            <p>{{ isLawyerMode ? '专业法律咨询，智能证据分析与风险评估' : isTeacherMode ? '智能学情诊断、个性化教案与作业批改' : '你可以直接输入问题，或使用下方快捷模板。' }}</p>
             <div class="quick-actions">
-              <el-button @click="useTemplate(currentTemplates[0])">{{ currentTemplates[0] }}</el-button>
-              <el-button @click="useTemplate(currentTemplates[1])">{{ currentTemplates[1] }}</el-button>
-              <el-button @click="showRoleDrawer = true">选择角色</el-button>
+              <button v-if="currentTemplates[0]" class="quick-btn" @click="useTemplate(currentTemplates[0])">{{ currentTemplates[0] }}</button>
+              <button v-if="currentTemplates[1]" class="quick-btn" @click="useTemplate(currentTemplates[1])">{{ currentTemplates[1] }}</button>
+              <button v-if="currentTemplates[2]" class="quick-btn" @click="useTemplate(currentTemplates[2])">{{ currentTemplates[2] }}</button>
+              <button v-if="!isLawyerMode" class="quick-btn lawyer-btn" @click="toggleLawyerMode">⚖️ 律师 Agent</button>
+              <button v-if="!isTeacherMode" class="quick-btn teacher-btn" @click="toggleTeacherMode">👩‍🏫 教师 Agent</button>
             </div>
           </div>
 
@@ -265,8 +275,6 @@ import {
   Loading,
   Microphone,
   MoreFilled,
-  Reading,
-  ScaleToOriginal,
   UploadFilled,
   User
 } from '@element-plus/icons-vue'
@@ -321,18 +329,6 @@ const isLawyerMode = computed(() => {
 const isTeacherMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
   return name.includes('教师') || name.includes('teacher') || name.includes('教学')
-})
-
-const modeTagText = computed(() => {
-  if (isLawyerMode.value) return '律师 Agent 已启用'
-  if (isTeacherMode.value) return '教师 Agent 已启用'
-  return '普通对话模式'
-})
-
-const modeTagType = computed(() => {
-  if (isLawyerMode.value) return 'success'
-  if (isTeacherMode.value) return 'warning'
-  return 'info'
 })
 
 const latestLawyerMessage = computed(() => {
@@ -400,9 +396,9 @@ const availableTeacherResultPanels = computed(() => {
   const skillSet = new Set(latestTeacherMeta.value.skillsUsed || [])
   const panels: string[] = []
   if (latestTeacherSkillResults.value.studentDiagnosis || skillSet.has('student_diagnosis')) panels.push('diagnosis')
-  if (latestTeacherSkillResults.value.lessonPlan || skillSet.has('lesson_plan_generation')) panels.push('lessonPlan')
-  if (latestTeacherSkillResults.value.homeworkGrading || skillSet.has('homework_grading')) panels.push('grading')
-  if (latestTeacherSkillResults.value.errorQuestionPush || skillSet.has('error_analysis_question_push')) panels.push('questionPush')
+  if (latestTeacherSkillResults.value.lessonPlan || skillSet.has('lesson_plan_generation') || skillSet.has('lesson_plan')) panels.push('lessonPlan')
+  if (latestTeacherSkillResults.value.homeworkGrading || skillSet.has('homework_grading') || skillSet.has('grading')) panels.push('grading')
+  if (latestTeacherSkillResults.value.errorQuestionPush || skillSet.has('error_analysis_question_push') || skillSet.has('error_attribution')) panels.push('questionPush')
   return panels
 })
 
@@ -442,9 +438,15 @@ const getTeacherRole = () => {
   })
 }
 
+const switchRoleWithoutReset = async (role: any) => {
+  selectedRoleId.value = role.id
+  await roleStore.setCurrentRole(role)
+  chatStore.setRole(role.id)
+}
+
 const activateLawyerAgent = async () => {
   if (isLawyerMode.value) {
-    ElMessage.success('当前已经是律师模式')
+    ElMessage.info('当前已在律师模式')
     return
   }
 
@@ -454,12 +456,13 @@ const activateLawyerAgent = async () => {
     showRoleDrawer.value = true
     return
   }
-  await selectRole(lawyerRole)
+  await switchRoleWithoutReset(lawyerRole)
+  ElMessage.success('已切换到律师 Agent')
 }
 
 const activateTeacherAgent = async () => {
   if (isTeacherMode.value) {
-    ElMessage.success('当前已经是教师模式')
+    ElMessage.info('当前已在教师模式')
     return
   }
 
@@ -469,7 +472,8 @@ const activateTeacherAgent = async () => {
     showRoleDrawer.value = true
     return
   }
-  await selectRole(teacherRole)
+  await switchRoleWithoutReset(teacherRole)
+  ElMessage.success('已切换到教师 Agent')
 }
 
 const toggleLawyerMode = async () => {
@@ -811,22 +815,85 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  transition: border-bottom-color 0.3s ease, background 0.3s ease;
+}
+
+.chat-header.lawyer-active {
+  border-bottom-color: #2563eb;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(255, 255, 255, 0.88));
+}
+
+.chat-header.teacher-active {
+  border-bottom-color: #059669;
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.04), rgba(255, 255, 255, 0.88));
 }
 
 .chat-header .left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
 }
 
 .chat-header .title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.mode-switcher {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-primary);
+}
+
+.mode-btn.active {
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.mode-btn:first-child.active {
+  color: #2563eb;
+}
+
+.mode-btn:last-child.active {
+  color: #059669;
+}
+
+.mode-icon {
+  font-size: 14px;
+}
+
+.mode-label {
+  font-size: 12px;
 }
 
 .chat-header .right {
@@ -841,11 +908,12 @@ onUnmounted(() => {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
+  transition: grid-template-columns 0.3s ease;
 }
 
 .chat-main.lawyer,
 .chat-main.teacher {
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 340px;
 }
 
 .chat-panel {
@@ -859,21 +927,101 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px;
+}
+
+.messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
 }
 
 .empty-state {
-  margin: 60px auto;
+  margin: 80px auto;
   text-align: center;
-  max-width: 720px;
+  max-width: 520px;
+  animation: fade-in 0.4s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.empty-state h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .quick-actions {
-  margin-top: 16px;
+  margin-top: 20px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.quick-btn {
+  border: 1px solid var(--border-light);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.quick-btn:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+  transform: translateY(-1px);
+}
+
+.quick-btn.lawyer-btn {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.quick-btn.lawyer-btn:hover {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.quick-btn.teacher-btn {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.quick-btn.teacher-btn:hover {
+  border-color: #059669;
+  background: #d1fae5;
 }
 
 .message-list {
@@ -899,6 +1047,20 @@ onUnmounted(() => {
   background: #2563eb;
   color: #fff;
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.to-bottom:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.chat-main.teacher .to-bottom {
+  background: #059669;
+}
+
+.chat-main.teacher .to-bottom:hover {
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
 }
 
 .to-bottom .badge {
@@ -924,15 +1086,31 @@ onUnmounted(() => {
   border: 1px solid var(--border-light);
   background: #fff;
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   white-space: nowrap;
   cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.template-item:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
 }
 
 .composer {
   border-top: 1px solid var(--border-light);
   background: #fff;
   padding: 12px 16px;
+  transition: border-top-color 0.3s ease;
+}
+
+.chat-main.teacher .composer {
+  border-top-color: #a7f3d0;
+}
+
+.chat-main.lawyer .composer {
+  border-top-color: #bfdbfe;
 }
 
 .composer-footer {
@@ -961,11 +1139,23 @@ onUnmounted(() => {
 
 .agent-panel {
   border-left: 1px solid var(--border-light);
-  background: #fff;
+  background: #fafbfc;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding: 10px;
+  transition: border-left-color 0.3s ease, background 0.3s ease;
+}
+
+.chat-main.lawyer .agent-panel {
+  border-left-color: #bfdbfe;
+  background: linear-gradient(180deg, #f8faff, #fafbfc);
+}
+
+.chat-main.teacher .agent-panel {
+  border-left-color: #a7f3d0;
+  background: linear-gradient(180deg, #f6fdf8, #fafbfc);
 }
 
 .results-empty {
@@ -1007,6 +1197,12 @@ onUnmounted(() => {
   border-radius: 10px;
   padding: 10px;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.role-item:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
 }
 
 .role-item.active {

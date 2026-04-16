@@ -1,11 +1,22 @@
 <template>
-  <section class="card">
+  <section class="card lesson-card">
     <header class="card-head">
-      <h4>个性化教案</h4>
+      <div class="head-left">
+        <span class="head-icon">📝</span>
+        <h4>个性化教案</h4>
+      </div>
       <span class="meta">{{ titleText }}</span>
     </header>
 
-    <div v-if="!lessonPlanMarkdown" class="empty">暂无教案内容</div>
+    <div v-if="!lessonPlanMarkdown" class="empty">
+      <div class="empty-illustration">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <rect x="8" y="6" width="24" height="28" rx="3" stroke="#d1d5db" stroke-width="1.5"/>
+          <path d="M14 14h12M14 18h12M14 22h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span>暂无教案内容</span>
+    </div>
     <article v-else class="markdown-body" v-html="renderedHtml" />
   </section>
 </template>
@@ -120,10 +131,10 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
   border: 1px solid var(--border-light);
   border-radius: 12px;
   background: #fff;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .card-head {
@@ -133,49 +144,79 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
   gap: 8px;
 }
 
+.head-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.head-icon {
+  font-size: 16px;
+}
+
 .card-head h4 {
   margin: 0;
   font-size: 14px;
+  font-weight: 700;
 }
 
 .meta {
   font-size: 12px;
-  color: #1d4ed8;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 10px;
+  font-weight: 500;
 }
 
 .empty {
-  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  font-size: 13px;
   color: var(--text-secondary);
+}
+
+.empty-illustration {
+  opacity: 0.6;
 }
 
 .markdown-body {
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.7;
   color: var(--text-primary);
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #f0fdf4, #fefce8);
+  border-radius: 10px;
+  border: 1px solid #d1fae5;
 }
 
 .markdown-body :deep(h1),
 .markdown-body :deep(h2),
 .markdown-body :deep(h3) {
-  margin: 8px 0;
+  margin: 10px 0 6px;
   line-height: 1.35;
   color: var(--text-primary);
 }
 
 .markdown-body :deep(h1) {
   font-size: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #d1fae5;
 }
 
 .markdown-body :deep(h2) {
   font-size: 15px;
+  color: #047857;
 }
 
 .markdown-body :deep(h3) {
   font-size: 14px;
+  color: #059669;
 }
 
 .markdown-body :deep(p) {
@@ -188,10 +229,16 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
   padding-left: 20px;
 }
 
+.markdown-body :deep(li) {
+  margin: 3px 0;
+}
+
 .markdown-body :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: #f1f5f9;
+  background: #ecfdf5;
   border-radius: 4px;
-  padding: 0 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  color: #047857;
 }
 </style>

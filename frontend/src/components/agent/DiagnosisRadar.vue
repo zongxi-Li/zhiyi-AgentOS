@@ -1,40 +1,58 @@
 <template>
-  <section class="card">
+  <section class="card diagnosis-card">
     <header class="card-head">
-      <h4>学情诊断</h4>
+      <div class="head-left">
+        <span class="head-icon">🩺</span>
+        <h4>学情诊断</h4>
+      </div>
       <span class="level" :class="masteryLevelClass">掌握度 {{ masteryLevelText }}</span>
     </header>
 
     <div class="radar-wrap">
-      <svg viewBox="0 0 220 220" class="radar-svg" aria-label="diagnosis-radar">
-        <polygon v-for="(ring, idx) in rings" :key="idx" :points="ring" class="radar-ring" />
-        <line v-for="axis in axes" :key="axis" x1="110" y1="110" :x2="axisPoint(axis).x" :y2="axisPoint(axis).y" class="radar-axis" />
-        <polygon :points="polygonPoints" class="radar-area" />
-      </svg>
+      <div class="radar-container">
+        <svg viewBox="0 0 220 220" class="radar-svg" aria-label="diagnosis-radar">
+          <defs>
+            <linearGradient id="radarFill" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="rgba(5, 150, 105, 0.25)" />
+              <stop offset="100%" stop-color="rgba(13, 148, 136, 0.15)" />
+            </linearGradient>
+          </defs>
+          <polygon v-for="(ring, idx) in rings" :key="idx" :points="ring" class="radar-ring" />
+          <line v-for="axis in axes" :key="axis" x1="110" y1="110" :x2="axisPoint(axis).x" :y2="axisPoint(axis).y" class="radar-axis" />
+          <polygon :points="polygonPoints" class="radar-area" />
+          <circle v-for="(item, idx) in scoreItems" :key="idx" :cx="axisPoint(idx, item.value).x" :cy="axisPoint(idx, item.value).y" r="4" class="radar-dot" />
+        </svg>
+      </div>
       <div class="metrics">
         <div class="metric" v-for="item in scoreItems" :key="item.key">
-          <span class="label">{{ item.label }}</span>
-          <el-progress :percentage="Math.round(item.value)" :stroke-width="8" />
+          <div class="metric-header">
+            <span class="label">{{ item.label }}</span>
+            <span class="metric-value">{{ Math.round(item.value) }}</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" :style="{ width: `${item.value}%` }"></div>
+          </div>
         </div>
       </div>
     </div>
 
     <p class="summary">{{ data?.diagnosis_summary || '暂无学情诊断说明。' }}</p>
 
-    <div class="block">
-      <div class="title">薄弱点</div>
-      <ul v-if="weakPoints.length" class="list">
-        <li v-for="item in weakPoints" :key="item">{{ item }}</li>
-      </ul>
-      <div v-else class="empty">暂无</div>
-    </div>
-
-    <div class="block">
-      <div class="title">优势项</div>
-      <ul v-if="strengths.length" class="list">
-        <li v-for="item in strengths" :key="item">{{ item }}</li>
-      </ul>
-      <div v-else class="empty">暂无</div>
+    <div class="blocks-row">
+      <div class="block">
+        <div class="title weakness-title">薄弱点</div>
+        <ul v-if="weakPoints.length" class="list weakness-list">
+          <li v-for="item in weakPoints" :key="item">{{ item }}</li>
+        </ul>
+        <div v-else class="empty">暂无</div>
+      </div>
+      <div class="block">
+        <div class="title strength-title">优势项</div>
+        <ul v-if="strengths.length" class="list strength-list">
+          <li v-for="item in strengths" :key="item">{{ item }}</li>
+        </ul>
+        <div v-else class="empty">暂无</div>
+      </div>
     </div>
   </section>
 </template>
@@ -136,10 +154,10 @@ const polygonPoints = computed(() => {
   border: 1px solid var(--border-light);
   border-radius: 12px;
   background: #fff;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .card-head {
@@ -148,17 +166,29 @@ const polygonPoints = computed(() => {
   align-items: center;
 }
 
+.head-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.head-icon {
+  font-size: 16px;
+}
+
 .card-head h4 {
   margin: 0;
   font-size: 14px;
+  font-weight: 700;
 }
 
 .level {
   font-size: 12px;
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   background: #f3f4f6;
   color: #374151;
+  font-weight: 600;
 }
 
 .level.high {
@@ -178,19 +208,23 @@ const polygonPoints = computed(() => {
 
 .radar-wrap {
   display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 10px;
+  grid-template-columns: 200px 1fr;
+  gap: 14px;
   align-items: center;
 }
 
+.radar-container {
+  position: relative;
+}
+
 .radar-svg {
-  width: 220px;
-  height: 220px;
+  width: 200px;
+  height: 200px;
 }
 
 .radar-ring {
   fill: none;
-  stroke: #dbeafe;
+  stroke: #d1fae5;
   stroke-width: 1;
 }
 
@@ -200,41 +234,111 @@ const polygonPoints = computed(() => {
 }
 
 .radar-area {
-  fill: rgba(37, 99, 235, 0.2);
-  stroke: #2563eb;
+  fill: url(#radarFill);
+  stroke: #059669;
+  stroke-width: 2;
+}
+
+.radar-dot {
+  fill: #059669;
+  stroke: #fff;
   stroke-width: 2;
 }
 
 .metrics {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
 .metric .label {
-  display: block;
   font-size: 12px;
-  margin-bottom: 4px;
   color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #059669, #0d9488);
+  transition: width 0.6s ease;
 }
 
 .summary {
   margin: 0;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.6;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border-left: 3px solid #059669;
+}
+
+.blocks-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .title {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.weakness-title::before {
+  content: '⚠️';
+  font-size: 11px;
+}
+
+.strength-title::before {
+  content: '✨';
+  font-size: 11px;
 }
 
 .list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
+}
+
+.weakness-list li {
+  color: #b45309;
+}
+
+.strength-list li {
+  color: #047857;
 }
 
 .empty {
@@ -248,6 +352,9 @@ const polygonPoints = computed(() => {
   }
   .radar-svg {
     margin: 0 auto;
+  }
+  .blocks-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
