@@ -27,6 +27,10 @@
                 <el-icon><Microphone /></el-icon>
                 <span>{{ $t('nav.voice') }}</span>
               </el-menu-item>
+              <el-menu-item index="/digital-human">
+                <el-icon><User /></el-icon>
+                <span>数字人对话</span>
+              </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
               <el-menu-item index="/rag">
@@ -145,17 +149,17 @@ const handleSidebarWheel = (event: WheelEvent) => {
   })
 }
 
-// Immersive mode: hide sidebar for focused pages
+// Immersive mode: only keep login page immersive
 const isImmersive = computed(() => {
   const path = route.path
-  return path.startsWith('/voice') || 
-         path.startsWith('/login')
+  return path.startsWith('/login')
 })
 
 const activeMenu = computed(() => {
   const path = route.path
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
   if (path === '/voice' || path.startsWith('/voice')) return '/voice'
+  if (path === '/digital-human' || path.startsWith('/digital-human')) return '/digital-human'
   if (path === '/roles' || path.startsWith('/roles')) return '/roles'
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
   if (path === '/settings' || path.startsWith('/settings')) return '/settings'
