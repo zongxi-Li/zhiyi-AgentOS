@@ -2,15 +2,19 @@
   <div class="chat-view">
     <header class="chat-header">
       <div class="left">
-        <span class="title">联邦智能枢对话中心</span>
-        <el-tag size="small" :type="isLawyerMode ? 'success' : 'info'">
-          {{ isLawyerMode ? '律师 Agent 已启用' : '普通对话模式' }}
+        <span class="title">联邦智能体对话中心</span>
+        <el-tag size="small" :type="modeTagType">
+          {{ modeTagText }}
         </el-tag>
       </div>
       <div class="right">
         <el-button size="small" type="primary" @click="toggleLawyerMode">
           <el-icon><ScaleToOriginal /></el-icon>
           {{ isLawyerMode ? '保持律师模式' : '切换律师模式' }}
+        </el-button>
+        <el-button size="small" type="success" @click="toggleTeacherMode">
+          <el-icon><Reading /></el-icon>
+          {{ isTeacherMode ? '保持教师模式' : '切换教师模式' }}
         </el-button>
         <el-button size="small" @click="showRoleDrawer = true">
           <el-icon><User /></el-icon>
@@ -23,7 +27,7 @@
       </div>
     </header>
 
-    <div class="chat-main" :class="{ lawyer: isLawyerMode }">
+    <div class="chat-main" :class="{ lawyer: isLawyerMode, teacher: isTeacherMode }">
       <section class="chat-panel">
         <div class="messages" ref="messagesRef">
           <div v-if="chatStore.messages.length === 0" class="empty-state">
@@ -95,6 +99,17 @@
                 <el-icon><Folder /></el-icon>
                 文件
               </el-button>
+              <el-button v-if="isTeacherMode" text @click="openTeacherUploadDialog">
+                <el-icon><UploadFilled /></el-icon>
+                上传作业
+              </el-button>
+              <input
+                ref="teacherUploadInputRef"
+                class="hidden-file-input"
+                type="file"
+                accept=".png,.jpg,.jpeg,.pdf,.txt,.doc,.docx"
+                @change="handleTeacherFileUpload"
+              />
             </div>
             <div class="right-actions">
               <span class="word-count" :class="{ warning: inputText.length > 500 }">
@@ -110,54 +125,103 @@
         </div>
       </section>
 
-      <aside v-if="isLawyerMode" class="lawyer-panel">
+      <aside v-if="isLawyerMode || isTeacherMode" class="agent-panel">
         <LawyerSkillPanel
+          v-if="isLawyerMode"
           :skills-used="latestLawyerMeta.skillsUsed"
           :trace="latestLawyerMeta.trace"
           :federated="latestLawyerMeta.federated"
           :risk-level="latestLawyerMeta.riskLevel"
-          :result-count="availableResultPanels.length"
+          :result-count="availableLawyerResultPanels.length"
         >
           <template #results>
-            <div v-if="!availableResultPanels.length" class="results-empty">
-              <span class="empty-icon">📊</span>
+            <div v-if="!availableLawyerResultPanels.length" class="results-empty">
+              <span class="empty-icon">📦</span>
               <span>暂无技能调用结果</span>
             </div>
-            <el-collapse v-else v-model="activeResultPanels">
+            <el-collapse v-else v-model="activeLawyerResultPanels">
               <el-collapse-item
-                v-if="availableResultPanels.includes('evidence')"
+                v-if="availableLawyerResultPanels.includes('evidence')"
                 title="证据分析结果"
                 name="evidence"
               >
-                <EvidenceAnalysisCard :data="latestSkillResults.evidenceAnalysis" />
+                <EvidenceAnalysisCard :data="latestLawyerSkillResults.evidenceAnalysis" />
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableResultPanels.includes('limitation')"
+                v-if="availableLawyerResultPanels.includes('limitation')"
                 title="诉讼时效结果"
                 name="limitation"
               >
-                <LimitationTimeline :data="latestSkillResults.limitationCalc" />
+                <LimitationTimeline :data="latestLawyerSkillResults.limitationCalc" />
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableResultPanels.includes('jurisdiction')"
+                v-if="availableLawyerResultPanels.includes('jurisdiction')"
                 title="管辖法院建议"
                 name="jurisdiction"
               >
-                <JurisdictionCard :data="latestSkillResults.jurisdiction" />
+                <JurisdictionCard :data="latestLawyerSkillResults.jurisdiction" />
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableResultPanels.includes('hearing')"
+                v-if="availableLawyerResultPanels.includes('hearing')"
                 title="庭审提纲"
                 name="hearing"
               >
-                <HearingOutlineViewer :data="latestSkillResults.hearingOutline" />
+                <HearingOutlineViewer :data="latestLawyerSkillResults.hearingOutline" />
               </el-collapse-item>
             </el-collapse>
           </template>
         </LawyerSkillPanel>
+
+        <TeacherSkillPanel
+          v-else
+          :skills-used="latestTeacherMeta.skillsUsed"
+          :trace="latestTeacherMeta.trace"
+          :federated="latestTeacherMeta.federated"
+          :result-count="availableTeacherResultPanels.length"
+        >
+          <template #results>
+            <div v-if="!availableTeacherResultPanels.length" class="results-empty">
+              <span class="empty-icon">📚</span>
+              <span>暂无教师技能结果</span>
+            </div>
+            <el-collapse v-else v-model="activeTeacherResultPanels">
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('diagnosis')"
+                title="学情诊断"
+                name="diagnosis"
+              >
+                <DiagnosisRadar :data="latestTeacherSkillResults.studentDiagnosis" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('lessonPlan')"
+                title="个性化教案"
+                name="lessonPlan"
+              >
+                <LessonPlanViewer :data="latestTeacherSkillResults.lessonPlan" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('grading')"
+                title="作业批改"
+                name="grading"
+              >
+                <GradingResultCard :data="latestTeacherSkillResults.homeworkGrading" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('questionPush')"
+                title="错题归因与推题"
+                name="questionPush"
+              >
+                <QuestionPushList :data="latestTeacherSkillResults.errorQuestionPush" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </TeacherSkillPanel>
       </aside>
     </div>
 
@@ -189,31 +253,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowUp,
-  Microphone,
-  Folder,
-  MoreFilled,
-  Close,
-  Check,
-  Loading,
   ArrowDownBold,
-  User,
-  ScaleToOriginal
+  ArrowUp,
+  Check,
+  Close,
+  Folder,
+  Loading,
+  Microphone,
+  MoreFilled,
+  Reading,
+  ScaleToOriginal,
+  UploadFilled,
+  User
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MessageBubble from '@/components/MessageBubble.vue'
 import FileManager from '@/components/FileManager.vue'
 import LawyerSkillPanel from '@/components/agent/LawyerSkillPanel.vue'
+import TeacherSkillPanel from '@/components/agent/TeacherSkillPanel.vue'
 import EvidenceAnalysisCard from '@/components/agent/EvidenceAnalysisCard.vue'
 import LimitationTimeline from '@/components/agent/LimitationTimeline.vue'
 import JurisdictionCard from '@/components/agent/JurisdictionCard.vue'
 import HearingOutlineViewer from '@/components/agent/HearingOutlineViewer.vue'
-import { useRoleStore } from '@/stores/role'
+import DiagnosisRadar from '@/components/agent/DiagnosisRadar.vue'
+import LessonPlanViewer from '@/components/agent/LessonPlanViewer.vue'
+import GradingResultCard from '@/components/agent/GradingResultCard.vue'
+import QuestionPushList from '@/components/agent/QuestionPushList.vue'
+import { agentTeacherApi } from '@/services/api/agentTeacher'
+import { fileApi } from '@/services/api/file'
 import { useChatStore } from '@/stores/chat'
+import { useRoleStore } from '@/stores/role'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -229,28 +302,53 @@ const showRoleDrawer = ref(false)
 const showFileManager = ref(false)
 const isRecording = ref(false)
 const messagesRef = ref<HTMLElement | null>(null)
+const teacherUploadInputRef = ref<HTMLInputElement | null>(null)
 const showAssistTools = ref(true)
 const isNearBottom = ref(true)
 const pendingMessageCount = ref(0)
-const activeResultPanels = ref<string[]>([])
+const activeLawyerResultPanels = ref<string[]>([])
+const activeTeacherResultPanels = ref<string[]>([])
 const ASSIST_TOOL_VISIBLE_KEY = 'chat.assist_tools_visible'
 
 const roles = computed(() => roleStore.roles)
 const currentRole = computed(() => roleStore.currentRole)
+
 const isLawyerMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
   return name.includes('律师') || name.includes('lawyer') || name.includes('法律')
 })
 
+const isTeacherMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('教师') || name.includes('teacher') || name.includes('教学')
+})
+
+const modeTagText = computed(() => {
+  if (isLawyerMode.value) return '律师 Agent 已启用'
+  if (isTeacherMode.value) return '教师 Agent 已启用'
+  return '普通对话模式'
+})
+
+const modeTagType = computed(() => {
+  if (isLawyerMode.value) return 'success'
+  if (isTeacherMode.value) return 'warning'
+  return 'info'
+})
+
 const latestLawyerMessage = computed(() => {
   return [...chatStore.messages]
     .reverse()
-    .find(msg => msg.role === 'assistant' && (msg.agentMode === 'lawyer' || (msg.trace && msg.trace.length > 0)))
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'lawyer')
+})
+
+const latestTeacherMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'teacher')
 })
 
 const latestLawyerMeta = computed(() => {
   const lastAssistant = latestLawyerMessage.value
-
   return {
     skillsUsed: lastAssistant?.skillsUsed || [],
     trace: lastAssistant?.trace || [],
@@ -259,7 +357,16 @@ const latestLawyerMeta = computed(() => {
   }
 })
 
-const latestSkillResults = computed(() => {
+const latestTeacherMeta = computed(() => {
+  const lastAssistant = latestTeacherMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {}
+  }
+})
+
+const latestLawyerSkillResults = computed(() => {
   const lastAssistant = latestLawyerMessage.value
   return {
     evidenceAnalysis: lastAssistant?.evidenceAnalysis,
@@ -269,13 +376,33 @@ const latestSkillResults = computed(() => {
   }
 })
 
-const availableResultPanels = computed(() => {
+const latestTeacherSkillResults = computed(() => {
+  const lastAssistant = latestTeacherMessage.value
+  return {
+    studentDiagnosis: lastAssistant?.studentDiagnosis,
+    lessonPlan: lastAssistant?.lessonPlan,
+    homeworkGrading: lastAssistant?.homeworkGrading,
+    errorQuestionPush: lastAssistant?.errorQuestionPush
+  }
+})
+
+const availableLawyerResultPanels = computed(() => {
   const skillSet = new Set(latestLawyerMeta.value.skillsUsed || [])
   const panels: string[] = []
-  if (latestSkillResults.value.evidenceAnalysis || skillSet.has('evidence_analysis')) panels.push('evidence')
-  if (latestSkillResults.value.limitationCalc || skillSet.has('limitation_calculation')) panels.push('limitation')
-  if (latestSkillResults.value.jurisdiction || skillSet.has('jurisdiction_determination')) panels.push('jurisdiction')
-  if (latestSkillResults.value.hearingOutline || skillSet.has('hearing_outline_generation')) panels.push('hearing')
+  if (latestLawyerSkillResults.value.evidenceAnalysis || skillSet.has('evidence_analysis')) panels.push('evidence')
+  if (latestLawyerSkillResults.value.limitationCalc || skillSet.has('limitation_calculation')) panels.push('limitation')
+  if (latestLawyerSkillResults.value.jurisdiction || skillSet.has('jurisdiction_determination')) panels.push('jurisdiction')
+  if (latestLawyerSkillResults.value.hearingOutline || skillSet.has('hearing_outline_generation')) panels.push('hearing')
+  return panels
+})
+
+const availableTeacherResultPanels = computed(() => {
+  const skillSet = new Set(latestTeacherMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestTeacherSkillResults.value.studentDiagnosis || skillSet.has('student_diagnosis')) panels.push('diagnosis')
+  if (latestTeacherSkillResults.value.lessonPlan || skillSet.has('lesson_plan_generation')) panels.push('lessonPlan')
+  if (latestTeacherSkillResults.value.homeworkGrading || skillSet.has('homework_grading')) panels.push('grading')
+  if (latestTeacherSkillResults.value.errorQuestionPush || skillSet.has('error_analysis_question_push')) panels.push('questionPush')
   return panels
 })
 
@@ -290,7 +417,7 @@ const currentTemplates = computed(() => {
     return ['合同纠纷咨询', '劳动仲裁流程', '法律风险评估', '文书草稿生成']
   }
   if (roleName.includes('教师') || lower.includes('teacher')) {
-    return ['制定学习计划', '题目讲解', '考试重点整理', '口语训练']
+    return ['制定学习计划', '错题归因推题', '生成课堂互动脚本', '学情报告总结']
   }
   if (roleName.includes('程序') || lower.includes('developer')) {
     return ['代码优化建议', '排查报错思路', '功能设计方案', '接口联调清单']
@@ -308,6 +435,13 @@ const getLawyerRole = () => {
   })
 }
 
+const getTeacherRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('教师') || roleName.includes('教学') || roleName.includes('teacher')
+  })
+}
+
 const activateLawyerAgent = async () => {
   if (isLawyerMode.value) {
     ElMessage.success('当前已经是律师模式')
@@ -316,12 +450,26 @@ const activateLawyerAgent = async () => {
 
   const lawyerRole = getLawyerRole()
   if (!lawyerRole) {
-    ElMessage.warning('未找到律师角色，请先在角色管理中创建或启用律师角色')
+    ElMessage.warning('未找到律师角色，请先在角色管理中启用律师角色')
     showRoleDrawer.value = true
     return
   }
-
   await selectRole(lawyerRole)
+}
+
+const activateTeacherAgent = async () => {
+  if (isTeacherMode.value) {
+    ElMessage.success('当前已经是教师模式')
+    return
+  }
+
+  const teacherRole = getTeacherRole()
+  if (!teacherRole) {
+    ElMessage.warning('未找到教师角色，请先在角色管理中启用教师角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await selectRole(teacherRole)
 }
 
 const toggleLawyerMode = async () => {
@@ -330,6 +478,14 @@ const toggleLawyerMode = async () => {
     return
   }
   await activateLawyerAgent()
+}
+
+const toggleTeacherMode = async () => {
+  if (isTeacherMode.value) {
+    ElMessage.info('当前已在教师模式')
+    return
+  }
+  await activateTeacherAgent()
 }
 
 const goToSettings = () => {
@@ -363,7 +519,7 @@ const selectRole = async (role: any) => {
   if (chatStore.messages.length > 0) {
     try {
       await ElMessageBox.confirm(
-        `切换到角色 "${role.name}" 会清空当前对话，是否继续？`,
+        `切换到角色"${role.name}" 会清空当前对话，是否继续？`,
         '切换角色',
         {
           confirmButtonText: '继续',
@@ -404,9 +560,14 @@ const sendMessage = async () => {
   inputText.value = ''
 
   try {
-    const response = isLawyerMode.value
-      ? await chatStore.sendLawyerMessage(userText)
-      : await chatStore.sendMessage(userText)
+    let response: any
+    if (isLawyerMode.value) {
+      response = await chatStore.sendLawyerMessage(userText)
+    } else if (isTeacherMode.value) {
+      response = await chatStore.sendTeacherMessage(userText)
+    } else {
+      response = await chatStore.sendMessage(userText)
+    }
 
     if (!response) throw new Error('消息发送失败')
     scrollToBottom()
@@ -449,6 +610,38 @@ const handleKeydown = (event: KeyboardEvent) => {
   sendMessage()
 }
 
+const openTeacherUploadDialog = () => {
+  if (!teacherUploadInputRef.value) return
+  teacherUploadInputRef.value.value = ''
+  teacherUploadInputRef.value.click()
+}
+
+const handleTeacherFileUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  loading.value = true
+  try {
+    // Reuse FileManager upload backend.
+    await fileApi.uploadFile(file, 'teacher').catch(() => undefined)
+
+    const ocr = await agentTeacherApi.extractOcrText(file)
+    if (!ocr.text) {
+      ElMessage.warning('未识别到文本，请更换更清晰的文件后重试')
+      return
+    }
+
+    const injected = `\n\n[OCR识别文本 - ${file.name}]\n${ocr.text}`
+    inputText.value = `${inputText.value}${injected}`.trim()
+    ElMessage.success('OCR 识别完成，已注入输入框')
+  } catch (error: any) {
+    ElMessage.error(error.message || '上传或OCR处理失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleControl = (type: string) => {
   if (type === 'folder' || type === 'image') {
     showFileManager.value = true
@@ -459,6 +652,12 @@ const handleFileSelected = async (file: any) => {
   const fileUrl = file?.path ? `/api/files/download/${file.path}` : (file?.url || file?.fileUrl)
   if (!fileUrl) {
     ElMessage.warning('文件地址无效，无法发送')
+    return
+  }
+
+  if (isTeacherMode.value) {
+    showFileManager.value = false
+    ElMessage.info('教师模式建议使用“上传作业”按钮自动OCR注入文本')
     return
   }
 
@@ -515,9 +714,17 @@ watch(
 )
 
 watch(
-  availableResultPanels,
+  availableLawyerResultPanels,
   panels => {
-    activeResultPanels.value = [...panels]
+    activeLawyerResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
+watch(
+  availableTeacherResultPanels,
+  panels => {
+    activeTeacherResultPanels.value = [...panels]
   },
   { immediate: true }
 )
@@ -626,6 +833,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .chat-main {
@@ -635,7 +843,8 @@ onUnmounted(() => {
   grid-template-columns: 1fr;
 }
 
-.chat-main.lawyer {
+.chat-main.lawyer,
+.chat-main.teacher {
   grid-template-columns: 1fr 320px;
 }
 
@@ -739,13 +948,18 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .word-count.warning {
   color: #f59e0b;
 }
 
-.lawyer-panel {
+.agent-panel {
   border-left: 1px solid var(--border-light);
   background: #fff;
   min-height: 0;
@@ -811,14 +1025,15 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .chat-main.lawyer {
+  .chat-main.lawyer,
+  .chat-main.teacher {
     grid-template-columns: 1fr;
   }
 
-  .lawyer-panel {
+  .agent-panel {
     border-left: none;
     border-top: 1px solid var(--border-light);
-    max-height: 260px;
+    max-height: 300px;
   }
 }
 </style>

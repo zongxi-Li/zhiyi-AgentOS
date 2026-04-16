@@ -6,6 +6,13 @@ import {
   type AgentTraceStep,
   type FederatedInfo
 } from '@/services/api/agentLawyer'
+import {
+  agentTeacherApi,
+  type StudentDiagnosisResult,
+  type LessonPlanResult,
+  type HomeworkGradingResult,
+  type ErrorQuestionPushResult
+} from '@/services/api/agentTeacher'
 
 export interface EvidenceAnalysisResult {
   evidence_items: Array<{ name: string; type: string; strength: string; notes: string }>
@@ -78,7 +85,11 @@ export interface Message {
   limitationCalc?: LimitationCalcResult
   jurisdiction?: JurisdictionResult
   hearingOutline?: HearingOutlineResult
-  agentMode?: 'default' | 'lawyer'
+  studentDiagnosis?: StudentDiagnosisResult
+  lessonPlan?: LessonPlanResult
+  homeworkGrading?: HomeworkGradingResult
+  errorQuestionPush?: ErrorQuestionPushResult
+  agentMode?: 'default' | 'lawyer' | 'teacher'
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -86,6 +97,7 @@ export const useChatStore = defineStore('chat', () => {
   const loading = ref(false)
   const contextId = ref<string | null>(null)
   const lawyerSessionId = ref<string | null>(null)
+  const teacherSessionId = ref<string | null>(null)
   const currentRoleId = ref<string | null>(null)
 
   const pushUserMessage = (text: string, fileUrl?: string) => {
@@ -180,6 +192,48 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const sendTeacherMessage = async (text: string) => {
+    if (!text.trim() || loading.value) return
+
+    pushUserMessage(text)
+
+    loading.value = true
+    try {
+      const response = await agentTeacherApi.chat({
+        text,
+        sessionId: teacherSessionId.value || undefined
+      })
+
+      teacherSessionId.value = response.sessionId || teacherSessionId.value
+      const traceDiagnosis = parseTraceObservation(response.trace, 'student_diagnosis')
+      const traceLessonPlan = parseTraceObservation(response.trace, 'lesson_plan_generation')
+      const traceGrading = parseTraceObservation(response.trace, 'homework_grading')
+      const tracePush = parseTraceObservation(response.trace, 'error_analysis_question_push')
+
+      const assistantMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: response.answer || '',
+        createdAt: new Date(),
+        modelInfo: 'Teacher Agent',
+        skillsUsed: response.skillsUsed || [],
+        trace: response.trace || [],
+        federated: response.federated || {},
+        riskLevel: response.riskLevel,
+        studentDiagnosis: response.studentDiagnosis || response.student_diagnosis || traceDiagnosis,
+        lessonPlan: response.lessonPlan || response.lesson_plan_generation || traceLessonPlan,
+        homeworkGrading: response.homeworkGrading || response.homework_grading || traceGrading,
+        errorQuestionPush: response.errorQuestionPush || response.error_analysis_question_push || tracePush,
+        agentMode: 'teacher'
+      }
+      messages.value.push(assistantMessage)
+
+      return response
+    } finally {
+      loading.value = false
+    }
+  }
+
   const clearHistory = async () => {
     if (contextId.value) {
       await chatApi.clearHistory(contextId.value)
@@ -187,6 +241,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     contextId.value = null
     lawyerSessionId.value = null
+    teacherSessionId.value = null
   }
 
   const setRole = (roleId: string | null) => {
@@ -250,6 +305,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     contextId.value = null
     lawyerSessionId.value = null
+    teacherSessionId.value = null
   }
 
   return {
@@ -257,9 +313,11 @@ export const useChatStore = defineStore('chat', () => {
     loading,
     contextId,
     lawyerSessionId,
+    teacherSessionId,
     currentRoleId,
     sendMessage,
     sendLawyerMessage,
+    sendTeacherMessage,
     clearHistory,
     setRole,
     loadHistory,

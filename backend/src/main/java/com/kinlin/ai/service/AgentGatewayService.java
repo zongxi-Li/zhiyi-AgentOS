@@ -35,6 +35,22 @@ public class AgentGatewayService {
     }
 
     public AgentChatResponse chatWithLawyerAgent(AgentChatRequest request) {
+        return chatWithAgent(
+                request,
+                agentProperties.getPython().getLawyerChatUrl(),
+                "lawyer"
+        );
+    }
+
+    public AgentChatResponse chatWithTeacherAgent(AgentChatRequest request) {
+        return chatWithAgent(
+                request,
+                agentProperties.getPython().getTeacherChatUrl(),
+                "teacher"
+        );
+    }
+
+    private AgentChatResponse chatWithAgent(AgentChatRequest request, String endpointUrl, String roleLabel) {
         if (!agentProperties.isEnabled()) {
             return AgentChatResponse.failure(
                     request.getSessionId(),
@@ -49,7 +65,7 @@ public class AgentGatewayService {
             HttpEntity<AgentChatRequest> httpEntity = new HttpEntity<>(request, headers);
 
             ResponseEntity<AgentChatResponse> response = restTemplate.postForEntity(
-                    agentProperties.getPython().getLawyerChatUrl(),
+                    endpointUrl,
                     httpEntity,
                     AgentChatResponse.class
             );
@@ -85,10 +101,9 @@ public class AgentGatewayService {
             log.error("Unexpected agent gateway error", e);
             return AgentChatResponse.failure(
                     request.getSessionId(),
-                    "Unexpected error while calling lawyer agent.",
+                    "Unexpected error while calling " + roleLabel + " agent.",
                     e.getMessage()
             );
         }
     }
 }
-

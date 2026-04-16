@@ -1,34 +1,3 @@
-export const SKILL_NAME_ZH_MAP: Record<string, string> = {
-  case_understanding: '案情理解',
-  statute_retrieval: '法条检索',
-  case_retrieval: '判例检索',
-  evidence_analysis: '证据分析',
-  limitation_calculation: '诉讼时效',
-  jurisdiction_determination: '管辖确定',
-  hearing_outline_generation: '庭审提纲',
-  document_generation: '文书生成',
-  risk_assessment: '风险评估'
-}
-
-const THOUGHT_ZH_BY_ACTION: Record<string, string> = {
-  case_understanding: '先完成案情梳理，提取争议焦点与关键信息缺口。',
-  statute_retrieval: '根据争议焦点检索最相关法条，建立法律依据。',
-  case_retrieval: '检索相似判例，为结论提供裁判实践参考。',
-  evidence_analysis: '从证据目录中识别证明力、合法性和关联性缺口。',
-  limitation_calculation: '计算时效起算点与截止日，识别中断或中止风险。',
-  jurisdiction_determination: '结合案由和地域要素，确定可起诉法院选项。',
-  hearing_outline_generation: '按开庭流程生成发问、质证和辩论提纲。',
-  document_generation: '结合事实与证据生成结构化法律文书草稿。',
-  risk_assessment: '评估实体与程序风险，并给出可执行建议。'
-}
-
-const RISK_LEVEL_ZH_MAP: Record<string, string> = {
-  high: '高',
-  medium: '中',
-  low: '低',
-  unknown: '未知'
-}
-
 const normalizeKey = (value?: string) => (value || '').trim().toLowerCase()
 
 const tryParseJson = (value: string): any | null => {
@@ -39,17 +8,59 @@ const tryParseJson = (value: string): any | null => {
   }
 }
 
-const truncate = (value: string, max = 140) => {
+const truncate = (value: string, max = 160) => {
   const text = (value || '').replace(/\s+/g, ' ').trim()
   if (text.length <= max) return text
   return `${text.slice(0, max)}...`
 }
 
-const topNames = (items: any[], max = 2) => {
-  return items
-    .slice(0, max)
-    .map(item => item?.law_name || item?.title || item?.name || item?.case_name || item?.case_no || '')
-    .filter(Boolean)
+export const SKILL_NAME_ZH_MAP: Record<string, string> = {
+  case_understanding: '案情理解',
+  statute_retrieval: '法条检索',
+  case_retrieval: '判例检索',
+  evidence_analysis: '证据分析',
+  limitation_calculation: '诉讼时效',
+  jurisdiction_determination: '管辖确定',
+  hearing_outline_generation: '庭审提纲',
+  document_generation: '文书生成',
+  risk_assessment: '风险评估',
+  student_diagnosis: '学情诊断',
+  lesson_plan_generation: '个性化教案生成',
+  homework_grading: '作业批改',
+  error_analysis_question_push: '错题归因与推题',
+  tutoring_qa: '智能答疑',
+  learning_path_planning: '学习路径规划',
+  progress_report_generation: '学情报告生成',
+  classroom_interaction_design: '课堂互动设计',
+  parent_communication_suggestion: '家长沟通建议'
+}
+
+const THOUGHT_ZH_BY_ACTION: Record<string, string> = {
+  case_understanding: '先完成案情梳理，提取争议焦点与事实要点。',
+  statute_retrieval: '检索相关法条，建立法律依据。',
+  case_retrieval: '检索类似案例，补充判例支撑。',
+  evidence_analysis: '评估证据强度、关联性和缺口。',
+  limitation_calculation: '计算诉讼时效与关键截止时间。',
+  jurisdiction_determination: '确定可起诉法院与优先方案。',
+  hearing_outline_generation: '生成庭审问答与举证提纲。',
+  document_generation: '输出结构化法律文书草稿。',
+  risk_assessment: '汇总风险并给出行动建议。',
+  student_diagnosis: '先做学情诊断，定位薄弱点和学习画像。',
+  lesson_plan_generation: '结合学情与课题生成可执行教案。',
+  homework_grading: '对照标准批改并输出改进建议。',
+  error_analysis_question_push: '分析错因并推送同类训练题。',
+  tutoring_qa: '给出分步引导，避免直接给出答案。',
+  learning_path_planning: '生成分阶段学习路径和资源建议。',
+  progress_report_generation: '汇总阶段表现并形成报告。',
+  classroom_interaction_design: '设计提问链、活动和板书策略。',
+  parent_communication_suggestion: '输出家校沟通要点与话术。'
+}
+
+const RISK_LEVEL_ZH_MAP: Record<string, string> = {
+  high: '高',
+  medium: '中',
+  low: '低',
+  unknown: '未知'
 }
 
 export const toSkillNameZh = (skill?: string) => {
@@ -61,44 +72,14 @@ export const toActionLabelZh = (action?: string) => {
   const key = normalizeKey(action)
   const zh = toSkillNameZh(key)
   if (!key) return '未指定动作'
-  return zh === key ? key : `${zh}`
+  return zh === key ? key : zh
 }
 
 export const toThoughtZh = (thought?: string, action?: string) => {
   const key = normalizeKey(action)
   if (THOUGHT_ZH_BY_ACTION[key]) return THOUGHT_ZH_BY_ACTION[key]
-
   const raw = (thought || '').trim()
   if (!raw) return '系统正在规划下一步处理动作。'
-
-  if (/first understand|case facts|legal issues/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.case_understanding
-  }
-  if (/retrieve relevant statutes|legal basis/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.statute_retrieval
-  }
-  if (/retrieve similar cases|reference/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.case_retrieval
-  }
-  if (/evidence|proof/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.evidence_analysis
-  }
-  if (/limitation|deadline|prescription/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.limitation_calculation
-  }
-  if (/jurisdiction|court/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.jurisdiction_determination
-  }
-  if (/hearing outline|trial/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.hearing_outline_generation
-  }
-  if (/generate legal document|draft/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.document_generation
-  }
-  if (/assess legal and evidence risks|risk/i.test(raw)) {
-    return THOUGHT_ZH_BY_ACTION.risk_assessment
-  }
-
   return raw
 }
 
@@ -107,74 +88,77 @@ export const toRiskLevelZh = (riskLevel?: string) => {
   return RISK_LEVEL_ZH_MAP[key] || riskLevel || '未知'
 }
 
-const summarizeCaseUnderstanding = (obj: any) => {
-  const facts = truncate(obj?.facts || '')
-  const issues = Array.isArray(obj?.legal_issues) ? obj.legal_issues.filter(Boolean).slice(0, 3) : []
-  const missing = Array.isArray(obj?.missing_info) ? obj.missing_info.filter(Boolean).length : 0
-
-  const issueText = issues.length ? issues.join('、') : '待补充'
-  const factsText = facts || '已提取基础案情信息'
-  return `已完成案情结构化：争议焦点 ${issueText}；${factsText}${missing > 0 ? `；待补充信息 ${missing} 项` : ''}`
+const summarizeLawyerObservation = (action: string, obj: any) => {
+  if (action === 'evidence_analysis') {
+    const evidenceCount = Array.isArray(obj?.evidence_items) ? obj.evidence_items.length : 0
+    const missingCount = Array.isArray(obj?.missing_evidence) ? obj.missing_evidence.length : 0
+    return `证据分析完成：识别证据 ${evidenceCount} 项，缺失 ${missingCount} 项。`
+  }
+  if (action === 'limitation_calculation') {
+    const deadline = obj?.deadline || obj?.expiry_date || '未提供'
+    const days = typeof obj?.days_remaining === 'number' ? obj.days_remaining : null
+    return `时效计算完成：截止日期 ${deadline}${days !== null ? `，剩余 ${days} 天` : ''}。`
+  }
+  if (action === 'jurisdiction_determination') {
+    const courts = Array.isArray(obj?.courts)
+      ? obj.courts.length
+      : Array.isArray(obj?.recommended_courts)
+        ? obj.recommended_courts.length
+        : 0
+    return `管辖分析完成：提供 ${courts} 个法院建议。`
+  }
+  if (action === 'hearing_outline_generation') {
+    const agendaCount = Array.isArray(obj?.agenda) ? obj.agenda.length : 0
+    const outlineLength = String(obj?.outline_markdown || obj?.outline || '').length
+    return `庭审提纲生成完成${agendaCount ? `：${agendaCount} 个模块` : ''}${outlineLength ? `，内容约 ${outlineLength} 字` : ''}。`
+  }
+  if (action === 'risk_assessment') {
+    const level = toRiskLevelZh(obj?.risk_level || obj?.riskLevel)
+    return `风险评估完成：风险等级 ${level}。`
+  }
+  return ''
 }
 
-const summarizeStatuteRetrieval = (obj: any) => {
-  const statutes = Array.isArray(obj?.statutes) ? obj.statutes : []
-  const names = topNames(statutes)
-  if (!statutes.length) return '法条检索已执行，当前未命中高相关法条。'
-  return `已命中法条 ${statutes.length} 条${names.length ? `（示例：${names.join('、')}）` : ''}`
-}
-
-const summarizeCaseRetrieval = (obj: any) => {
-  const cases = Array.isArray(obj?.cases) ? obj.cases : []
-  const names = topNames(cases)
-  if (!cases.length) return '判例检索已执行，当前未命中高相似案例。'
-  return `已命中判例 ${cases.length} 条${names.length ? `（示例：${names.join('、')}）` : ''}`
-}
-
-const summarizeEvidenceAnalysis = (obj: any) => {
-  const evidenceItems = Array.isArray(obj?.evidence_items) ? obj.evidence_items : []
-  const missing = Array.isArray(obj?.missing_evidence) ? obj.missing_evidence : []
-  return `证据分析完成：识别证据 ${evidenceItems.length} 项${missing.length ? `，待补证据 ${missing.length} 项` : ''}`
-}
-
-const summarizeLimitationCalculation = (obj: any) => {
-  const status = obj?.status || '已计算'
-  const deadline = obj?.deadline || obj?.expiry_date || ''
-  const days = obj?.days_remaining
-  return `时效分析完成：${status}${deadline ? `，截止 ${deadline}` : ''}${typeof days === 'number' ? `，剩余 ${days} 天` : ''}`
-}
-
-const summarizeJurisdiction = (obj: any) => {
-  const courts = Array.isArray(obj?.courts)
-    ? obj.courts
-    : Array.isArray(obj?.recommended_courts)
-      ? obj.recommended_courts
-      : []
-  return `管辖分析完成：提供 ${courts.length} 个法院建议。`
-}
-
-const summarizeHearingOutline = (obj: any) => {
-  const agenda = Array.isArray(obj?.agenda) ? obj.agenda.length : 0
-  const outline = obj?.outline_markdown || obj?.outline || ''
-  return `庭审提纲已生成${agenda ? `（${agenda} 个模块）` : ''}${outline ? `，内容约 ${String(outline).length} 字` : ''}`
-}
-
-const summarizeDocumentGeneration = (obj: any) => {
-  const docType = obj?.document_type || obj?.documentType || '法律文书'
-  const sections = Array.isArray(obj?.sections) ? obj.sections.length : 0
-  const draft = typeof obj?.draft === 'string' ? obj.draft : ''
-  const draftHint = draft ? `；草稿长度约 ${draft.length} 字` : ''
-  return `已生成${docType}草稿${sections > 0 ? `（${sections} 个章节）` : ''}${draftHint}`
-}
-
-const summarizeRiskAssessment = (obj: any) => {
-  const level = toRiskLevelZh(obj?.risk_level || obj?.riskLevel)
-  const score = obj?.risk_score ?? obj?.riskScore
-  const federated = obj?.federated
-  const federatedText = federated?.applied
-    ? `；联邦增强已生效（节点 ${federated?.federated_nodes_count ?? 0}）`
-    : ''
-  return `风险评估完成：风险等级 ${level}${score !== undefined ? `，评分 ${score}` : ''}${federatedText}`
+const summarizeTeacherObservation = (action: string, obj: any) => {
+  if (action === 'student_diagnosis') {
+    const weakCount = Array.isArray(obj?.weak_points) ? obj.weak_points.length : 0
+    const level = obj?.mastery_level || 'unknown'
+    return `学情诊断完成：薄弱点 ${weakCount} 项，掌握等级 ${level}。`
+  }
+  if (action === 'lesson_plan_generation') {
+    const lessonLength = String(obj?.lesson_plan || '').length
+    return `教案生成完成：内容约 ${lessonLength} 字。`
+  }
+  if (action === 'homework_grading') {
+    const score = obj?.score
+    return `作业批改完成：评分 ${score ?? '--'}。`
+  }
+  if (action === 'error_analysis_question_push') {
+    const gapCount = Array.isArray(obj?.knowledge_gap) ? obj.knowledge_gap.length : 0
+    const qCount = Array.isArray(obj?.similar_questions) ? obj.similar_questions.length : 0
+    return `错题归因完成：漏洞 ${gapCount} 项，推题 ${qCount} 题。`
+  }
+  if (action === 'learning_path_planning') {
+    const scheduleCount = Array.isArray(obj?.schedule) ? obj.schedule.length : 0
+    return `学习路径生成完成：计划 ${scheduleCount} 天。`
+  }
+  if (action === 'progress_report_generation') {
+    const trend = obj?.trend?.trend || 'unknown'
+    return `学情报告完成：趋势 ${trend}。`
+  }
+  if (action === 'classroom_interaction_design') {
+    const qCount = Array.isArray(obj?.question_chain) ? obj.question_chain.length : 0
+    return `互动设计完成：提问链 ${qCount} 条。`
+  }
+  if (action === 'parent_communication_suggestion') {
+    const count = Array.isArray(obj?.communication_points) ? obj.communication_points.length : 0
+    return `家校沟通建议生成完成：要点 ${count} 条。`
+  }
+  if (action === 'tutoring_qa') {
+    const steps = Array.isArray(obj?.steps) ? obj.steps.length : 0
+    return `智能答疑完成：引导步骤 ${steps} 条。`
+  }
+  return ''
 }
 
 export const summarizeObservationZh = (action?: string, observation?: string) => {
@@ -185,21 +169,13 @@ export const summarizeObservationZh = (action?: string, observation?: string) =>
   const parsed = tryParseJson(raw)
 
   if (parsed && typeof parsed === 'object') {
-    if (key === 'case_understanding') return summarizeCaseUnderstanding(parsed)
-    if (key === 'statute_retrieval') return summarizeStatuteRetrieval(parsed)
-    if (key === 'case_retrieval') return summarizeCaseRetrieval(parsed)
-    if (key === 'evidence_analysis') return summarizeEvidenceAnalysis(parsed)
-    if (key === 'limitation_calculation') return summarizeLimitationCalculation(parsed)
-    if (key === 'jurisdiction_determination') return summarizeJurisdiction(parsed)
-    if (key === 'hearing_outline_generation') return summarizeHearingOutline(parsed)
-    if (key === 'document_generation') return summarizeDocumentGeneration(parsed)
-    if (key === 'risk_assessment') return summarizeRiskAssessment(parsed)
-    return `已返回结构化结果（${Object.keys(parsed).length} 个字段）。`
-  }
+    const lawyerSummary = summarizeLawyerObservation(key, parsed)
+    if (lawyerSummary) return lawyerSummary
 
-  if (key === 'risk_assessment' && /high|medium|low/i.test(raw)) {
-    const m = raw.match(/high|medium|low/i)
-    if (m) return `风险评估完成：风险等级 ${toRiskLevelZh(m[0])}`
+    const teacherSummary = summarizeTeacherObservation(key, parsed)
+    if (teacherSummary) return teacherSummary
+
+    return `已返回结构化结果（${Object.keys(parsed).length} 个字段）。`
   }
 
   return truncate(raw, 180)
