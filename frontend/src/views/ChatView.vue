@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="chat-view">
     <header class="chat-header">
       <div class="left">
@@ -111,50 +111,53 @@
       </section>
 
       <aside v-if="isLawyerMode" class="lawyer-panel">
-        <div class="lawyer-summary">
-          <LawyerSkillPanel
-            :skills-used="latestLawyerMeta.skillsUsed"
-            :trace="latestLawyerMeta.trace"
-            :federated="latestLawyerMeta.federated"
-            :risk-level="latestLawyerMeta.riskLevel"
-          />
-        </div>
+        <LawyerSkillPanel
+          :skills-used="latestLawyerMeta.skillsUsed"
+          :trace="latestLawyerMeta.trace"
+          :federated="latestLawyerMeta.federated"
+          :risk-level="latestLawyerMeta.riskLevel"
+          :result-count="availableResultPanels.length"
+        >
+          <template #results>
+            <div v-if="!availableResultPanels.length" class="results-empty">
+              <span class="empty-icon">📊</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeResultPanels">
+              <el-collapse-item
+                v-if="availableResultPanels.includes('evidence')"
+                title="证据分析结果"
+                name="evidence"
+              >
+                <EvidenceAnalysisCard :data="latestSkillResults.evidenceAnalysis" />
+              </el-collapse-item>
 
-        <div v-if="availableResultPanels.length" class="lawyer-results">
-          <el-collapse v-model="activeResultPanels">
-            <el-collapse-item
-              v-if="availableResultPanels.includes('evidence')"
-              title="证据分析结果"
-              name="evidence"
-            >
-              <EvidenceAnalysisCard :data="latestSkillResults.evidenceAnalysis" />
-            </el-collapse-item>
+              <el-collapse-item
+                v-if="availableResultPanels.includes('limitation')"
+                title="诉讼时效结果"
+                name="limitation"
+              >
+                <LimitationTimeline :data="latestSkillResults.limitationCalc" />
+              </el-collapse-item>
 
-            <el-collapse-item
-              v-if="availableResultPanels.includes('limitation')"
-              title="诉讼时效结果"
-              name="limitation"
-            >
-              <LimitationTimeline :data="latestSkillResults.limitationCalc" />
-            </el-collapse-item>
+              <el-collapse-item
+                v-if="availableResultPanels.includes('jurisdiction')"
+                title="管辖法院建议"
+                name="jurisdiction"
+              >
+                <JurisdictionCard :data="latestSkillResults.jurisdiction" />
+              </el-collapse-item>
 
-            <el-collapse-item
-              v-if="availableResultPanels.includes('jurisdiction')"
-              title="管辖法院建议"
-              name="jurisdiction"
-            >
-              <JurisdictionCard :data="latestSkillResults.jurisdiction" />
-            </el-collapse-item>
-
-            <el-collapse-item
-              v-if="availableResultPanels.includes('hearing')"
-              title="庭审提纲"
-              name="hearing"
-            >
-              <HearingOutlineViewer :data="latestSkillResults.hearingOutline" />
-            </el-collapse-item>
-          </el-collapse>
-        </div>
+              <el-collapse-item
+                v-if="availableResultPanels.includes('hearing')"
+                title="庭审提纲"
+                name="hearing"
+              >
+                <HearingOutlineViewer :data="latestSkillResults.hearingOutline" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </LawyerSkillPanel>
       </aside>
     </div>
 
@@ -748,54 +751,23 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px;
   overflow: hidden;
 }
 
-.lawyer-summary {
-  flex: 0 0 auto;
-  min-height: 0;
-}
-
-.lawyer-results {
-  flex: 1 1 auto;
-  min-height: 0;
-  border: 1px solid var(--border-light);
-  border-radius: 12px;
-  background: #fff;
-  padding: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.lawyer-results :deep(.el-collapse) {
-  border-top: none;
-  border-bottom: none;
-}
-
-.lawyer-results :deep(.el-collapse-item__header) {
-  min-height: 40px;
-  height: auto;
-  line-height: 1.45;
-  padding: 8px 0;
-  align-items: flex-start;
+.results-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 600;
-  white-space: normal;
 }
 
-.lawyer-results :deep(.el-collapse-item__arrow) {
-  margin-top: 2px;
-}
-
-.lawyer-results :deep(.el-collapse-item__wrap) {
-  overflow: hidden;
-}
-
-.lawyer-results :deep(.el-collapse-item__content) {
-  padding-bottom: 10px;
-  word-break: break-word;
+.results-empty .empty-icon {
+  font-size: 28px;
+  opacity: 0.6;
 }
 
 .drawer-head {
