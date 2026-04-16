@@ -99,7 +99,7 @@
             </div>
           </transition>
 
-          <el-main class="app-main">
+          <el-main class="app-main" :class="{ 'route-scrollable': isRouteScrollable }">
             <router-view v-slot="{ Component }">
               <transition name="fade" mode="out-in">
                 <component :is="Component" />
@@ -153,6 +153,11 @@ const handleSidebarWheel = (event: WheelEvent) => {
 const isImmersive = computed(() => {
   const path = route.path
   return path.startsWith('/login')
+})
+
+const isRouteScrollable = computed(() => {
+  const path = route.path
+  return path.startsWith('/federated-learning') || path.startsWith('/federated-models')
 })
 
 const activeMenu = computed(() => {
@@ -435,6 +440,11 @@ onUnmounted(() => {
   height: 100%;
   width: 100%;
   position: relative;
+}
+
+.app-main.route-scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .global-error-banner {
