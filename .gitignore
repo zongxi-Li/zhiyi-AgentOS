@@ -90,6 +90,8 @@ agent/data/rag/chroma_db/
 *.ckpt
 *.pyc
 *.safetensors
+*.h5
+Recommend/agent/models/
 
 # Runtime/temp files
 tmp/
