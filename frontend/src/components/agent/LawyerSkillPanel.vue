@@ -1,8 +1,20 @@
 <template>
-  <section class="skill-panel">
+  <section class="skill-panel lawyer-panel">
     <div class="panel-header">
-      <h3>律师 Agent 工作台</h3>
-      <span class="risk-pill" :class="riskLevelClass">风险：{{ displayRiskLevel }}</span>
+      <div class="header-left">
+        <div class="agent-avatar">⚖️</div>
+        <div class="header-text">
+          <h3>律师 Agent 工作台</h3>
+          <span class="header-sub">智能法律助手</span>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="risk-pill" :class="riskLevelClass">风险：{{ displayRiskLevel }}</span>
+        <span class="skill-pill">
+          <span class="pill-dot"></span>
+          技能 {{ skillsUsed?.length || 0 }}
+        </span>
+      </div>
     </div>
 
     <div class="panel-tabs">
@@ -20,13 +32,14 @@
     </div>
 
     <div class="panel-body">
-      <div v-show="activeTab === 'skills'" class="tab-content skills-tab">
+      <div v-show="activeTab === 'skills'" class="tab-content">
         <div class="sub-section">
           <div class="sub-title">联邦增强状态</div>
           <div class="federated-row">
             <span class="status-pill" :class="federatedStatusClass">{{ federatedStatusText }}</span>
             <span class="meta" v-if="federated?.applied">
-              调整：{{ formatAdjustment(federated?.risk_adjustment) }} | 置信度：{{ formatPercent(federated?.confidence) }} | 节点：{{ federated?.federated_nodes_count ?? 0 }}
+              调整：{{ formatAdjustment(federated?.risk_adjustment) }} | 置信度：{{ formatPercent(federated?.confidence) }} |
+              节点：{{ federated?.federated_nodes_count ?? 0 }}
             </span>
           </div>
         </div>
@@ -34,32 +47,45 @@
         <div class="sub-section">
           <div class="sub-title">已调用技能</div>
           <div v-if="!skillVisuals.length" class="empty">
-            <span class="empty-icon">🔍</span>
+            <div class="empty-illustration">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <path d="M18 22h12M18 26h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
             <span>暂无技能调用记录</span>
+            <span class="empty-hint">发送消息后，律师 Agent 将自动调用相关技能</span>
           </div>
           <div v-else class="skill-list">
             <div
-              v-for="item in skillVisuals"
+              v-for="(item, idx) in skillVisuals"
               :key="item.raw"
               class="skill-item"
               :class="item.tone"
+              :style="{ animationDelay: `${idx * 0.06}s` }"
               :title="item.raw"
             >
               <span class="skill-icon">{{ item.icon }}</span>
               <span class="skill-name">{{ item.zh }}</span>
               <span class="skill-state">
                 <span class="state-dot"></span>
-                已调用
+                已执行
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-show="activeTab === 'trace'" class="tab-content trace-tab">
+      <div v-show="activeTab === 'trace'" class="tab-content">
         <div v-if="!trace.length" class="empty">
-          <span class="empty-icon">📋</span>
+          <div class="empty-illustration">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+              <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <path d="M16 20l6 6 10-10" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
           <span>暂无调用轨迹</span>
+          <span class="empty-hint">技能执行后将展示完整调用链路</span>
         </div>
         <div v-else class="trace-container">
           <TraceTimeline :trace="trace" />
@@ -69,8 +95,15 @@
       <div v-show="activeTab === 'results'" class="tab-content results-tab">
         <slot name="results">
           <div class="empty">
-            <span class="empty-icon">📊</span>
+            <div class="empty-illustration">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <rect x="16" y="16" width="16" height="16" rx="3" stroke="#9ca3af" stroke-width="1.5"/>
+                <path d="M20 24h8M24 20v8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
             <span>暂无技能调用结果</span>
+            <span class="empty-hint">技能执行完成后将展示详细结果</span>
           </div>
         </slot>
       </div>
@@ -93,7 +126,7 @@ interface FederatedInfo {
 
 interface SkillVisual {
   icon: string
-  tone: 'blue' | 'green' | 'orange' | 'purple' | 'indigo'
+  tone: 'blue' | 'sky' | 'indigo' | 'cyan' | 'slate'
 }
 
 const props = defineProps<{
@@ -115,13 +148,13 @@ const tabs = computed(() => [
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
   case_understanding: { icon: '🧠', tone: 'indigo' },
   statute_retrieval: { icon: '📚', tone: 'blue' },
-  case_retrieval: { icon: '⚖️', tone: 'blue' },
-  evidence_analysis: { icon: '📋', tone: 'green' },
-  limitation_calculation: { icon: '⏳', tone: 'orange' },
-  jurisdiction_determination: { icon: '📍', tone: 'purple' },
-  hearing_outline_generation: { icon: '📝', tone: 'green' },
-  document_generation: { icon: '✍️', tone: 'indigo' },
-  risk_assessment: { icon: '🛡️', tone: 'orange' }
+  case_retrieval: { icon: '⚖️', tone: 'sky' },
+  evidence_analysis: { icon: '📋', tone: 'cyan' },
+  limitation_calculation: { icon: '⏳', tone: 'slate' },
+  jurisdiction_determination: { icon: '📍', tone: 'indigo' },
+  hearing_outline_generation: { icon: '📝', tone: 'blue' },
+  document_generation: { icon: '✍️', tone: 'sky' },
+  risk_assessment: { icon: '🛡️', tone: 'cyan' }
 }
 
 const skillVisuals = computed(() => {
@@ -176,14 +209,42 @@ const formatAdjustment = (v?: number) => {
   height: 100%;
 }
 
+.lawyer-panel {
+  border-top: 3px solid #2563eb;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 40%, #eef2ff 100%);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .panel-header h3 {
@@ -191,6 +252,19 @@ const formatAdjustment = (v?: number) => {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.header-sub {
+  font-size: 11px;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.header-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .risk-pill {
@@ -218,6 +292,33 @@ const formatAdjustment = (v?: number) => {
   color: #166534;
 }
 
+.skill-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  white-space: nowrap;
+  font-weight: 600;
+  border: 1px solid #bfdbfe;
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .panel-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-light);
@@ -243,14 +344,14 @@ const formatAdjustment = (v?: number) => {
 }
 
 .tab-btn:hover {
-  background: rgba(59, 130, 246, 0.05);
+  background: rgba(37, 99, 235, 0.05);
   color: var(--text-primary);
 }
 
 .tab-btn.active {
   color: #2563eb;
   border-bottom-color: #2563eb;
-  background: rgba(59, 130, 246, 0.06);
+  background: rgba(37, 99, 235, 0.06);
 }
 
 .tab-icon {
@@ -268,8 +369,8 @@ const formatAdjustment = (v?: number) => {
   line-height: 16px;
   text-align: center;
   border-radius: 999px;
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #dbeafe;
+  color: #1e40af;
   padding: 0 4px;
   font-weight: 700;
 }
@@ -289,20 +390,37 @@ const formatAdjustment = (v?: number) => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 14px;
+  padding: 14px 16px;
+}
+
+.tab-content::-webkit-scrollbar {
+  width: 5px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.tab-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .sub-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .sub-title {
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: #2563eb;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -332,7 +450,7 @@ const formatAdjustment = (v?: number) => {
 }
 
 .status-pill.idle {
-  background: #e0e7ff;
+  background: #eef2ff;
   color: #3730a3;
 }
 
@@ -354,47 +472,59 @@ const formatAdjustment = (v?: number) => {
   grid-template-columns: 28px 1fr auto;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: 40px;
   border: 1px solid;
   border-radius: 10px;
   padding: 8px 10px;
   font-size: 12px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: skill-slide-in 0.3s ease-out both;
+}
+
+@keyframes skill-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .skill-item:hover {
-  transform: translateX(2px);
+  transform: translateX(3px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .skill-item.blue {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-color: #93c5fd;
   color: #1d4ed8;
 }
 
-.skill-item.green {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
-}
-
-.skill-item.orange {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
-}
-
-.skill-item.purple {
-  background: #f5f3ff;
-  border-color: #ddd6fe;
-  color: #6d28d9;
+.skill-item.sky {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-color: #7dd3fc;
+  color: #0369a1;
 }
 
 .skill-item.indigo {
-  background: #eef2ff;
-  border-color: #c7d2fe;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  border-color: #a5b4fc;
   color: #4338ca;
+}
+
+.skill-item.cyan {
+  background: linear-gradient(135deg, #ecfeff, #cffafe);
+  border-color: #67e8f9;
+  color: #0e7490;
+}
+
+.skill-item.slate {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border-color: #cbd5e1;
+  color: #334155;
 }
 
 .skill-icon {
@@ -436,9 +566,16 @@ const formatAdjustment = (v?: number) => {
   font-size: 13px;
 }
 
-.empty-icon {
-  font-size: 28px;
-  opacity: 0.6;
+.empty-illustration {
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+
+.empty-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+  line-height: 1.4;
 }
 
 .trace-container {
