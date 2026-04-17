@@ -88,6 +88,25 @@ def _extract_preferred_answer(skills_used: List[str], observations: Dict[str, An
     return ""
 
 
+def _pick_teacher_federated(observations: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(observations, dict):
+        return {}
+
+    candidates: List[Dict[str, Any]] = []
+    for action in ("student_diagnosis", "homework_grading"):
+        payload = observations.get(action, {})
+        if not isinstance(payload, dict):
+            continue
+        fed = payload.get("federated", {})
+        if isinstance(fed, dict) and fed:
+            candidates.append(fed)
+
+    for item in candidates:
+        if item.get("applied"):
+            return item
+    return candidates[0] if candidates else {}
+
+
 @router.post("/agent/teacher/chat", response_model=AgentTeacherResponse)
 async def teacher_agent_chat(request: AgentTeacherRequest):
     session_id = request.session_id or str(uuid4())
@@ -133,7 +152,7 @@ async def teacher_agent_chat(request: AgentTeacherRequest):
         session_memory_store.append_message(session_id, "assistant", answer)
 
         diagnosis_info = observations.get("student_diagnosis", {}) if isinstance(observations, dict) else {}
-        federated_info = diagnosis_info.get("federated", {}) if isinstance(diagnosis_info, dict) else {}
+        federated_info = _pick_teacher_federated(observations)
 
         return AgentTeacherResponse(
             success=True,

@@ -71,8 +71,13 @@ class HomeworkGradingSkill(BaseSkill):
 
         llm_json: Dict[str, Any] = {}
         try:
-            llm_response = await self.ai_service.generate_text(text=prompt, context=request.memory.get("history", [])[-6:])
+            llm_response = await asyncio.wait_for(
+                self.ai_service.generate_text(text=prompt, context=request.memory.get("history", [])[-6:]),
+                timeout=6,
+            )
             llm_json = TeacherSkillHelper.extract_json_obj(llm_response.get("text", ""))
+        except asyncio.TimeoutError:
+            logger.warning("HomeworkGradingSkill LLM call timed out.")
         except Exception as exc:
             logger.warning("HomeworkGradingSkill LLM call failed: %s", exc)
 
@@ -100,7 +105,7 @@ class HomeworkGradingSkill(BaseSkill):
 
         enable_federated = bool(action_input.get("enableFederated", False))
         if enable_federated and self.federated_adapter.enabled:
-            enhancement = self.federated_adapter.get_risk_enhancement(
+            enhancement = await self.federated_adapter.get_risk_enhancement(
                 {
                     "question": question,
                     "rubric": rubric,
