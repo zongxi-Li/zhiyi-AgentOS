@@ -206,10 +206,13 @@ class ReactPlanner:
         if follow_up:
             target_action = self._resolve_teacher_follow_up_action(text=text, history=history)
             if target_action:
+                follow_up_input = {"followUp": True, "mode": "incremental_update"}
+                if target_action == "homework_grading":
+                    follow_up_input["enableFederated"] = True
                 add_action(
                     thought="This is a follow-up refinement, execute only the requested teaching subtask.",
                     action=target_action,
-                    action_input={"followUp": True, "mode": "incremental_update"},
+                    action_input=follow_up_input,
                 )
                 return self._slice_plan(actions)
 
@@ -239,7 +242,7 @@ class ReactPlanner:
             add_action(
                 thought="Start from grading output so correction feedback is immediately available.",
                 action="homework_grading",
-                action_input={},
+                action_input={"enableFederated": True},
             )
             if needs_error_push or self._contains_any(text, ["错题", "推题", "提升"]):
                 add_action(
