@@ -32,7 +32,25 @@ export const SKILL_NAME_ZH_MAP: Record<string, string> = {
   learning_path_planning: '学习路径规划',
   progress_report_generation: '学情报告生成',
   classroom_interaction_design: '课堂互动设计',
-  parent_communication_suggestion: '家长沟通建议'
+  parent_communication_suggestion: '家长沟通建议',
+  code_review: '代码审查',
+  debug_trace: '调试追踪',
+  architecture_suggestion: '架构建议',
+  unit_test_generation: '单元测试生成',
+  code_refactor: '代码重构',
+  api_design: '接口设计',
+  performance_optimization: '性能优化',
+  security_audit: '安全审计',
+  dependency_analysis: '依赖分析',
+  outline_generation: '大纲生成',
+  style_analysis: '风格分析',
+  plot_logic_check: '情节逻辑检查',
+  text_polish: '文本润色',
+  title_optimization: '标题优化',
+  character_design: '角色设计',
+  dialogue_generation: '对话生成',
+  copywriting: '文案创作',
+  seo_optimization: 'SEO优化'
 }
 
 const THOUGHT_ZH_BY_ACTION: Record<string, string> = {
@@ -53,7 +71,25 @@ const THOUGHT_ZH_BY_ACTION: Record<string, string> = {
   learning_path_planning: '生成分阶段学习路径和资源建议。',
   progress_report_generation: '汇总阶段表现并形成报告。',
   classroom_interaction_design: '设计提问链、活动和板书策略。',
-  parent_communication_suggestion: '输出家校沟通要点与话术。'
+  parent_communication_suggestion: '输出家校沟通要点与话术。',
+  code_review: '审查代码质量，识别潜在问题与改进空间。',
+  debug_trace: '追踪错误根因，逐步定位问题源头。',
+  architecture_suggestion: '分析架构并提出优化建议。',
+  unit_test_generation: '生成覆盖关键路径的单元测试用例。',
+  code_refactor: '识别代码异味并输出重构方案。',
+  api_design: '设计接口规范与数据契约。',
+  performance_optimization: '定位性能瓶颈并给出优化策略。',
+  security_audit: '审计安全漏洞与合规风险。',
+  dependency_analysis: '分析依赖关系与版本风险。',
+  outline_generation: '生成文章大纲与结构规划。',
+  style_analysis: '分析写作风格并给出评分与建议。',
+  plot_logic_check: '检查情节逻辑一致性与时间线。',
+  text_polish: '润色文本并对比修改前后差异。',
+  title_optimization: '优化标题以提高吸引力。',
+  character_design: '设计角色画像与性格特征。',
+  dialogue_generation: '生成符合角色特征的对话内容。',
+  copywriting: '创作营销文案与品牌内容。',
+  seo_optimization: '优化内容以提升搜索引擎排名。'
 }
 
 const RISK_LEVEL_ZH_MAP: Record<string, string> = {
@@ -161,6 +197,77 @@ const summarizeTeacherObservation = (action: string, obj: any) => {
   return ''
 }
 
+const summarizeProgrammerObservation = (action: string, obj: any) => {
+  if (action === 'code_review') {
+    const issueCount = Array.isArray(obj?.issues) ? obj.issues.length : 0
+    const score = obj?.quality_score
+    return `代码审查完成：发现 ${issueCount} 个问题${score != null ? `，质量评分 ${score}` : ''}。`
+  }
+  if (action === 'debug_trace') {
+    const stepCount = Array.isArray(obj?.steps) ? obj.steps.length : 0
+    const rootCause = obj?.root_cause || obj?.rootCause ? '已定位' : '未定位'
+    return `调试追踪完成：${stepCount} 步，根因${rootCause}。`
+  }
+  if (action === 'architecture_suggestion') {
+    const suggestCount = Array.isArray(obj?.suggestions) ? obj.suggestions.length : 0
+    const pattern = obj?.pattern || ''
+    return `架构建议完成：${suggestCount} 条建议${pattern ? `，推荐模式 ${pattern}` : ''}。`
+  }
+  if (action === 'unit_test_generation') {
+    const caseCount = Array.isArray(obj?.test_cases) ? obj.test_cases.length : 0
+    const coverage = obj?.coverage
+    return `单元测试生成完成：${caseCount} 个用例${coverage != null ? `，覆盖率 ${coverage}%` : ''}。`
+  }
+  if (action === 'code_refactor') {
+    const count = Array.isArray(obj?.refactor_items) ? obj.refactor_items.length : 0
+    return `代码重构分析完成：${count} 个重构项。`
+  }
+  if (action === 'performance_optimization') {
+    const count = Array.isArray(obj?.bottlenecks) ? obj.bottlenecks.length : 0
+    return `性能优化完成：${count} 个瓶颈点。`
+  }
+  if (action === 'security_audit') {
+    const count = Array.isArray(obj?.vulnerabilities) ? obj.vulnerabilities.length : 0
+    return `安全审计完成：${count} 个风险项。`
+  }
+  return ''
+}
+
+const summarizeWriterObservation = (action: string, obj: any) => {
+  if (action === 'outline_generation') {
+    const nodeCount = Array.isArray(obj?.outline) ? obj.outline.length : 0
+    const title = obj?.title || ''
+    return `大纲生成完成：${nodeCount} 个章节${title ? `，标题「${title}」` : ''}。`
+  }
+  if (action === 'style_analysis') {
+    const score = obj?.overall_score || obj?.overallScore
+    const style = obj?.dominant_style || obj?.dominantStyle || ''
+    return `风格分析完成${score != null ? `：评分 ${score}` : ''}${style ? `，主导风格 ${style}` : ''}。`
+  }
+  if (action === 'plot_logic_check') {
+    const issueCount = Array.isArray(obj?.issues) ? obj.issues.length : 0
+    const score = obj?.logic_score || obj?.logicScore
+    return `情节逻辑检查完成：${issueCount} 个问题${score != null ? `，逻辑评分 ${score}` : ''}。`
+  }
+  if (action === 'text_polish') {
+    const changeCount = Array.isArray(obj?.changes) ? obj.changes.length : 0
+    return `文本润色完成：${changeCount} 处修改。`
+  }
+  if (action === 'title_optimization') {
+    const count = Array.isArray(obj?.alternatives) ? obj.alternatives.length : 0
+    return `标题优化完成：${count} 个备选标题。`
+  }
+  if (action === 'character_design') {
+    const count = Array.isArray(obj?.characters) ? obj.characters.length : 0
+    return `角色设计完成：${count} 个角色。`
+  }
+  if (action === 'copywriting') {
+    const count = Array.isArray(obj?.variants) ? obj.variants.length : 0
+    return `文案创作完成：${count} 个变体。`
+  }
+  return ''
+}
+
 export const summarizeObservationZh = (action?: string, observation?: string) => {
   if (!observation) return '暂无观察结果。'
 
@@ -174,6 +281,12 @@ export const summarizeObservationZh = (action?: string, observation?: string) =>
 
     const teacherSummary = summarizeTeacherObservation(key, parsed)
     if (teacherSummary) return teacherSummary
+
+    const programmerSummary = summarizeProgrammerObservation(key, parsed)
+    if (programmerSummary) return programmerSummary
+
+    const writerSummary = summarizeWriterObservation(key, parsed)
+    if (writerSummary) return writerSummary
 
     return `已返回结构化结果（${Object.keys(parsed).length} 个字段）。`
   }

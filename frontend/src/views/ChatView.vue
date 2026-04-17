@@ -1,6 +1,6 @@
 <template>
   <div class="chat-view">
-    <header class="chat-header" :class="{ 'lawyer-active': isLawyerMode, 'teacher-active': isTeacherMode }">
+    <header class="chat-header" :class="headerClass">
       <div class="left">
         <span class="title">联邦智能体对话中心</span>
         <div class="mode-switcher">
@@ -20,6 +20,22 @@
             <span class="mode-icon">👩‍🏫</span>
             <span class="mode-label">教师</span>
           </button>
+          <button
+            class="mode-btn"
+            :class="{ active: isProgrammerMode }"
+            @click="toggleProgrammerMode"
+          >
+            <span class="mode-icon">💻</span>
+            <span class="mode-label">程序员</span>
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: isWriterMode }"
+            @click="toggleWriterMode"
+          >
+            <span class="mode-icon">✍️</span>
+            <span class="mode-label">作家</span>
+          </button>
         </div>
       </div>
       <div class="right">
@@ -34,19 +50,21 @@
       </div>
     </header>
 
-    <div class="chat-main" :class="{ lawyer: isLawyerMode, teacher: isTeacherMode }">
+    <div class="chat-main" :class="chatMainClass">
       <section class="chat-panel">
         <div class="messages" ref="messagesRef">
           <div v-if="chatStore.messages.length === 0" class="empty-state">
-            <div class="empty-icon">{{ isLawyerMode ? '⚖️' : isTeacherMode ? '👩‍🏫' : '💬' }}</div>
-            <h2>{{ isLawyerMode ? '律师 Agent 对话' : isTeacherMode ? '教师 Agent 对话' : '开始一次新对话' }}</h2>
-            <p>{{ isLawyerMode ? '专业法律咨询，智能证据分析与风险评估' : isTeacherMode ? '智能学情诊断、个性化教案与作业批改' : '你可以直接输入问题，或使用下方快捷模板。' }}</p>
+            <div class="empty-icon">{{ agentIcon }}</div>
+            <h2>{{ agentTitle }}</h2>
+            <p>{{ agentSubtitle }}</p>
             <div class="quick-actions">
               <button v-if="currentTemplates[0]" class="quick-btn" @click="useTemplate(currentTemplates[0])">{{ currentTemplates[0] }}</button>
               <button v-if="currentTemplates[1]" class="quick-btn" @click="useTemplate(currentTemplates[1])">{{ currentTemplates[1] }}</button>
               <button v-if="currentTemplates[2]" class="quick-btn" @click="useTemplate(currentTemplates[2])">{{ currentTemplates[2] }}</button>
               <button v-if="!isLawyerMode" class="quick-btn lawyer-btn" @click="toggleLawyerMode">⚖️ 律师 Agent</button>
               <button v-if="!isTeacherMode" class="quick-btn teacher-btn" @click="toggleTeacherMode">👩‍🏫 教师 Agent</button>
+              <button v-if="!isProgrammerMode" class="quick-btn programmer-btn" @click="toggleProgrammerMode">💻 程序员 Agent</button>
+              <button v-if="!isWriterMode" class="quick-btn writer-btn" @click="toggleWriterMode">✍️ 作家 Agent</button>
             </div>
           </div>
 
@@ -135,7 +153,7 @@
         </div>
       </section>
 
-      <aside v-if="isLawyerMode || isTeacherMode" class="agent-panel">
+      <aside v-if="isAgentMode" class="agent-panel">
         <LawyerSkillPanel
           v-if="isLawyerMode"
           :skills-used="latestLawyerMeta.skillsUsed"
@@ -186,7 +204,7 @@
         </LawyerSkillPanel>
 
         <TeacherSkillPanel
-          v-else
+          v-else-if="isTeacherMode"
           :skills-used="latestTeacherMeta.skillsUsed"
           :trace="latestTeacherMeta.trace"
           :federated="latestTeacherMeta.federated"
@@ -232,6 +250,102 @@
             </el-collapse>
           </template>
         </TeacherSkillPanel>
+
+        <ProgrammerSkillPanel
+          v-else-if="isProgrammerMode"
+          :skills-used="latestProgrammerMeta.skillsUsed"
+          :trace="latestProgrammerMeta.trace"
+          :federated="latestProgrammerMeta.federated"
+          :result-count="availableProgrammerResultPanels.length"
+        >
+          <template #results>
+            <div v-if="!availableProgrammerResultPanels.length" class="results-empty">
+              <span class="empty-icon">💻</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeProgrammerResultPanels">
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('codeReview')"
+                title="代码审查"
+                name="codeReview"
+              >
+                <CodeReviewCard :data="latestProgrammerSkillResults.codeReview" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('debugTrace')"
+                title="调试追踪"
+                name="debugTrace"
+              >
+                <DebugTraceCard :data="latestProgrammerSkillResults.debugTrace" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('archSuggest')"
+                title="架构建议"
+                name="archSuggest"
+              >
+                <ArchSuggestCard :data="latestProgrammerSkillResults.archSuggest" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('unitTest')"
+                title="单元测试生成"
+                name="unitTest"
+              >
+                <UnitTestCard :data="latestProgrammerSkillResults.unitTest" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </ProgrammerSkillPanel>
+
+        <WriterSkillPanel
+          v-else-if="isWriterMode"
+          :skills-used="latestWriterMeta.skillsUsed"
+          :trace="latestWriterMeta.trace"
+          :federated="latestWriterMeta.federated"
+          :result-count="availableWriterResultPanels.length"
+        >
+          <template #results>
+            <div v-if="!availableWriterResultPanels.length" class="results-empty">
+              <span class="empty-icon">✍️</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeWriterResultPanels">
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('outline')"
+                title="文章大纲"
+                name="outline"
+              >
+                <OutlineViewer :data="latestWriterSkillResults.outlineResult" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('styleAnalysis')"
+                title="风格分析"
+                name="styleAnalysis"
+              >
+                <StyleAnalysisCard :data="latestWriterSkillResults.styleAnalysis" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('plotLogic')"
+                title="情节逻辑检查"
+                name="plotLogic"
+              >
+                <PlotLogicCard :data="latestWriterSkillResults.plotLogic" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('polishDiff')"
+                title="润色对比"
+                name="polishDiff"
+              >
+                <PolishDiffCard :data="latestWriterSkillResults.polishDiff" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </WriterSkillPanel>
       </aside>
     </div>
 
@@ -283,6 +397,8 @@ import MessageBubble from '@/components/MessageBubble.vue'
 import FileManager from '@/components/FileManager.vue'
 import LawyerSkillPanel from '@/components/agent/LawyerSkillPanel.vue'
 import TeacherSkillPanel from '@/components/agent/TeacherSkillPanel.vue'
+import ProgrammerSkillPanel from '@/components/agent/ProgrammerSkillPanel.vue'
+import WriterSkillPanel from '@/components/agent/WriterSkillPanel.vue'
 import EvidenceAnalysisCard from '@/components/agent/EvidenceAnalysisCard.vue'
 import LimitationTimeline from '@/components/agent/LimitationTimeline.vue'
 import JurisdictionCard from '@/components/agent/JurisdictionCard.vue'
@@ -291,6 +407,14 @@ import DiagnosisRadar from '@/components/agent/DiagnosisRadar.vue'
 import LessonPlanViewer from '@/components/agent/LessonPlanViewer.vue'
 import GradingResultCard from '@/components/agent/GradingResultCard.vue'
 import QuestionPushList from '@/components/agent/QuestionPushList.vue'
+import CodeReviewCard from '@/components/agent/CodeReviewCard.vue'
+import DebugTraceCard from '@/components/agent/DebugTraceCard.vue'
+import ArchSuggestCard from '@/components/agent/ArchSuggestCard.vue'
+import UnitTestCard from '@/components/agent/UnitTestCard.vue'
+import OutlineViewer from '@/components/agent/OutlineViewer.vue'
+import StyleAnalysisCard from '@/components/agent/StyleAnalysisCard.vue'
+import PlotLogicCard from '@/components/agent/PlotLogicCard.vue'
+import PolishDiffCard from '@/components/agent/PolishDiffCard.vue'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { fileApi } from '@/services/api/file'
 import { useChatStore } from '@/stores/chat'
@@ -316,6 +440,8 @@ const isNearBottom = ref(true)
 const pendingMessageCount = ref(0)
 const activeLawyerResultPanels = ref<string[]>([])
 const activeTeacherResultPanels = ref<string[]>([])
+const activeProgrammerResultPanels = ref<string[]>([])
+const activeWriterResultPanels = ref<string[]>([])
 const ASSIST_TOOL_VISIBLE_KEY = 'chat.assist_tools_visible'
 
 const roles = computed(() => roleStore.roles)
@@ -331,6 +457,58 @@ const isTeacherMode = computed(() => {
   return name.includes('教师') || name.includes('teacher') || name.includes('教学')
 })
 
+const isProgrammerMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('程序') || name.includes('programmer') || name.includes('开发')
+})
+
+const isWriterMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('作家') || name.includes('writer') || name.includes('写作')
+})
+
+const isAgentMode = computed(() => isLawyerMode.value || isTeacherMode.value || isProgrammerMode.value || isWriterMode.value)
+
+const headerClass = computed(() => {
+  if (isLawyerMode.value) return 'lawyer-active'
+  if (isTeacherMode.value) return 'teacher-active'
+  if (isProgrammerMode.value) return 'programmer-active'
+  if (isWriterMode.value) return 'writer-active'
+  return ''
+})
+
+const chatMainClass = computed(() => {
+  if (isLawyerMode.value) return 'lawyer'
+  if (isTeacherMode.value) return 'teacher'
+  if (isProgrammerMode.value) return 'programmer'
+  if (isWriterMode.value) return 'writer'
+  return ''
+})
+
+const agentIcon = computed(() => {
+  if (isLawyerMode.value) return '⚖️'
+  if (isTeacherMode.value) return '👩‍🏫'
+  if (isProgrammerMode.value) return '💻'
+  if (isWriterMode.value) return '✍️'
+  return '💬'
+})
+
+const agentTitle = computed(() => {
+  if (isLawyerMode.value) return '律师 Agent 对话'
+  if (isTeacherMode.value) return '教师 Agent 对话'
+  if (isProgrammerMode.value) return '程序员 Agent 对话'
+  if (isWriterMode.value) return '作家 Agent 对话'
+  return '开始一次新对话'
+})
+
+const agentSubtitle = computed(() => {
+  if (isLawyerMode.value) return '专业法律咨询，智能证据分析与风险评估'
+  if (isTeacherMode.value) return '智能学情诊断、个性化教案与作业批改'
+  if (isProgrammerMode.value) return '代码审查、调试追踪、架构建议与单元测试'
+  if (isWriterMode.value) return '大纲生成、风格分析、情节逻辑与润色对比'
+  return '你可以直接输入问题，或使用下方快捷模板。'
+})
+
 const latestLawyerMessage = computed(() => {
   return [...chatStore.messages]
     .reverse()
@@ -341,6 +519,18 @@ const latestTeacherMessage = computed(() => {
   return [...chatStore.messages]
     .reverse()
     .find(msg => msg.role === 'assistant' && msg.agentMode === 'teacher')
+})
+
+const latestProgrammerMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'programmer')
+})
+
+const latestWriterMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'writer')
 })
 
 const latestLawyerMeta = computed(() => {
@@ -355,6 +545,24 @@ const latestLawyerMeta = computed(() => {
 
 const latestTeacherMeta = computed(() => {
   const lastAssistant = latestTeacherMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {}
+  }
+})
+
+const latestProgrammerMeta = computed(() => {
+  const lastAssistant = latestProgrammerMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {}
+  }
+})
+
+const latestWriterMeta = computed(() => {
+  const lastAssistant = latestWriterMessage.value
   return {
     skillsUsed: lastAssistant?.skillsUsed || [],
     trace: lastAssistant?.trace || [],
@@ -382,6 +590,26 @@ const latestTeacherSkillResults = computed(() => {
   }
 })
 
+const latestProgrammerSkillResults = computed(() => {
+  const lastAssistant = latestProgrammerMessage.value
+  return {
+    codeReview: lastAssistant?.codeReview,
+    debugTrace: lastAssistant?.debugTrace,
+    archSuggest: lastAssistant?.archSuggest,
+    unitTest: lastAssistant?.unitTest
+  }
+})
+
+const latestWriterSkillResults = computed(() => {
+  const lastAssistant = latestWriterMessage.value
+  return {
+    outlineResult: lastAssistant?.outlineResult,
+    styleAnalysis: lastAssistant?.styleAnalysis,
+    plotLogic: lastAssistant?.plotLogic,
+    polishDiff: lastAssistant?.polishDiff
+  }
+})
+
 const availableLawyerResultPanels = computed(() => {
   const skillSet = new Set(latestLawyerMeta.value.skillsUsed || [])
   const panels: string[] = []
@@ -399,6 +627,26 @@ const availableTeacherResultPanels = computed(() => {
   if (latestTeacherSkillResults.value.lessonPlan || skillSet.has('lesson_plan_generation') || skillSet.has('lesson_plan')) panels.push('lessonPlan')
   if (latestTeacherSkillResults.value.homeworkGrading || skillSet.has('homework_grading') || skillSet.has('grading')) panels.push('grading')
   if (latestTeacherSkillResults.value.errorQuestionPush || skillSet.has('error_analysis_question_push') || skillSet.has('error_attribution')) panels.push('questionPush')
+  return panels
+})
+
+const availableProgrammerResultPanels = computed(() => {
+  const skillSet = new Set(latestProgrammerMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestProgrammerSkillResults.value.codeReview || skillSet.has('code_review')) panels.push('codeReview')
+  if (latestProgrammerSkillResults.value.debugTrace || skillSet.has('debug_trace')) panels.push('debugTrace')
+  if (latestProgrammerSkillResults.value.archSuggest || skillSet.has('architecture_suggestion')) panels.push('archSuggest')
+  if (latestProgrammerSkillResults.value.unitTest || skillSet.has('unit_test_generation')) panels.push('unitTest')
+  return panels
+})
+
+const availableWriterResultPanels = computed(() => {
+  const skillSet = new Set(latestWriterMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestWriterSkillResults.value.outlineResult || skillSet.has('outline_generation')) panels.push('outline')
+  if (latestWriterSkillResults.value.styleAnalysis || skillSet.has('style_analysis')) panels.push('styleAnalysis')
+  if (latestWriterSkillResults.value.plotLogic || skillSet.has('plot_logic_check')) panels.push('plotLogic')
+  if (latestWriterSkillResults.value.polishDiff || skillSet.has('text_polish')) panels.push('polishDiff')
   return panels
 })
 
@@ -435,6 +683,20 @@ const getTeacherRole = () => {
   return roles.value.find(role => {
     const roleName = (role.name || '').toLowerCase()
     return roleName.includes('教师') || roleName.includes('教学') || roleName.includes('teacher')
+  })
+}
+
+const getProgrammerRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('程序') || roleName.includes('开发') || roleName.includes('programmer')
+  })
+}
+
+const getWriterRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('作家') || roleName.includes('写作') || roleName.includes('writer')
   })
 }
 
@@ -476,6 +738,38 @@ const activateTeacherAgent = async () => {
   ElMessage.success('已切换到教师 Agent')
 }
 
+const activateProgrammerAgent = async () => {
+  if (isProgrammerMode.value) {
+    ElMessage.info('当前已在程序员模式')
+    return
+  }
+
+  const programmerRole = getProgrammerRole()
+  if (!programmerRole) {
+    ElMessage.warning('未找到程序员角色，请先在角色管理中启用程序员角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await switchRoleWithoutReset(programmerRole)
+  ElMessage.success('已切换到程序员 Agent')
+}
+
+const activateWriterAgent = async () => {
+  if (isWriterMode.value) {
+    ElMessage.info('当前已在作家模式')
+    return
+  }
+
+  const writerRole = getWriterRole()
+  if (!writerRole) {
+    ElMessage.warning('未找到作家角色，请先在角色管理中启用作家角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await switchRoleWithoutReset(writerRole)
+  ElMessage.success('已切换到作家 Agent')
+}
+
 const toggleLawyerMode = async () => {
   if (isLawyerMode.value) {
     ElMessage.info('当前已在律师模式')
@@ -490,6 +784,22 @@ const toggleTeacherMode = async () => {
     return
   }
   await activateTeacherAgent()
+}
+
+const toggleProgrammerMode = async () => {
+  if (isProgrammerMode.value) {
+    ElMessage.info('当前已在程序员模式')
+    return
+  }
+  await activateProgrammerAgent()
+}
+
+const toggleWriterMode = async () => {
+  if (isWriterMode.value) {
+    ElMessage.info('当前已在作家模式')
+    return
+  }
+  await activateWriterAgent()
 }
 
 const goToSettings = () => {
@@ -569,6 +879,10 @@ const sendMessage = async () => {
       response = await chatStore.sendLawyerMessage(userText)
     } else if (isTeacherMode.value) {
       response = await chatStore.sendTeacherMessage(userText)
+    } else if (isProgrammerMode.value) {
+      response = await chatStore.sendProgrammerMessage(userText)
+    } else if (isWriterMode.value) {
+      response = await chatStore.sendWriterMessage(userText)
     } else {
       response = await chatStore.sendMessage(userText)
     }
@@ -733,6 +1047,22 @@ watch(
   { immediate: true }
 )
 
+watch(
+  availableProgrammerResultPanels,
+  panels => {
+    activeProgrammerResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
+watch(
+  availableWriterResultPanels,
+  panels => {
+    activeWriterResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
 const checkScrollState = () => {
   if (!messagesRef.value) return
   const { scrollTop, scrollHeight, clientHeight } = messagesRef.value
@@ -832,6 +1162,16 @@ onUnmounted(() => {
   background: linear-gradient(180deg, rgba(5, 150, 105, 0.04), rgba(255, 255, 255, 0.88));
 }
 
+.chat-header.programmer-active {
+  border-bottom-color: #7c3aed;
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.04), rgba(255, 255, 255, 0.88));
+}
+
+.chat-header.writer-active {
+  border-bottom-color: #d97706;
+  background: linear-gradient(180deg, rgba(217, 119, 6, 0.04), rgba(255, 255, 255, 0.88));
+}
+
 .chat-header .left {
   display: flex;
   align-items: center;
@@ -884,8 +1224,16 @@ onUnmounted(() => {
   color: #2563eb;
 }
 
-.mode-btn:last-child.active {
+.mode-btn:nth-child(2).active {
   color: #059669;
+}
+
+.mode-btn:nth-child(3).active {
+  color: #7c3aed;
+}
+
+.mode-btn:nth-child(4).active {
+  color: #d97706;
 }
 
 .mode-icon {
@@ -912,7 +1260,9 @@ onUnmounted(() => {
 }
 
 .chat-main.lawyer,
-.chat-main.teacher {
+.chat-main.teacher,
+.chat-main.programmer,
+.chat-main.writer {
   grid-template-columns: 1fr 340px;
 }
 
@@ -1024,6 +1374,28 @@ onUnmounted(() => {
   background: #d1fae5;
 }
 
+.quick-btn.programmer-btn {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.quick-btn.programmer-btn:hover {
+  border-color: #7c3aed;
+  background: #ede9fe;
+}
+
+.quick-btn.writer-btn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.quick-btn.writer-btn:hover {
+  border-color: #d97706;
+  background: #fef3c7;
+}
+
 .message-list {
   display: flex;
   flex-direction: column;
@@ -1061,6 +1433,22 @@ onUnmounted(() => {
 
 .chat-main.teacher .to-bottom:hover {
   box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.chat-main.programmer .to-bottom {
+  background: #7c3aed;
+}
+
+.chat-main.programmer .to-bottom:hover {
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.chat-main.writer .to-bottom {
+  background: #d97706;
+}
+
+.chat-main.writer .to-bottom:hover {
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
 }
 
 .to-bottom .badge {
@@ -1113,6 +1501,14 @@ onUnmounted(() => {
   border-top-color: #bfdbfe;
 }
 
+.chat-main.programmer .composer {
+  border-top-color: #c4b5fd;
+}
+
+.chat-main.writer .composer {
+  border-top-color: #fcd34d;
+}
+
 .composer-footer {
   margin-top: 10px;
   display: flex;
@@ -1156,6 +1552,16 @@ onUnmounted(() => {
 .chat-main.teacher .agent-panel {
   border-left-color: #a7f3d0;
   background: linear-gradient(180deg, #f6fdf8, #fafbfc);
+}
+
+.chat-main.programmer .agent-panel {
+  border-left-color: #c4b5fd;
+  background: linear-gradient(180deg, #faf8ff, #fafbfc);
+}
+
+.chat-main.writer .agent-panel {
+  border-left-color: #fcd34d;
+  background: linear-gradient(180deg, #fffdf5, #fafbfc);
 }
 
 .results-empty {
@@ -1222,7 +1628,9 @@ onUnmounted(() => {
 
 @media (max-width: 1100px) {
   .chat-main.lawyer,
-  .chat-main.teacher {
+  .chat-main.teacher,
+  .chat-main.programmer,
+  .chat-main.writer {
     grid-template-columns: 1fr;
   }
 

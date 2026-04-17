@@ -1,4 +1,4 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import {
@@ -13,6 +13,20 @@ import {
   type HomeworkGradingResult,
   type ErrorQuestionPushResult
 } from '@/services/api/agentTeacher'
+import {
+  agentProgrammerApi,
+  type CodeReviewResult,
+  type DebugTraceResult,
+  type ArchSuggestResult,
+  type UnitTestResult
+} from '@/services/api/agentProgrammer'
+import {
+  agentWriterApi,
+  type OutlineResult,
+  type StyleAnalysisResult,
+  type PlotLogicResult,
+  type PolishDiffResult
+} from '@/services/api/agentWriter'
 
 export interface EvidenceAnalysisResult {
   evidence_items: Array<{ name: string; type: string; strength: string; notes: string }>
@@ -93,7 +107,15 @@ export interface Message {
   lessonPlan?: LessonPlanResult
   homeworkGrading?: HomeworkGradingResult
   errorQuestionPush?: ErrorQuestionPushResult
-  agentMode?: 'default' | 'lawyer' | 'teacher'
+  codeReview?: CodeReviewResult
+  debugTrace?: DebugTraceResult
+  archSuggest?: ArchSuggestResult
+  unitTest?: UnitTestResult
+  outlineResult?: OutlineResult
+  styleAnalysis?: StyleAnalysisResult
+  plotLogic?: PlotLogicResult
+  polishDiff?: PolishDiffResult
+  agentMode?: 'default' | 'lawyer' | 'teacher' | 'programmer' | 'writer'
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -102,6 +124,8 @@ export const useChatStore = defineStore('chat', () => {
   const contextId = ref<string | null>(null)
   const lawyerSessionId = ref<string | null>(null)
   const teacherSessionId = ref<string | null>(null)
+  const programmerSessionId = ref<string | null>(null)
+  const writerSessionId = ref<string | null>(null)
   const currentRoleId = ref<string | null>(null)
 
   const pushUserMessage = (text: string, fileUrl?: string) => {
@@ -238,6 +262,90 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const sendProgrammerMessage = async (text: string) => {
+    if (!text.trim() || loading.value) return
+
+    pushUserMessage(text)
+
+    loading.value = true
+    try {
+      const response = await agentProgrammerApi.chat({
+        text,
+        sessionId: programmerSessionId.value || undefined
+      })
+
+      programmerSessionId.value = response.sessionId || programmerSessionId.value
+      const traceCodeReview = parseTraceObservation(response.trace, 'code_review')
+      const traceDebugTrace = parseTraceObservation(response.trace, 'debug_trace')
+      const traceArchSuggest = parseTraceObservation(response.trace, 'architecture_suggestion')
+      const traceUnitTest = parseTraceObservation(response.trace, 'unit_test_generation')
+
+      const assistantMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: response.answer || '',
+        createdAt: new Date(),
+        modelInfo: 'Programmer Agent',
+        skillsUsed: response.skillsUsed || [],
+        trace: response.trace || [],
+        federated: response.federated || {},
+        riskLevel: response.riskLevel,
+        codeReview: response.codeReview || response.code_review || traceCodeReview,
+        debugTrace: response.debugTrace || response.debug_trace || traceDebugTrace,
+        archSuggest: response.archSuggest || response.architecture_suggestion || traceArchSuggest,
+        unitTest: response.unitTest || response.unit_test_generation || traceUnitTest,
+        agentMode: 'programmer'
+      }
+      messages.value.push(assistantMessage)
+
+      return response
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const sendWriterMessage = async (text: string) => {
+    if (!text.trim() || loading.value) return
+
+    pushUserMessage(text)
+
+    loading.value = true
+    try {
+      const response = await agentWriterApi.chat({
+        text,
+        sessionId: writerSessionId.value || undefined
+      })
+
+      writerSessionId.value = response.sessionId || writerSessionId.value
+      const traceOutline = parseTraceObservation(response.trace, 'outline_generation')
+      const traceStyle = parseTraceObservation(response.trace, 'style_analysis')
+      const tracePlotLogic = parseTraceObservation(response.trace, 'plot_logic_check')
+      const tracePolish = parseTraceObservation(response.trace, 'text_polish')
+
+      const assistantMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: response.answer || '',
+        createdAt: new Date(),
+        modelInfo: 'Writer Agent',
+        skillsUsed: response.skillsUsed || [],
+        trace: response.trace || [],
+        federated: response.federated || {},
+        riskLevel: response.riskLevel,
+        outlineResult: response.outline || response.outline_generation || traceOutline,
+        styleAnalysis: response.styleAnalysis || response.style_analysis || traceStyle,
+        plotLogic: response.plotLogic || response.plot_logic_check || tracePlotLogic,
+        polishDiff: response.polishDiff || response.text_polish || tracePolish,
+        agentMode: 'writer'
+      }
+      messages.value.push(assistantMessage)
+
+      return response
+    } finally {
+      loading.value = false
+    }
+  }
+
   const clearHistory = async () => {
     if (contextId.value) {
       await chatApi.clearHistory(contextId.value)
@@ -246,6 +354,8 @@ export const useChatStore = defineStore('chat', () => {
     contextId.value = null
     lawyerSessionId.value = null
     teacherSessionId.value = null
+    programmerSessionId.value = null
+    writerSessionId.value = null
   }
 
   const setRole = (roleId: string | null) => {
@@ -310,6 +420,8 @@ export const useChatStore = defineStore('chat', () => {
     contextId.value = null
     lawyerSessionId.value = null
     teacherSessionId.value = null
+    programmerSessionId.value = null
+    writerSessionId.value = null
   }
 
   return {
@@ -318,10 +430,14 @@ export const useChatStore = defineStore('chat', () => {
     contextId,
     lawyerSessionId,
     teacherSessionId,
+    programmerSessionId,
+    writerSessionId,
     currentRoleId,
     sendMessage,
     sendLawyerMessage,
     sendTeacherMessage,
+    sendProgrammerMessage,
+    sendWriterMessage,
     clearHistory,
     setRole,
     loadHistory,
