@@ -44,6 +44,9 @@ services:
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
+      - AGENT_FEDERATED_ENABLED=true
+      - AGENT_FEDERATED_BASE_URL=http://localhost:8000/ai
+      - AGENT_FEDERATED_TIMEOUT_MS=1500
       - ANONYMIZED_TELEMETRY=False
       - CHROMA_TELEMETRY_ENABLED=false
     volumes:
