@@ -51,9 +51,13 @@ export interface HearingOutlineResult {
   risk_focus?: string[]
 }
 
-const parseTraceObservation = (trace: AgentTraceStep[] | undefined, action: string) => {
+const parseTraceObservation = (
+  trace: AgentTraceStep[] | undefined,
+  action: string | string[]
+) => {
   if (!trace?.length) return undefined
-  const target = [...trace].reverse().find(item => item.action === action)
+  const actionList = Array.isArray(action) ? action : [action]
+  const target = [...trace].reverse().find(item => actionList.includes(item.action))
   if (!target?.observation) return undefined
   try {
     const parsed = JSON.parse(target.observation)
@@ -205,10 +209,10 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       teacherSessionId.value = response.sessionId || teacherSessionId.value
-      const traceDiagnosis = parseTraceObservation(response.trace, 'student_diagnosis')
-      const traceLessonPlan = parseTraceObservation(response.trace, 'lesson_plan_generation')
-      const traceGrading = parseTraceObservation(response.trace, 'homework_grading')
-      const tracePush = parseTraceObservation(response.trace, 'error_analysis_question_push')
+      const traceDiagnosis = parseTraceObservation(response.trace, ['student_diagnosis'])
+      const traceLessonPlan = parseTraceObservation(response.trace, ['lesson_plan_generation', 'lesson_plan'])
+      const traceGrading = parseTraceObservation(response.trace, ['homework_grading', 'grading'])
+      const tracePush = parseTraceObservation(response.trace, ['error_analysis_question_push', 'error_attribution'])
 
       const assistantMessage: Message = {
         id: Date.now() + 1,

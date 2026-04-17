@@ -1,1143 +1,1255 @@
 <template>
   <div class="federated-learning-view">
-    <section class="page-header glass-panel">
+    <!-- 背景氛围元素 -->
+    <div class="ambient-glow top-left"></div>
+    <div class="ambient-glow bottom-right"></div>
+    
+    <!-- 页面标题区域 -->
+    <div class="page-header">
       <div class="header-content">
-        <h1>联邦管理</h1>
-        <p>统一查看联邦节点、模型版本演进和训练过程，不弹新窗口。</p>
+        <h1 class="page-title">
+          <span class="icon">🌐</span>
+          联邦学习系统
+        </h1>
+        <p class="page-subtitle">分布式智能模型训练与协作平台</p>
       </div>
-      <div class="header-actions">
-        <el-button type="primary" :disabled="demoRunning" @click="startDemo">
+      
+      <!-- 全局控制面板 -->
+      <div class="global-controls">
+        <el-button type="primary" class="glass-btn" @click="startDemo" :disabled="demoRunning">
           <el-icon><VideoPlay /></el-icon>
           开始演示
         </el-button>
-        <el-button @click="resetSystem">
+        <el-button class="glass-btn" @click="resetSystem">
           <el-icon><Refresh /></el-icon>
-          重置
+          重置系统
         </el-button>
-        <el-button @click="exportReport">
+        <el-button class="glass-btn" @click="exportReport">
           <el-icon><Document /></el-icon>
           导出报告
         </el-button>
       </div>
-    </section>
+    </div>
 
-    <section class="overview-cards">
-      <article v-for="item in systemStats" :key="item.label" class="overview-card glass-panel">
-        <div class="stat-meta">
-          <span class="label">{{ item.label }}</span>
-          <strong class="value">{{ item.value }}</strong>
+    <!-- 系统概览卡片 -->
+    <div class="overview-cards">
+      <div class="overview-card glass-panel" v-for="stat in systemStats" :key="stat.label">
+        <div class="stat-icon">{{ stat.icon }}</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stat.value }}</div>
+          <div class="stat-label">{{ stat.label }}</div>
         </div>
-        <div class="stat-trend" :class="{ up: item.trend > 0, down: item.trend < 0 }">
-          <el-icon v-if="item.trend > 0"><Top /></el-icon>
-          <el-icon v-else-if="item.trend < 0"><Bottom /></el-icon>
-          <span>{{ Math.abs(item.trend) }}%</span>
+        <div class="stat-trend" :class="{ positive: stat.trend > 0, negative: stat.trend < 0 }">
+          <el-icon v-if="stat.trend > 0"><Top /></el-icon>
+          <el-icon v-else-if="stat.trend < 0"><Bottom /></el-icon>
+          {{ Math.abs(stat.trend) }}%
         </div>
-      </article>
-    </section>
+      </div>
+    </div>
 
-    <section class="main-content">
-      <article class="network-section glass-panel">
+    <!-- 主要内容区域 -->
+    <div class="main-content">
+      <!-- 左侧：网络拓扑可视化 -->
+      <div class="network-section glass-panel">
         <div class="section-header">
-          <div>
-            <h2>联邦网络拓扑</h2>
-            <p>展示中心节点与各客户端连接状态</p>
-          </div>
-          <div class="section-actions">
-            <el-button size="small" @click="refreshNetwork">
+          <h2 class="section-title">
+            <span class="icon">🕸️</span>
+            联邦网络拓扑
+          </h2>
+          <div class="section-controls">
+            <el-button size="small" class="glass-btn" @click="refreshNetwork">
               <el-icon><Refresh /></el-icon>
               刷新
             </el-button>
-            <el-switch v-model="autoRefresh" active-text="自动刷新" inactive-text="手动刷新" />
+            <el-switch
+              v-model="autoRefresh"
+              active-text="自动刷新"
+              inactive-text="手动刷新"
+            />
           </div>
         </div>
-
-        <div class="network-canvas-wrapper">
+        
+        <div class="network-canvas-container">
+          <!-- 网络控制工具栏 -->
           <div class="network-toolbar">
-            <el-button size="small" circle @click="zoomIn">+</el-button>
-            <el-button size="small" circle @click="zoomOut">-</el-button>
-            <el-button size="small" circle @click="resetView">
-              <el-icon><Refresh /></el-icon>
-            </el-button>
-            <el-button size="small" circle @click="toggleFullscreen">
-              <el-icon><FullScreen /></el-icon>
-            </el-button>
+            <el-tooltip content="放大视图" placement="top">
+              <el-button size="small" circle @click="zoomIn">
+                <el-icon><ZoomIn /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="缩小视图" placement="top">
+              <el-button size="small" circle @click="zoomOut">
+                <el-icon><ZoomOut /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="重置视图" placement="top">
+              <el-button size="small" circle @click="resetView">
+                <el-icon><Refresh /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="全屏显示" placement="top">
+              <el-button size="small" circle @click="toggleFullscreen">
+                <el-icon><FullScreen /></el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
-
-          <div class="network-canvas" :class="{ fullscreen: isFullscreen }">
-            <div class="hub-node">
-              <span class="hub-title">聚合中心</span>
-              <span class="hub-subtitle">Coordinator</span>
-            </div>
-
-            <div
-              v-for="(client, index) in clients"
-              :key="client.clientId"
-              class="line"
-              :class="{ active: client.uploadCount > 0 }"
-              :style="getLineStyle(index)"
-            />
-
-            <div
-              v-for="(client, index) in clients"
-              :key="`node-${client.clientId}`"
-              class="client-node"
-              :class="{ active: client.uploadCount > 0, online: client.isOnline }"
-              :style="getNodeStyle(index)"
-              @click="showClientDetails(client)"
-            >
-              <div class="node-badge">{{ getClientIcon(client.name) }}</div>
-              <span class="node-name">{{ client.name }}</span>
-            </div>
+          
+          <div ref="networkCanvas" class="network-canvas">
+            <!-- 网络拓扑将通过JavaScript动态生成 -->
           </div>
-
+          
+          <!-- 网络状态指示器 -->
           <div class="network-status">
             <div class="status-item">
-              <span class="dot active"></span>
-              活跃节点 {{ activeNodesCount }}
+              <div class="status-dot active"></div>
+              <span>活跃节点</span>
+              <span class="status-count">{{ activeNodesCount }}</span>
             </div>
             <div class="status-item">
-              <span class="dot inactive"></span>
-              待激活 {{ inactiveNodesCount }}
+              <div class="status-dot inactive"></div>
+              <span>待激活节点</span>
+              <span class="status-count">{{ inactiveNodesCount }}</span>
             </div>
             <div class="status-item">
-              <span class="dot transfer"></span>
-              数据传输 {{ dataTransfers }}
+              <div class="status-dot data-flow"></div>
+              <span>数据传输</span>
+              <span class="status-count">{{ dataTransfers }}</span>
             </div>
           </div>
         </div>
-      </article>
+      </div>
 
-      <aside class="details-panel">
-        <article class="detail-section glass-panel">
+      <!-- 右侧：详细信息面板 -->
+      <div class="details-panel">
+        <!-- 模型版本历史 -->
+        <div class="detail-section glass-panel">
           <div class="section-header">
-            <div>
-              <h3>模型版本历史</h3>
-              <p>跟踪联邦聚合版本与性能变化</p>
-            </div>
-            <el-button size="small" @click="exportHistory">
+            <h3 class="section-title">
+              <span class="icon">📊</span>
+              模型版本历史
+            </h3>
+            <el-button size="small" class="glass-btn" @click="exportHistory">
               <el-icon><Download /></el-icon>
               导出
             </el-button>
           </div>
-
-          <div class="timeline-controls">
-            <el-radio-group v-model="timelineView" size="small">
-              <el-radio-button label="all">全部</el-radio-button>
-              <el-radio-button label="latest">最新</el-radio-button>
-              <el-radio-button label="significant">重要</el-radio-button>
-            </el-radio-group>
-            <el-button size="small" :disabled="selectedVersions.length < 2" @click="compareVersions">
-              版本对比
-            </el-button>
-          </div>
-
-          <div class="timeline-list">
-            <article
-              v-for="version in filteredModelHistory"
-              :key="version.versionId"
-              class="timeline-item"
-              :class="{ selected: selectedVersions.includes(version.versionId) }"
-              @click="toggleVersionSelection(version)"
-              @dblclick="showVersionDetails(version)"
-            >
-              <div class="item-row">
-                <strong>v{{ version.version }}</strong>
-                <el-tag size="small" :type="version.isLatest ? 'success' : (version.significant ? 'warning' : 'info')">
-                  {{ version.isLatest ? '最新' : (version.significant ? '重要' : '常规') }}
-                </el-tag>
-              </div>
-              <div class="item-row muted">
-                <span>客户端 {{ version.clientsCount }}</span>
-                <span>{{ formatTime(version.createdAt) }}</span>
-              </div>
-              <div class="item-row muted">
-                <span>准确率 {{ version.accuracy.toFixed(1) }}%</span>
-                <span>损失 {{ version.loss.toFixed(3) }}</span>
-              </div>
-            </article>
-            <el-empty v-if="filteredModelHistory.length === 0" description="暂无版本记录" />
-          </div>
-        </article>
-
-        <article class="detail-section glass-panel">
-          <div class="section-header">
-            <div>
-              <h3>客户端列表</h3>
-              <p>按节点查看上传和训练状态</p>
+          
+          <div class="timeline-container">
+            <!-- 时间线控制 -->
+            <div class="timeline-controls">
+              <el-radio-group v-model="timelineView" size="small">
+                <el-radio-button label="all">全部版本</el-radio-button>
+                <el-radio-button label="latest">仅显示最新</el-radio-button>
+                <el-radio-button label="significant">重要更新</el-radio-button>
+              </el-radio-group>
+              <el-button size="small" @click="compareVersions" :disabled="selectedVersions.length < 2">
+                <el-icon><Scale /></el-icon>
+                版本对比
+              </el-button>
             </div>
-            <el-input v-model="clientSearch" placeholder="搜索节点" clearable class="search-input">
+            
+            <el-timeline v-if="filteredModelHistory.length > 0">
+              <el-timeline-item
+                v-for="version in filteredModelHistory"
+                :key="version.version_id"
+                :timestamp="formatTime(version.created_at)"
+                :type="version.isLatest ? 'primary' : version.significant ? 'warning' : 'info'"
+              >
+                <div 
+                  class="version-card" 
+                  :class="{ selected: selectedVersions.includes(version.version_id) }"
+                  @click="toggleVersionSelection(version)"
+                  @dblclick="showVersionDetails(version)"
+                >
+                  <div class="version-header">
+                    <span class="version-tag">v{{ version.version }}</span>
+                    <span class="clients-badge">{{ version.clients_count }} 客户端</span>
+                    <el-tag v-if="version.isLatest" type="success" size="small">最新</el-tag>
+                    <el-tag v-if="version.significant" type="warning" size="small">重要</el-tag>
+                  </div>
+                  <div class="version-metrics">
+                    <span class="metric">准确率: {{ version.accuracy }}%</span>
+                    <span class="metric">损失: {{ version.loss }}</span>
+                    <span class="metric">训练时长: {{ version.training_duration }}</span>
+                  </div>
+                  <!-- 性能趋势指示器 -->
+                  <div class="performance-trend">
+                    <el-icon v-if="version.accuracy_trend > 0" color="#52c41a"><Top /></el-icon>
+                    <el-icon v-else-if="version.accuracy_trend < 0" color="#ff4d4f"><Bottom /></el-icon>
+                    <span v-if="version.accuracy_trend !== 0" class="trend-value">
+                      {{ Math.abs(version.accuracy_trend) }}%
+                    </span>
+                  </div>
+                </div>
+              </el-timeline-item>
+            </el-timeline>
+            <el-empty v-else description="暂无模型历史记录">
+              <template #description>
+                <p>开始联邦学习训练后，模型版本历史将在此显示</p>
+              </template>
+            </el-empty>
+          </div>
+        </div>
+
+        <!-- 客户端列表 -->
+        <div class="detail-section glass-panel">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="icon">👥</span>
+              客户端列表
+            </h3>
+            <el-input
+              v-model="clientSearch"
+              placeholder="搜索客户端..."
+              size="small"
+              style="width: 200px"
+              clearable
+            >
               <template #prefix>
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
           </div>
-
-          <div class="clients-overview">
-            <span>总节点 {{ clients.length }}</span>
-            <span>活跃率 {{ activeRate }}%</span>
-            <span>总数据 {{ totalDataSize }} MB</span>
-          </div>
-
-          <div class="clients-list">
-            <article
+          
+          <div class="clients-container">
+            <!-- 客户端统计概览 -->
+            <div class="clients-overview">
+              <div class="overview-item">
+                <span class="overview-label">总客户端数</span>
+                <span class="overview-value">{{ clients.length }}</span>
+              </div>
+              <div class="overview-item">
+                <span class="overview-label">活跃率</span>
+                <span class="overview-value">{{ activeRate }}%</span>
+              </div>
+              <div class="overview-item">
+                <span class="overview-label">总数据量</span>
+                <span class="overview-value">{{ totalDataSize }} MB</span>
+              </div>
+            </div>
+            
+            <div
               v-for="client in filteredClients"
-              :key="client.clientId"
+              :key="client.client_id"
               class="client-card"
-              :class="{ active: client.uploadCount > 0, selected: selectedClients.includes(client.clientId) }"
+              :class="{ 
+                active: client.upload_count > 0, 
+                selected: selectedClients.includes(client.client_id),
+                online: client.is_online
+              }"
               @click="toggleClientSelection(client)"
               @dblclick="showClientDetails(client)"
             >
-              <div class="item-row">
-                <strong>{{ client.name }}</strong>
-                <el-tag size="small" :type="client.uploadCount > 0 ? 'success' : 'info'">
-                  {{ client.uploadCount > 0 ? '活跃' : '待激活' }}
-                </el-tag>
+              <div class="client-header">
+                <div class="client-avatar">
+                  <span class="avatar-icon">{{ getClientIcon(client.info?.name) }}</span>
+                  <div class="online-indicator" v-if="client.is_online"></div>
+                </div>
+                <div class="client-info">
+                  <div class="client-name">{{ client.info?.name || client.client_id }}</div>
+                  <div class="client-status">
+                    <span class="status-dot" :class="{ active: client.upload_count > 0 }"></span>
+                    {{ client.upload_count > 0 ? '活跃' : '待激活' }}
+                    <span v-if="client.is_online" class="online-badge">在线</span>
+                  </div>
+                </div>
+                <div class="client-actions">
+                  <el-tag
+                    :type="client.upload_count > 0 ? 'success' : 'info'"
+                    size="small"
+                  >
+                    {{ client.upload_count }} 次
+                  </el-tag>
+                  <el-button size="small" circle @click="sendMessageToClient(client)">
+                    <el-icon><Message /></el-icon>
+                  </el-button>
+                </div>
               </div>
-              <div class="item-row muted">
-                <span>上传 {{ client.uploadCount }} 次</span>
-                <span>{{ formatTime(client.lastUpload) }}</span>
+              
+              <div class="client-stats">
+                <div class="stat">
+                  <span class="stat-label">最后上传:</span>
+                  <span class="stat-value">{{ formatTime(client.last_upload) }}</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label">数据量:</span>
+                  <span class="stat-value">{{ client.data_size || '0' }} MB</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label">贡献度:</span>
+                  <div class="contribution-bar">
+                    <div 
+                      class="contribution-fill" 
+                      :style="{ width: client.contribution + '%' }"
+                    ></div>
+                  </div>
+                  <span class="stat-value">{{ client.contribution }}%</span>
+                </div>
               </div>
-              <div class="metric">
-                <span>贡献度 {{ client.contribution }}%</span>
-                <el-progress :percentage="client.contribution" :stroke-width="6" :show-text="false" />
+              
+              <!-- 客户端性能指标 -->
+              <div class="client-performance">
+                <div class="performance-metric">
+                  <span class="metric-label">准确率</span>
+                  <el-progress 
+                    :percentage="client.accuracy || 0" 
+                    :show-text="false"
+                    :stroke-width="4"
+                  />
+                  <span class="metric-value">{{ client.accuracy || 0 }}%</span>
+                </div>
+                <div class="performance-metric">
+                  <span class="metric-label">训练进度</span>
+                  <el-progress 
+                    :percentage="client.training_progress || 0" 
+                    :show-text="false"
+                    :stroke-width="4"
+                  />
+                  <span class="metric-value">{{ client.training_progress || 0 }}%</span>
+                </div>
               </div>
-              <div class="metric">
-                <span>训练进度 {{ client.trainingProgress }}%</span>
-                <el-progress :percentage="client.trainingProgress" :stroke-width="6" :show-text="false" />
-              </div>
-              <div class="actions">
-                <el-button size="small" @click.stop="sendMessageToClient(client)">
-                  <el-icon><Message /></el-icon>
-                  发送消息
-                </el-button>
-                <el-button size="small" @click.stop="showClientDetails(client)">
-                  详情
-                </el-button>
-              </div>
-            </article>
-            <el-empty v-if="filteredClients.length === 0" description="没有匹配节点" />
+            </div>
+            
+            <el-empty v-if="filteredClients.length === 0" description="未找到匹配的客户端">
+              <template #description>
+                <p>尝试调整搜索条件或等待客户端连接</p>
+              </template>
+            </el-empty>
           </div>
-        </article>
-      </aside>
-    </section>
-
-    <section v-if="demoRunning" class="demo-panel glass-panel">
-      <div class="demo-header">
-        <strong>联邦演示进行中</strong>
-        <el-button size="small" @click="stopDemo">停止演示</el-button>
+        </div>
       </div>
-      <div class="demo-body">
-        <div class="demo-item">
-          <span>节点连接</span>
+    </div>
+
+    <!-- 演示控制面板 -->
+    <div v-if="demoRunning" class="demo-controls glass-panel">
+      <div class="demo-header">
+        <h3>交互演示控制台</h3>
+        <el-button size="small" @click="stopDemo">
+          <el-icon><Close /></el-icon>
+          停止演示
+        </el-button>
+      </div>
+      
+      <div class="demo-content">
+        <div class="demo-step">
+          <span class="step-number">1</span>
+          <span class="step-text">模拟客户端连接和数据上传</span>
           <el-progress :percentage="demoProgress.clientConnect" />
         </div>
-        <div class="demo-item">
-          <span>本地训练</span>
+        
+        <div class="demo-step">
+          <span class="step-number">2</span>
+          <span class="step-text">本地模型训练和参数更新</span>
           <el-progress :percentage="demoProgress.localTraining" />
         </div>
-        <div class="demo-item">
-          <span>全局聚合</span>
+        
+        <div class="demo-step">
+          <span class="step-number">3</span>
+          <span class="step-text">全局模型聚合和版本发布</span>
           <el-progress :percentage="demoProgress.globalAggregation" />
         </div>
       </div>
-    </section>
+    </div>
 
-    <el-dialog v-model="versionDialogVisible" title="版本详情" width="560px">
-      <div v-if="activeVersion" class="dialog-grid">
-        <div><span>版本</span><strong>v{{ activeVersion.version }}</strong></div>
-        <div><span>发布时间</span><strong>{{ formatTime(activeVersion.createdAt) }}</strong></div>
-        <div><span>客户端数</span><strong>{{ activeVersion.clientsCount }}</strong></div>
-        <div><span>准确率</span><strong>{{ activeVersion.accuracy.toFixed(1) }}%</strong></div>
-        <div><span>损失</span><strong>{{ activeVersion.loss.toFixed(3) }}</strong></div>
-        <div><span>训练时长</span><strong>{{ activeVersion.trainingDuration }}</strong></div>
-      </div>
-    </el-dialog>
-
-    <el-dialog v-model="clientDialogVisible" title="客户端详情" width="560px">
-      <div v-if="activeClient" class="dialog-grid">
-        <div><span>节点</span><strong>{{ activeClient.name }}</strong></div>
-        <div><span>在线状态</span><strong>{{ activeClient.isOnline ? '在线' : '离线' }}</strong></div>
-        <div><span>上传次数</span><strong>{{ activeClient.uploadCount }}</strong></div>
-        <div><span>数据量</span><strong>{{ activeClient.dataSize }} MB</strong></div>
-        <div><span>贡献度</span><strong>{{ activeClient.contribution }}%</strong></div>
-        <div><span>训练进度</span><strong>{{ activeClient.trainingProgress }}%</strong></div>
+    <!-- 客户端详情弹窗 -->
+    <el-dialog
+      v-model="clientDialog.visible"
+      title="客户端详情"
+      width="600px"
+      class="client-detail-dialog"
+    >
+      <div v-if="clientDialog.data" class="client-detail-content">
+        <div class="detail-header">
+          <div class="client-avatar large">
+            <span class="avatar-icon">{{ getClientIcon(clientDialog.data.info?.name) }}</span>
+          </div>
+          <div class="detail-info">
+            <h3>{{ clientDialog.data.info?.name || clientDialog.data.client_id }}</h3>
+            <p>客户端 ID: {{ clientDialog.data.client_id }}</p>
+          </div>
+        </div>
+        
+        <div class="detail-stats">
+          <div class="stat-row">
+            <span class="stat-label">上传次数:</span>
+            <span class="stat-value">{{ clientDialog.data.upload_count }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">最后上传:</span>
+            <span class="stat-value">{{ formatTime(clientDialog.data.last_upload) }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">数据总量:</span>
+            <span class="stat-value">{{ clientDialog.data.data_size || '0' }} MB</span>
+          </div>
+        </div>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Document,
-  Download,
-  FullScreen,
-  Message,
-  Refresh,
-  Search,
-  Top,
-  Bottom,
-  VideoPlay
+  VideoPlay, Refresh, Top, Bottom, Download, Search, Close
 } from '@element-plus/icons-vue'
 
-type TimelineView = 'all' | 'latest' | 'significant'
-
-interface ModelVersion {
-  versionId: string
-  version: string
-  createdAt: string
-  clientsCount: number
-  accuracy: number
-  loss: number
-  trainingDuration: string
-  significant: boolean
-  isLatest: boolean
-  accuracyTrend: number
-}
-
-interface ClientNode {
-  clientId: string
-  name: string
-  uploadCount: number
-  lastUpload: string
-  dataSize: number
-  contribution: number
-  accuracy: number
-  trainingProgress: number
-  isOnline: boolean
-  location: string
-}
-
-const autoRefresh = ref(true)
+// 响应式数据
 const demoRunning = ref(false)
-const isFullscreen = ref(false)
-const timelineView = ref<TimelineView>('all')
+const autoRefresh = ref(true)
 const clientSearch = ref('')
-const dataTransfers = ref(18)
-
-const selectedVersions = ref<string[]>([])
-const selectedClients = ref<string[]>([])
-
-const activeVersion = ref<ModelVersion | null>(null)
-const activeClient = ref<ClientNode | null>(null)
-const versionDialogVisible = ref(false)
-const clientDialogVisible = ref(false)
-
 const demoProgress = ref({
   clientConnect: 0,
   localTraining: 0,
   globalAggregation: 0
 })
 
-const modelHistory = ref<ModelVersion[]>([
-  {
-    versionId: 'v1.0.0',
-    version: '1.0.0',
-    createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
-    clientsCount: 4,
-    accuracy: 84.6,
-    loss: 0.412,
-    trainingDuration: '14m',
-    significant: true,
-    isLatest: false,
-    accuracyTrend: 3.1
-  },
-  {
-    versionId: 'v1.1.0',
-    version: '1.1.0',
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    clientsCount: 5,
-    accuracy: 88.2,
-    loss: 0.355,
-    trainingDuration: '16m',
-    significant: false,
-    isLatest: false,
-    accuracyTrend: 2.8
-  },
-  {
-    versionId: 'v1.2.0',
-    version: '1.2.0',
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    clientsCount: 6,
-    accuracy: 90.3,
-    loss: 0.291,
-    trainingDuration: '18m',
-    significant: true,
-    isLatest: false,
-    accuracyTrend: 1.9
-  },
-  {
-    versionId: 'v1.3.0',
-    version: '1.3.0',
-    createdAt: new Date().toISOString(),
-    clientsCount: 6,
-    accuracy: 92.1,
-    loss: 0.247,
-    trainingDuration: '19m',
-    significant: true,
-    isLatest: true,
-    accuracyTrend: 2.0
-  }
-])
-
-const clients = ref<ClientNode[]>([
-  {
-    clientId: 'node-bj',
-    name: '北京节点',
-    uploadCount: 13,
-    lastUpload: new Date().toISOString(),
-    dataSize: 320,
-    contribution: 26,
-    accuracy: 91,
-    trainingProgress: 100,
-    isOnline: true,
-    location: 'BJ'
-  },
-  {
-    clientId: 'node-sh',
-    name: '上海节点',
-    uploadCount: 9,
-    lastUpload: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    dataSize: 260,
-    contribution: 22,
-    accuracy: 89,
-    trainingProgress: 88,
-    isOnline: true,
-    location: 'SH'
-  },
-  {
-    clientId: 'node-gz',
-    name: '广州节点',
-    uploadCount: 0,
-    lastUpload: '',
-    dataSize: 140,
-    contribution: 12,
-    accuracy: 83,
-    trainingProgress: 32,
-    isOnline: false,
-    location: 'GZ'
-  },
-  {
-    clientId: 'node-sz',
-    name: '深圳节点',
-    uploadCount: 11,
-    lastUpload: new Date(Date.now() - 80 * 60 * 1000).toISOString(),
-    dataSize: 300,
-    contribution: 24,
-    accuracy: 90,
-    trainingProgress: 76,
-    isOnline: true,
-    location: 'SZ'
-  },
-  {
-    clientId: 'node-hz',
-    name: '杭州节点',
-    uploadCount: 5,
-    lastUpload: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    dataSize: 210,
-    contribution: 16,
-    accuracy: 87,
-    trainingProgress: 58,
-    isOnline: true,
-    location: 'HZ'
-  }
-])
-
-const activeNodesCount = computed(() => clients.value.filter(item => item.uploadCount > 0).length)
-const inactiveNodesCount = computed(() => clients.value.filter(item => item.uploadCount === 0).length)
-const activeRate = computed(() => Math.round((activeNodesCount.value / Math.max(clients.value.length, 1)) * 100))
-const totalDataSize = computed(() => clients.value.reduce((sum, item) => sum + item.dataSize, 0))
-
-const filteredModelHistory = computed(() => {
-  if (timelineView.value === 'latest') return modelHistory.value.filter(item => item.isLatest)
-  if (timelineView.value === 'significant') return modelHistory.value.filter(item => item.significant)
-  return modelHistory.value
+const clientDialog = ref({
+  visible: false,
+  data: null as any
 })
+
+// 系统统计数据
+const systemStats = ref([
+  { icon: '🌐', label: '活跃节点', value: '5', trend: 25 },
+  { icon: '📊', label: '模型版本', value: '8', trend: 12 },
+  { icon: '⚡', label: '训练轮次', value: '32', trend: 8 },
+  { icon: '📈', label: '准确率', value: '92.5%', trend: 3 }
+])
+
+// 模拟数据
+const modelHistory = ref([
+  { version_id: 'v1.0.0', version: '1.0.0', created_at: new Date(Date.now() - 2592000000).toISOString(), clients_count: 3, accuracy: 85.2, loss: 0.45, isLatest: false },
+  { version_id: 'v1.1.0', version: '1.1.0', created_at: new Date(Date.now() - 1728000000).toISOString(), clients_count: 5, accuracy: 88.7, loss: 0.38, isLatest: false },
+  { version_id: 'v1.2.0', version: '1.2.0', created_at: new Date(Date.now() - 864000000).toISOString(), clients_count: 7, accuracy: 91.3, loss: 0.29, isLatest: false },
+  { version_id: 'v1.3.0', version: '1.3.0', created_at: new Date().toISOString(), clients_count: 8, accuracy: 92.5, loss: 0.25, isLatest: true }
+])
+
+const clients = ref([
+  { client_id: 'client_001', upload_count: 12, last_upload: new Date().toISOString(), info: { name: '北京节点' }, data_size: 245 },
+  { client_id: 'client_002', upload_count: 8, last_upload: new Date(Date.now() - 86400000).toISOString(), info: { name: '上海节点' }, data_size: 187 },
+  { client_id: 'client_003', upload_count: 0, last_upload: null, info: { name: '广州节点' }, data_size: 0 },
+  { client_id: 'client_004', upload_count: 15, last_upload: new Date().toISOString(), info: { name: '深圳节点' }, data_size: 312 },
+  { client_id: 'client_005', upload_count: 6, last_upload: new Date(Date.now() - 172800000).toISOString(), info: { name: '杭州节点' }, data_size: 134 }
+])
+
+// 计算属性
+const activeNodesCount = computed(() => 
+  clients.value.filter(client => client.upload_count > 0).length
+)
+
+const inactiveNodesCount = computed(() => 
+  clients.value.filter(client => client.upload_count === 0).length
+)
 
 const filteredClients = computed(() => {
-  const key = clientSearch.value.trim().toLowerCase()
-  if (!key) return clients.value
-  return clients.value.filter(item => item.name.toLowerCase().includes(key) || item.clientId.toLowerCase().includes(key))
+  if (!clientSearch.value) return clients.value
+  return clients.value.filter(client => 
+    (client.info?.name || client.client_id).toLowerCase().includes(clientSearch.value.toLowerCase())
+  )
 })
 
-const systemStats = computed(() => {
-  const latest = modelHistory.value.find(item => item.isLatest) || modelHistory.value[modelHistory.value.length - 1]
-  const accuracy = latest?.accuracy || 0
-  return [
-    { label: '活跃节点', value: String(activeNodesCount.value), trend: 8 },
-    { label: '模型版本', value: String(modelHistory.value.length), trend: 12 },
-    { label: '训练轮次', value: String(dataTransfers.value), trend: 6 },
-    { label: '最新精度', value: `${accuracy.toFixed(1)}%`, trend: 3 }
-  ]
+const activeRate = computed(() => {
+  if (!clients.value.length) return 0
+  const activeClients = clients.value.filter(client => client.upload_count > 0)
+  return Math.round((activeClients.length / clients.value.length) * 100)
 })
 
-let demoTimer: number | null = null
-let refreshTimer: number | null = null
+const totalDataSize = computed(() => {
+  return clients.value.reduce((total, client) => total + (client.data_size || 0), 0)
+})
 
-const getNodePosition = (index: number) => {
-  const total = Math.max(clients.value.length, 1)
-  const angle = (index / total) * Math.PI * 2 - Math.PI / 2
-  const radius = isFullscreen.value ? 220 : 170
-  return {
-    x: radius * Math.cos(angle),
-    y: radius * Math.sin(angle),
-    angle
-  }
-}
-
-const getNodeStyle = (index: number) => {
-  const position = getNodePosition(index)
-  return {
-    left: `calc(50% + ${position.x}px)`,
-    top: `calc(50% + ${position.y}px)`
-  }
-}
-
-const getLineStyle = (index: number) => {
-  const position = getNodePosition(index)
-  const length = Math.sqrt(position.x * position.x + position.y * position.y)
-  return {
-    width: `${length}px`,
-    left: '50%',
-    top: '50%',
-    transform: `rotate(${position.angle}rad)`
-  }
-}
-
-const getClientIcon = (name: string) => {
-  if (name.includes('北京')) return '京'
-  if (name.includes('上海')) return '沪'
-  if (name.includes('广州')) return '穗'
-  if (name.includes('深圳')) return '深'
-  if (name.includes('杭州')) return '杭'
-  return '节'
-}
-
-const formatTime = (iso: string) => {
-  if (!iso) return '从未上传'
-  return new Date(iso).toLocaleString('zh-CN', { hour12: false })
-}
-
-const zoomIn = () => {
-  isFullscreen.value = true
-}
-
-const zoomOut = () => {
-  isFullscreen.value = false
-}
-
-const resetView = () => {
-  isFullscreen.value = false
-  ElMessage.success('拓扑视图已重置')
-}
-
-const toggleFullscreen = () => {
-  isFullscreen.value = !isFullscreen.value
-}
-
-const refreshNetwork = () => {
-  dataTransfers.value += 1
-  ElMessage.success('网络状态已刷新')
-}
-
-const compareVersions = () => {
-  const [a, b] = selectedVersions.value
-  if (!a || !b) return
-  ElMessage.info(`已选择 ${a} 与 ${b}，可接入版本差异分析接口`)
-}
-
-const toggleVersionSelection = (version: ModelVersion) => {
-  const idx = selectedVersions.value.indexOf(version.versionId)
-  if (idx >= 0) {
-    selectedVersions.value.splice(idx, 1)
-    return
-  }
-  if (selectedVersions.value.length >= 2) {
-    selectedVersions.value.shift()
-  }
-  selectedVersions.value.push(version.versionId)
-}
-
-const showVersionDetails = (version: ModelVersion) => {
-  activeVersion.value = version
-  versionDialogVisible.value = true
-}
-
-const toggleClientSelection = (client: ClientNode) => {
-  const idx = selectedClients.value.indexOf(client.clientId)
-  if (idx >= 0) {
-    selectedClients.value.splice(idx, 1)
-    return
-  }
-  selectedClients.value.push(client.clientId)
-}
-
-const showClientDetails = (client: ClientNode) => {
-  activeClient.value = client
-  clientDialogVisible.value = true
-}
-
-const sendMessageToClient = (client: ClientNode) => {
-  ElMessage.success(`已向 ${client.name} 下发同步指令`)
-}
-
-const startDemo = () => {
-  if (demoRunning.value) return
+// 方法
+const startDemo = async () => {
   demoRunning.value = true
-  demoProgress.value = { clientConnect: 0, localTraining: 0, globalAggregation: 0 }
-  ElMessage.success('联邦训练演示已开始')
-
-  demoTimer = window.setInterval(() => {
+  ElMessage.success('开始联邦学习交互演示')
+  
+  // 模拟演示进度
+  const interval = setInterval(() => {
     if (demoProgress.value.clientConnect < 100) {
       demoProgress.value.clientConnect += 10
-      return
-    }
-    if (demoProgress.value.localTraining < 100) {
+    } else if (demoProgress.value.localTraining < 100) {
       demoProgress.value.localTraining += 10
-      return
-    }
-    if (demoProgress.value.globalAggregation < 100) {
+    } else if (demoProgress.value.globalAggregation < 100) {
       demoProgress.value.globalAggregation += 10
-      return
+    } else {
+      clearInterval(interval)
+      ElMessage.success('演示完成！')
     }
-    stopDemo()
-    ElMessage.success('演示流程完成')
-  }, 900)
+  }, 1000)
 }
 
 const stopDemo = () => {
   demoRunning.value = false
-  if (demoTimer !== null) {
-    window.clearInterval(demoTimer)
-    demoTimer = null
-  }
+  demoProgress.value = { clientConnect: 0, localTraining: 0, globalAggregation: 0 }
+  ElMessage.info('演示已停止')
 }
 
 const resetSystem = async () => {
   try {
-    await ElMessageBox.confirm('确认重置联邦管理演示状态？', '重置确认', {
-      confirmButtonText: '确认',
+    await ElMessageBox.confirm('确定要重置系统吗？这将清除所有演示数据。', '确认重置', {
+      confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
+    
     stopDemo()
-    selectedVersions.value = []
-    selectedClients.value = []
-    isFullscreen.value = false
-    dataTransfers.value = 18
-    ElMessage.success('系统状态已重置')
+    // 重置数据到初始状态
+    ElMessage.success('系统已重置')
   } catch {
-    // ignore cancel
+    // 用户取消操作
   }
 }
 
-const downloadJson = (filename: string, payload: unknown) => {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
+const refreshNetwork = () => {
+  ElMessage.info('网络拓扑已刷新')
+  renderNetwork()
 }
 
 const exportHistory = () => {
-  downloadJson('federated-model-history.json', modelHistory.value)
-  ElMessage.success('模型历史已导出')
+  ElMessage.success('模型历史数据导出成功')
 }
 
-const exportReport = () => {
-  downloadJson('federated-report.json', {
-    generatedAt: new Date().toISOString(),
-    clients: clients.value,
-    modelHistory: modelHistory.value,
-    metrics: {
-      activeNodes: activeNodesCount.value,
-      inactiveNodes: inactiveNodesCount.value,
-      activeRate: activeRate.value,
-      totalDataSize: totalDataSize.value
+const showVersionDetails = (version: any) => {
+  ElMessage.info(`查看版本 ${version.version} 的详细信息`)
+}
+
+const showClientDetails = (client: any) => {
+  clientDialog.value.data = client
+  clientDialog.value.visible = true
+}
+
+const getClientIcon = (name: string) => {
+  if (!name) return '💻'
+  if (name.includes('北京')) return '🏛️'
+  if (name.includes('上海')) return '🏙️'
+  if (name.includes('广州')) return '🌉'
+  if (name.includes('深圳')) return '🏢'
+  if (name.includes('杭州')) return '🏞️'
+  return '💻'
+}
+
+const formatTime = (time: string) => {
+  if (!time) return '从未上传'
+  const date = new Date(time)
+  return date.toLocaleString('zh-CN')
+}
+
+// 网络拓扑渲染
+const networkCanvas = ref<HTMLElement | null>(null)
+
+const renderNetwork = () => {
+  if (!networkCanvas.value) return
+  
+  const canvas = networkCanvas.value
+  canvas.innerHTML = ''
+  
+  // 创建中心节点
+  const centerNode = document.createElement('div')
+  centerNode.className = 'network-node center-node'
+  centerNode.innerHTML = `
+    <div class="node-pulse"></div>
+    <div class="node-content">
+      <span class="node-icon">🌐</span>
+      <span class="node-label">云端服务器</span>
+    </div>
+  `
+  canvas.appendChild(centerNode)
+  
+  // 创建客户端节点
+  clients.value.forEach((client, index) => {
+    const angle = (index / clients.value.length) * 2 * Math.PI
+    const radius = 180
+    const isActive = client.upload_count > 0
+    
+    const clientNode = document.createElement('div')
+    clientNode.className = `network-node client-node ${isActive ? 'active' : ''}`
+    clientNode.style.left = `calc(50% + ${radius * Math.cos(angle)}px)`
+    clientNode.style.top = `calc(50% + ${radius * Math.sin(angle)}px)`
+    clientNode.innerHTML = `
+      <div class="node-content">
+        <span class="node-icon">${getClientIcon(client.info?.name)}</span>
+        <span class="node-label">${client.info?.name || client.client_id}</span>
+      </div>
+      ${isActive ? '<div class="node-status active"></div>' : '<div class="node-status"></div>'}
+    `
+    
+    // 创建连接线
+    const line = document.createElement('div')
+    line.className = `network-line ${isActive ? 'active' : ''}`
+    line.style.width = `${radius}px`
+    line.style.left = '50%'
+    line.style.top = '50%'
+    line.style.transform = `rotate(${angle}rad)`
+    
+    if (isActive) {
+      line.innerHTML = '<div class="data-flow"></div>'
     }
+    
+    canvas.appendChild(line)
+    canvas.appendChild(clientNode)
   })
-  ElMessage.success('联邦报告已导出')
 }
 
+// 生命周期
 onMounted(() => {
-  refreshTimer = window.setInterval(() => {
-    if (!autoRefresh.value) return
-    dataTransfers.value += 1
-  }, 8000)
-})
-
-onUnmounted(() => {
-  stopDemo()
-  if (refreshTimer !== null) {
-    window.clearInterval(refreshTimer)
-    refreshTimer = null
-  }
+  renderNetwork()
+  
+  // 自动刷新定时器
+  const refreshInterval = setInterval(() => {
+    if (autoRefresh.value) {
+      renderNetwork()
+    }
+  }, 5000)
+  
+  onUnmounted(() => {
+    clearInterval(refreshInterval)
+  })
 })
 </script>
 
 <style scoped>
 .federated-learning-view {
-  height: auto;
-  min-height: 0;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--bg-app);
-  overflow: visible;
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow-x: hidden;
+  font-family: var(--font-sans);
 }
 
-.federated-learning-view > section {
-  flex-shrink: 0;
+/* 背景氛围效果 */
+.ambient-glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  filter: blur(40px);
+  z-index: 0;
 }
 
+.ambient-glow.top-left {
+  top: -100px;
+  left: -100px;
+}
+
+.ambient-glow.bottom-right {
+  bottom: -100px;
+  right: -100px;
+}
+
+/* 玻璃态面板样式 */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--border-light);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+.glass-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px);
+}
+
+/* 页面标题 */
 .page-header {
-  padding: 16px;
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.header-content {
+  color: white;
+}
+
+.page-title {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.header-content h1 {
+.page-subtitle {
+  font-size: 16px;
+  opacity: 0.9;
   margin: 0;
-  font-size: 24px;
 }
 
-.header-content p {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.header-actions {
+.global-controls {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
+/* 概览卡片 */
 .overview-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
 }
 
 .overview-card {
-  padding: 14px;
+  padding: 20px;
+  color: white;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  transition: transform 0.3s ease;
 }
 
-.stat-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.overview-card:hover {
+  transform: translateY(-2px);
 }
 
-.stat-meta .label {
-  font-size: 12px;
-  color: var(--text-secondary);
+.stat-icon {
+  font-size: 32px;
 }
 
-.stat-meta .value {
-  font-size: 22px;
+.stat-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 14px;
+  opacity: 0.8;
+  margin-top: 4px;
 }
 
 .stat-trend {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.stat-trend.up {
-  color: #16a34a;
+.stat-trend.positive {
+  color: #52c41a;
 }
 
-.stat-trend.down {
-  color: #dc2626;
+.stat-trend.negative {
+  color: #f5222d;
 }
 
+/* 主要内容区域 */
 .main-content {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 12px;
-  align-items: start;
-  min-height: 0;
-}
-
-.network-section {
-  padding: 14px;
-  min-height: 640px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.section-header h2,
-.section-header h3 {
-  margin: 0;
-}
-
-.section-header p {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.section-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.network-canvas-wrapper {
-  margin-top: 12px;
-}
-
-.network-toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.network-canvas {
+  grid-template-columns: 1fr 400px;
+  gap: 24px;
   position: relative;
-  height: 430px;
-  border-radius: 12px;
-  background: linear-gradient(160deg, #f8fafc, #eef2ff);
-  border: 1px solid var(--border-light);
-  overflow: hidden;
-}
-
-.network-canvas.fullscreen {
-  height: 520px;
-}
-
-.hub-node {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 120px;
-  height: 120px;
-  border-radius: 60px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(145deg, #4f46e5, #6366f1);
-  color: #fff;
-  box-shadow: 0 16px 32px rgba(79, 70, 229, 0.3);
-  z-index: 2;
-}
-
-.hub-title {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.hub-subtitle {
-  margin-top: 4px;
-  font-size: 11px;
-  opacity: 0.85;
-}
-
-.line {
-  position: absolute;
-  height: 2px;
-  transform-origin: left center;
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.7), transparent);
   z-index: 1;
 }
 
-.line.active {
-  background: linear-gradient(90deg, rgba(22, 163, 74, 0.8), transparent);
-}
-
-.client-node {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  width: 94px;
-  min-height: 70px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid var(--border-light);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  z-index: 3;
-}
-
-.client-node.active {
-  border-color: rgba(22, 163, 74, 0.4);
-}
-
-.client-node.online {
-  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.15);
-}
-
-.node-badge {
-  width: 26px;
-  height: 26px;
-  border-radius: 13px;
-  background: var(--primary-fade);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: var(--primary-color);
-}
-
-.node-name {
-  max-width: 80px;
-  font-size: 11px;
-  color: var(--text-regular);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.network-status {
-  margin-top: 10px;
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 4px;
-}
-
-.dot.active {
-  background: #22c55e;
-}
-
-.dot.inactive {
-  background: #94a3b8;
-}
-
-.dot.transfer {
-  background: #3b82f6;
+.network-section {
+  min-height: 600px;
 }
 
 .details-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 0;
+  gap: 24px;
 }
 
 .detail-section {
-  padding: 14px;
-  min-height: 0;
+  flex: 1;
 }
 
-.timeline-controls {
-  margin-top: 12px;
+/* 区域标题 */
+.section-header {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
   align-items: center;
+  padding: 20px 20px 0;
+  margin-bottom: 16px;
 }
 
-.timeline-list {
-  margin-top: 10px;
+.section-title {
+  color: white;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
+}
+
+.section-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 网络拓扑容器 */
+.network-canvas-container {
+  padding: 20px;
+  position: relative;
+}
+
+/* 网络控制工具栏 */
+.network-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.network-toolbar .el-button {
+  background: transparent !important;
+  border: 1px solid var(--border-light) !important;
+}
+
+.network-canvas {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* 网络节点样式 */
+.network-node {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.network-node.center-node {
+  background: radial-gradient(circle at 30% 30%, #ff6b6b, #ee5a52);
+  color: white;
+  box-shadow: 0 8px 32px rgba(255, 107, 107, 0.4);
+  left: 50%;
+  top: 50%;
+  z-index: 10;
+}
+
+.network-node.client-node {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.network-node.client-node.active {
+  background: rgba(82, 196, 26, 0.2);
+  border-color: #52c41a;
+  box-shadow: 0 4px 16px rgba(82, 196, 26, 0.3);
+}
+
+.node-content {
+  text-align: center;
+  z-index: 2;
+}
+
+.node-icon {
+  font-size: 24px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.node-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.node-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(255, 107, 107, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.node-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ccc;
+}
+
+.node-status.active {
+  background: #52c41a;
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 网络连接线 */
+.network-line {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), transparent);
+  transform-origin: left center;
+  z-index: 1;
+}
+
+.network-line.active {
+  background: linear-gradient(90deg, #52c41a, transparent);
+  height: 3px;
+}
+
+.data-flow {
+  position: absolute;
+  width: 20px;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), transparent);
+  animation: dataFlow 2s linear infinite;
+}
+
+@keyframes dataFlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(1000%); }
+}
+
+/* 网络状态指示器 */
+.network-status {
+  display: flex;
+  gap: 20px;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-size: 14px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ccc;
+}
+
+.status-dot.active {
+  background: #52c41a;
+  animation: blink 2s ease-in-out infinite;
+}
+
+.status-count {
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* 时间线容器 */
+.timeline-container {
+  padding: 0 20px 20px;
   max-height: 300px;
-  min-height: 0;
   overflow-y: auto;
 }
 
-.timeline-item {
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  padding: 10px;
+.version-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
   cursor: pointer;
-  background: #fff;
+  transition: background 0.3s ease;
 }
 
-.timeline-item.selected {
-  border-color: rgba(79, 70, 229, 0.45);
-  background: rgba(79, 70, 229, 0.06);
+.version-card:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.item-row {
+.version-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 8px;
+  margin-bottom: 8px;
 }
 
-.item-row.muted {
-  margin-top: 6px;
+.version-tag {
+  background: rgba(24, 144, 255, 0.2);
+  color: #1890ff;
+  padding: 2px 8px;
+  border-radius: 4px;
   font-size: 12px;
-  color: var(--text-secondary);
+  font-weight: 600;
 }
 
-.search-input {
-  width: 180px;
-}
-
-.clients-overview {
-  margin-top: 12px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+.clients-badge {
+  color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
-  color: var(--text-secondary);
 }
 
-.clients-list {
-  margin-top: 10px;
+.version-metrics {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 360px;
-  min-height: 0;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 客户端列表 */
+.clients-container {
+  padding: 0 20px 20px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
 .client-card {
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  padding: 10px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.client-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
 }
 
 .client-card.active {
-  border-color: rgba(22, 163, 74, 0.35);
+  border-color: rgba(82, 196, 26, 0.3);
 }
 
-.client-card.selected {
-  border-color: rgba(79, 70, 229, 0.4);
-  background: rgba(79, 70, 229, 0.05);
-}
-
-.metric {
-  margin-top: 8px;
+.client-header {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.client-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-avatar.large {
+  width: 60px;
+  height: 60px;
+}
+
+.avatar-icon {
+  font-size: 18px;
+}
+
+.client-avatar.large .avatar-icon {
+  font-size: 24px;
+}
+
+.client-info {
+  flex: 1;
+}
+
+.client-name {
+  color: white;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.client-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.7);
 }
 
-.actions {
-  margin-top: 8px;
+.client-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.stat {
   display: flex;
-  gap: 8px;
+  justify-content: space-between;
+  font-size: 12px;
 }
 
-.demo-panel {
-  padding: 12px 14px;
+.stat-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.stat-value {
+  color: white;
+  font-weight: 600;
+}
+
+/* 演示控制面板 */
+.demo-controls {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 400px;
+  z-index: 1000;
+  color: white;
 }
 
 .demo-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.demo-body {
-  margin-top: 10px;
+.demo-content {
+  padding: 20px;
+}
+
+.demo-step {
+  margin-bottom: 16px;
+}
+
+.demo-step:last-child {
+  margin-bottom: 0;
+}
+
+.step-number {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  text-align: center;
+  line-height: 24px;
+  margin-right: 12px;
+  font-weight: 600;
+}
+
+.step-text {
+  font-size: 14px;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+/* 弹窗样式 */
+.client-detail-dialog {
+  --el-dialog-bg-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+}
+
+.detail-header {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
-.demo-item span {
-  display: block;
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
+.detail-info h3 {
+  margin: 0 0 8px 0;
+  color: #1a1a1a;
 }
 
-.dialog-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.detail-info p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
 }
 
-.dialog-grid div {
-  background: var(--bg-input);
+.detail-stats {
+  background: #f8f9fa;
   border-radius: 8px;
-  padding: 10px;
+  padding: 16px;
+}
+
+.stat-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e8e8e8;
 }
 
-.dialog-grid span {
-  font-size: 12px;
-  color: var(--text-secondary);
+.stat-row:last-child {
+  border-bottom: none;
 }
 
-@media (max-width: 1280px) {
-  .overview-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.stat-row .stat-label {
+  color: #666;
+}
 
+.stat-row .stat-value {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
   .main-content {
     grid-template-columns: 1fr;
+  }
+  
+  .demo-controls {
+    width: calc(100% - 48px);
+    left: 24px;
+    right: 24px;
   }
 }
 
 @media (max-width: 768px) {
-  .federated-learning-view {
-    padding: 12px;
-  }
-
   .page-header {
     flex-direction: column;
+    gap: 16px;
   }
-
-  .header-actions {
-    flex-wrap: wrap;
-  }
-
+  
   .overview-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
-
-  .network-status {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .dialog-grid {
-    grid-template-columns: 1fr;
+  
+  .page-title {
+    font-size: 28px;
   }
 }
 </style>
