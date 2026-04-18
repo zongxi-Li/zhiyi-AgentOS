@@ -2,7 +2,7 @@
   <div class="aggregation-card">
     <div class="aggregation-header">
       <div class="header-icon">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
           <circle cx="10" cy="4" r="2.5" fill="#6366f1" />
           <circle cx="4" cy="14" r="2.5" fill="#22d3ee" />
           <circle cx="16" cy="14" r="2.5" fill="#a78bfa" />
@@ -16,7 +16,7 @@
     </div>
 
     <div class="aggregation-visual">
-      <svg width="100%" height="120" viewBox="0 0 280 120" class="agg-svg">
+      <svg width="100%" height="100" viewBox="0 0 280 100" class="agg-svg">
         <defs>
           <linearGradient id="aggBarGrad" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stop-color="#6366f1" />
@@ -25,42 +25,42 @@
           <filter id="aggGlow">
             <feGaussianBlur stdDeviation="2" result="blur" />
             <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
+              <feMerge in="blur" />
+              <feMerge in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
 
-        <g v-for="(client, idx) in clients" :key="`agg-${idx}`" :transform="`translate(20, ${12 + idx * 22})`">
-          <text x="0" y="10" fill="#94a3b8" font-size="9">{{ client.label }}</text>
-          <rect x="60" y="2" width="160" height="12" rx="3" fill="#1e293b" />
+        <g v-for="(client, idx) in clients" :key="`agg-${idx}`" :transform="`translate(20, ${8 + idx * 16})`">
+          <text x="0" y="9" fill="#94a3b8" font-size="8">{{ client.label }}</text>
+          <rect x="55" y="1" width="165" height="10" rx="2" fill="#1e293b" />
           <rect
-            x="60" y="2"
-            :width="client.weight * 160"
-            height="12"
-            rx="3"
+            x="55" y="1"
+            :width="client.weight * 165"
+            height="10"
+            rx="2"
             fill="url(#aggBarGrad)"
             :opacity="0.6 + client.weight * 0.4"
             class="weight-bar"
             :style="{ animationDelay: `${idx * 0.15}s` }"
           />
-          <text :x="60 + client.weight * 160 + 6" y="11" fill="#e2e8f0" font-size="8" font-weight="500">
+          <text :x="55 + client.weight * 165 + 5" y="9" fill="#e2e8f0" font-size="7" font-weight="500">
             {{ (client.weight * 100).toFixed(0) }}%
           </text>
-          <g :transform="`translate(228, 2)`">
-            <rect width="32" height="12" rx="3" :fill="client.uploaded ? '#064e3b' : '#1e293b'" />
-            <text x="16" y="9" text-anchor="middle" :fill="client.uploaded ? '#34d399' : '#475569'" font-size="7">
+          <g :transform="`translate(225, 1)`">
+            <rect width="30" height="10" rx="2" :fill="client.uploaded ? '#064e3b' : '#1e293b'" />
+            <text x="15" y="8" text-anchor="middle" :fill="client.uploaded ? '#34d399' : '#475569'" font-size="6">
               {{ client.uploaded ? '✓' : '...' }}
             </text>
           </g>
         </g>
 
-        <g transform="translate(20, 100)">
+        <g transform="translate(20, 88)">
           <line x1="0" y1="0" x2="280" y2="0" stroke="#334155" stroke-width="0.5" />
-          <text x="0" y="12" fill="#64748b" font-size="8">聚合方法: FedAvg | 最小客户端: {{ minClients }}</text>
-          <g v-if="aggregating" transform="translate(220, 4)">
-            <circle r="3" fill="#6366f1" class="agg-pulse" />
-            <text x="8" y="3" fill="#a78bfa" font-size="8">聚合中...</text>
+          <text x="0" y="9" fill="#64748b" font-size="7">聚合方法: FedAvg | 最小客户端: {{ minClients }}</text>
+          <g v-if="aggregating" transform="translate(200, 2)">
+            <circle r="2.5" fill="#6366f1" class="agg-pulse" />
+            <text x="6" y="2" fill="#a78bfa" font-size="7">聚合中...</text>
           </g>
         </g>
       </svg>
@@ -68,14 +68,14 @@
 
     <div class="aggregation-actions">
       <button class="agg-btn primary" @click="$emit('aggregate')" :disabled="!canAggregate">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
           <path d="M7 1v4M7 9v4M1 7h4M9 7h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
           <circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1" opacity="0.5" />
         </svg>
         执行聚合
       </button>
       <button class="agg-btn" @click="$emit('refresh')">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
           <path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
           <path d="M11 1v3h-3M3 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
@@ -135,16 +135,16 @@ const statusClass = computed(() => {
 .aggregation-card {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(99, 102, 241, 0.15);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 6px;
   backdrop-filter: blur(12px);
 }
 
 .aggregation-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .header-icon {
@@ -153,16 +153,16 @@ const statusClass = computed(() => {
 }
 
 .header-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   color: #e2e8f0;
   flex: 1;
 }
 
 .header-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 6px;
   font-weight: 500;
 }
 
@@ -203,23 +203,23 @@ const statusClass = computed(() => {
 }
 
 @keyframes aggPulse {
-  0%, 100% { opacity: 1; r: 3; }
-  50% { opacity: 0.4; r: 5; }
+  0%, 100% { opacity: 1; r: 2.5; }
+  50% { opacity: 0.4; r: 4; }
 }
 
 .aggregation-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .agg-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-size: 12px;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 10px;
   font-weight: 500;
   border: 1px solid rgba(99, 102, 241, 0.2);
   background: rgba(30, 41, 59, 0.6);

@@ -39,7 +39,29 @@
         :class="{ active: activeTab === tab.key }"
         @click="activeTab = tab.key"
       >
-        <span class="tab-icon">{{ tab.icon }}</span>
+        <svg v-if="tab.key === 'topology'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.2" />
+          <circle cx="7" cy="7" r="2" fill="currentColor" opacity="0.3" />
+          <circle cx="4" cy="4" r="1" fill="currentColor" />
+          <circle cx="10" cy="4" r="1" fill="currentColor" />
+          <circle cx="4" cy="10" r="1" fill="currentColor" />
+          <circle cx="10" cy="10" r="1" fill="currentColor" />
+        </svg>
+        <svg v-else-if="tab.key === 'training'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 11L5 7L8 9L12 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="12" cy="3" r="1.5" fill="currentColor" opacity="0.3" />
+        </svg>
+        <svg v-else-if="tab.key === 'aggregation'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="10" r="1.5" fill="currentColor" />
+          <circle cx="11" cy="10" r="1.5" fill="currentColor" />
+          <line x1="7" y1="4.5" x2="3" y2="8.5" stroke="currentColor" stroke-width="0.8" opacity="0.5" />
+          <line x1="7" y1="4.5" x2="11" y2="8.5" stroke="currentColor" stroke-width="0.8" opacity="0.5" />
+        </svg>
+        <svg v-else-if="tab.key === 'models'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1L13 4v6l-6 3-6-3V4l6-3z" stroke="currentColor" stroke-width="1.2" />
+          <path d="M7 1v6m0 0l6-3m-6 3l-6-3m6 3v6" stroke="currentColor" stroke-width="0.6" opacity="0.4" />
+        </svg>
         <span class="tab-label">{{ tab.label }}</span>
       </button>
     </div>
@@ -146,34 +168,9 @@
             </div>
           </div>
         </div>
-
-        <div class="version-timeline">
-          <div class="timeline-header">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6" stroke="#6366f1" stroke-width="1.2" />
-              <path d="M8 5v3l2 1.5" stroke="#6366f1" stroke-width="1" stroke-linecap="round" />
-            </svg>
-            <span>版本历史</span>
-          </div>
-          <div class="timeline-list">
-            <div v-for="ver in versionHistory" :key="ver.version" class="timeline-item" :class="{ latest: ver.isLatest }">
-              <div class="timeline-dot"></div>
-              <div class="timeline-content">
-                <div class="timeline-version">v{{ ver.version }}</div>
-                <div class="timeline-meta">
-                  <span>准确率 {{ ver.accuracy }}%</span>
-                  <span>·</span>
-                  <span>{{ ver.clients }} 节点</span>
-                  <span>·</span>
-                  <span>{{ ver.time }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div v-show="activeTab === 'models'" class="tab-content">
+      <div v-show="activeTab === 'models'" class="tab-content models-tab">
         <div class="models-grid">
           <div v-for="model in models" :key="model.id" class="model-item" :class="model.status">
             <div class="model-head">
@@ -211,6 +208,31 @@
             </div>
           </div>
         </div>
+
+        <div class="version-timeline">
+          <div class="timeline-header">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="#6366f1" stroke-width="1.2" />
+              <path d="M8 5v3l2 1.5" stroke="#6366f1" stroke-width="1" stroke-linecap="round" />
+            </svg>
+            <span>版本历史</span>
+          </div>
+          <div class="timeline-list">
+            <div v-for="ver in versionHistory" :key="ver.version" class="timeline-item" :class="{ latest: ver.isLatest }">
+              <div class="timeline-dot"></div>
+              <div class="timeline-content">
+                <div class="timeline-version">v{{ ver.version }}</div>
+                <div class="timeline-meta">
+                  <span>准确率 {{ ver.accuracy }}%</span>
+                  <span>·</span>
+                  <span>{{ ver.clients }} 节点</span>
+                  <span>·</span>
+                  <span>{{ ver.time }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -233,10 +255,10 @@ const dataTransferRate = ref('12.4')
 const commOverhead = ref('8.2')
 
 const tabs = [
-  { key: 'topology', icon: '🕸️', label: '网络拓扑' },
-  { key: 'training', icon: '📈', label: '训练曲线' },
-  { key: 'aggregation', icon: '🔄', label: '模型聚合' },
-  { key: 'models', icon: '🧠', label: '模型管理' }
+  { key: 'topology', label: '网络拓扑' },
+  { key: 'training', label: '训练监控' },
+  { key: 'aggregation', label: '聚合与隐私' },
+  { key: 'models', label: '模型与版本' }
 ]
 
 const topologyClients = ref([
@@ -559,7 +581,9 @@ onMounted(async () => {
 }
 
 .tab-icon {
-  font-size: 13px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .panel-body {
@@ -813,14 +837,20 @@ onMounted(async () => {
   margin-top: 2px;
 }
 
-.models-grid {
+.models-tab {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+.models-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
 
 .model-item {
-  padding: 12px;
+  padding: 10px;
   background: rgba(15, 23, 42, 0.03);
   border-radius: 10px;
   border: 1px solid rgba(99, 102, 241, 0.08);
@@ -836,7 +866,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .model-icon-wrap {
@@ -851,21 +881,25 @@ onMounted(async () => {
 }
 
 .model-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .model-version {
-  font-size: 10px;
+  font-size: 9px;
   color: #94a3b8;
 }
 
 .model-status-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 8px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .model-status-badge.online {
@@ -886,26 +920,26 @@ onMounted(async () => {
 .model-perf {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .perf-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
+  gap: 6px;
+  font-size: 10px;
 }
 
 .perf-label {
-  width: 36px;
+  width: 32px;
   color: #94a3b8;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .perf-bar {
   flex: 1;
-  height: 4px;
+  height: 3px;
   background: #e2e8f0;
   border-radius: 2px;
   overflow: hidden;
@@ -918,11 +952,11 @@ onMounted(async () => {
 }
 
 .perf-value {
-  width: 36px;
+  width: 32px;
   text-align: right;
   font-weight: 600;
   color: #475569;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .model-actions {
@@ -932,9 +966,9 @@ onMounted(async () => {
 
 .model-btn {
   flex: 1;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 10px;
   border: 1px solid rgba(99, 102, 241, 0.12);
   background: transparent;
   color: #64748b;
@@ -955,5 +989,11 @@ onMounted(async () => {
 
 .model-btn.primary:hover {
   background: rgba(99, 102, 241, 0.15);
+}
+
+@media (max-width: 768px) {
+  .models-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -75,225 +75,223 @@
         </div>
       </div>
 
-      <div class="main-grid">
-        <div class="left-col">
-          <div class="panel-card topology-panel">
-            <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="9" r="7" stroke="#6366f1" stroke-width="1.2" />
-                  <circle cx="9" cy="9" r="3" fill="#6366f1" opacity="0.3" />
-                  <circle cx="9" cy="9" r="1.5" fill="#6366f1" />
-                  <circle cx="5" cy="5" r="1.5" fill="#22d3ee" />
-                  <circle cx="13" cy="5" r="1.5" fill="#22d3ee" />
-                  <circle cx="5" cy="13" r="1.5" fill="#22d3ee" />
-                  <circle cx="13" cy="13" r="1.5" fill="#22d3ee" />
-                </svg>
-                <h2>联邦网络拓扑</h2>
-              </div>
-              <div class="panel-actions">
-                <button class="icon-btn" @click="refreshNetwork" title="刷新">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-                    <path d="M11 1v3h-3M3 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </div>
+      <div class="viz-row">
+        <div class="panel-card topology-panel">
+          <div class="panel-card-header">
+            <div class="panel-title-group">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="7" stroke="#6366f1" stroke-width="1.2" />
+                <circle cx="9" cy="9" r="3" fill="#6366f1" opacity="0.3" />
+                <circle cx="9" cy="9" r="1.5" fill="#6366f1" />
+                <circle cx="5" cy="5" r="1.5" fill="#22d3ee" />
+                <circle cx="13" cy="5" r="1.5" fill="#22d3ee" />
+                <circle cx="5" cy="13" r="1.5" fill="#22d3ee" />
+                <circle cx="13" cy="13" r="1.5" fill="#22d3ee" />
+              </svg>
+              <h2>联邦网络拓扑</h2>
             </div>
-            <FederatedTopologyGraph
-              :clients="topologyClients"
-              :global-version="globalVersion"
-              :aggregating="aggregating"
-            />
+            <div class="panel-actions">
+              <button class="icon-btn" @click="refreshNetwork" title="刷新">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                  <path d="M11 1v3h-3M3 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
           </div>
+          <FederatedTopologyGraph
+            :clients="topologyClients"
+            :global-version="globalVersion"
+            :aggregating="aggregating"
+          />
+        </div>
 
-          <div class="panel-card training-panel">
-            <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M2 14L6 8L10 11L16 3" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                  <circle cx="16" cy="3" r="2" fill="#22d3ee" opacity="0.3" />
-                </svg>
-                <h2>训练曲线</h2>
-              </div>
-              <div class="training-controls">
-                <button class="ctrl-btn" :class="{ active: trainingRunning }" @click="toggleTraining">
-                  {{ trainingRunning ? '⏸ 暂停' : '▶ 继续' }}
-                </button>
-                <button class="ctrl-btn" @click="resetTraining">↺ 重置</button>
-              </div>
+        <div class="panel-card training-panel">
+          <div class="panel-card-header">
+            <div class="panel-title-group">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M2 14L6 8L10 11L16 3" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="16" cy="3" r="2" fill="#22d3ee" opacity="0.3" />
+              </svg>
+              <h2>训练曲线</h2>
             </div>
-            <TrainingCurveChart
-              :accuracy-data="accuracyHistory"
-              :loss-data="lossHistory"
-              :rounds="roundHistory"
-            />
-            <div class="training-metrics-row">
-              <div class="mini-metric">
-                <span class="mini-metric-label">准确率</span>
-                <span class="mini-metric-value cyan">{{ currentAccuracy }}%</span>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-metric-label">损失值</span>
-                <span class="mini-metric-value pink">{{ currentLoss }}</span>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-metric-label">训练耗时</span>
-                <span class="mini-metric-value purple">{{ trainingTime }}</span>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-metric-label">收敛速度</span>
-                <span class="mini-metric-value green">{{ convergenceSpeed }}</span>
+            <div class="training-controls">
+              <button class="ctrl-btn" :class="{ active: trainingRunning }" @click="toggleTraining">
+                {{ trainingRunning ? '⏸ 暂停' : '▶ 继续' }}
+              </button>
+              <button class="ctrl-btn" @click="resetTraining">↺ 重置</button>
+            </div>
+          </div>
+          <TrainingCurveChart
+            :accuracy-data="accuracyHistory"
+            :loss-data="lossHistory"
+            :rounds="roundHistory"
+          />
+          <div class="training-metrics-row">
+            <div class="mini-metric">
+              <span class="mini-metric-label">准确率</span>
+              <span class="mini-metric-value cyan">{{ currentAccuracy }}%</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">损失值</span>
+              <span class="mini-metric-value pink">{{ currentLoss }}</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">训练耗时</span>
+              <span class="mini-metric-value purple">{{ trainingTime }}</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">收敛速度</span>
+              <span class="mini-metric-value green">{{ convergenceSpeed }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="panel-card aggregation-panel">
+          <div class="panel-card-header">
+            <div class="panel-title-group">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="4" r="2" fill="#6366f1" />
+                <circle cx="4" cy="13" r="2" fill="#22d3ee" />
+                <circle cx="14" cy="13" r="2" fill="#a78bfa" />
+                <line x1="9" y1="6" x2="4" y2="11" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
+                <line x1="9" y1="6" x2="14" y2="11" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
+              </svg>
+              <h2>模型聚合</h2>
+            </div>
+          </div>
+          <ModelAggregationCard
+            :clients="aggClients"
+            :aggregating="aggregating"
+            :min-clients="3"
+            @aggregate="handleAggregate"
+            @refresh="fetchAggregationStatus"
+          />
+        </div>
+
+        <div class="panel-card privacy-panel">
+          <div class="panel-card-header">
+            <div class="panel-title-group">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="4" y="8" width="10" height="7" rx="1.5" stroke="#34d399" stroke-width="1.2" />
+                <path d="M6 8V6a3 3 0 0 1 6 0v2" stroke="#34d399" stroke-width="1.2" stroke-linecap="round" />
+                <circle cx="9" cy="11.5" r="1" fill="#34d399" />
+              </svg>
+              <h2>隐私保护</h2>
+            </div>
+          </div>
+          <div class="privacy-content">
+            <div class="privacy-visual">
+              <svg width="100%" height="80" viewBox="0 0 280 80" class="privacy-svg">
+                <defs>
+                  <linearGradient id="privGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.2" />
+                    <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.1" />
+                    <stop offset="100%" stop-color="#34d399" stop-opacity="0.2" />
+                  </linearGradient>
+                </defs>
+                <rect x="0" y="0" width="280" height="80" rx="8" fill="url(#privGrad)" />
+                <g transform="translate(30, 20)">
+                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#6366f1" opacity="0.15" stroke="#6366f1" stroke-width="0.5" />
+                  <text x="20" y="24" text-anchor="middle" fill="#6366f1" font-size="8">∇x</text>
+                </g>
+                <g transform="translate(90, 20)">
+                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#22d3ee" opacity="0.15" stroke="#22d3ee" stroke-width="0.5" />
+                  <text x="20" y="24" text-anchor="middle" fill="#22d3ee" font-size="8">ε-δ</text>
+                </g>
+                <g transform="translate(150, 20)">
+                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#a78bfa" opacity="0.15" stroke="#a78bfa" stroke-width="0.5" />
+                  <text x="20" y="24" text-anchor="middle" fill="#a78bfa" font-size="8">E[·]</text>
+                </g>
+                <g transform="translate(210, 20)">
+                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#34d399" opacity="0.15" stroke="#34d399" stroke-width="0.5" />
+                  <text x="20" y="24" text-anchor="middle" fill="#34d399" font-size="8">||g||</text>
+                </g>
+                <line x1="70" y1="40" x2="90" y2="40" stroke="#64748b" stroke-width="0.8" marker-end="url(#arrowhead)" />
+                <line x1="130" y1="40" x2="150" y2="40" stroke="#64748b" stroke-width="0.8" />
+                <line x1="190" y1="40" x2="210" y2="40" stroke="#64748b" stroke-width="0.8" />
+              </svg>
+            </div>
+            <div class="privacy-items">
+              <div class="privacy-item" v-for="item in privacyMechanisms" :key="item.label">
+                <span class="privacy-dot" :class="{ active: item.enabled }"></span>
+                <span class="privacy-label">{{ item.label }}</span>
+                <span class="privacy-status" :class="{ on: item.enabled }">{{ item.enabled ? '已启用' : '未启用' }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="right-col">
-          <div class="panel-card aggregation-panel">
-            <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="4" r="2" fill="#6366f1" />
-                  <circle cx="4" cy="13" r="2" fill="#22d3ee" />
-                  <circle cx="14" cy="13" r="2" fill="#a78bfa" />
-                  <line x1="9" y1="6" x2="4" y2="11" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-                  <line x1="9" y1="6" x2="14" y2="11" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-                </svg>
-                <h2>模型聚合</h2>
-              </div>
+        <div class="panel-card models-panel">
+          <div class="panel-card-header">
+            <div class="panel-title-group">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M9 2L16 6v6l-7 4-7-4V6l7-4z" stroke="#6366f1" stroke-width="1.2" />
+                <path d="M9 2v8m0 0l7-4m-7 4l-7-4m7 4v8" stroke="#6366f1" stroke-width="0.6" opacity="0.4" />
+              </svg>
+              <h2>模型管理</h2>
             </div>
-            <ModelAggregationCard
-              :clients="aggClients"
-              :aggregating="aggregating"
-              :min-clients="3"
-              @aggregate="handleAggregate"
-              @refresh="fetchAggregationStatus"
-            />
           </div>
-
-          <div class="panel-card privacy-panel">
-            <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <rect x="4" y="8" width="10" height="7" rx="1.5" stroke="#34d399" stroke-width="1.2" />
-                  <path d="M6 8V6a3 3 0 0 1 6 0v2" stroke="#34d399" stroke-width="1.2" stroke-linecap="round" />
-                  <circle cx="9" cy="11.5" r="1" fill="#34d399" />
-                </svg>
-                <h2>隐私保护</h2>
-              </div>
-            </div>
-            <div class="privacy-content">
-              <div class="privacy-visual">
-                <svg width="100%" height="80" viewBox="0 0 280 80" class="privacy-svg">
-                  <defs>
-                    <linearGradient id="privGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.2" />
-                      <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.1" />
-                      <stop offset="100%" stop-color="#34d399" stop-opacity="0.2" />
-                    </linearGradient>
-                  </defs>
-                  <rect x="0" y="0" width="280" height="80" rx="8" fill="url(#privGrad)" />
-                  <g transform="translate(30, 20)">
-                    <rect x="0" y="0" width="40" height="40" rx="4" fill="#6366f1" opacity="0.15" stroke="#6366f1" stroke-width="0.5" />
-                    <text x="20" y="24" text-anchor="middle" fill="#6366f1" font-size="8">∇x</text>
-                  </g>
-                  <g transform="translate(90, 20)">
-                    <rect x="0" y="0" width="40" height="40" rx="4" fill="#22d3ee" opacity="0.15" stroke="#22d3ee" stroke-width="0.5" />
-                    <text x="20" y="24" text-anchor="middle" fill="#22d3ee" font-size="8">ε-δ</text>
-                  </g>
-                  <g transform="translate(150, 20)">
-                    <rect x="0" y="0" width="40" height="40" rx="4" fill="#a78bfa" opacity="0.15" stroke="#a78bfa" stroke-width="0.5" />
-                    <text x="20" y="24" text-anchor="middle" fill="#a78bfa" font-size="8">E[·]</text>
-                  </g>
-                  <g transform="translate(210, 20)">
-                    <rect x="0" y="0" width="40" height="40" rx="4" fill="#34d399" opacity="0.15" stroke="#34d399" stroke-width="0.5" />
-                    <text x="20" y="24" text-anchor="middle" fill="#34d399" font-size="8">||g||</text>
-                  </g>
-                  <line x1="70" y1="40" x2="90" y2="40" stroke="#64748b" stroke-width="0.8" marker-end="url(#arrowhead)" />
-                  <line x1="130" y1="40" x2="150" y2="40" stroke="#64748b" stroke-width="0.8" />
-                  <line x1="190" y1="40" x2="210" y2="40" stroke="#64748b" stroke-width="0.8" />
-                </svg>
-              </div>
-              <div class="privacy-items">
-                <div class="privacy-item" v-for="item in privacyMechanisms" :key="item.label">
-                  <span class="privacy-dot" :class="{ active: item.enabled }"></span>
-                  <span class="privacy-label">{{ item.label }}</span>
-                  <span class="privacy-status" :class="{ on: item.enabled }">{{ item.enabled ? '已启用' : '未启用' }}</span>
+          <div class="models-list">
+            <div v-for="model in models" :key="model.id" class="model-item" :class="model.status">
+              <div class="model-head">
+                <div class="model-icon-box" :style="{ borderColor: model.color }">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1L14 4.5v7L8 15 2 11.5v-7L8 1z" :stroke="model.color" stroke-width="1" />
+                  </svg>
                 </div>
+                <div class="model-info">
+                  <span class="model-name">{{ model.name }}</span>
+                  <span class="model-version">v{{ model.version }}</span>
+                </div>
+                <span class="model-badge" :class="model.status">{{ model.statusText }}</span>
+              </div>
+              <div class="model-perf">
+                <div class="perf-row">
+                  <span class="perf-label">准确率</span>
+                  <div class="perf-bar"><div class="perf-fill" :style="{ width: model.accuracy + '%', background: model.color }"></div></div>
+                  <span class="perf-val">{{ model.accuracy }}%</span>
+                </div>
+                <div class="perf-row">
+                  <span class="perf-label">效率</span>
+                  <div class="perf-bar"><div class="perf-fill" :style="{ width: model.efficiency + '%', background: model.color, opacity: 0.6 }"></div></div>
+                  <span class="perf-val">{{ model.efficiency }}%</span>
+                </div>
+              </div>
+              <div class="model-btns">
+                <button class="model-btn" @click="evaluateModel(model)">评估</button>
+                <button class="model-btn primary" @click="optimizeModel(model)">优化</button>
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="panel-card models-panel">
-            <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M9 2L16 6v6l-7 4-7-4V6l7-4z" stroke="#6366f1" stroke-width="1.2" />
-                  <path d="M9 2v8m0 0l7-4m-7 4l-7-4m7 4v8" stroke="#6366f1" stroke-width="0.6" opacity="0.4" />
-                </svg>
-                <h2>模型管理</h2>
-              </div>
-            </div>
-            <div class="models-list">
-              <div v-for="model in models" :key="model.id" class="model-item" :class="model.status">
-                <div class="model-head">
-                  <div class="model-icon-box" :style="{ borderColor: model.color }">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M8 1L14 4.5v7L8 15 2 11.5v-7L8 1z" :stroke="model.color" stroke-width="1" />
-                    </svg>
-                  </div>
-                  <div class="model-info">
-                    <span class="model-name">{{ model.name }}</span>
-                    <span class="model-version">v{{ model.version }}</span>
-                  </div>
-                  <span class="model-badge" :class="model.status">{{ model.statusText }}</span>
-                </div>
-                <div class="model-perf">
-                  <div class="perf-row">
-                    <span class="perf-label">准确率</span>
-                    <div class="perf-bar"><div class="perf-fill" :style="{ width: model.accuracy + '%', background: model.color }"></div></div>
-                    <span class="perf-val">{{ model.accuracy }}%</span>
-                  </div>
-                  <div class="perf-row">
-                    <span class="perf-label">效率</span>
-                    <div class="perf-bar"><div class="perf-fill" :style="{ width: model.efficiency + '%', background: model.color, opacity: 0.6 }"></div></div>
-                    <span class="perf-val">{{ model.efficiency }}%</span>
-                  </div>
-                </div>
-                <div class="model-btns">
-                  <button class="model-btn" @click="evaluateModel(model)">评估</button>
-                  <button class="model-btn primary" @click="optimizeModel(model)">优化</button>
-                </div>
-              </div>
+        <div class="panel-card version-panel">
+          <div class="panel-card-header">
+            <div class="panel-title-group">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="7" stroke="#6366f1" stroke-width="1.2" />
+                <path d="M9 5v4l2.5 1.5" stroke="#6366f1" stroke-width="1" stroke-linecap="round" />
+              </svg>
+              <h2>版本历史</h2>
             </div>
           </div>
-
-          <div class="panel-card version-panel">
-            <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="9" r="7" stroke="#6366f1" stroke-width="1.2" />
-                  <path d="M9 5v4l2.5 1.5" stroke="#6366f1" stroke-width="1" stroke-linecap="round" />
-                </svg>
-                <h2>版本历史</h2>
-              </div>
-            </div>
-            <div class="version-list">
-              <div v-for="ver in versionHistory" :key="ver.version" class="version-item" :class="{ latest: ver.isLatest }">
-                <div class="version-dot"></div>
-                <div class="version-body">
-                  <div class="version-top">
-                    <span class="version-tag">v{{ ver.version }}</span>
-                    <span v-if="ver.isLatest" class="latest-badge">最新</span>
-                  </div>
-                  <div class="version-meta">
-                    <span>准确率 {{ ver.accuracy }}%</span>
-                    <span>·</span>
-                    <span>{{ ver.clients }} 节点</span>
-                    <span>·</span>
-                    <span>{{ ver.time }}</span>
-                  </div>
+          <div class="version-list">
+            <div v-for="ver in versionHistory" :key="ver.version" class="version-item" :class="{ latest: ver.isLatest }">
+              <div class="version-dot"></div>
+              <div class="version-body">
+                <div class="version-top">
+                  <span class="version-tag">v{{ ver.version }}</span>
+                  <span v-if="ver.isLatest" class="latest-badge">最新</span>
+                </div>
+                <div class="version-meta">
+                  <span>准确率 {{ ver.accuracy }}%</span>
+                  <span>·</span>
+                  <span>{{ ver.clients }} 节点</span>
+                  <span>·</span>
+                  <span>{{ ver.time }}</span>
                 </div>
               </div>
             </div>
@@ -847,22 +845,18 @@ onMounted(async () => {
   background: rgba(239, 68, 68, 0.08);
 }
 
-.main-grid {
+.viz-row {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 1fr 1fr;
   gap: 20px;
+  margin-bottom: 20px;
 }
 
-.left-col {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.right-col {
-  display: flex;
-  flex-direction: column;
+.detail-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
+  align-items: stretch;
 }
 
 .panel-card {
@@ -872,6 +866,9 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .panel-card:hover {
@@ -885,6 +882,7 @@ onMounted(async () => {
   padding: 14px 16px;
   border-bottom: 1px solid rgba(99, 102, 241, 0.06);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.02), rgba(34, 211, 238, 0.01));
+  flex-shrink: 0;
 }
 
 .panel-title-group {
@@ -1006,15 +1004,24 @@ onMounted(async () => {
   border: none;
   border-radius: 0;
   background: transparent;
-  padding: 12px 16px;
+  padding: 4px 8px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .privacy-panel .privacy-content {
-  padding: 12px 16px;
+  padding: 4px 8px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .privacy-visual {
-  margin-bottom: 10px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .privacy-svg {
@@ -1024,27 +1031,30 @@ onMounted(async () => {
 .privacy-items {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  flex: 1;
+  padding-top: 4px;
 }
 
 .privacy-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
+  gap: 6px;
+  font-size: 10px;
+  padding: 4px 0;
 }
 
 .privacy-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #cbd5e1;
   flex-shrink: 0;
 }
 
 .privacy-dot.active {
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  background: #34d399;
+  box-shadow: 0 0 4px rgba(52, 211, 153, 0.4);
 }
 
 .privacy-label {
@@ -1053,7 +1063,7 @@ onMounted(async () => {
 }
 
 .privacy-status {
-  font-size: 10px;
+  font-size: 9px;
   color: #94a3b8;
 }
 
@@ -1062,65 +1072,81 @@ onMounted(async () => {
 }
 
 .models-panel .models-list {
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  padding: 4px 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  align-content: start;
 }
 
 .model-item {
-  padding: 12px;
+  padding: 6px;
   background: rgba(99, 102, 241, 0.02);
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid rgba(99, 102, 241, 0.06);
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .model-item:hover {
   border-color: rgba(99, 102, 241, 0.15);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.06);
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.05);
 }
 
 .model-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 5px;
+  margin-bottom: 4px;
 }
 
 .model-icon-box {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
   border: 1.5px solid;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(99, 102, 241, 0.04);
+  flex-shrink: 0;
+}
+
+.model-icon-box svg {
+  width: 11px;
+  height: 11px;
 }
 
 .model-info {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .model-name {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .model-version {
-  font-size: 10px;
+  font-size: 8px;
   color: #94a3b8;
 }
 
 .model-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 6px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .model-badge.online {
@@ -1141,26 +1167,27 @@ onMounted(async () => {
 .model-perf {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 3px;
+  margin-bottom: 4px;
 }
 
 .perf-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 9px;
 }
 
 .perf-label {
-  width: 36px;
+  width: 28px;
   color: #94a3b8;
-  font-size: 10px;
+  font-size: 8px;
+  flex-shrink: 0;
 }
 
 .perf-bar {
   flex: 1;
-  height: 4px;
+  height: 3px;
   background: #e2e8f0;
   border-radius: 2px;
   overflow: hidden;
@@ -1173,23 +1200,24 @@ onMounted(async () => {
 }
 
 .perf-val {
-  width: 36px;
+  width: 26px;
   text-align: right;
   font-weight: 600;
   color: #475569;
-  font-size: 10px;
+  font-size: 8px;
+  flex-shrink: 0;
 }
 
 .model-btns {
   display: flex;
-  gap: 6px;
+  gap: 3px;
 }
 
 .model-btn {
   flex: 1;
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 9px;
   border: 1px solid rgba(99, 102, 241, 0.1);
   background: transparent;
   color: #64748b;
@@ -1213,28 +1241,33 @@ onMounted(async () => {
 }
 
 .version-panel .version-list {
-  padding: 12px 16px;
+  padding: 4px 8px;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  gap: 4px;
 }
 
 .version-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 8px;
+  padding: 4px 0;
   border-left: 2px solid #e2e8f0;
-  padding-left: 14px;
+  padding-left: 10px;
   position: relative;
+  flex-shrink: 0;
 }
 
 .version-item::before {
   content: '';
   position: absolute;
-  left: -5px;
-  top: 12px;
-  width: 8px;
-  height: 8px;
+  left: -4px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #cbd5e1;
   border: 2px solid white;
@@ -1246,18 +1279,18 @@ onMounted(async () => {
 
 .version-item.latest::before {
   background: #6366f1;
-  box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 4px rgba(99, 102, 241, 0.4);
 }
 
 .version-top {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-bottom: 2px;
 }
 
 .version-tag {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   color: #1e293b;
 }
@@ -1267,9 +1300,9 @@ onMounted(async () => {
 }
 
 .latest-badge {
-  font-size: 9px;
-  padding: 1px 6px;
-  border-radius: 6px;
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 4px;
   background: rgba(99, 102, 241, 0.1);
   color: #6366f1;
   font-weight: 600;
@@ -1277,9 +1310,10 @@ onMounted(async () => {
 
 .version-meta {
   display: flex;
-  gap: 4px;
-  font-size: 10px;
+  gap: 3px;
+  font-size: 9px;
   color: #94a3b8;
+  flex-wrap: wrap;
 }
 
 .demo-overlay {
@@ -1386,8 +1420,12 @@ onMounted(async () => {
 }
 
 @media (max-width: 1200px) {
-  .main-grid {
+  .viz-row {
     grid-template-columns: 1fr;
+  }
+
+  .detail-row {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .stats-row {
@@ -1400,6 +1438,14 @@ onMounted(async () => {
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
+  }
+
+  .viz-row {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-row {
+    grid-template-columns: 1fr;
   }
 
   .stats-row {
