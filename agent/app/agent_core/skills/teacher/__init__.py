@@ -1,4 +1,4 @@
-﻿from app.agent_core.skills.teacher.classroom_interaction_design_skill import ClassroomInteractionDesignSkill
+from app.agent_core.skills.teacher.classroom_interaction_design_skill import ClassroomInteractionDesignSkill
 from app.agent_core.skills.teacher.error_analysis_question_push_skill import ErrorAnalysisQuestionPushSkill
 from app.agent_core.skills.teacher.homework_grading_skill import HomeworkGradingSkill
 from app.agent_core.skills.teacher.learning_path_planning_skill import LearningPathPlanningSkill

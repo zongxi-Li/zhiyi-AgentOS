@@ -15,17 +15,17 @@ import {
 } from '@/services/api/agentTeacher'
 import {
   agentProgrammerApi,
-  type CodeReviewResult,
-  type DebugTraceResult,
-  type ArchSuggestResult,
-  type UnitTestResult
+  type RequirementAnalysisResult,
+  type CodebaseSemanticSearchResult,
+  type CodeGenerationResult,
+  type DiagramGenerationResult
 } from '@/services/api/agentProgrammer'
 import {
   agentWriterApi,
-  type OutlineResult,
-  type StyleAnalysisResult,
-  type PlotLogicResult,
-  type PolishDiffResult
+  type InspirationExpandResult,
+  type OutlineGenerateResult,
+  type ContentWriteResult,
+  type CharacterRelationResult
 } from '@/services/api/agentWriter'
 
 export interface EvidenceAnalysisResult {
@@ -107,14 +107,14 @@ export interface Message {
   lessonPlan?: LessonPlanResult
   homeworkGrading?: HomeworkGradingResult
   errorQuestionPush?: ErrorQuestionPushResult
-  codeReview?: CodeReviewResult
-  debugTrace?: DebugTraceResult
-  archSuggest?: ArchSuggestResult
-  unitTest?: UnitTestResult
-  outlineResult?: OutlineResult
-  styleAnalysis?: StyleAnalysisResult
-  plotLogic?: PlotLogicResult
-  polishDiff?: PolishDiffResult
+  requirementAnalysis?: RequirementAnalysisResult
+  codebaseSemanticSearch?: CodebaseSemanticSearchResult
+  codeGeneration?: CodeGenerationResult
+  diagramGeneration?: DiagramGenerationResult
+  inspirationExpand?: InspirationExpandResult
+  outlineGenerate?: OutlineGenerateResult
+  contentWrite?: ContentWriteResult
+  characterRelationMap?: CharacterRelationResult
   agentMode?: 'default' | 'lawyer' | 'teacher' | 'programmer' | 'writer'
 }
 
@@ -275,10 +275,10 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       programmerSessionId.value = response.sessionId || programmerSessionId.value
-      const traceCodeReview = parseTraceObservation(response.trace, 'code_review')
-      const traceDebugTrace = parseTraceObservation(response.trace, 'debug_trace')
-      const traceArchSuggest = parseTraceObservation(response.trace, 'architecture_suggestion')
-      const traceUnitTest = parseTraceObservation(response.trace, 'unit_test_generation')
+      const traceRequirement = parseTraceObservation(response.trace, 'requirement_analysis')
+      const traceSearch = parseTraceObservation(response.trace, 'codebase_semantic_search')
+      const traceCodeGeneration = parseTraceObservation(response.trace, 'code_generation')
+      const traceDiagram = parseTraceObservation(response.trace, 'diagram_generation')
 
       const assistantMessage: Message = {
         id: Date.now() + 1,
@@ -290,10 +290,10 @@ export const useChatStore = defineStore('chat', () => {
         trace: response.trace || [],
         federated: response.federated || {},
         riskLevel: response.riskLevel,
-        codeReview: response.codeReview || response.code_review || traceCodeReview,
-        debugTrace: response.debugTrace || response.debug_trace || traceDebugTrace,
-        archSuggest: response.archSuggest || response.architecture_suggestion || traceArchSuggest,
-        unitTest: response.unitTest || response.unit_test_generation || traceUnitTest,
+        requirementAnalysis: response.requirementAnalysis || response.requirement_analysis || traceRequirement,
+        codebaseSemanticSearch: response.codebaseSemanticSearch || response.codebase_semantic_search || traceSearch,
+        codeGeneration: response.codeGeneration || response.code_generation || traceCodeGeneration,
+        diagramGeneration: response.diagramGeneration || response.diagram_generation || traceDiagram,
         agentMode: 'programmer'
       }
       messages.value.push(assistantMessage)
@@ -317,10 +317,10 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       writerSessionId.value = response.sessionId || writerSessionId.value
-      const traceOutline = parseTraceObservation(response.trace, 'outline_generation')
-      const traceStyle = parseTraceObservation(response.trace, 'style_analysis')
-      const tracePlotLogic = parseTraceObservation(response.trace, 'plot_logic_check')
-      const tracePolish = parseTraceObservation(response.trace, 'text_polish')
+      const traceInspiration = parseTraceObservation(response.trace, 'inspiration_expand')
+      const traceOutline = parseTraceObservation(response.trace, 'outline_generate')
+      const traceContent = parseTraceObservation(response.trace, 'content_write')
+      const traceRelation = parseTraceObservation(response.trace, 'character_relation_map')
 
       const assistantMessage: Message = {
         id: Date.now() + 1,
@@ -332,10 +332,10 @@ export const useChatStore = defineStore('chat', () => {
         trace: response.trace || [],
         federated: response.federated || {},
         riskLevel: response.riskLevel,
-        outlineResult: response.outline || response.outline_generation || traceOutline,
-        styleAnalysis: response.styleAnalysis || response.style_analysis || traceStyle,
-        plotLogic: response.plotLogic || response.plot_logic_check || tracePlotLogic,
-        polishDiff: response.polishDiff || response.text_polish || tracePolish,
+        inspirationExpand: response.inspirationExpand || response.inspiration_expand || traceInspiration,
+        outlineGenerate: response.outlineGenerate || response.outline_generate || traceOutline,
+        contentWrite: response.contentWrite || response.content_write || traceContent,
+        characterRelationMap: response.characterRelationMap || response.character_relation_map || traceRelation,
         agentMode: 'writer'
       }
       messages.value.push(assistantMessage)
@@ -447,3 +447,4 @@ export const useChatStore = defineStore('chat', () => {
     clearMessages
   }
 })
+

@@ -1,4 +1,4 @@
-﻿# 架构文档
+# 架构文档
 
 ## Agent 与系统总体架构
 - [Agent架构蓝图-AGENT_ARCHITECTURE.md](../../docs-architecture/Agent架构蓝图-AGENT_ARCHITECTURE.md)

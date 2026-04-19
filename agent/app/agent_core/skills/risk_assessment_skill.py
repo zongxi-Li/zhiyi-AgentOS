@@ -1,4 +1,4 @@
-﻿from typing import Any, Dict, List
+from typing import Any, Dict, List
 
 from app.agent_core.federated.federated_adapter import FederatedAdapter
 from app.agent_core.schema.agent_types import SkillRequest, SkillResult

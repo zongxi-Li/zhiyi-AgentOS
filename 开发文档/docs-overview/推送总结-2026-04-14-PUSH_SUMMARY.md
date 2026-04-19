@@ -1,4 +1,4 @@
-﻿# Push Summary (2026-04-14)
+# Push Summary (2026-04-14)
 
 ## 1) 已推送到远端仓库
 远端仓库：`https://gitee.com/lzx15234028599/kinlin_-ai.git`

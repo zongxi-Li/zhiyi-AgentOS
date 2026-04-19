@@ -5,7 +5,7 @@
         <div class="agent-avatar">💻</div>
         <div class="header-text">
           <h3>程序员 Agent 工作台</h3>
-          <span class="header-sub">智能编程助手</span>
+          <span class="header-sub">需求分析 · 代码检索 · 代码生成 · Mermaid 图表</span>
         </div>
       </div>
       <div class="header-badges">
@@ -46,14 +46,8 @@
         <div class="sub-section">
           <div class="sub-title">已调用技能</div>
           <div v-if="!skillVisuals.length" class="empty">
-            <div class="empty-illustration">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <path d="M16 20l4 4-4 4M24 28h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
             <span>暂无技能调用记录</span>
-            <span class="empty-hint">发送代码问题后，程序员 Agent 将自动调用相关技能</span>
+            <span class="empty-hint">发送开发需求后，程序员 Agent 将自动执行对应技能链路。</span>
           </div>
           <div v-else class="skill-list">
             <div
@@ -77,14 +71,8 @@
 
       <div v-show="activeTab === 'trace'" class="tab-content">
         <div v-if="!trace.length" class="empty">
-          <div class="empty-illustration">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-              <path d="M16 20l4 4-4 4M24 28h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-          </div>
           <span>暂无执行轨迹</span>
-          <span class="empty-hint">对话过程中将展示技能调用链路</span>
+          <span class="empty-hint">执行后将展示完整推理步骤与观察结果。</span>
         </div>
         <div v-else class="trace-container">
           <TraceTimeline :trace="trace" />
@@ -94,15 +82,8 @@
       <div v-show="activeTab === 'results'" class="tab-content results-tab">
         <slot name="results">
           <div class="empty">
-            <div class="empty-illustration">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <rect x="16" y="18" width="16" height="12" rx="2" stroke="#9ca3af" stroke-width="1.5"/>
-                <path d="M20 22h8M20 26h5" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </div>
             <span>暂无技能结果</span>
-            <span class="empty-hint">技能执行完成后将展示结构化结果</span>
+            <span class="empty-hint">技能执行后会自动渲染结构化结果面板。</span>
           </div>
         </slot>
       </div>
@@ -125,7 +106,7 @@ interface FederatedInfo {
 
 interface SkillVisual {
   icon: string
-  tone: 'violet' | 'indigo' | 'cyan' | 'rose' | 'amber'
+  tone: 'violet' | 'indigo' | 'cyan' | 'emerald'
 }
 
 const props = defineProps<{
@@ -138,27 +119,22 @@ const props = defineProps<{
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
-  { key: 'skills' as const, label: '技能调用', icon: '🧠', count: props.skillsUsed?.length || 0 },
-  { key: 'trace' as const, label: '执行轨迹', icon: '🪄', count: props.trace?.length || 0 },
-  { key: 'results' as const, label: '结果面板', icon: '💻', count: props.resultCount || 0 }
+  { key: 'skills' as const, label: '技能调用', icon: '⚡', count: props.skillsUsed?.length || 0 },
+  { key: 'trace' as const, label: '执行轨迹', icon: '🔗', count: props.trace?.length || 0 },
+  { key: 'results' as const, label: '结果面板', icon: '📊', count: props.resultCount || 0 }
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
-  code_review: { icon: '🔍', tone: 'violet' },
-  debug_trace: { icon: '🐛', tone: 'rose' },
-  architecture_suggestion: { icon: '🏗️', tone: 'indigo' },
-  unit_test_generation: { icon: '🧪', tone: 'cyan' },
-  code_refactor: { icon: '♻️', tone: 'amber' },
-  api_design: { icon: '🔌', tone: 'indigo' },
-  performance_optimization: { icon: '⚡', tone: 'amber' },
-  security_audit: { icon: '🔒', tone: 'rose' },
-  dependency_analysis: { icon: '📦', tone: 'cyan' }
+  requirement_analysis: { icon: '🧩', tone: 'violet' },
+  codebase_semantic_search: { icon: '🔎', tone: 'indigo' },
+  code_generation: { icon: '🛠️', tone: 'emerald' },
+  diagram_generation: { icon: '🧭', tone: 'cyan' }
 }
 
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '📌', tone: 'violet' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: '🧠', tone: 'violet' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),
@@ -355,19 +331,6 @@ const formatAdjustment = (v?: number) => {
   padding: 14px 16px;
 }
 
-.tab-content::-webkit-scrollbar {
-  width: 5px;
-}
-
-.tab-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tab-content::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 999px;
-}
-
 .sub-section {
   display: flex;
   flex-direction: column;
@@ -467,16 +430,10 @@ const formatAdjustment = (v?: number) => {
   color: #0e7490;
 }
 
-.skill-item.rose {
-  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
-  border-color: #fda4af;
-  color: #be123c;
-}
-
-.skill-item.amber {
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
-  border-color: #fcd34d;
-  color: #b45309;
+.skill-item.emerald {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border-color: #6ee7b7;
+  color: #047857;
 }
 
 .skill-icon {
@@ -516,11 +473,6 @@ const formatAdjustment = (v?: number) => {
   padding: 32px 16px;
   color: var(--text-secondary);
   font-size: 13px;
-}
-
-.empty-illustration {
-  margin-bottom: 4px;
-  opacity: 0.7;
 }
 
 .empty-hint {

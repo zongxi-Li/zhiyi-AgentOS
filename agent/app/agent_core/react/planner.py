@@ -1,4 +1,5 @@
-from typing import Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 from app.agent_core.schema.agent_types import PlannedAction
 
@@ -89,10 +90,573 @@ class ReactPlanner:
             return "tutoring_qa"
         return None
 
+    def _extract_positive_int(self, text: str, default: int = 0) -> int:
+        raw = text or ""
+        cn_match = re.search(r"\u7b2c\s*(\d{1,2})\s*\u7ae0", raw, flags=re.IGNORECASE)
+        if cn_match:
+            return max(1, int(cn_match.group(1)))
+
+        en_match = re.search(r"(?:chapter|chap(?:ter)?\.?)\s*(\d{1,2})", raw, flags=re.IGNORECASE)
+        if en_match:
+            return max(1, int(en_match.group(1)))
+
+        direct_match = re.search(r"\b(\d{1,2})\b", raw)
+        if direct_match:
+            return max(1, int(direct_match.group(1)))
+        return default
+
+    def _is_writer_follow_up(self, text: str, history: List[Dict[str, str]]) -> bool:
+        if not (text or "").strip() or not history:
+            return False
+        follow_up_tokens = [
+            "\u7ee7\u7eed",
+            "\u8865\u5145",
+            "\u7eed\u5199",
+            "\u4f18\u5316",
+            "\u4fee\u6539",
+            "continue",
+            "revise",
+            "rewrite",
+            "refine",
+            "expand",
+        ]
+        short_query = len((text or "").strip()) <= 120
+        return short_query and self._contains_any(text, follow_up_tokens)
+
+    def _resolve_writer_follow_up_action(self, text: str, history: List[Dict[str, str]]) -> Optional[str]:
+        probe_text = f"{text}\n{self._latest_user_text(history)}"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u4eba\u7269\u5173\u7cfb",
+                "\u5173\u7cfb\u56fe",
+                "relation graph",
+                "relationship map",
+            ],
+        ):
+            return "character_relation_map"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u7075\u611f",
+                "\u521b\u610f\u6811",
+                "\u601d\u7ef4\u5bfc\u56fe",
+                "inspiration",
+                "idea tree",
+                "mind map",
+            ],
+        ):
+            return "inspiration_expand"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u5927\u7eb2",
+                "\u7ae0\u8282",
+                "outline",
+                "chapter plan",
+            ],
+        ):
+            return "outline_generate"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u6b63\u6587",
+                "\u5199\u4e00\u7ae0",
+                "\u7eed\u5199",
+                "write chapter",
+                "draft chapter",
+            ],
+        ):
+            return "content_write"
+        return None
+
+    def _plan_writer(self, state: Dict[str, Any]) -> List[PlannedAction]:
+        text = str(state.get("text", "") or "")
+        history = state.get("history", []) or []
+
+        actions: List[PlannedAction] = []
+        added = set()
+        follow_up = self._is_writer_follow_up(text=text, history=history)
+
+        def add_action(thought: str, action: str, action_input: Dict[str, object]) -> None:
+            if action in added:
+                return
+            added.add(action)
+            actions.append(
+                PlannedAction(
+                    thought=thought,
+                    action=action,
+                    actionInput=action_input,
+                )
+            )
+
+        chapter_index = self._extract_positive_int(text, default=1)
+        chapters_count = max(4, min(20, self._extract_positive_int(text, default=8)))
+
+        if follow_up:
+            target_action = self._resolve_writer_follow_up_action(text=text, history=history)
+            if target_action:
+                action_input: Dict[str, object] = {"followUp": True, "query": text}
+                if target_action == "outline_generate":
+                    action_input["chapters_count"] = chapters_count
+                if target_action == "content_write":
+                    action_input["chapter_index"] = chapter_index
+                    action_input["style"] = "follow user style"
+                add_action(
+                    thought="Follow-up writing request detected. Execute only the targeted writer skill.",
+                    action=target_action,
+                    action_input=action_input,
+                )
+                return self._slice_plan(actions)
+
+        needs_relation = self._contains_any(
+            text,
+            [
+                "\u4eba\u7269\u5173\u7cfb",
+                "\u5173\u7cfb\u56fe",
+                "\u89d2\u8272\u5173\u7cfb",
+                "relation graph",
+                "relationship map",
+            ],
+        )
+        needs_inspiration = self._contains_any(
+            text,
+            [
+                "\u7075\u611f",
+                "\u521b\u610f",
+                "\u53d1\u6563",
+                "\u601d\u7ef4\u5bfc\u56fe",
+                "inspiration",
+                "idea tree",
+                "brainstorm",
+            ],
+        )
+        needs_outline = self._contains_any(
+            text,
+            [
+                "\u5927\u7eb2",
+                "\u7ae0\u8282",
+                "outline",
+                "chapter plan",
+            ],
+        )
+        needs_content = self._contains_any(
+            text,
+            [
+                "\u6b63\u6587",
+                "\u7eed\u5199",
+                "\u7b2c\u4e00\u7ae0",
+                "\u5199\u4e00\u6bb5",
+                "\u5199",
+                "\u6545\u4e8b",
+                "\u521b\u4f5c",
+                "\u5c0f\u8bf4",
+                "write",
+                "draft",
+                "chapter",
+            ],
+        )
+        needs_style = self._contains_any(
+            text,
+            [
+                "\u9c81\u8fc5\u4f53",
+                "\u98ce\u683c",
+                "style",
+                "tone",
+            ],
+        )
+        explicit_content_request = self._contains_any(
+            text,
+            [
+                "\u6b63\u6587",
+                "\u7eed\u5199",
+                "\u7b2c\u4e00\u7ae0",
+                "\u5199\u4e00\u6bb5",
+                "write chapter",
+                "draft chapter",
+                "continue writing",
+            ],
+        )
+
+        relation_only = self._contains_any(
+            text,
+            [
+                "\u4ec5",
+                "\u53ea",
+                "\u5355\u72ec",
+                "only",
+                "just",
+            ],
+        )
+
+        if needs_relation and relation_only and not (needs_inspiration or needs_outline or needs_content):
+            add_action(
+                thought="User asks for character relationship analysis. Build relation graph directly.",
+                action="character_relation_map",
+                action_input={"story_description": text},
+            )
+            return self._slice_plan(actions)
+
+        if needs_inspiration and not (needs_outline or needs_content):
+            add_action(
+                thought="Expand the premise into multiple creative directions first.",
+                action="inspiration_expand",
+                action_input={"premise": text},
+            )
+            return self._slice_plan(actions)
+
+        if needs_outline and not needs_content:
+            add_action(
+                thought="Generate a chapter-level outline from selected creative direction.",
+                action="outline_generate",
+                action_input={"creative_selection": text, "chapters_count": chapters_count},
+            )
+            return self._slice_plan(actions)
+
+        if explicit_content_request and needs_content and not (needs_inspiration or needs_outline or needs_relation):
+            add_action(
+                thought="Write chapter content directly based on user-provided context.",
+                action="content_write",
+                action_input={
+                    "outline_context": text,
+                    "chapter_index": chapter_index,
+                    "style": "requested style" if needs_style else "natural narrative",
+                },
+            )
+            return self._slice_plan(actions)
+
+        add_action(
+            thought="Start from inspiration expansion to build a structured idea tree.",
+            action="inspiration_expand",
+            action_input={"premise": text},
+        )
+        add_action(
+            thought="Convert selected ideas into a chapter outline.",
+            action="outline_generate",
+            action_input={"chapters_count": chapters_count},
+        )
+        add_action(
+            thought="Write chapter content based on outline context and requested style.",
+            action="content_write",
+            action_input={
+                "chapter_index": chapter_index,
+                "style": "requested style" if needs_style else "natural narrative",
+            },
+        )
+        if needs_relation:
+            add_action(
+                thought="Generate a character relation graph for visualization.",
+                action="character_relation_map",
+                action_input={"story_description": text},
+            )
+        return self._slice_plan(actions)
+
+    def _is_programmer_follow_up(self, text: str, history: List[Dict[str, str]]) -> bool:
+        if not (text or "").strip() or not history:
+            return False
+
+        follow_up_tokens = [
+            "\u7ee7\u7eed",
+            "\u8865\u5145",
+            "\u4f18\u5316",
+            "\u4fee\u6539",
+            "\u8c03\u6574",
+            "continue",
+            "revise",
+            "refine",
+            "update",
+            "optimize",
+        ]
+        short_query = len((text or "").strip()) <= 120
+        return short_query and self._contains_any(text, follow_up_tokens)
+
+    def _resolve_programmer_follow_up_action(self, text: str, history: List[Dict[str, str]]) -> Optional[str]:
+        probe_text = f"{text}\n{self._latest_user_text(history)}"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u56fe",
+                "\u6d41\u7a0b\u56fe",
+                "\u67b6\u6784\u56fe",
+                "\u65f6\u5e8f\u56fe",
+                "\u7c7b\u56fe",
+                "diagram",
+                "flowchart",
+                "mermaid",
+                "sequence",
+                "architecture",
+            ],
+        ):
+            return "diagram_generation"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u68c0\u7d22",
+                "\u4ee3\u7801\u5e93",
+                "\u51fd\u6570",
+                "\u7c7b",
+                "\u5728\u54ea",
+                "search",
+                "find in code",
+                "codebase",
+                "semantic search",
+            ],
+        ):
+            return "codebase_semantic_search"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u5199\u4ee3\u7801",
+                "\u751f\u6210\u4ee3\u7801",
+                "\u5b9e\u73b0",
+                "\u8865\u4e01",
+                "generate code",
+                "implement",
+                "patch",
+                "refactor",
+            ],
+        ):
+            return "code_generation"
+        if self._contains_any(
+            probe_text,
+            [
+                "\u9700\u6c42",
+                "\u5206\u6790",
+                "\u6280\u672f\u65b9\u6848",
+                "\u89c4\u683c",
+                "requirement",
+                "analysis",
+                "spec",
+                "prd",
+            ],
+        ):
+            return "requirement_analysis"
+        return None
+
+    def _infer_diagram_type(self, text: str) -> str:
+        if self._contains_any(text, ["\u65f6\u5e8f\u56fe", "sequence", "sequence diagram"]):
+            return "sequence"
+        if self._contains_any(text, ["\u7c7b\u56fe", "class diagram", "uml class"]):
+            return "class"
+        if self._contains_any(text, ["\u67b6\u6784\u56fe", "architecture", "system design"]):
+            return "architecture"
+        return "flowchart"
+
+    def _infer_target_language(self, text: str) -> str:
+        lowered = (text or "").lower()
+        if self._contains_any(lowered, ["java", "spring"]):
+            return "java"
+        if self._contains_any(lowered, ["typescript", "ts", "vue", "react", "node"]):
+            return "typescript"
+        if self._contains_any(lowered, ["javascript", "js"]):
+            return "javascript"
+        if self._contains_any(lowered, ["go", "golang"]):
+            return "go"
+        if self._contains_any(lowered, ["rust"]):
+            return "rust"
+        return "python"
+
+    def _plan_programmer(self, state: Dict[str, Any]) -> List[PlannedAction]:
+        text = str(state.get("text", "") or "")
+        history = state.get("history", []) or []
+        actions: List[PlannedAction] = []
+        added = set()
+        follow_up = self._is_programmer_follow_up(text=text, history=history)
+        diagram_type = self._infer_diagram_type(text)
+        target_language = self._infer_target_language(text)
+
+        def add_action(thought: str, action: str, action_input: Dict[str, object]) -> None:
+            if action in added:
+                return
+            added.add(action)
+            actions.append(
+                PlannedAction(
+                    thought=thought,
+                    action=action,
+                    actionInput=action_input,
+                )
+            )
+
+        if follow_up:
+            target_action = self._resolve_programmer_follow_up_action(text=text, history=history)
+            if target_action:
+                action_input: Dict[str, object] = {"followUp": True, "query": text}
+                if target_action == "codebase_semantic_search":
+                    action_input["top_k"] = 5
+                if target_action == "code_generation":
+                    action_input["target_language"] = target_language
+                    action_input["include_diagram"] = self._contains_any(
+                        text,
+                        ["\u7c7b\u56fe", "\u67b6\u6784\u56fe", "diagram", "mermaid"],
+                    )
+                if target_action == "diagram_generation":
+                    action_input["diagram_type"] = diagram_type
+                add_action(
+                    thought="Follow-up programming request detected. Execute only the targeted programmer skill.",
+                    action=target_action,
+                    action_input=action_input,
+                )
+                return self._slice_plan(actions)
+
+        needs_diagram = self._contains_any(
+            text,
+            [
+                "\u56fe",
+                "\u6d41\u7a0b\u56fe",
+                "\u67b6\u6784\u56fe",
+                "\u65f6\u5e8f\u56fe",
+                "\u7c7b\u56fe",
+                "diagram",
+                "mermaid",
+                "flowchart",
+                "sequence",
+                "architecture",
+            ],
+        )
+        needs_search = self._contains_any(
+            text,
+            [
+                "\u4ee3\u7801\u5e93",
+                "\u68c0\u7d22",
+                "\u67e5\u627e",
+                "\u627e\u51fd\u6570",
+                "\u627e\u7c7b",
+                "search",
+                "find in code",
+                "codebase",
+                "semantic search",
+            ],
+        )
+        needs_generation = self._contains_any(
+            text,
+            [
+                "\u751f\u6210\u4ee3\u7801",
+                "\u5199\u4ee3\u7801",
+                "\u5b9e\u73b0",
+                "\u4fee\u590d",
+                "\u8865\u4e01",
+                "generate code",
+                "implement",
+                "write code",
+                "patch",
+                "fix",
+            ],
+        )
+        needs_requirement = self._contains_any(
+            text,
+            [
+                "\u9700\u6c42",
+                "\u5206\u6790",
+                "\u6280\u672f\u89c4\u683c",
+                "\u65b9\u6848",
+                "requirement",
+                "spec",
+                "prd",
+                "analysis",
+            ],
+        )
+        relation_only = self._contains_any(text, ["\u4ec5", "\u53ea", "\u5355\u72ec", "only", "just"])
+        references_project = self._contains_any(
+            text,
+            [
+                "\u8fd9\u4e2a\u9879\u76ee",
+                "\u9879\u76ee",
+                "\u4ee3\u7801\u5e93",
+                "\u5f53\u524d\u5de5\u7a0b",
+                "this project",
+                "current repo",
+                "codebase",
+            ],
+        )
+
+        if needs_diagram and relation_only and not (needs_search or needs_generation or needs_requirement):
+            add_action(
+                thought="User asks only for a diagram. Generate Mermaid directly.",
+                action="diagram_generation",
+                action_input={"query": text, "diagram_type": diagram_type},
+            )
+            return self._slice_plan(actions)
+
+        if needs_search and not (needs_generation or needs_diagram):
+            add_action(
+                thought="Retrieve relevant symbols from code index first.",
+                action="codebase_semantic_search",
+                action_input={"query": text, "top_k": 5},
+            )
+            return self._slice_plan(actions)
+
+        if needs_requirement and not (needs_generation or needs_diagram or needs_search):
+            add_action(
+                thought="Convert request into structured technical specification.",
+                action="requirement_analysis",
+                action_input={"requirement": text},
+            )
+            return self._slice_plan(actions)
+
+        if needs_diagram and not needs_generation and not needs_requirement:
+            if references_project:
+                add_action(
+                    thought="User references current project. Retrieve code context before diagram generation.",
+                    action="codebase_semantic_search",
+                    action_input={"query": text, "top_k": 5},
+                )
+            add_action(
+                thought="Generate Mermaid diagram aligned with the request.",
+                action="diagram_generation",
+                action_input={"query": text, "diagram_type": diagram_type},
+            )
+            return self._slice_plan(actions)
+
+        if needs_generation and not needs_requirement:
+            add_action(
+                thought="Retrieve related code context before generating implementation.",
+                action="codebase_semantic_search",
+                action_input={"query": text, "top_k": 5},
+            )
+            add_action(
+                thought="Generate implementation code using retrieved context.",
+                action="code_generation",
+                action_input={"target_language": target_language, "include_diagram": needs_diagram},
+            )
+            if needs_diagram:
+                add_action(
+                    thought="Generate Mermaid diagram for the implementation flow.",
+                    action="diagram_generation",
+                    action_input={"query": text, "diagram_type": diagram_type},
+                )
+            return self._slice_plan(actions)
+
+        add_action(
+            thought="Start with requirement analysis to structure implementation scope.",
+            action="requirement_analysis",
+            action_input={"requirement": text},
+        )
+        add_action(
+            thought="Retrieve relevant code snippets from indexed repository.",
+            action="codebase_semantic_search",
+            action_input={"query": text, "top_k": 5},
+        )
+        add_action(
+            thought="Generate implementation using specification and code context.",
+            action="code_generation",
+            action_input={"target_language": target_language, "include_diagram": needs_diagram},
+        )
+        if needs_diagram or references_project:
+            add_action(
+                thought="Generate Mermaid diagram for architecture or workflow communication.",
+                action="diagram_generation",
+                action_input={"query": text, "diagram_type": diagram_type},
+            )
+        return self._slice_plan(actions)
+
     def plan(self, text: str, history: List[Dict[str, str]], role: str = "lawyer") -> List[PlannedAction]:
         normalized_role = (role or "lawyer").strip().lower()
         if normalized_role == "teacher":
             return self.plan_teacher(text=text, history=history)
+        if normalized_role == "programmer":
+            return self._plan_programmer({"text": text, "history": history})
+        if normalized_role == "writer":
+            return self._plan_writer({"text": text, "history": history})
         return self.plan_lawyer(text=text, history=history)
 
     def plan_lawyer(self, text: str, history: List[Dict[str, str]]) -> List[PlannedAction]:

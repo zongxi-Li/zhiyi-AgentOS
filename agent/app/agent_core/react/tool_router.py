@@ -22,6 +22,18 @@ from app.agent_core.skills.teacher import (
     StudentDiagnosisSkill,
     TutoringQASkill,
 )
+from app.agent_core.skills.programmer import (
+    CodeGenerationSkill,
+    CodebaseSemanticSearchSkill,
+    DiagramGenerationSkill,
+    RequirementAnalysisSkill,
+)
+from app.agent_core.skills.writer import (
+    CharacterRelationSkill,
+    ContentWriteSkill,
+    InspirationExpandSkill,
+    OutlineGenerateSkill,
+)
 
 class ToolRouter:
     """Routes planned actions to concrete skills by role."""
@@ -31,6 +43,8 @@ class ToolRouter:
 
         self.register_skills_for_role("lawyer", skills or self._build_default_lawyer_skills())
         self.register_skills_for_role("teacher", self._build_default_teacher_skills())
+        self.register_skills_for_role("programmer", self._build_default_programmer_skills())
+        self.register_skills_for_role("writer", self._build_default_writer_skills())
 
     def _build_default_lawyer_skills(self) -> Dict[str, BaseSkill]:
         return {
@@ -56,6 +70,22 @@ class ToolRouter:
             "progress_report_generation": ProgressReportGenerationSkill(),
             "classroom_interaction_design": ClassroomInteractionDesignSkill(),
             "parent_communication_suggestion": ParentCommunicationSuggestionSkill(),
+        }
+
+    def _build_default_writer_skills(self) -> Dict[str, BaseSkill]:
+        return {
+            "inspiration_expand": InspirationExpandSkill(),
+            "outline_generate": OutlineGenerateSkill(),
+            "content_write": ContentWriteSkill(),
+            "character_relation_map": CharacterRelationSkill(),
+        }
+
+    def _build_default_programmer_skills(self) -> Dict[str, BaseSkill]:
+        return {
+            "requirement_analysis": RequirementAnalysisSkill(),
+            "codebase_semantic_search": CodebaseSemanticSearchSkill(),
+            "code_generation": CodeGenerationSkill(),
+            "diagram_generation": DiagramGenerationSkill(),
         }
 
     def register_skills_for_role(self, role: str, skills: Dict[str, BaseSkill]) -> None:

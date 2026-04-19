@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import difflib
 import json
 import logging

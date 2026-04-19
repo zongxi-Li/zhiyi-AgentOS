@@ -1,4 +1,4 @@
-﻿你是教学数据分析师。请根据表现数据生成Markdown学情报告。
+你是教学数据分析师。请根据表现数据生成Markdown学情报告。
 
 输入：
 - student_id: {student_id}

@@ -1,4 +1,4 @@
-﻿你是错题分析教练。请输出严格JSON。
+你是错题分析教练。请输出严格JSON。
 
 输入：
 - question: {question}

@@ -164,7 +164,7 @@
         >
           <template #results>
             <div v-if="!availableLawyerResultPanels.length" class="results-empty">
-              <span class="empty-icon">📦</span>
+              <span class="empty-icon">📚</span>
               <span>暂无技能调用结果</span>
             </div>
             <el-collapse v-else v-model="activeLawyerResultPanels">
@@ -212,8 +212,8 @@
         >
           <template #results>
             <div v-if="!availableTeacherResultPanels.length" class="results-empty">
-              <span class="empty-icon">📚</span>
-              <span>暂无教师技能结果</span>
+              <span class="empty-icon">🧪</span>
+              <span>暂无技能调用结果</span>
             </div>
             <el-collapse v-else v-model="activeTeacherResultPanels">
               <el-collapse-item
@@ -265,35 +265,95 @@
             </div>
             <el-collapse v-else v-model="activeProgrammerResultPanels">
               <el-collapse-item
-                v-if="availableProgrammerResultPanels.includes('codeReview')"
-                title="代码审查"
-                name="codeReview"
+                v-if="availableProgrammerResultPanels.includes('requirement')"
+                title="需求分析"
+                name="requirement"
               >
-                <CodeReviewCard :data="latestProgrammerSkillResults.codeReview" />
+                <div class="programmer-block">
+                  <div class="programmer-grid two-cols">
+                    <div class="programmer-card">
+                      <div class="card-title">功能需求</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.functional_requirements || [])" :key="`fr-${idx}`">
+                          {{ item }}
+                        </li>
+                      </ul>
+                    </div>
+                    <div class="programmer-card">
+                      <div class="card-title">边界条件</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.boundary_conditions || [])" :key="`bc-${idx}`">
+                          {{ item }}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="programmer-grid two-cols">
+                    <div class="programmer-card">
+                      <div class="card-title">输入</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.inputs || [])" :key="`in-${idx}`">{{ item }}</li>
+                      </ul>
+                    </div>
+                    <div class="programmer-card">
+                      <div class="card-title">输出</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.outputs || [])" :key="`out-${idx}`">{{ item }}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableProgrammerResultPanels.includes('debugTrace')"
-                title="调试追踪"
-                name="debugTrace"
+                v-if="availableProgrammerResultPanels.includes('search')"
+                title="代码库语义检索"
+                name="search"
               >
-                <DebugTraceCard :data="latestProgrammerSkillResults.debugTrace" />
+                <div class="programmer-block">
+                  <div class="programmer-meta">
+                    命中 {{ latestProgrammerSkillResults.searchHits.length }} 条 · 向量检索
+                    {{ latestProgrammerSkillResults.codebaseSemanticSearch?.index_status?.vector_enabled ? '已启用' : '未启用（关键词降级）' }}
+                  </div>
+                  <div class="programmer-search-list">
+                    <div
+                      v-for="(hit, idx) in latestProgrammerSkillResults.searchHits"
+                      :key="`hit-${idx}`"
+                      class="search-item"
+                    >
+                      <div class="search-head">
+                        <span class="path">{{ hit.file_path || 'unknown file' }}</span>
+                        <span class="score">score: {{ Number(hit.score || 0).toFixed(3) }}</span>
+                      </div>
+                      <pre>{{ hit.content }}</pre>
+                    </div>
+                  </div>
+                </div>
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableProgrammerResultPanels.includes('archSuggest')"
-                title="架构建议"
-                name="archSuggest"
+                v-if="availableProgrammerResultPanels.includes('code')"
+                title="代码生成"
+                name="code"
               >
-                <ArchSuggestCard :data="latestProgrammerSkillResults.archSuggest" />
+                <div class="programmer-block">
+                  <div class="programmer-meta">{{ latestProgrammerSkillResults.codeGeneration?.explanation || '暂无说明' }}</div>
+                  <pre class="code-block">{{ latestProgrammerSkillResults.generatedCode || '// 暂无代码输出' }}</pre>
+                  <div v-if="latestProgrammerSkillResults.suggestedTests.length" class="programmer-card">
+                    <div class="card-title">建议测试点</div>
+                    <ul>
+                      <li v-for="(item, idx) in latestProgrammerSkillResults.suggestedTests" :key="`test-${idx}`">{{ item }}</li>
+                    </ul>
+                  </div>
+                </div>
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableProgrammerResultPanels.includes('unitTest')"
-                title="单元测试生成"
-                name="unitTest"
+                v-if="availableProgrammerResultPanels.includes('diagram')"
+                title="Mermaid 图表"
+                name="diagram"
               >
-                <UnitTestCard :data="latestProgrammerSkillResults.unitTest" />
+                <DiagramViewer :data="latestProgrammerSkillResults.diagramData" />
               </el-collapse-item>
             </el-collapse>
           </template>
@@ -313,35 +373,43 @@
             </div>
             <el-collapse v-else v-model="activeWriterResultPanels">
               <el-collapse-item
+                v-if="availableWriterResultPanels.includes('inspiration')"
+                title="创意树思维导图"
+                name="inspiration"
+              >
+                <MindMapViewer
+                  title="创意树"
+                  :creative-tree="latestWriterSkillResults.creativeTree"
+                />
+              </el-collapse-item>
+
+              <el-collapse-item
                 v-if="availableWriterResultPanels.includes('outline')"
-                title="文章大纲"
+                title="章节大纲思维导图"
                 name="outline"
               >
-                <OutlineViewer :data="latestWriterSkillResults.outlineResult" />
+                <MindMapViewer
+                  title="章节大纲"
+                  :outline-markdown="latestWriterSkillResults.outlineMarkdown"
+                />
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableWriterResultPanels.includes('styleAnalysis')"
-                title="风格分析"
-                name="styleAnalysis"
+                v-if="availableWriterResultPanels.includes('content')"
+                title="正文撰写"
+                name="content"
               >
-                <StyleAnalysisCard :data="latestWriterSkillResults.styleAnalysis" />
+                <div class="writer-content-preview">
+                  {{ latestWriterSkillResults.content || '暂无正文内容' }}
+                </div>
               </el-collapse-item>
 
               <el-collapse-item
-                v-if="availableWriterResultPanels.includes('plotLogic')"
-                title="情节逻辑检查"
-                name="plotLogic"
+                v-if="availableWriterResultPanels.includes('relation')"
+                title="人物关系图"
+                name="relation"
               >
-                <PlotLogicCard :data="latestWriterSkillResults.plotLogic" />
-              </el-collapse-item>
-
-              <el-collapse-item
-                v-if="availableWriterResultPanels.includes('polishDiff')"
-                title="润色对比"
-                name="polishDiff"
-              >
-                <PolishDiffCard :data="latestWriterSkillResults.polishDiff" />
+                <RelationGraph :data="latestWriterSkillResults.characterRelationMap" />
               </el-collapse-item>
             </el-collapse>
           </template>
@@ -407,14 +475,9 @@ import DiagnosisRadar from '@/components/agent/DiagnosisRadar.vue'
 import LessonPlanViewer from '@/components/agent/LessonPlanViewer.vue'
 import GradingResultCard from '@/components/agent/GradingResultCard.vue'
 import QuestionPushList from '@/components/agent/QuestionPushList.vue'
-import CodeReviewCard from '@/components/agent/CodeReviewCard.vue'
-import DebugTraceCard from '@/components/agent/DebugTraceCard.vue'
-import ArchSuggestCard from '@/components/agent/ArchSuggestCard.vue'
-import UnitTestCard from '@/components/agent/UnitTestCard.vue'
-import OutlineViewer from '@/components/agent/OutlineViewer.vue'
-import StyleAnalysisCard from '@/components/agent/StyleAnalysisCard.vue'
-import PlotLogicCard from '@/components/agent/PlotLogicCard.vue'
-import PolishDiffCard from '@/components/agent/PolishDiffCard.vue'
+import DiagramViewer from '@/components/agent/DiagramViewer.vue'
+import MindMapViewer from '@/components/agent/MindMapViewer.vue'
+import RelationGraph from '@/components/agent/RelationGraph.vue'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { fileApi } from '@/services/api/file'
 import { useChatStore } from '@/stores/chat'
@@ -490,7 +553,7 @@ const agentIcon = computed(() => {
   if (isTeacherMode.value) return '👩‍🏫'
   if (isProgrammerMode.value) return '💻'
   if (isWriterMode.value) return '✍️'
-  return '💬'
+  return '🤖'
 })
 
 const agentTitle = computed(() => {
@@ -504,8 +567,8 @@ const agentTitle = computed(() => {
 const agentSubtitle = computed(() => {
   if (isLawyerMode.value) return '专业法律咨询，智能证据分析与风险评估'
   if (isTeacherMode.value) return '智能学情诊断、个性化教案与作业批改'
-  if (isProgrammerMode.value) return '代码审查、调试追踪、架构建议与单元测试'
-  if (isWriterMode.value) return '大纲生成、风格分析、情节逻辑与润色对比'
+  if (isProgrammerMode.value) return '需求分析、代码库语义检索、代码生成与 Mermaid 图表'
+  if (isWriterMode.value) return '灵感拓展、大纲生成、正文写作与人物关系图'
   return '你可以直接输入问题，或使用下方快捷模板。'
 })
 
@@ -592,21 +655,44 @@ const latestTeacherSkillResults = computed(() => {
 
 const latestProgrammerSkillResults = computed(() => {
   const lastAssistant = latestProgrammerMessage.value
+  const searchPayload = lastAssistant?.codebaseSemanticSearch
+  const codeGenerationPayload = lastAssistant?.codeGeneration
+  const diagramPayload = lastAssistant?.diagramGeneration
+  const generationMermaidCode = codeGenerationPayload?.mermaid_code
+  const diagramMermaidCode = diagramPayload?.mermaid_code
+  const searchHits = Array.isArray(searchPayload?.hits) ? searchPayload?.hits : []
+  const suggestedTests = Array.isArray(codeGenerationPayload?.suggested_tests) ? codeGenerationPayload?.suggested_tests : []
+
+  const diagramData = diagramPayload?.mermaid_code
+    ? diagramPayload
+    : (generationMermaidCode
+      ? {
+        title: 'Generated Diagram',
+        diagram_type: 'flowchart',
+        mermaid_code: generationMermaidCode
+      }
+      : undefined)
+
   return {
-    codeReview: lastAssistant?.codeReview,
-    debugTrace: lastAssistant?.debugTrace,
-    archSuggest: lastAssistant?.archSuggest,
-    unitTest: lastAssistant?.unitTest
+    requirementAnalysis: lastAssistant?.requirementAnalysis,
+    codebaseSemanticSearch: searchPayload,
+    codeGeneration: codeGenerationPayload,
+    diagramGeneration: diagramPayload,
+    generatedCode: codeGenerationPayload?.code || '',
+    suggestedTests,
+    searchHits,
+    diagramData,
+    diagramCode: diagramMermaidCode || generationMermaidCode || ''
   }
 })
 
 const latestWriterSkillResults = computed(() => {
   const lastAssistant = latestWriterMessage.value
   return {
-    outlineResult: lastAssistant?.outlineResult,
-    styleAnalysis: lastAssistant?.styleAnalysis,
-    plotLogic: lastAssistant?.plotLogic,
-    polishDiff: lastAssistant?.polishDiff
+    creativeTree: lastAssistant?.inspirationExpand?.creative_tree || lastAssistant?.inspirationExpand?.creativeTree,
+    outlineMarkdown: lastAssistant?.outlineGenerate?.outline_markdown || lastAssistant?.outlineGenerate?.outlineMarkdown,
+    content: lastAssistant?.contentWrite?.content,
+    characterRelationMap: lastAssistant?.characterRelationMap
   }
 })
 
@@ -633,20 +719,20 @@ const availableTeacherResultPanels = computed(() => {
 const availableProgrammerResultPanels = computed(() => {
   const skillSet = new Set(latestProgrammerMeta.value.skillsUsed || [])
   const panels: string[] = []
-  if (latestProgrammerSkillResults.value.codeReview || skillSet.has('code_review')) panels.push('codeReview')
-  if (latestProgrammerSkillResults.value.debugTrace || skillSet.has('debug_trace')) panels.push('debugTrace')
-  if (latestProgrammerSkillResults.value.archSuggest || skillSet.has('architecture_suggestion')) panels.push('archSuggest')
-  if (latestProgrammerSkillResults.value.unitTest || skillSet.has('unit_test_generation')) panels.push('unitTest')
+  if (latestProgrammerSkillResults.value.requirementAnalysis || skillSet.has('requirement_analysis')) panels.push('requirement')
+  if (latestProgrammerSkillResults.value.searchHits.length || skillSet.has('codebase_semantic_search')) panels.push('search')
+  if (latestProgrammerSkillResults.value.generatedCode || skillSet.has('code_generation')) panels.push('code')
+  if (latestProgrammerSkillResults.value.diagramCode || skillSet.has('diagram_generation')) panels.push('diagram')
   return panels
 })
 
 const availableWriterResultPanels = computed(() => {
   const skillSet = new Set(latestWriterMeta.value.skillsUsed || [])
   const panels: string[] = []
-  if (latestWriterSkillResults.value.outlineResult || skillSet.has('outline_generation')) panels.push('outline')
-  if (latestWriterSkillResults.value.styleAnalysis || skillSet.has('style_analysis')) panels.push('styleAnalysis')
-  if (latestWriterSkillResults.value.plotLogic || skillSet.has('plot_logic_check')) panels.push('plotLogic')
-  if (latestWriterSkillResults.value.polishDiff || skillSet.has('text_polish')) panels.push('polishDiff')
+  if (latestWriterSkillResults.value.creativeTree || skillSet.has('inspiration_expand')) panels.push('inspiration')
+  if (latestWriterSkillResults.value.outlineMarkdown || skillSet.has('outline_generate')) panels.push('outline')
+  if (latestWriterSkillResults.value.content || skillSet.has('content_write')) panels.push('content')
+  if (latestWriterSkillResults.value.characterRelationMap || skillSet.has('character_relation_map')) panels.push('relation')
   return panels
 })
 
@@ -663,11 +749,11 @@ const currentTemplates = computed(() => {
   if (roleName.includes('教师') || lower.includes('teacher')) {
     return ['制定学习计划', '错题归因推题', '生成课堂互动脚本', '学情报告总结']
   }
-  if (roleName.includes('程序') || lower.includes('developer')) {
-    return ['代码优化建议', '排查报错思路', '功能设计方案', '接口联调清单']
+  if (roleName.includes('程序') || lower.includes('developer') || lower.includes('programmer')) {
+    return ['帮我做需求技术规格分析', '检索代码库中登录相关函数', '根据规格生成后端接口代码', '生成用户登录流程 Mermaid 图']
   }
   if (roleName.includes('作家') || lower.includes('writer')) {
-    return ['文章润色', '标题优化', '情节大纲', '文案创作']
+    return ['灵感拓展并生成创意树', '生成章节大纲思维导图', '按鲁迅体写第一章', '分析角色并生成人物关系图']
   }
   return ['日常问答', '帮我做个计划', '总结这段内容', '给我几个建议']
 })
@@ -833,7 +919,7 @@ const selectRole = async (role: any) => {
   if (chatStore.messages.length > 0) {
     try {
       await ElMessageBox.confirm(
-        `切换到角色"${role.name}" 会清空当前对话，是否继续？`,
+        `切换到角色 "${role.name}" 会清空当前对话，是否继续？`,
         '切换角色',
         {
           confirmButtonText: '继续',
@@ -954,7 +1040,7 @@ const handleTeacherFileUpload = async (event: Event) => {
     inputText.value = `${inputText.value}${injected}`.trim()
     ElMessage.success('OCR 识别完成，已注入输入框')
   } catch (error: any) {
-    ElMessage.error(error.message || '上传或OCR处理失败')
+    ElMessage.error(error.message || '上传或 OCR 处理失败')
   } finally {
     loading.value = false
   }
@@ -975,7 +1061,7 @@ const handleFileSelected = async (file: any) => {
 
   if (isTeacherMode.value) {
     showFileManager.value = false
-    ElMessage.info('教师模式建议使用“上传作业”按钮自动OCR注入文本')
+    ElMessage.info('教师模式建议使用“上传作业”按钮自动 OCR 注入文本')
     return
   }
 
@@ -1580,6 +1666,105 @@ onUnmounted(() => {
   opacity: 0.6;
 }
 
+.writer-content-preview {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #78350f;
+  white-space: pre-wrap;
+}
+
+.programmer-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.programmer-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.programmer-grid.two-cols {
+  grid-template-columns: 1fr 1fr;
+}
+
+.programmer-card {
+  border: 1px solid #ddd6fe;
+  background: #faf5ff;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.programmer-card .card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6d28d9;
+  margin-bottom: 6px;
+}
+
+.programmer-card ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.programmer-meta {
+  font-size: 12px;
+  color: #475569;
+}
+
+.programmer-search-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.search-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.search-head .path {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4338ca;
+  word-break: break-all;
+}
+
+.search-head .score {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.search-item pre,
+.code-block {
+  margin: 0;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: auto;
+}
+
 .drawer-head {
   display: flex;
   align-items: center;
@@ -1639,5 +1824,10 @@ onUnmounted(() => {
     border-top: 1px solid var(--border-light);
     max-height: 300px;
   }
+
+  .programmer-grid.two-cols {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
+

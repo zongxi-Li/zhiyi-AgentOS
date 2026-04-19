@@ -3,73 +3,55 @@ import type { AgentTraceStep, FederatedInfo } from './agentLawyer'
 
 const WRITER_AGENT_TIMEOUT_MS = 120000
 
-export interface OutlineResult {
-  title?: string
-  outline?: Array<{
-    title: string
-    level?: number
-    summary?: string
-    description?: string
-    children?: Array<{
-      title: string
-      level?: number
-      summary?: string
-      description?: string
-    }>
-  }>
+export interface CreativeTreeNode {
+  id: string
+  label: string
+  description?: string
+  children?: CreativeTreeNode[]
+}
+
+export interface InspirationExpandResult {
+  premise?: string
+  creative_tree?: CreativeTreeNode
+  creativeTree?: CreativeTreeNode
+}
+
+export interface OutlineGenerateResult {
+  creative_selection?: string
+  chapters_count?: number
   outline_markdown?: string
   outlineMarkdown?: string
 }
 
-export interface StyleAnalysisResult {
-  overall_score?: number
-  overallScore?: number
-  dominant_style?: string
-  dominantStyle?: string
-  dimensions?: Array<{
-    name?: string
-    dimension?: string
-    score?: number
-    value?: number
-    comment?: string
-    description?: string
-  }>
-  suggestions?: string[]
+export interface ContentWriteResult {
+  outline_context?: string
+  chapter_index?: number
+  style?: string
+  content?: string
 }
 
-export interface PlotLogicResult {
-  summary?: string
-  logic_score?: number
-  logicScore?: number
-  timeline?: Array<{
-    chapter?: string
-    time?: string
-    event?: string
-    description?: string
-  }>
-  issues?: Array<{
-    type?: string
-    description?: string
-    message?: string
-    chapter?: string
-    location?: string
-    suggestion?: string
-  }>
+export interface RelationGraphNode {
+  id: string
+  label: string
+  group?: string
 }
 
-export interface PolishDiffResult {
-  original?: string
-  polished?: string
-  changes?: Array<{
-    type?: string
-    old?: string
-    before?: string
-    new?: string
-    after?: string
-    reason?: string
-  }>
-  overall_comment?: string
-  overallComment?: string
+export interface RelationGraphEdge {
+  from: string
+  to: string
+  label?: string
+}
+
+export interface RelationGraphData {
+  nodes: RelationGraphNode[]
+  edges: RelationGraphEdge[]
+}
+
+export interface CharacterRelationResult {
+  story_description?: string
+  character_list?: string[]
+  relation_graph?: RelationGraphData
+  relationGraph?: RelationGraphData
 }
 
 export interface WriterAgentRequest {
@@ -85,14 +67,14 @@ export interface WriterAgentResponse {
   trace: AgentTraceStep[]
   riskLevel?: string
   federated?: FederatedInfo
-  outline?: OutlineResult
-  outline_generation?: OutlineResult
-  styleAnalysis?: StyleAnalysisResult
-  style_analysis?: StyleAnalysisResult
-  plotLogic?: PlotLogicResult
-  plot_logic_check?: PlotLogicResult
-  polishDiff?: PolishDiffResult
-  text_polish?: PolishDiffResult
+  inspirationExpand?: InspirationExpandResult
+  inspiration_expand?: InspirationExpandResult
+  outlineGenerate?: OutlineGenerateResult
+  outline_generate?: OutlineGenerateResult
+  contentWrite?: ContentWriteResult
+  content_write?: ContentWriteResult
+  characterRelationMap?: CharacterRelationResult
+  character_relation_map?: CharacterRelationResult
   message?: string
   error?: string
 }

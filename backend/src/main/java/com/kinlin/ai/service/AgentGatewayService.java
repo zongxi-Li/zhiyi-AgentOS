@@ -50,6 +50,22 @@ public class AgentGatewayService {
         );
     }
 
+    public AgentChatResponse chatWithProgrammerAgent(AgentChatRequest request) {
+        return chatWithAgent(
+                request,
+                agentProperties.getPython().getProgrammerChatUrl(),
+                "programmer"
+        );
+    }
+
+    public AgentChatResponse chatWithWriterAgent(AgentChatRequest request) {
+        return chatWithAgent(
+                request,
+                agentProperties.getPython().getWriterChatUrl(),
+                "writer"
+        );
+    }
+
     private AgentChatResponse chatWithAgent(AgentChatRequest request, String endpointUrl, String roleLabel) {
         if (!agentProperties.isEnabled()) {
             return AgentChatResponse.failure(

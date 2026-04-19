@@ -84,7 +84,7 @@
             </svg>
           </div>
           <span>暂无执行轨迹</span>
-          <span class="empty-hint">对话过程中将展示技能调用链路</span>
+          <span class="empty-hint">发送写作需求后，作家 Agent 将自动调用相关技能</span>
         </div>
         <div v-else class="trace-container">
           <TraceTimeline :trace="trace" />
@@ -101,7 +101,7 @@
                 <path d="M20 22h8M20 26h5" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
             </div>
-            <span>暂无技能结果</span>
+            <span>暂无技能调用记录</span>
             <span class="empty-hint">技能执行完成后将展示结构化结果</span>
           </div>
         </slot>
@@ -138,27 +138,22 @@ const props = defineProps<{
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
-  { key: 'skills' as const, label: '技能调用', icon: '🧠', count: props.skillsUsed?.length || 0 },
-  { key: 'trace' as const, label: '执行轨迹', icon: '🪄', count: props.trace?.length || 0 },
-  { key: 'results' as const, label: '结果面板', icon: '📖', count: props.resultCount || 0 }
+  { key: 'skills' as const, label: '技能调用', icon: '⚡', count: props.skillsUsed?.length || 0 },
+  { key: 'trace' as const, label: '执行轨迹', icon: '🔗', count: props.trace?.length || 0 },
+  { key: 'results' as const, label: '结果面板', icon: '📘', count: props.resultCount || 0 }
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
-  outline_generation: { icon: '📋', tone: 'amber' },
-  style_analysis: { icon: '🎨', tone: 'orange' },
-  plot_logic_check: { icon: '📖', tone: 'warm' },
-  text_polish: { icon: '✨', tone: 'amber' },
-  title_optimization: { icon: '💡', tone: 'orange' },
-  character_design: { icon: '🧑‍🎤', tone: 'rose' },
-  dialogue_generation: { icon: '💬', tone: 'teal' },
-  copywriting: { icon: '📝', tone: 'warm' },
-  seo_optimization: { icon: '🔍', tone: 'teal' }
+  inspiration_expand: { icon: '💡', tone: 'amber' },
+  outline_generate: { icon: '🗺️', tone: 'orange' },
+  content_write: { icon: '📝', tone: 'warm' },
+  character_relation_map: { icon: '🕸️', tone: 'rose' }
 }
 
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '📌', tone: 'amber' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: '✨', tone: 'amber' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),
@@ -563,3 +558,5 @@ const formatAdjustment = (v?: number) => {
   word-break: break-word;
 }
 </style>
+
+

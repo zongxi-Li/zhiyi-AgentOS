@@ -3,70 +3,63 @@ import type { AgentTraceStep, FederatedInfo } from './agentLawyer'
 
 const PROGRAMMER_AGENT_TIMEOUT_MS = 120000
 
-export interface CodeReviewResult {
-  summary?: string
-  quality_score?: number
-  issues?: Array<{
-    severity?: string
-    file?: string
-    line?: number
+export interface RequirementAnalysisResult {
+  requirement?: string
+  functional_requirements?: string[]
+  inputs?: string[]
+  outputs?: string[]
+  boundary_conditions?: string[]
+  acceptance_criteria?: string[]
+  suggested_modules?: string[]
+}
+
+export interface CodeSearchHit {
+  id?: string
+  content?: string
+  score?: number
+  file_path?: string
+  function_name?: string
+  class_name?: string
+  language?: string
+  line?: number
+  metadata?: Record<string, any>
+}
+
+export interface CodebaseSemanticSearchResult {
+  query?: string
+  top_k?: number
+  hits?: CodeSearchHit[]
+  index_status?: {
+    success?: boolean
+    root_path?: string
+    indexed_files?: number
+    indexed_docs?: number
+    deleted_docs?: number
+    total_files?: number
+    vector_enabled?: boolean
     message?: string
-    description?: string
-    suggestion?: string
-  }>
-  metrics?: {
-    complexity?: number | string
-    coverage?: number | string
-    duplicates?: number | string
-    debt?: number | string
   }
 }
 
-export interface DebugTraceResult {
-  root_cause?: string
-  rootCause?: string
-  steps?: Array<{
-    action?: string
-    description?: string
-    file?: string
-    line?: number
-    detail?: string
-    output?: string
-    status?: string
+export interface CodeGenerationResult {
+  target_language?: string
+  code?: string
+  explanation?: string
+  suggested_tests?: string[]
+  mermaid_code?: string
+  context_refs?: Array<{
+    file_path?: string
+    function_name?: string
+    class_name?: string
+    score?: number
   }>
-  fix_suggestion?: string
-  fixSuggestion?: string
-  status?: string
 }
 
-export interface ArchSuggestResult {
-  overview?: string
-  pattern?: string
-  suggestions?: Array<{
-    priority?: string
-    category?: string
-    title?: string
-    name?: string
-    description?: string
-    reason?: string
-    implementation?: string
-  }>
-  tech_stack?: string[]
-  techStack?: string[]
-}
-
-export interface UnitTestResult {
-  summary?: string
-  coverage?: number
-  test_cases?: Array<{
-    name?: string
-    test_name?: string
-    description?: string
-    code?: string
-    test_code?: string
-    status?: string
-    assertions?: number
-  }>
+export interface DiagramGenerationResult {
+  title?: string
+  diagram_type?: string
+  mermaid_code?: string
+  source_query?: string
 }
 
 export interface ProgrammerAgentRequest {
@@ -82,14 +75,14 @@ export interface ProgrammerAgentResponse {
   trace: AgentTraceStep[]
   riskLevel?: string
   federated?: FederatedInfo
-  codeReview?: CodeReviewResult
-  code_review?: CodeReviewResult
-  debugTrace?: DebugTraceResult
-  debug_trace?: DebugTraceResult
-  archSuggest?: ArchSuggestResult
-  architecture_suggestion?: ArchSuggestResult
-  unitTest?: UnitTestResult
-  unit_test_generation?: UnitTestResult
+  requirementAnalysis?: RequirementAnalysisResult
+  requirement_analysis?: RequirementAnalysisResult
+  codebaseSemanticSearch?: CodebaseSemanticSearchResult
+  codebase_semantic_search?: CodebaseSemanticSearchResult
+  codeGeneration?: CodeGenerationResult
+  code_generation?: CodeGenerationResult
+  diagramGeneration?: DiagramGenerationResult
+  diagram_generation?: DiagramGenerationResult
   message?: string
   error?: string
 }
