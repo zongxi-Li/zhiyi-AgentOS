@@ -40,6 +40,17 @@
               调整：{{ formatAdjustment(federated?.risk_adjustment) }} | 置信度：{{ formatPercent(federated?.confidence) }} |
               节点：{{ federated?.federated_nodes_count ?? 0 }}
             </span>
+            <div class="federated-actions">
+              <button class="federated-btn ghost" type="button" @click="emit('open-federated-console')">联邦控制台</button>
+              <button
+                class="federated-btn"
+                type="button"
+                :disabled="federated?.enabled === false"
+                @click="emit('optimize-federated')"
+              >
+                联邦优化
+              </button>
+            </div>
           </div>
         </div>
 
@@ -116,6 +127,10 @@ const props = defineProps<{
   resultCount?: number
 }>()
 
+const emit = defineEmits<{
+  (e: 'open-federated-console'): void
+  (e: 'optimize-federated'): void
+}>()
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
@@ -351,6 +366,39 @@ const formatAdjustment = (v?: number) => {
   flex-direction: column;
   gap: 6px;
 }
+.federated-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.federated-btn {
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.federated-btn:hover:not(:disabled) {
+  border-color: #7c3aed;
+  background: #ede9fe;
+}
+
+.federated-btn.ghost {
+  border-color: #ddd6fe;
+  background: #fff;
+  color: #7c3aed;
+}
+
+.federated-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 
 .status-pill {
   width: fit-content;
@@ -515,3 +563,4 @@ const formatAdjustment = (v?: number) => {
   word-break: break-word;
 }
 </style>
+
