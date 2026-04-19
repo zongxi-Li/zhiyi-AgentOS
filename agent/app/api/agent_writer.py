@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter
 
+from app.agent_core.federated.federated_adapter import FederatedAdapter
 from app.agent_core.memory.session_memory import session_memory_store
 from app.agent_core.react.executor import ReactExecutor
 from app.agent_core.react.planner import ReactPlanner
@@ -20,6 +21,54 @@ ai_service = AIService()
 planner = ReactPlanner()
 tool_router = ToolRouter()
 executor = ReactExecutor(tool_router=tool_router)
+federated_adapter = FederatedAdapter()
+
+
+def _default_federated_info() -> Dict[str, Any]:
+    return {
+        "enabled": federated_adapter.enabled,
+        "applied": False,
+        "risk_adjustment": 0.0,
+        "confidence": 0.0,
+        "federated_nodes_count": 0,
+    }
+
+
+async def _collect_federated_info(user_text: str, skills_used: List[str], observations: Dict[str, Any]) -> Dict[str, Any]:
+    info = _default_federated_info()
+    if not federated_adapter.enabled:
+        return info
+
+    payload = {
+        "role": "writer",
+        "query": user_text,
+        "skills_used": skills_used,
+    }
+    if isinstance(observations, dict):
+        inspiration = observations.get("inspiration_expand")
+        if isinstance(inspiration, dict):
+            creative_tree = inspiration.get("creative_tree")
+            if isinstance(creative_tree, dict):
+                payload["creative_tree_root"] = creative_tree.get("label")
+                payload["creative_branch_count"] = len(creative_tree.get("children", []) or [])
+        relation = observations.get("character_relation_map")
+        if isinstance(relation, dict):
+            relation_graph = relation.get("relation_graph")
+            if isinstance(relation_graph, dict):
+                nodes = relation_graph.get("nodes", []) if isinstance(relation_graph.get("nodes"), list) else []
+                edges = relation_graph.get("edges", []) if isinstance(relation_graph.get("edges"), list) else []
+                payload["relation_nodes"] = len(nodes)
+                payload["relation_edges"] = len(edges)
+
+    enhancement = await federated_adapter.get_risk_enhancement(payload)
+    if not enhancement:
+        return info
+
+    info["applied"] = True
+    info["risk_adjustment"] = round(float(enhancement.get("risk_adjustment", 0.0) or 0.0), 4)
+    info["confidence"] = round(float(enhancement.get("confidence", 0.0) or 0.0), 4)
+    info["federated_nodes_count"] = int(enhancement.get("federated_nodes_count", 0) or 0)
+    return info
 
 
 def _build_writer_context(observations: Dict[str, Any]) -> str:
@@ -158,6 +207,11 @@ async def writer_agent_chat(request: AgentWriterRequest):
 
         session_memory_store.append_message(session_id, "user", user_text)
         session_memory_store.append_message(session_id, "assistant", answer)
+        federated_info = await _collect_federated_info(
+            user_text=user_text,
+            skills_used=skills_used,
+            observations=observations if isinstance(observations, dict) else {},
+        )
 
         return AgentWriterResponse(
             success=True,
@@ -165,7 +219,7 @@ async def writer_agent_chat(request: AgentWriterRequest):
             sessionId=session_id,
             skillsUsed=skills_used,
             trace=trace,
-            federated={},
+            federated=federated_info,
             message="Writer agent workflow completed.",
             inspiration_expand=observations.get("inspiration_expand") if isinstance(observations, dict) else None,
             outline_generate=observations.get("outline_generate") if isinstance(observations, dict) else None,
@@ -180,7 +234,7 @@ async def writer_agent_chat(request: AgentWriterRequest):
             sessionId=session_id,
             skillsUsed=[],
             trace=[],
-            federated={},
+            federated=_default_federated_info(),
             message="Writer agent execution failed.",
             error=str(exc),
         )

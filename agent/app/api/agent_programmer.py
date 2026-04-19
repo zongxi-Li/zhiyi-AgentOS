@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter
 
+from app.agent_core.federated.federated_adapter import FederatedAdapter
 from app.agent_core.memory.session_memory import session_memory_store
 from app.agent_core.react.executor import ReactExecutor
 from app.agent_core.react.planner import ReactPlanner
@@ -20,6 +21,55 @@ ai_service = AIService()
 planner = ReactPlanner()
 tool_router = ToolRouter()
 executor = ReactExecutor(tool_router=tool_router)
+federated_adapter = FederatedAdapter()
+
+
+def _default_federated_info() -> Dict[str, Any]:
+    return {
+        "enabled": federated_adapter.enabled,
+        "applied": False,
+        "risk_adjustment": 0.0,
+        "confidence": 0.0,
+        "federated_nodes_count": 0,
+    }
+
+
+async def _collect_federated_info(user_text: str, skills_used: List[str], observations: Dict[str, Any]) -> Dict[str, Any]:
+    info = _default_federated_info()
+    if not federated_adapter.enabled:
+        return info
+
+    payload = {
+        "role": "programmer",
+        "query": user_text,
+        "skills_used": skills_used,
+    }
+    if isinstance(observations, dict):
+        requirement = observations.get("requirement_analysis")
+        if isinstance(requirement, dict):
+            payload["requirement_analysis"] = {
+                "requirement": requirement.get("requirement"),
+                "functional_requirements": requirement.get("functional_requirements", []),
+            }
+        search = observations.get("codebase_semantic_search")
+        if isinstance(search, dict):
+            hits = search.get("hits", []) if isinstance(search.get("hits"), list) else []
+            payload["search_hit_count"] = len(hits)
+            payload["search_files"] = [
+                hit.get("file_path")
+                for hit in hits[:5]
+                if isinstance(hit, dict) and hit.get("file_path")
+            ]
+
+    enhancement = await federated_adapter.get_risk_enhancement(payload)
+    if not enhancement:
+        return info
+
+    info["applied"] = True
+    info["risk_adjustment"] = round(float(enhancement.get("risk_adjustment", 0.0) or 0.0), 4)
+    info["confidence"] = round(float(enhancement.get("confidence", 0.0) or 0.0), 4)
+    info["federated_nodes_count"] = int(enhancement.get("federated_nodes_count", 0) or 0)
+    return info
 
 
 def _build_programmer_context(observations: Dict[str, Any]) -> str:
@@ -176,6 +226,11 @@ async def programmer_agent_chat(request: AgentProgrammerRequest):
 
         session_memory_store.append_message(session_id, "user", user_text)
         session_memory_store.append_message(session_id, "assistant", answer)
+        federated_info = await _collect_federated_info(
+            user_text=user_text,
+            skills_used=skills_used,
+            observations=observations if isinstance(observations, dict) else {},
+        )
 
         return AgentProgrammerResponse(
             success=True,
@@ -183,7 +238,7 @@ async def programmer_agent_chat(request: AgentProgrammerRequest):
             sessionId=session_id,
             skillsUsed=skills_used,
             trace=trace,
-            federated={},
+            federated=federated_info,
             message="Programmer agent workflow completed.",
             requirement_analysis=observations.get("requirement_analysis") if isinstance(observations, dict) else None,
             codebase_semantic_search=observations.get("codebase_semantic_search") if isinstance(observations, dict) else None,
@@ -198,7 +253,7 @@ async def programmer_agent_chat(request: AgentProgrammerRequest):
             sessionId=session_id,
             skillsUsed=[],
             trace=[],
-            federated={},
+            federated=_default_federated_info(),
             message="Programmer agent execution failed.",
             error=str(exc),
         )
