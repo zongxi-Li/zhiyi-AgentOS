@@ -161,6 +161,8 @@
           :federated="latestLawyerMeta.federated"
           :risk-level="latestLawyerMeta.riskLevel"
           :result-count="availableLawyerResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
         >
           <template #results>
             <div v-if="!availableLawyerResultPanels.length" class="results-empty">
@@ -209,6 +211,8 @@
           :trace="latestTeacherMeta.trace"
           :federated="latestTeacherMeta.federated"
           :result-count="availableTeacherResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
         >
           <template #results>
             <div v-if="!availableTeacherResultPanels.length" class="results-empty">
@@ -257,6 +261,8 @@
           :trace="latestProgrammerMeta.trace"
           :federated="latestProgrammerMeta.federated"
           :result-count="availableProgrammerResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
         >
           <template #results>
             <div v-if="!availableProgrammerResultPanels.length" class="results-empty">
@@ -365,6 +371,8 @@
           :trace="latestWriterMeta.trace"
           :federated="latestWriterMeta.federated"
           :result-count="availableWriterResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
         >
           <template #results>
             <div v-if="!availableWriterResultPanels.length" class="results-empty">
@@ -479,6 +487,7 @@ import DiagramViewer from '@/components/agent/DiagramViewer.vue'
 import MindMapViewer from '@/components/agent/MindMapViewer.vue'
 import RelationGraph from '@/components/agent/RelationGraph.vue'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
+import { federatedModelApi } from '@/services/api/federatedModel'
 import { fileApi } from '@/services/api/file'
 import { useChatStore } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
@@ -501,6 +510,7 @@ const teacherUploadInputRef = ref<HTMLInputElement | null>(null)
 const showAssistTools = ref(true)
 const isNearBottom = ref(true)
 const pendingMessageCount = ref(0)
+const federatedOptimizing = ref(false)
 const activeLawyerResultPanels = ref<string[]>([])
 const activeTeacherResultPanels = ref<string[]>([])
 const activeProgrammerResultPanels = ref<string[]>([])
@@ -886,6 +896,27 @@ const toggleWriterMode = async () => {
     return
   }
   await activateWriterAgent()
+}
+
+const openFederatedConsole = () => {
+  router.push('/federated-learning')
+}
+
+const handleFederatedOptimize = async () => {
+  if (federatedOptimizing.value) return
+  federatedOptimizing.value = true
+  try {
+    const result = await federatedModelApi.optimizeModel('advanced', 'federated', 'quality', 1)
+    if (result?.success) {
+      ElMessage.success('联邦优化已触发')
+      return
+    }
+    ElMessage.warning('联邦优化请求未成功')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '联邦优化触发失败')
+  } finally {
+    federatedOptimizing.value = false
+  }
 }
 
 const goToSettings = () => {
