@@ -10,8 +10,8 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5173,
-    strictPort: true, // 固定使用5173，避免开发环境端口漂移
+    port: 3000,
+    strictPort: false,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

@@ -6,8 +6,18 @@
         <el-aside width="260px" class="app-sidebar" v-if="!isImmersive">
           <!-- Logo Section -->
           <div class="sidebar-header" @click="router.push('/chat')">
-            <div class="logo-icon">K</div>
-            <span class="logo-text">联邦智能枢</span>
+            <div class="logo-icon">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="14" stroke="white" stroke-width="1.8" fill="none"/>
+                <circle cx="16" cy="11" r="4" fill="white"/>
+                <circle cx="9" cy="22" r="3.2" fill="white" opacity="0.7"/>
+                <circle cx="23" cy="22" r="3.2" fill="white" opacity="0.7"/>
+                <line x1="16" y1="15" x2="9" y2="19" stroke="white" stroke-width="1.2" opacity="0.6"/>
+                <line x1="16" y1="15" x2="23" y2="19" stroke="white" stroke-width="1.2" opacity="0.6"/>
+                <line x1="9" y1="22" x2="23" y2="22" stroke="white" stroke-width="1.2" opacity="0.4"/>
+              </svg>
+            </div>
+            <span class="logo-text">联邦智枢</span>
           </div>
 
           <!-- Main Navigation -->

@@ -13,10 +13,10 @@
     </parent>
 
     <groupId>com.kinlin</groupId>
-    <artifactId>kinlin-ai-backend</artifactId>
+    <artifactId>federal-hub-backend</artifactId>
     <version>1.0.0</version>
-    <name>Kinlin AI Backend</name>
-    <description>Kinlin AI System Backend Service</description>
+    <name>联邦智枢 Backend</name>
+    <description>联邦智枢 - 多角色智能体系统 Backend Service</description>
 
     <properties>
         <java.version>17</java.version>

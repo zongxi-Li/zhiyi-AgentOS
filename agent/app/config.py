@@ -32,7 +32,7 @@ else:
 
 class Settings(BaseSettings):
     # 应用配置
-    APP_NAME: str = "Kinlin AI Service"
+    APP_NAME: str = "联邦智枢 AI Service"
     DEBUG: bool = False
     
     # 麒麟AI SDK配置（兼容旧配置）

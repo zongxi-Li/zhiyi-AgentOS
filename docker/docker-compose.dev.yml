@@ -4,9 +4,9 @@ services:
   # PostgreSQL数据库
   postgres:
     image: postgres:15
-    container_name: kinlin-postgres-dev
+    container_name: federal-hub-postgres-dev
     environment:
-      POSTGRES_DB: kinlin_ai
+      POSTGRES_DB: federal_hub
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -14,23 +14,23 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - kinlin-network
+      - federal-hub-network
 
   # Redis缓存
   redis:
     image: redis:7-alpine
-    container_name: kinlin-redis-dev
+    container_name: federal-hub-redis-dev
     ports:
       - "6379:6379"
     networks:
-      - kinlin-network
+      - federal-hub-network
 
   # Spring Boot后端（开发模式，挂载源码）
   backend:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    container_name: kinlin-backend-dev
+    container_name: federal-hub-backend-dev
     ports:
       - "8080:8080"
     environment:
@@ -56,14 +56,14 @@ services:
       - redis
       - ai-service
     networks:
-      - kinlin-network
+      - federal-hub-network
 
   # Python AI服务（开发模式）
   ai-service:
     build:
       context: ../agent
       dockerfile: Dockerfile
-    container_name: kinlin-ai-service-dev
+    container_name: federal-hub-ai-service-dev
     ports:
       - "8000:8000"
     environment:
@@ -75,12 +75,11 @@ services:
     volumes:
       - ../agent:/app
     networks:
-      - kinlin-network
+      - federal-hub-network
 
 volumes:
   postgres_data:
 
 networks:
-  kinlin-network:
+  federal-hub-network:
     driver: bridge
-
