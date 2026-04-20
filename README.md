@@ -410,7 +410,7 @@ ai.service.url: http://localhost:8000
 
 # Agent配置
 agent.enabled: true
-agent.timeout-ms: 30000
+agent.timeout-ms: 120000
 agent.python.lawyer-chat-url: http://localhost:8000/ai/agent/lawyer/chat
 agent.python.teacher-chat-url: http://localhost:8000/ai/agent/teacher/chat
 agent.federated.enabled: false
@@ -551,7 +551,7 @@ AGENT_FEDERATED_TIMEOUT_MS: int = 1500
 - Pydantic命名空间警告：已修复，确保使用最新代码
 
 ### 4. Agent响应超时
-- 检查 `agent.timeout-ms` 配置（默认30秒）
+- 检查 `agent.timeout-ms` 配置（默认120秒）
 - 确认AI服务正常运行：`curl http://localhost:8000/health`
 - 查看AI服务日志排查Skill执行错误
 

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter
 
+from app.api.language_guard import ensure_simplified_chinese
 from app.agent_core.memory.session_memory import session_memory_store
 from app.agent_core.react.executor import ReactExecutor
 from app.agent_core.react.planner import ReactPlanner
@@ -46,9 +47,9 @@ def _build_teacher_context(observations: Dict[str, Any]) -> str:
 
 def _build_fallback_answer(user_text: str, skills_used: List[str], observations: Dict[str, Any]) -> str:
     lines = [
-        "TeacherAgent structured fallback result:",
-        f"1) User request: {user_text}",
-        f"2) Skills used: {', '.join(skills_used) if skills_used else 'none'}",
+        "教师 Agent 结构化降级结果：",
+        f"1) 用户请求：{user_text}",
+        f"2) 已调用技能：{', '.join(skills_used) if skills_used else '无'}",
     ]
 
     for index, action in enumerate(skills_used, start=3):
@@ -57,7 +58,7 @@ def _build_fallback_answer(user_text: str, skills_used: List[str], observations:
             preview = json.dumps(payload, ensure_ascii=False)[:220]
         else:
             preview = str(payload)[:220]
-        lines.append(f"{index}) {action}: {preview}")
+        lines.append(f"{index}) {action}：{preview}")
 
     return "\n".join(lines)
 
@@ -127,14 +128,13 @@ async def teacher_agent_chat(request: AgentTeacherRequest):
         if not answer:
             context_text = _build_teacher_context(observations)
             synthesis_prompt = (
-                "You are a professional teacher assistant. Provide a concise, actionable answer based on"
-                " the structured skill outputs.\n"
-                "Requirements:\n"
-                "1. Give a practical result first.\n"
-                "2. If this is a follow-up refinement, only update the requested part.\n"
-                "3. If information is missing, list exactly what is needed.\n\n"
-                f"User request: {user_text}\n\n"
-                f"Structured outputs:\n{context_text}"
+                "你是一名专业教师助手。请基于结构化技能结果输出简洁、可执行的答复，并且必须始终使用简体中文。\n"
+                "要求：\n"
+                "1. 先给可直接执行的结果。\n"
+                "2. 若是追问优化，仅修改用户要求的部分。\n"
+                "3. 信息不足时，明确列出缺失信息。\n\n"
+                f"用户请求：{user_text}\n\n"
+                f"结构化结果：\n{context_text}"
             )
             try:
                 llm_response = await asyncio.wait_for(
@@ -147,6 +147,8 @@ async def teacher_agent_chat(request: AgentTeacherRequest):
 
         if not answer:
             answer = _build_fallback_answer(user_text=user_text, skills_used=skills_used, observations=observations)
+
+        answer = await ensure_simplified_chinese(answer, ai_service=ai_service, history=history)
 
         session_memory_store.append_message(session_id, "user", user_text)
         session_memory_store.append_message(session_id, "assistant", answer)
@@ -162,7 +164,7 @@ async def teacher_agent_chat(request: AgentTeacherRequest):
             trace=trace,
             riskLevel=diagnosis_info.get("mastery_level") if isinstance(diagnosis_info, dict) else None,
             federated=federated_info if isinstance(federated_info, dict) else {},
-            message="Teacher agent workflow completed.",
+            message="教师 Agent 工作流执行完成。",
         )
     except Exception as exc:
         logger.error("Teacher agent chat failed", exc_info=True)
@@ -173,6 +175,6 @@ async def teacher_agent_chat(request: AgentTeacherRequest):
             skillsUsed=[],
             trace=[],
             federated={},
-            message="Teacher agent execution failed.",
+            message="教师 Agent 执行失败。",
             error=str(exc),
         )

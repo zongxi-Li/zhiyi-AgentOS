@@ -457,7 +457,7 @@ async def get_risk_enhancement(self, case_info: Dict) -> Dict:
 关键配置（`AgentProperties.java`）：
 ```java
 agent.enabled = true
-agent.timeout-ms = 30000
+agent.timeout-ms = 120000
 agent.python.lawyer-chat-url = http://localhost:8000/ai/agent/lawyer/chat
 agent.python.teacher-chat-url = http://localhost:8000/ai/agent/teacher/chat
 agent.python.programmer-chat-url = http://localhost:8000/ai/agent/programmer/chat
