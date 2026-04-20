@@ -173,12 +173,10 @@ const props = withDefaults(defineProps<{
   aggregating?: boolean
 }>(), {
   clients: () => [
-    { id: 'c1', label: '律师节点', active: true, accuracy: 92.5, dataSize: 245 },
-    { id: 'c2', label: '教师节点', active: true, accuracy: 88.7, dataSize: 187 },
-    { id: 'c3', label: '程序员节点', active: true, accuracy: 91.3, dataSize: 312 },
-    { id: 'c4', label: '作家节点', active: true, accuracy: 89.1, dataSize: 156 },
-    { id: 'c5', label: '风控节点', active: false, accuracy: 85.2, dataSize: 0 },
-    { id: 'c6', label: 'NLP节点', active: true, accuracy: 90.4, dataSize: 278 }
+    { id: 'c1', label: '律师Agent', active: true, accuracy: 87.3, dataSize: 12450 },
+    { id: 'c2', label: '教师Agent', active: true, accuracy: 84.6, dataSize: 8920 },
+    { id: 'c3', label: '程序员Agent', active: true, accuracy: 86.1, dataSize: 15380 },
+    { id: 'c4', label: '作家Agent', active: true, accuracy: 83.2, dataSize: 6740 }
   ],
   globalVersion: '3.2',
   aggregating: false

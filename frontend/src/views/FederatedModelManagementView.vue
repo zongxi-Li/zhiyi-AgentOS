@@ -204,43 +204,56 @@ interface EvaluationState {
 
 const makeDefaultModels = (): ModelCard[] => [
   {
-    id: 'fed-chat-1',
-    name: '联邦对话模型',
-    scene: '智能问答',
-    version: '1.3.2',
+    id: 'fed-lawyer-1',
+    name: '律师Agent模型',
+    scene: '法律咨询',
+    version: '3.2',
     status: 'online',
     federated: true,
-    owner: '平台算法组',
-    accuracy: 92.6,
-    latency: 128,
+    owner: '联邦平台',
+    accuracy: 87.3,
+    latency: 156,
     updatedAt: new Date().toISOString(),
-    description: '面向业务知识问答的联邦模型，支持多节点增量更新。'
+    description: '面向法律领域的联邦模型，支持案例检索、法规查询、证据分析等技能的联邦协同优化。'
   },
   {
-    id: 'fed-risk-1',
-    name: '联邦风控模型',
-    scene: '异常检测',
-    version: '0.9.8',
+    id: 'fed-teacher-1',
+    name: '教师Agent模型',
+    scene: '教学辅导',
+    version: '2.8',
+    status: 'online',
+    federated: true,
+    owner: '联邦平台',
+    accuracy: 84.6,
+    latency: 142,
+    updatedAt: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+    description: '面向教育领域的联邦模型，支持学情诊断、教案生成、错题推送等技能的联邦协同优化。'
+  },
+  {
+    id: 'fed-programmer-1',
+    name: '程序员Agent模型',
+    scene: '代码开发',
+    version: '4.1',
     status: 'training',
     federated: true,
-    owner: '风控数据组',
-    accuracy: 88.2,
-    latency: 96,
-    updatedAt: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
-    description: '融合多方特征进行风险评分，当前处于新一轮联合训练阶段。'
+    owner: '联邦平台',
+    accuracy: 86.1,
+    latency: 118,
+    updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    description: '面向开发领域的联邦模型，支持需求分析、代码检索、代码生成等技能的联邦协同优化。'
   },
   {
-    id: 'baseline-doc-1',
-    name: '文档分类基线模型',
-    scene: '文本分类',
-    version: '2.1.0',
+    id: 'fed-writer-1',
+    name: '作家Agent模型',
+    scene: '创意写作',
+    version: '2.3',
     status: 'ready',
-    federated: false,
-    owner: 'NLP 工程组',
-    accuracy: 90.4,
-    latency: 82,
-    updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    description: '用于文档自动分类的基线版本，可作为联邦蒸馏教师模型。'
+    federated: true,
+    owner: '联邦平台',
+    accuracy: 83.2,
+    latency: 168,
+    updatedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    description: '面向写作领域的联邦模型，支持灵感拓展、大纲生成、内容撰写等技能的联邦协同优化。'
   }
 ]
 
