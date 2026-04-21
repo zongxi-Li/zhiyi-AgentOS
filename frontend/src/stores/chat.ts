@@ -141,6 +141,12 @@ export const useChatStore = defineStore('chat', () => {
     messages.value.push(userMessage)
   }
 
+  const emitHistoryRefresh = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('history-refresh'))
+    }
+  }
+
   const sendMessage = async (text: string, fileUrl?: string) => {
     if ((!text.trim() && !fileUrl) || loading.value) return
 
@@ -171,6 +177,7 @@ export const useChatStore = defineStore('chat', () => {
         agentMode: 'default'
       }
       messages.value.push(assistantMessage)
+      emitHistoryRefresh()
 
       return response
     } finally {
@@ -213,6 +220,7 @@ export const useChatStore = defineStore('chat', () => {
         agentMode: 'lawyer'
       }
       messages.value.push(assistantMessage)
+      emitHistoryRefresh()
 
       return response
     } finally {
@@ -255,6 +263,7 @@ export const useChatStore = defineStore('chat', () => {
         agentMode: 'teacher'
       }
       messages.value.push(assistantMessage)
+      emitHistoryRefresh()
 
       return response
     } finally {
@@ -297,6 +306,7 @@ export const useChatStore = defineStore('chat', () => {
         agentMode: 'programmer'
       }
       messages.value.push(assistantMessage)
+      emitHistoryRefresh()
 
       return response
     } finally {
@@ -339,6 +349,7 @@ export const useChatStore = defineStore('chat', () => {
         agentMode: 'writer'
       }
       messages.value.push(assistantMessage)
+      emitHistoryRefresh()
 
       return response
     } finally {

@@ -17,6 +17,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-federal_hub_password}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_password}
       - AI_SERVICE_URL=http://ai-service:8000
       - AI_SERVICE_TIMEOUT=240000
       - AGENT_PYTHON_LAWYER_CHAT_URL=http://ai-service:8000/ai/agent/lawyer/chat
