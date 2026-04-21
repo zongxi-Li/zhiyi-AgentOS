@@ -76,7 +76,9 @@
 
           <div class="meta-row">
             <el-tag v-if="model.federated" size="small" type="primary" effect="plain">联邦</el-tag>
+            <el-tag v-else size="small" type="info" effect="plain">本地</el-tag>
             <span class="meta-owner">{{ model.owner }}</span>
+            <span class="meta-type">{{ model.modelType }}</span>
           </div>
 
           <p class="description">{{ model.description }}</p>
@@ -95,6 +97,14 @@
             <div class="metric-chip">
               <span class="chip-label">延迟</span>
               <span class="chip-value">{{ model.latency }}ms</span>
+            </div>
+            <div class="metric-chip">
+              <span class="chip-label">损失</span>
+              <span class="chip-value">{{ model.loss.toFixed(2) }}</span>
+            </div>
+            <div class="metric-chip">
+              <span class="chip-label">大小</span>
+              <span class="chip-value">{{ model.modelSize }}</span>
             </div>
             <div class="metric-chip">
               <span class="chip-label">更新</span>
@@ -149,6 +159,30 @@
               <strong>{{ activeModel.owner }}</strong>
             </div>
             <div class="panel-item">
+              <span>模型类型</span>
+              <strong>{{ activeModel.modelType }}</strong>
+            </div>
+            <div class="panel-item">
+              <span>参数量</span>
+              <strong>{{ activeModel.params }}</strong>
+            </div>
+            <div class="panel-item">
+              <span>模型大小</span>
+              <strong>{{ activeModel.modelSize }}</strong>
+            </div>
+            <div class="panel-item">
+              <span>框架</span>
+              <strong>{{ activeModel.framework }}</strong>
+            </div>
+            <div class="panel-item">
+              <span>参与方</span>
+              <strong>{{ activeModel.participants }} Agent</strong>
+            </div>
+            <div class="panel-item">
+              <span>训练轮次</span>
+              <strong>{{ activeModel.trainingRounds }}</strong>
+            </div>
+            <div class="panel-item">
               <span>最近更新</span>
               <strong>{{ formatTime(activeModel.updatedAt) }}</strong>
             </div>
@@ -164,6 +198,13 @@
                   <div class="detail-progress-fill" :style="{ width: activeModel.accuracy.toFixed(1) + '%', background: getProgressColor(activeModel.accuracy) }"></div>
                 </div>
                 <span class="detail-metric-value">{{ activeModel.accuracy.toFixed(1) }}%</span>
+              </div>
+              <div class="detail-metric-item">
+                <span class="detail-metric-label">损失值</span>
+                <div class="detail-progress-track">
+                  <div class="detail-progress-fill" :style="{ width: Math.min(100, activeModel.loss * 50) + '%', background: activeModel.loss > 0.8 ? 'linear-gradient(90deg, #ef4444, #f87171)' : activeModel.loss > 0.5 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #22c55e, #4ade80)' }"></div>
+                </div>
+                <span class="detail-metric-value">{{ activeModel.loss.toFixed(2) }}</span>
               </div>
               <div class="detail-metric-item">
                 <span class="detail-metric-label">延迟</span>
@@ -232,6 +273,13 @@ interface ModelCard {
   latency: number
   updatedAt: string
   description: string
+  modelType: string
+  modelSize: string
+  loss: number
+  params: string
+  framework: string
+  trainingRounds: number
+  participants: number
 }
 
 interface EvaluationState {
@@ -253,7 +301,14 @@ const makeDefaultModels = (): ModelCard[] => [
     accuracy: 87.3,
     latency: 156,
     updatedAt: new Date().toISOString(),
-    description: '面向法律领域的联邦模型，支持案例检索、法规查询、证据分析等技能的联邦协同优化。'
+    description: '面向法律领域的联邦模型，支持案例检索、法规查询、证据分析等技能的联邦协同优化。',
+    modelType: 'RAG-Enhanced LLM',
+    modelSize: '2.4 GB',
+    loss: 0.35,
+    params: '7B',
+    framework: 'FedAvg + DP-SGD',
+    trainingRounds: 32,
+    participants: 4
   },
   {
     id: 'fed-teacher-1',
@@ -266,7 +321,14 @@ const makeDefaultModels = (): ModelCard[] => [
     accuracy: 84.6,
     latency: 142,
     updatedAt: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
-    description: '面向教育领域的联邦模型，支持学情诊断、教案生成、错题推送等技能的联邦协同优化。'
+    description: '面向教育领域的联邦模型，支持学情诊断、教案生成、错题推送等技能的联邦协同优化。',
+    modelType: 'RAG-Enhanced LLM',
+    modelSize: '2.1 GB',
+    loss: 0.42,
+    params: '7B',
+    framework: 'FedAvg + SecAgg',
+    trainingRounds: 28,
+    participants: 4
   },
   {
     id: 'fed-programmer-1',
@@ -279,7 +341,14 @@ const makeDefaultModels = (): ModelCard[] => [
     accuracy: 86.1,
     latency: 118,
     updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    description: '面向开发领域的联邦模型，支持需求分析、代码检索、代码生成等技能的联邦协同优化。'
+    description: '面向开发领域的联邦模型，支持需求分析、代码检索、代码生成等技能的联邦协同优化。',
+    modelType: 'RAG-Enhanced LLM',
+    modelSize: '2.8 GB',
+    loss: 0.38,
+    params: '7B',
+    framework: 'FedAvg + HE',
+    trainingRounds: 21,
+    participants: 4
   },
   {
     id: 'fed-writer-1',
@@ -292,7 +361,94 @@ const makeDefaultModels = (): ModelCard[] => [
     accuracy: 83.2,
     latency: 168,
     updatedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    description: '面向写作领域的联邦模型，支持灵感拓展、大纲生成、内容撰写等技能的联邦协同优化。'
+    description: '面向写作领域的联邦模型，支持灵感拓展、大纲生成、内容撰写等技能的联邦协同优化。',
+    modelType: 'RAG-Enhanced LLM',
+    modelSize: '1.9 GB',
+    loss: 0.48,
+    params: '7B',
+    framework: 'FedAvg + DP-SGD',
+    trainingRounds: 16,
+    participants: 3
+  },
+  {
+    id: 'fed-cross-1',
+    name: '跨领域融合模型',
+    scene: '知识融合',
+    version: '1.5',
+    status: 'online',
+    federated: true,
+    owner: '联邦平台',
+    accuracy: 81.7,
+    latency: 195,
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    description: '融合4个Agent领域知识的联邦模型，验证跨领域知识迁移与协同推理能力。',
+    modelType: 'Multi-Domain LLM',
+    modelSize: '3.2 GB',
+    loss: 0.52,
+    params: '13B',
+    framework: 'FedAvg + HE + DP-SGD',
+    trainingRounds: 40,
+    participants: 4
+  },
+  {
+    id: 'fed-privacy-1',
+    name: '隐私保护基准模型',
+    scene: '隐私评估',
+    version: '1.2',
+    status: 'offline',
+    federated: true,
+    owner: '安全团队',
+    accuracy: 79.4,
+    latency: 210,
+    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    description: '用于评估差分隐私与同态加密机制对联邦训练精度影响的基准模型。',
+    modelType: 'Privacy-Preserving LLM',
+    modelSize: '2.0 GB',
+    loss: 0.58,
+    params: '7B',
+    framework: 'FedAvg + DP-SGD + HE',
+    trainingRounds: 20,
+    participants: 4
+  },
+  {
+    id: 'fed-comm-1',
+    name: '通信效率优化模型',
+    scene: '通信优化',
+    version: '0.8',
+    status: 'draft',
+    federated: true,
+    owner: '基础设施组',
+    accuracy: 54.2,
+    latency: 85,
+    updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    description: '测试梯度压缩与稀疏化策略对联邦训练通信效率的提升，当前处于实验阶段。',
+    modelType: 'Compressed LLM',
+    modelSize: '1.2 GB',
+    loss: 1.35,
+    params: '3B',
+    framework: 'FedAvg + Gradient Sparsification',
+    trainingRounds: 3,
+    participants: 2
+  },
+  {
+    id: 'local-lawyer-1',
+    name: '律师本地基线模型',
+    scene: '法律咨询',
+    version: '1.0',
+    status: 'ready',
+    federated: false,
+    owner: '律师Agent',
+    accuracy: 72.5,
+    latency: 98,
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    description: '律师Agent的本地基线模型，未参与联邦训练，用于对比联邦优化效果。',
+    modelType: 'Local LLM',
+    modelSize: '1.8 GB',
+    loss: 0.89,
+    params: '7B',
+    framework: 'Local Training',
+    trainingRounds: 0,
+    participants: 1
   }
 ]
 
@@ -436,7 +592,14 @@ function flattenApiModels(data: Record<string, Record<string, ModelInfo>>): Mode
         accuracy: perf?.accuracy ?? 85,
         latency: perf?.speed ?? 120,
         updatedAt: new Date().toISOString(),
-        description: `来自 ${groupKey} 组的联邦模型。`
+        description: `来自 ${groupKey} 组的联邦模型。`,
+        modelType: 'RAG-Enhanced LLM',
+        modelSize: '2.0 GB',
+        loss: 0.45,
+        params: '7B',
+        framework: 'FedAvg',
+        trainingRounds: 10,
+        participants: 4
       })
     })
   })
@@ -763,6 +926,14 @@ onMounted(() => {
   color: var(--text-muted);
 }
 
+.meta-type {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--primary-bg);
+  border-radius: 4px;
+}
+
 .description {
   margin: var(--gap-sm) 0 0;
   color: var(--text-secondary);
@@ -808,28 +979,28 @@ onMounted(() => {
 
 .metrics-row-compact {
   margin-top: var(--gap-md);
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--gap-xs);
 }
 
 .metric-chip {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   background: var(--surface-alt);
   border-radius: var(--radius-sm);
   border: 1px solid #f1f5f9;
 }
 
 .chip-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 
 .chip-value {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
 }

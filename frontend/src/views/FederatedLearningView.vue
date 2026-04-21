@@ -303,6 +303,54 @@
         </div>
       </div>
 
+      <div class="panel-card tasks-panel">
+        <div class="panel-card-header">
+          <div class="panel-title-group">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="2" y="3" width="14" height="12" rx="2" stroke="#6366f1" stroke-width="1.2" />
+              <line x1="5" y1="7" x2="13" y2="7" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
+              <line x1="5" y1="10" x2="10" y2="10" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
+            </svg>
+            <h2>联邦学习任务</h2>
+          </div>
+          <span class="task-count">{{ federatedTasks.length }} 个任务</span>
+        </div>
+        <div class="tasks-list">
+          <div v-for="task in federatedTasks" :key="task.id" class="task-item" :class="task.status">
+            <div class="task-head">
+              <div class="task-id">{{ task.id }}</div>
+              <span class="task-badge" :class="task.status">{{ task.statusText }}</span>
+            </div>
+            <div class="task-name">{{ task.name }}</div>
+            <div class="task-desc">{{ task.description }}</div>
+            <div class="task-progress-row">
+              <div class="task-progress-track">
+                <div class="task-progress-fill" :class="task.status" :style="{ width: task.progress + '%' }"></div>
+              </div>
+              <span class="task-progress-text">{{ task.progress }}%</span>
+            </div>
+            <div class="task-meta-row">
+              <span class="task-meta-item">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1" /><circle cx="6" cy="6" r="1.5" fill="currentColor" /></svg>
+                {{ task.participants }} 参与方
+              </span>
+              <span class="task-meta-item">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v5l3 2" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1" /></svg>
+                轮次 {{ task.currentRound }}/{{ task.totalRounds }}
+              </span>
+              <span class="task-meta-item">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 9l2-3 2 2 4-5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                {{ task.accuracy }}%
+              </span>
+              <span class="task-meta-item">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="3" width="10" height="6" rx="1" stroke="currentColor" stroke-width="1" /><line x1="4" y1="5" x2="4" y2="7" stroke="currentColor" stroke-width="0.8" /></svg>
+                {{ task.createdAt }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-if="demoRunning" class="demo-overlay">
         <div class="demo-card">
           <div class="demo-card-header">
@@ -380,9 +428,9 @@ const topologyClients = ref([
   { id: 'c4', label: '作家Agent', active: true, accuracy: 83.2, dataSize: 6740 }
 ])
 
-const accuracyHistory = ref([62.1, 68.4, 73.7, 77.9, 81.2, 83.5, 85.1, 86.3, 87.0, 87.3])
-const lossHistory = ref([1.24, 1.05, 0.89, 0.76, 0.64, 0.55, 0.48, 0.42, 0.38, 0.35])
-const roundHistory = ref([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+const accuracyHistory = ref([52.3, 58.7, 63.9, 68.4, 72.1, 75.6, 78.3, 80.5, 82.1, 83.4, 84.2, 84.8, 85.3, 85.6, 85.8, 86.0, 86.2, 86.3, 86.4, 86.5])
+const lossHistory = ref([1.82, 1.61, 1.43, 1.28, 1.14, 1.02, 0.91, 0.82, 0.74, 0.67, 0.61, 0.56, 0.51, 0.47, 0.44, 0.41, 0.39, 0.37, 0.36, 0.35])
+const roundHistory = ref([13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32])
 
 const aggClients = ref([
   { id: 'c1', label: '律师Agent', weight: 0.30, uploaded: true },
@@ -404,7 +452,10 @@ const versionHistory = ref([
   { version: '3.1', accuracy: 84.1, clients: 4, time: '2小时前', isLatest: false },
   { version: '3.0', accuracy: 82.7, clients: 4, time: '1天前', isLatest: false },
   { version: '2.8', accuracy: 80.5, clients: 4, time: '3天前', isLatest: false },
-  { version: '2.5', accuracy: 77.8, clients: 4, time: '1周前', isLatest: false }
+  { version: '2.5', accuracy: 77.8, clients: 4, time: '1周前', isLatest: false },
+  { version: '2.2', accuracy: 74.2, clients: 4, time: '2周前', isLatest: false },
+  { version: '2.0', accuracy: 71.5, clients: 3, time: '3周前', isLatest: false },
+  { version: '1.5', accuracy: 65.8, clients: 3, time: '1月前', isLatest: false }
 ])
 
 const models = ref([
@@ -412,6 +463,114 @@ const models = ref([
   { id: 'teacher', name: '教师Agent模型', version: '2.8', status: 'online', statusText: '在线', accuracy: 84.6, efficiency: 79, color: '#10b981' },
   { id: 'programmer', name: '程序员Agent模型', version: '4.1', status: 'training', statusText: '训练中', accuracy: 86.1, efficiency: 85, color: '#8b5cf6' },
   { id: 'writer', name: '作家Agent模型', version: '2.3', status: 'ready', statusText: '就绪', accuracy: 83.2, efficiency: 76, color: '#f59e0b' }
+])
+
+const federatedTasks = ref([
+  {
+    id: 'task-001',
+    name: '法律知识图谱RAG优化',
+    status: 'running',
+    statusText: '运行中',
+    participants: 4,
+    progress: 78,
+    currentRound: 32,
+    totalRounds: 40,
+    createdAt: '2026-04-18 09:30',
+    description: '基于联邦学习优化法律领域RAG检索与生成质量',
+    accuracy: 87.3,
+    loss: 0.35,
+    dataSize: 43490
+  },
+  {
+    id: 'task-002',
+    name: '教育学情诊断模型训练',
+    status: 'running',
+    statusText: '运行中',
+    participants: 4,
+    progress: 65,
+    currentRound: 26,
+    totalRounds: 40,
+    createdAt: '2026-04-19 14:15',
+    description: '联邦协同训练学情诊断与个性化推荐模型',
+    accuracy: 84.6,
+    loss: 0.42,
+    dataSize: 43490
+  },
+  {
+    id: 'task-003',
+    name: '代码生成与审查模型迭代',
+    status: 'running',
+    statusText: '运行中',
+    participants: 4,
+    progress: 52,
+    currentRound: 21,
+    totalRounds: 40,
+    createdAt: '2026-04-20 08:00',
+    description: '多Agent联邦训练代码生成与安全审查模型',
+    accuracy: 86.1,
+    loss: 0.38,
+    dataSize: 43490
+  },
+  {
+    id: 'task-004',
+    name: '创意写作风格迁移优化',
+    status: 'paused',
+    statusText: '已暂停',
+    participants: 3,
+    progress: 40,
+    currentRound: 16,
+    totalRounds: 40,
+    createdAt: '2026-04-20 11:45',
+    description: '联邦优化写作风格迁移与内容生成质量',
+    accuracy: 83.2,
+    loss: 0.48,
+    dataSize: 34110
+  },
+  {
+    id: 'task-005',
+    name: '跨领域知识融合实验',
+    status: 'completed',
+    statusText: '已完成',
+    participants: 4,
+    progress: 100,
+    currentRound: 40,
+    totalRounds: 40,
+    createdAt: '2026-04-15 10:00',
+    description: '验证4个Agent领域知识联邦融合的可行性与效果',
+    accuracy: 81.7,
+    loss: 0.52,
+    dataSize: 43490
+  },
+  {
+    id: 'task-006',
+    name: '隐私保护机制基准测试',
+    status: 'completed',
+    statusText: '已完成',
+    participants: 4,
+    progress: 100,
+    currentRound: 20,
+    totalRounds: 20,
+    createdAt: '2026-04-12 16:30',
+    description: '评估DP-SGD与同态加密对联邦训练精度的影响',
+    accuracy: 79.4,
+    loss: 0.58,
+    dataSize: 43490
+  },
+  {
+    id: 'task-007',
+    name: '通信效率优化实验',
+    status: 'failed',
+    statusText: '失败',
+    participants: 2,
+    progress: 15,
+    currentRound: 3,
+    totalRounds: 20,
+    createdAt: '2026-04-21 07:20',
+    description: '测试梯度压缩与稀疏化对通信效率的提升',
+    accuracy: 54.2,
+    loss: 1.35,
+    dataSize: 21740
+  }
 ])
 
 const demoSteps = ref([
@@ -430,9 +589,9 @@ function toggleTraining() {
 }
 
 function resetTraining() {
-  accuracyHistory.value = [62.1, 68.4, 73.7, 77.9, 81.2, 83.5, 85.1, 86.3, 87.0, 87.3]
-  lossHistory.value = [1.24, 1.05, 0.89, 0.76, 0.64, 0.55, 0.48, 0.42, 0.38, 0.35]
-  roundHistory.value = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  accuracyHistory.value = [52.3, 58.7, 63.9, 68.4, 72.1, 75.6, 78.3, 80.5, 82.1, 83.4, 84.2, 84.8, 85.3, 85.6, 85.8, 86.0, 86.2, 86.3, 86.4, 86.5]
+  lossHistory.value = [1.82, 1.61, 1.43, 1.28, 1.14, 1.02, 0.91, 0.82, 0.74, 0.67, 0.61, 0.56, 0.51, 0.47, 0.44, 0.41, 0.39, 0.37, 0.36, 0.35]
+  roundHistory.value = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
   trainingRunning.value = true
 }
 
@@ -1663,5 +1822,184 @@ onMounted(async () => {
   .mini-metric-value {
     font-size: 13px;
   }
+}
+
+.tasks-panel {
+  margin-top: 20px;
+}
+
+.task-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 3px 10px;
+  background: var(--primary-bg);
+  border-radius: var(--radius-sm);
+}
+
+.tasks-list {
+  padding: var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.tasks-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tasks-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.task-item {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: all var(--transition-base);
+}
+
+.task-item:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.task-item.running {
+  border-left: 3px solid var(--cyan);
+}
+
+.task-item.paused {
+  border-left: 3px solid var(--amber);
+}
+
+.task-item.completed {
+  border-left: 3px solid var(--green);
+}
+
+.task-item.failed {
+  border-left: 3px solid #ef4444;
+}
+
+.task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.task-id {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.task-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.task-badge.running {
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--cyan-dark);
+}
+
+.task-badge.paused {
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+}
+
+.task-badge.completed {
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--green-dark);
+}
+
+.task-badge.failed {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.task-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.task-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.task-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.task-progress-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.task-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.task-progress-fill.running {
+  background: linear-gradient(90deg, var(--cyan), var(--primary));
+}
+
+.task-progress-fill.paused {
+  background: linear-gradient(90deg, var(--amber), #fbbf24);
+}
+
+.task-progress-fill.completed {
+  background: linear-gradient(90deg, var(--green), #6ee7b7);
+}
+
+.task-progress-fill.failed {
+  background: linear-gradient(90deg, #ef4444, #fca5a5);
+}
+
+.task-progress-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: right;
+}
+
+.task-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.task-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.task-meta-item svg {
+  color: var(--primary);
+  opacity: 0.6;
 }
 </style>
