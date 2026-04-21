@@ -265,14 +265,17 @@ const downloadDiagram = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  max-width: 90vw;
-  max-height: 85vh;
+  width: min(90vw, 1400px);
+  height: min(85vh, 960px);
+  min-width: 320px;
+  min-height: 240px;
+  overflow: hidden;
 }
 
 .fullscreen-diagram :deep(svg) {
+  width: 100% !important;
+  height: 100% !important;
   max-width: 100%;
-  max-height: 85vh;
-  width: auto;
-  height: auto;
+  max-height: 100%;
 }
 </style>

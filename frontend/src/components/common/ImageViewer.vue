@@ -321,6 +321,44 @@ const onImageLoad = () => {
   resetView()
 }
 
+const parseSvgLength = (value: string | null): number => {
+  if (!value) return 0
+  const text = value.trim()
+  if (!text || text.endsWith('%')) return 0
+  const numeric = Number.parseFloat(text)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+const resolveSvgRenderSize = (svgEl: SVGElement): { width: number; height: number } => {
+  const rect = svgEl.getBoundingClientRect()
+  let width = Math.round(rect.width)
+  let height = Math.round(rect.height)
+
+  if (width > 0 && height > 0) {
+    return { width, height }
+  }
+
+  const viewBox = (svgEl.getAttribute('viewBox') || '')
+    .trim()
+    .split(/\s+/)
+    .map(token => Number.parseFloat(token))
+  if (viewBox.length === 4 && Number.isFinite(viewBox[2]) && Number.isFinite(viewBox[3])) {
+    width = Math.round(Math.abs(viewBox[2]))
+    height = Math.round(Math.abs(viewBox[3]))
+    if (width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  width = Math.round(parseSvgLength(svgEl.getAttribute('width')))
+  height = Math.round(parseSvgLength(svgEl.getAttribute('height')))
+  if (width > 0 && height > 0) {
+    return { width, height }
+  }
+
+  return { width: 1024, height: 768 }
+}
+
 const downloadImage = async () => {
   try {
     let dataUrl: string | null = null
@@ -328,15 +366,21 @@ const downloadImage = async () => {
     if (canvasRef.value) {
       const content = canvasRef.value.querySelector('.viewer-content')
       if (content) {
-        const svgEl = content.querySelector('svg')
+        const svgEl = content.querySelector('svg') as SVGElement | null
         const canvasEl = content.querySelector('canvas')
         const imgEl = content.querySelector('img')
 
         if (svgEl) {
           const svgClone = svgEl.cloneNode(true) as SVGElement
-          const bbox = svgEl.getBoundingClientRect()
-          svgClone.setAttribute('width', String(bbox.width * 2))
-          svgClone.setAttribute('height', String(bbox.height * 2))
+          const renderSize = resolveSvgRenderSize(svgEl)
+          const exportScale = 2
+          const exportWidth = Math.max(1, Math.round(renderSize.width * exportScale))
+          const exportHeight = Math.max(1, Math.round(renderSize.height * exportScale))
+          svgClone.setAttribute('width', String(exportWidth))
+          svgClone.setAttribute('height', String(exportHeight))
+          if (!svgClone.getAttribute('viewBox')) {
+            svgClone.setAttribute('viewBox', `0 0 ${Math.max(1, renderSize.width)} ${Math.max(1, renderSize.height)}`)
+          }
 
           const serializer = new XMLSerializer()
           const svgString = serializer.serializeToString(svgClone)
@@ -352,10 +396,12 @@ const downloadImage = async () => {
           })
 
           const c = document.createElement('canvas')
-          c.width = bbox.width * 2
-          c.height = bbox.height * 2
+          c.width = exportWidth
+          c.height = exportHeight
           const ctx = c.getContext('2d')!
-          ctx.drawImage(img, 0, 0)
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, exportWidth, exportHeight)
+          ctx.drawImage(img, 0, 0, exportWidth, exportHeight)
           dataUrl = c.toDataURL('image/png')
           URL.revokeObjectURL(url)
         } else if (canvasEl) {
