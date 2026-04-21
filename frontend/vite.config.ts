@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+const DEV_PROXY_TIMEOUT_MS = 240000
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -16,6 +18,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        timeout: DEV_PROXY_TIMEOUT_MS,
+        proxyTimeout: DEV_PROXY_TIMEOUT_MS,
         // 智能处理：部分控制器有/api前缀，部分没有
         // 对于有/api前缀的控制器（如digital-human），保留前缀
         // 对于没有/api前缀的控制器（如auth、chat），去掉前缀
@@ -56,6 +60,8 @@ export default defineConfig({
       '/ai': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        timeout: DEV_PROXY_TIMEOUT_MS,
+        proxyTimeout: DEV_PROXY_TIMEOUT_MS,
         rewrite: (path) => {
           // /ai 路径需要转发到Java后端，Java后端会代理到Python服务
           // 所以保持路径不变，Java后端会处理

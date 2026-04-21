@@ -101,7 +101,7 @@ class OutlineGenerateSkill(BaseSkill):
         creative_selection = self._derive_creative_selection(request)
         chapters_count = WriterSkillHelper.to_int((request.action_input or {}).get("chapters_count"), 6)
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             fallback = self._fallback_markdown(creative_selection=creative_selection, chapters_count=chapters_count)
             return SkillResult(

@@ -92,7 +92,7 @@ class QwenAdapter:
 
             messages.append({"role": "user", "content": prompt})
 
-            request_timeout = float(kwargs.get("request_timeout", 10))
+            request_timeout = float(kwargs.get("request_timeout", os.getenv("QWEN_REQUEST_TIMEOUT", "60")))
             completion = await asyncio.wait_for(
                 asyncio.to_thread(
                     self.client.chat.completions.create,

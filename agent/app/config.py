@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # 麒麟AI SDK配置（兼容旧配置）
     KYLIN_AI_API_KEY: str = ""  # 默认空字符串，可通过环境变量或.env文件设置
     KYLIN_AI_ENDPOINT: str = "https://api.kylin.ai"
-    KYLIN_AI_TIMEOUT: int = 30
+    KYLIN_AI_TIMEOUT: int = 240
     
     # 通义千问配置（推荐使用）
     # 所有配置都从.env文件读取，系统全局只保留这一个配置来源

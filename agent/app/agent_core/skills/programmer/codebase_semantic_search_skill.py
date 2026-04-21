@@ -70,7 +70,7 @@ class CodebaseSemanticSearchSkill(BaseSkill):
     async def run(self, request: SkillRequest) -> SkillResult:
         query = str((request.action_input or {}).get("query", request.text or "")).strip()
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             return SkillResult(
                 skillName=self.name,

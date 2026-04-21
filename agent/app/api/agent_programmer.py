@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Dict, List
 from uuid import uuid4
 
@@ -22,6 +23,7 @@ ai_service = AIService()
 planner = ReactPlanner()
 tool_router = ToolRouter()
 executor = ReactExecutor(tool_router=tool_router)
+AGENT_SYNTHESIS_TIMEOUT = float(os.getenv("AGENT_SYNTHESIS_TIMEOUT", "180"))
 federated_adapter = FederatedAdapter()
 
 
@@ -216,7 +218,7 @@ async def programmer_agent_chat(request: AgentProgrammerRequest):
             try:
                 llm_response = await asyncio.wait_for(
                     ai_service.generate_text(text=synthesis_prompt, context=history[-8:] if history else None),
-                    timeout=15,
+                    timeout=AGENT_SYNTHESIS_TIMEOUT,
                 )
                 answer = (llm_response.get("text", "") or "").strip()
             except Exception:

@@ -63,7 +63,7 @@ class InspirationExpandSkill(BaseSkill):
         action_input = request.action_input or {}
         premise = str(action_input.get("premise", request.text or "")).strip() or "故事创意"
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             return SkillResult(
                 skillName=self.name,

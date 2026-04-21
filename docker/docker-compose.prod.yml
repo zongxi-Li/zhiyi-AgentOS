@@ -44,9 +44,14 @@ services:
     container_name: federal-hub-ai-service-prod
     ports:
       - "8000:8000"
+    env_file:
+      - ../.env
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
+      - KYLIN_AI_TIMEOUT=${KYLIN_AI_TIMEOUT:-240}
+      - QWEN_REQUEST_TIMEOUT=${QWEN_REQUEST_TIMEOUT:-240}
+      - AGENT_SYNTHESIS_TIMEOUT=${AGENT_SYNTHESIS_TIMEOUT:-180}
       - AGENT_FEDERATED_ENABLED=true
       - AGENT_FEDERATED_BASE_URL=http://localhost:8000/ai
       - AGENT_FEDERATED_TIMEOUT_MS=1500

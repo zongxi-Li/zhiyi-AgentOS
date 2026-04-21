@@ -47,7 +47,7 @@ services:
       AGENT_PYTHON_TEACHER_CHAT_URL: http://ai-service:8000/ai/agent/teacher/chat
       AGENT_PYTHON_PROGRAMMER_CHAT_URL: http://ai-service:8000/ai/agent/programmer/chat
       AGENT_PYTHON_WRITER_CHAT_URL: http://ai-service:8000/ai/agent/writer/chat
-      AGENT_TIMEOUT_MS: 120000
+      AGENT_TIMEOUT_MS: 240000
       SPRING_PROFILES_ACTIVE: dev
     volumes:
       - ../backend:/app
@@ -66,9 +66,13 @@ services:
     container_name: federal-hub-ai-service-dev
     ports:
       - "8000:8000"
+    env_file:
+      - ../.env
     environment:
-      KYLIN_AI_API_KEY: ${KYLIN_AI_API_KEY:-your_api_key}
       KYLIN_AI_ENDPOINT: ${KYLIN_AI_ENDPOINT:-https://api.kylin.ai}
+      KYLIN_AI_TIMEOUT: ${KYLIN_AI_TIMEOUT:-240}
+      QWEN_REQUEST_TIMEOUT: ${QWEN_REQUEST_TIMEOUT:-240}
+      AGENT_SYNTHESIS_TIMEOUT: ${AGENT_SYNTHESIS_TIMEOUT:-180}
       DEBUG: "True"
       ANONYMIZED_TELEMETRY: "False"
       CHROMA_TELEMETRY_ENABLED: "false"

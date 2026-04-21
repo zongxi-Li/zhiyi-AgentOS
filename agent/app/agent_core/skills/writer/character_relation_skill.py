@@ -96,7 +96,7 @@ class CharacterRelationSkill(BaseSkill):
         character_list = inputs["character_list"]
 
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             return SkillResult(
                 skillName=self.name,

@@ -166,7 +166,7 @@ class CodeGenerationSkill(BaseSkill):
         target_language = str((request.action_input or {}).get("target_language", "python")).strip() or "python"
         context_hits = self._resolve_context_hits(request)
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             return SkillResult(
                 skillName=self.name,

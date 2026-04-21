@@ -79,7 +79,7 @@ class RequirementAnalysisSkill(BaseSkill):
     async def run(self, request: SkillRequest) -> SkillResult:
         requirement_text = str((request.action_input or {}).get("requirement", request.text or "")).strip()
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             return SkillResult(
                 skillName=self.name,

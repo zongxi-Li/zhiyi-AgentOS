@@ -101,7 +101,7 @@ class ContentWriteSkill(BaseSkill):
         style = str(action_input.get("style", "自然叙事")).strip() or "自然叙事"
 
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             fallback = self._fallback_content(
                 outline_context=outline_context,

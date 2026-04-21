@@ -20,7 +20,7 @@ _kylin_sdk_logged = False
 class KylinSDKClient:
     """麒麟AI SDK客户端 - 智能选择SDK策略"""
     
-    def __init__(self, api_key: str, api_endpoint: str, timeout: int = 30, qwen_api_key: Optional[str] = None, qwen_model: str = "qwen-plus"):
+    def __init__(self, api_key: str, api_endpoint: str, timeout: int = 240, qwen_api_key: Optional[str] = None, qwen_model: str = "qwen-plus"):
         """
         初始化客户端
         
@@ -204,7 +204,7 @@ class KylinSDKClient:
                     temperature=kwargs.get("temperature", 0.7),
                     max_tokens=kwargs.get("max_tokens", 2000),
                     top_p=kwargs.get("top_p", 0.9),
-                    request_timeout=kwargs.get("request_timeout", 10),
+                    request_timeout=kwargs.get("request_timeout", max(self.timeout, 60)),
                 )
                 
                 logger.debug(f"通义千问生成成功: {len(result.get('text', ''))} 字符")
@@ -637,12 +637,12 @@ class KylinAIClient:
             from app.config import settings
             self._api_key = api_key or getattr(settings, 'KYLIN_AI_API_KEY', '')
             self._api_endpoint = api_endpoint or getattr(settings, 'KYLIN_AI_ENDPOINT', 'https://api.kylin.ai')
-            self._timeout = timeout or getattr(settings, 'KYLIN_AI_TIMEOUT', 30)
+            self._timeout = timeout or getattr(settings, 'KYLIN_AI_TIMEOUT', 240)
         except Exception as e:
             logger.warning(f"无法从配置读取参数，使用默认值: {e}")
             self._api_key = api_key or ''
             self._api_endpoint = api_endpoint or 'https://api.kylin.ai'
-            self._timeout = timeout or 30
+            self._timeout = timeout or 240
         
         # 检查通义千问配置
         # 优先使用 DASHSCOPE_API_KEY（官方推荐），如果没有则使用 QWEN_API_KEY（兼容旧配置）

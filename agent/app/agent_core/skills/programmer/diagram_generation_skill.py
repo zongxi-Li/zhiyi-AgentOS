@@ -92,7 +92,7 @@ class DiagramGenerationSkill(BaseSkill):
         diagram_type = str(action_input.get("diagram_type", "flowchart")).strip() or "flowchart"
         query = str(action_input.get("query", request.text or "")).strip()
         try:
-            return await asyncio.wait_for(self.execute(request), timeout=10)
+            return await asyncio.wait_for(self.execute(request), timeout=45)
         except asyncio.TimeoutError:
             return SkillResult(
                 skillName=self.name,
