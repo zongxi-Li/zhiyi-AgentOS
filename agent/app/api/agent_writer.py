@@ -21,7 +21,7 @@ router = APIRouter()
 
 ai_service = AIService()
 planner = ReactPlanner()
-tool_router = ToolRouter()
+tool_router = ToolRouter(enabled_roles=["writer"])
 executor = ReactExecutor(tool_router=tool_router)
 AGENT_SYNTHESIS_TIMEOUT = float(os.getenv("AGENT_SYNTHESIS_TIMEOUT", "180"))
 federated_adapter = FederatedAdapter()

@@ -20,7 +20,7 @@ router = APIRouter()
 
 ai_service = AIService()
 planner = ReactPlanner()
-tool_router = ToolRouter()
+tool_router = ToolRouter(enabled_roles=["lawyer"])
 executor = ReactExecutor(tool_router=tool_router)
 AGENT_SYNTHESIS_TIMEOUT = float(os.getenv("AGENT_SYNTHESIS_TIMEOUT", "180"))
 

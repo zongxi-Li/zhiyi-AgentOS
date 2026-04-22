@@ -418,13 +418,13 @@ const makeDefaultModels = (): ModelCard[] => [
     status: 'draft',
     federated: true,
     owner: '基础设施组',
-    accuracy: 54.2,
+    accuracy: 74.8,
     latency: 85,
     updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
     description: '测试梯度压缩与稀疏化策略对联邦训练通信效率的提升，当前处于实验阶段。',
     modelType: 'Compressed LLM',
     modelSize: '1.2 GB',
-    loss: 1.35,
+    loss: 0.86,
     params: '3B',
     framework: 'FedAvg + Gradient Sparsification',
     trainingRounds: 3,
@@ -438,13 +438,13 @@ const makeDefaultModels = (): ModelCard[] => [
     status: 'ready',
     federated: false,
     owner: '律师Agent',
-    accuracy: 72.5,
+    accuracy: 78.6,
     latency: 98,
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     description: '律师Agent的本地基线模型，未参与联邦训练，用于对比联邦优化效果。',
     modelType: 'Local LLM',
     modelSize: '1.8 GB',
-    loss: 0.89,
+    loss: 0.72,
     params: '7B',
     framework: 'Local Training',
     trainingRounds: 0,
@@ -576,6 +576,27 @@ function getProgressColor(accuracy: number): string {
   return 'linear-gradient(90deg, #f59e0b, #fbbf24)'
 }
 
+function normalizeAccuracyPercent(accuracy: number | undefined, fallback = 85): number {
+  if (typeof accuracy !== 'number' || Number.isNaN(accuracy)) {
+    return fallback
+  }
+
+  const normalized = accuracy <= 1 ? accuracy * 100 : accuracy
+  return Math.max(0, Math.min(99.9, normalized))
+}
+
+function normalizeLatency(speedOrLatency: number | undefined, fallback = 120): number {
+  if (typeof speedOrLatency !== 'number' || Number.isNaN(speedOrLatency)) {
+    return fallback
+  }
+
+  if (speedOrLatency > 1) {
+    return Math.round(speedOrLatency)
+  }
+
+  return Math.round(245 - speedOrLatency * 110)
+}
+
 function flattenApiModels(data: Record<string, Record<string, ModelInfo>>): ModelCard[] {
   const flattened: ModelCard[] = []
   Object.entries(data || {}).forEach(([groupKey, groupModels]) => {
@@ -589,8 +610,8 @@ function flattenApiModels(data: Record<string, Record<string, ModelInfo>>): Mode
         status: normalizeStatus(model.status),
         federated: true,
         owner: '联邦平台',
-        accuracy: perf?.accuracy ?? 85,
-        latency: perf?.speed ?? 120,
+        accuracy: normalizeAccuracyPercent(perf?.accuracy, 85),
+        latency: normalizeLatency(perf?.speed, 120),
         updatedAt: new Date().toISOString(),
         description: `来自 ${groupKey} 组的联邦模型。`,
         modelType: 'RAG-Enhanced LLM',

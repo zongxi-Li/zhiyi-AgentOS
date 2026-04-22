@@ -20,7 +20,7 @@ router = APIRouter()
 
 ai_service = AIService()
 planner = ReactPlanner()
-tool_router = ToolRouter()
+tool_router = ToolRouter(enabled_roles=["teacher"])
 executor = ReactExecutor(tool_router=tool_router)
 AGENT_SYNTHESIS_TIMEOUT = float(os.getenv("AGENT_SYNTHESIS_TIMEOUT", "180"))
 
@@ -65,6 +65,45 @@ def _build_fallback_answer(user_text: str, skills_used: List[str], observations:
     return "\n".join(lines)
 
 
+def _render_student_diagnosis_answer(payload: Dict[str, Any]) -> str:
+    if not isinstance(payload, dict) or not payload:
+        return ""
+
+    summary = str(payload.get("diagnosis_summary", "") or "").strip()
+    mastery_level = str(payload.get("mastery_level", "") or "").strip()
+    learning_style = str(payload.get("learning_style", "") or "").strip()
+    mastery_score = payload.get("mastery_score")
+    weak_points = [str(item).strip() for item in payload.get("weak_points", []) if str(item).strip()]
+    strengths = [str(item).strip() for item in payload.get("strengths", []) if str(item).strip()]
+    actions = [str(item).strip() for item in payload.get("recommended_actions", []) if str(item).strip()]
+
+    if not any([summary, mastery_level, learning_style, weak_points, strengths, actions, mastery_score is not None]):
+        return ""
+
+    lines: List[str] = []
+    if summary:
+        lines.append(summary)
+
+    profile_parts: List[str] = []
+    if mastery_level:
+        profile_parts.append(f"掌握水平：{mastery_level}")
+    if mastery_score is not None:
+        profile_parts.append(f"掌握得分：{mastery_score}")
+    if learning_style:
+        profile_parts.append(f"学习风格：{learning_style}")
+    if profile_parts:
+        lines.append("；".join(profile_parts))
+
+    if weak_points:
+        lines.append(f"薄弱点：{'、'.join(weak_points[:4])}")
+    if strengths:
+        lines.append(f"优势：{'、'.join(strengths[:4])}")
+    if actions:
+        lines.append(f"建议行动：{'；'.join(actions[:4])}")
+
+    return "\n".join(lines).strip()
+
+
 def _extract_preferred_answer(skills_used: List[str], observations: Dict[str, Any]) -> str:
     preferred_fields = [
         ("lesson_plan_generation", ["lesson_plan", "plan", "markdown", "draft"]),
@@ -87,6 +126,11 @@ def _extract_preferred_answer(skills_used: List[str], observations: Dict[str, An
             value = payload.get(field)
             if isinstance(value, str) and value.strip():
                 return value.strip()
+
+    if "student_diagnosis" in used_set:
+        diagnosis_answer = _render_student_diagnosis_answer(observations.get("student_diagnosis", {}))
+        if diagnosis_answer:
+            return diagnosis_answer
 
     return ""
 
