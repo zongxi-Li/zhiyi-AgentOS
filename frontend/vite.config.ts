@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
 const DEV_PROXY_TIMEOUT_MS = 240000
+const BACKEND_PROXY_TARGET = process.env.DEV_BACKEND_PROXY_TARGET || 'http://localhost:5000'
 
 export default defineConfig({
   plugins: [vue()],
@@ -16,7 +17,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: BACKEND_PROXY_TARGET,
         changeOrigin: true,
         timeout: DEV_PROXY_TIMEOUT_MS,
         proxyTimeout: DEV_PROXY_TIMEOUT_MS,
@@ -58,7 +59,7 @@ export default defineConfig({
       },
       // 代理 /ai 路径到Python服务（通过Java后端）
       '/ai': {
-        target: 'http://localhost:8080',
+        target: BACKEND_PROXY_TARGET,
         changeOrigin: true,
         timeout: DEV_PROXY_TIMEOUT_MS,
         proxyTimeout: DEV_PROXY_TIMEOUT_MS,

@@ -1,6 +1,6 @@
 # 项目检测报告（CHECK_REPORT）
 
-- 检测时间：2026-05-10 11:10（Asia/Shanghai）
+- 检测时间：2026-05-10 11:10
 - 项目路径：`c:\Users\LZX\Desktop\kinli\kinlin_-ai`
 - 当前分支：`feat/ancient-chinese-theme`
 - 当前提交：`a2643fb chore: clean temp artifacts and checkpoint federated/rag updates`
