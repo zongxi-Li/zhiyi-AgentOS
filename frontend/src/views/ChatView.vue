@@ -1,376 +1,1864 @@
 <template>
-  <section class="main-home">
-    <header class="top-strip">
-      <div class="brand-mark">
-        <div class="brand-symbol">L</div>
-        <span>联邦智能</span>
+  <div class="chat-view">
+    <header class="chat-header" :class="headerClass">
+      <div class="left">
+        <span class="title">联邦智能体对话中心</span>
+        <div class="mode-switcher">
+          <button
+            class="mode-btn"
+            :class="{ active: isLawyerMode }"
+            @click="toggleLawyerMode"
+          >
+            <span class="mode-icon">⚖️</span>
+            <span class="mode-label">律师</span>
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: isTeacherMode }"
+            @click="toggleTeacherMode"
+          >
+            <span class="mode-icon">👩‍🏫</span>
+            <span class="mode-label">教师</span>
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: isProgrammerMode }"
+            @click="toggleProgrammerMode"
+          >
+            <span class="mode-icon">💻</span>
+            <span class="mode-label">程序员</span>
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: isWriterMode }"
+            @click="toggleWriterMode"
+          >
+            <span class="mode-icon">✍️</span>
+            <span class="mode-label">作家</span>
+          </button>
+        </div>
       </div>
-      <button class="profile-button" type="button">
-        <span class="profile-avatar"></span>
-        <span class="chevron"></span>
-      </button>
+      <div class="right">
+        <el-button size="small" @click="showRoleDrawer = true">
+          <el-icon><User /></el-icon>
+          角色
+        </el-button>
+        <el-button size="small" @click="goToSettings">
+          <el-icon><MoreFilled /></el-icon>
+          设置
+        </el-button>
+      </div>
     </header>
 
-    <main class="home-stage">
-      <section class="hero-copy">
-        <h1>你好，有什么可以帮你？</h1>
-        <p>联邦智能，连接知识，驱动未来。</p>
-      </section>
+    <div class="chat-main" :class="chatMainClass">
+      <section class="chat-panel">
+        <div class="messages" ref="messagesRef">
+          <div v-if="chatStore.messages.length === 0" class="empty-state">
+            <div class="empty-icon">{{ agentIcon }}</div>
+            <h2>{{ agentTitle }}</h2>
+            <p>{{ agentSubtitle }}</p>
+            <div class="quick-actions">
+              <button v-if="currentTemplates[0]" class="quick-btn" @click="useTemplate(currentTemplates[0])">{{ currentTemplates[0] }}</button>
+              <button v-if="currentTemplates[1]" class="quick-btn" @click="useTemplate(currentTemplates[1])">{{ currentTemplates[1] }}</button>
+              <button v-if="currentTemplates[2]" class="quick-btn" @click="useTemplate(currentTemplates[2])">{{ currentTemplates[2] }}</button>
+              <button v-if="!isLawyerMode" class="quick-btn lawyer-btn" @click="toggleLawyerMode">⚖️ 律师 Agent</button>
+              <button v-if="!isTeacherMode" class="quick-btn teacher-btn" @click="toggleTeacherMode">👩‍🏫 教师 Agent</button>
+              <button v-if="!isProgrammerMode" class="quick-btn programmer-btn" @click="toggleProgrammerMode">💻 程序员 Agent</button>
+              <button v-if="!isWriterMode" class="quick-btn writer-btn" @click="toggleWriterMode">✍️ 作家 Agent</button>
+            </div>
+          </div>
 
-      <section class="prompt-panel" aria-label="输入问题">
-        <div class="mode-row">
-          <button class="mode-pill active" type="button">普通模式</button>
-          <button class="mode-pill" type="button">专家模式</button>
-        </div>
-        <textarea
-          id="main-prompt"
-          name="main-prompt"
-          class="prompt-input"
-          placeholder="输入你的问题，或粘贴文件 / 图片..."
-          rows="3"
-        />
-        <div class="prompt-actions">
-          <button class="attachment-button" type="button" aria-label="上传附件">
-            <span></span>
-          </button>
-          <button class="send-button" type="button" aria-label="发送">
-            <span></span>
-          </button>
-        </div>
-      </section>
+          <div v-else class="message-list">
+            <div
+              v-for="msg in chatStore.messages"
+              :key="msg.id"
+              class="message-row"
+              :class="msg.role"
+            >
+              <MessageBubble
+                :message="{
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content || '',
+                  createdAt: msg.createdAt || (msg.timestamp ? new Date(msg.timestamp) : new Date()),
+                  confidence: msg.confidence,
+                  fileUrl: msg.fileUrl,
+                  tokensUsed: msg.tokensUsed,
+                  sources: msg.sources,
+                  reasoningPath: msg.reasoningPath,
+                  modelInfo: msg.modelInfo
+                }"
+              />
+            </div>
+          </div>
 
-      <section class="history-panel">
-        <div class="history-title">历史记录</div>
-        <button
-          v-for="item in historyItems"
-          :key="item.title"
-          class="history-row"
-          type="button"
-        >
-          <span class="row-icon"></span>
-          <span class="row-title">{{ item.title }}</span>
-          <span class="row-time">{{ item.time }}</span>
+          <div v-if="loading" class="typing">AI 正在思考...</div>
+        </div>
+
+        <button v-if="showScrollToBottom" class="to-bottom" @click="handleScrollToBottom">
+          <el-icon><ArrowDownBold /></el-icon>
+          <span v-if="pendingMessageCount > 0" class="badge">{{ pendingMessageCount > 9 ? '9+' : pendingMessageCount }}</span>
         </button>
-        <button class="more-button" type="button">查看更多 <span></span></button>
+
+        <div class="template-row" v-if="showAssistTools && currentTemplates.length">
+          <button v-for="tpl in currentTemplates" :key="tpl" class="template-item" @click="useTemplate(tpl)">
+            {{ tpl }}
+          </button>
+        </div>
+
+        <div class="composer">
+          <el-input
+            v-model="inputText"
+            type="textarea"
+            :rows="1"
+            :autosize="{ minRows: 1, maxRows: 6 }"
+            resize="none"
+            :placeholder="$t('chat.placeholder')"
+            @keydown="handleKeydown"
+          />
+          <div class="composer-footer">
+            <div class="left-actions">
+              <el-button text @click="toggleAssistTools">{{ showAssistTools ? '收起模板' : '展开模板' }}</el-button>
+              <el-button text @click="isRecording ? stopVoiceInput() : startVoiceInput()">
+                <el-icon><Microphone /></el-icon>
+                {{ isRecording ? '停止录音' : '语音输入' }}
+              </el-button>
+              <el-button text @click="handleControl('folder')">
+                <el-icon><Folder /></el-icon>
+                文件
+              </el-button>
+              <el-button v-if="isTeacherMode" text @click="openTeacherUploadDialog">
+                <el-icon><UploadFilled /></el-icon>
+                上传作业
+              </el-button>
+              <input
+                ref="teacherUploadInputRef"
+                class="hidden-file-input"
+                type="file"
+                accept=".png,.jpg,.jpeg,.pdf,.txt,.doc,.docx"
+                @change="handleTeacherFileUpload"
+              />
+            </div>
+            <div class="right-actions">
+              <span class="word-count" :class="{ warning: inputText.length > 500 }">
+                {{ $t('chat.wordCount', { count: inputText.length }) }}
+              </span>
+              <el-button v-if="inputText.length > 500" text @click="autoSegment">自动分段</el-button>
+              <el-button type="primary" :disabled="isSendDisabled" @click="sendMessage">
+                <el-icon v-if="!loading"><ArrowUp /></el-icon>
+                <el-icon v-else class="is-loading"><Loading /></el-icon>
+              </el-button>
+            </div>
+          </div>
+        </div>
       </section>
-    </main>
-  </section>
+
+      <aside v-if="isAgentMode" class="agent-panel">
+        <LawyerSkillPanel
+          v-if="isLawyerMode"
+          :skills-used="latestLawyerMeta.skillsUsed"
+          :trace="latestLawyerMeta.trace"
+          :federated="latestLawyerMeta.federated"
+          :risk-level="latestLawyerMeta.riskLevel"
+          :result-count="availableLawyerResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
+        >
+          <template #results>
+            <div v-if="!availableLawyerResultPanels.length" class="results-empty">
+              <span class="empty-icon">📚</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeLawyerResultPanels">
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('evidence')"
+                title="证据分析结果"
+                name="evidence"
+              >
+                <EvidenceAnalysisCard :data="latestLawyerSkillResults.evidenceAnalysis" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('limitation')"
+                title="诉讼时效结果"
+                name="limitation"
+              >
+                <LimitationTimeline :data="latestLawyerSkillResults.limitationCalc" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('jurisdiction')"
+                title="管辖法院建议"
+                name="jurisdiction"
+              >
+                <JurisdictionCard :data="latestLawyerSkillResults.jurisdiction" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('hearing')"
+                title="庭审提纲"
+                name="hearing"
+              >
+                <HearingOutlineViewer :data="latestLawyerSkillResults.hearingOutline" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </LawyerSkillPanel>
+
+        <TeacherSkillPanel
+          v-else-if="isTeacherMode"
+          :skills-used="latestTeacherMeta.skillsUsed"
+          :trace="latestTeacherMeta.trace"
+          :federated="latestTeacherMeta.federated"
+          :result-count="availableTeacherResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
+        >
+          <template #results>
+            <div v-if="!availableTeacherResultPanels.length" class="results-empty">
+              <span class="empty-icon">🧪</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeTeacherResultPanels">
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('diagnosis')"
+                title="学情诊断"
+                name="diagnosis"
+              >
+                <DiagnosisRadar :data="latestTeacherSkillResults.studentDiagnosis" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('lessonPlan')"
+                title="个性化教案"
+                name="lessonPlan"
+              >
+                <LessonPlanViewer :data="latestTeacherSkillResults.lessonPlan" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('grading')"
+                title="作业批改"
+                name="grading"
+              >
+                <GradingResultCard :data="latestTeacherSkillResults.homeworkGrading" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableTeacherResultPanels.includes('questionPush')"
+                title="错题归因与推题"
+                name="questionPush"
+              >
+                <QuestionPushList :data="latestTeacherSkillResults.errorQuestionPush" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </TeacherSkillPanel>
+
+        <ProgrammerSkillPanel
+          v-else-if="isProgrammerMode"
+          :skills-used="latestProgrammerMeta.skillsUsed"
+          :trace="latestProgrammerMeta.trace"
+          :federated="latestProgrammerMeta.federated"
+          :result-count="availableProgrammerResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
+        >
+          <template #results>
+            <div v-if="!availableProgrammerResultPanels.length" class="results-empty">
+              <span class="empty-icon">💻</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeProgrammerResultPanels">
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('requirement')"
+                title="需求分析"
+                name="requirement"
+              >
+                <div class="programmer-block">
+                  <div class="programmer-grid two-cols">
+                    <div class="programmer-card">
+                      <div class="card-title">功能需求</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.functional_requirements || [])" :key="`fr-${idx}`">
+                          {{ item }}
+                        </li>
+                      </ul>
+                    </div>
+                    <div class="programmer-card">
+                      <div class="card-title">边界条件</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.boundary_conditions || [])" :key="`bc-${idx}`">
+                          {{ item }}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="programmer-grid two-cols">
+                    <div class="programmer-card">
+                      <div class="card-title">输入</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.inputs || [])" :key="`in-${idx}`">{{ item }}</li>
+                      </ul>
+                    </div>
+                    <div class="programmer-card">
+                      <div class="card-title">输出</div>
+                      <ul>
+                        <li v-for="(item, idx) in (latestProgrammerSkillResults.requirementAnalysis?.outputs || [])" :key="`out-${idx}`">{{ item }}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('search')"
+                title="代码库语义检索"
+                name="search"
+              >
+                <div class="programmer-block">
+                  <div class="programmer-meta">
+                    命中 {{ latestProgrammerSkillResults.searchHits.length }} 条 · 向量检索
+                    {{ latestProgrammerSkillResults.codebaseSemanticSearch?.index_status?.vector_enabled ? '已启用' : '未启用（关键词降级）' }}
+                  </div>
+                  <div class="programmer-search-list">
+                    <div
+                      v-for="(hit, idx) in latestProgrammerSkillResults.searchHits"
+                      :key="`hit-${idx}`"
+                      class="search-item"
+                    >
+                      <div class="search-head">
+                        <span class="path">{{ hit.file_path || 'unknown file' }}</span>
+                        <span class="score">score: {{ Number(hit.score || 0).toFixed(3) }}</span>
+                      </div>
+                      <pre>{{ hit.content }}</pre>
+                    </div>
+                  </div>
+                </div>
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('code')"
+                title="代码生成"
+                name="code"
+              >
+                <div class="programmer-block">
+                  <div class="programmer-meta">{{ latestProgrammerSkillResults.codeGeneration?.explanation || '暂无说明' }}</div>
+                  <pre class="code-block">{{ latestProgrammerSkillResults.generatedCode || '// 暂无代码输出' }}</pre>
+                  <div v-if="latestProgrammerSkillResults.suggestedTests.length" class="programmer-card">
+                    <div class="card-title">建议测试点</div>
+                    <ul>
+                      <li v-for="(item, idx) in latestProgrammerSkillResults.suggestedTests" :key="`test-${idx}`">{{ item }}</li>
+                    </ul>
+                  </div>
+                </div>
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableProgrammerResultPanels.includes('diagram')"
+                title="Mermaid 图表"
+                name="diagram"
+              >
+                <DiagramViewer :data="latestProgrammerSkillResults.diagramData" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </ProgrammerSkillPanel>
+
+        <WriterSkillPanel
+          v-else-if="isWriterMode"
+          :skills-used="latestWriterMeta.skillsUsed"
+          :trace="latestWriterMeta.trace"
+          :federated="latestWriterMeta.federated"
+          :result-count="availableWriterResultPanels.length"
+          @open-federated-console="openFederatedConsole"
+          @optimize-federated="handleFederatedOptimize"
+        >
+          <template #results>
+            <div v-if="!availableWriterResultPanels.length" class="results-empty">
+              <span class="empty-icon">✍️</span>
+              <span>暂无技能调用结果</span>
+            </div>
+            <el-collapse v-else v-model="activeWriterResultPanels">
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('inspiration')"
+                title="创意树思维导图"
+                name="inspiration"
+              >
+                <MindMapViewer
+                  title="创意树"
+                  :creative-tree="latestWriterSkillResults.creativeTree"
+                />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('outline')"
+                title="章节大纲思维导图"
+                name="outline"
+              >
+                <MindMapViewer
+                  title="章节大纲"
+                  :outline-markdown="latestWriterSkillResults.outlineMarkdown"
+                />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('content')"
+                title="正文撰写"
+                name="content"
+              >
+                <div class="writer-content-preview">
+                  {{ latestWriterSkillResults.content || '暂无正文内容' }}
+                </div>
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableWriterResultPanels.includes('relation')"
+                title="人物关系图"
+                name="relation"
+              >
+                <RelationGraph :data="latestWriterSkillResults.characterRelationMap" />
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </WriterSkillPanel>
+      </aside>
+    </div>
+
+    <el-drawer v-model="showRoleDrawer" direction="rtl" :size="320" :with-header="false">
+      <div class="drawer-head">
+        <h3>角色列表</h3>
+        <el-button text @click="showRoleDrawer = false"><el-icon><Close /></el-icon></el-button>
+      </div>
+      <div class="role-list">
+        <div
+          v-for="role in roles"
+          :key="role.id"
+          class="role-item"
+          :class="{ active: roleStore.currentRole?.id === role.id || selectedRoleId === role.id }"
+          @click="selectRole(role)"
+        >
+          <el-avatar :size="36" :src="role.avatar">{{ role.name?.charAt(0) }}</el-avatar>
+          <div class="role-text">
+            <div class="name">{{ role.name }}</div>
+            <div class="desc">{{ role.description || 'AI Assistant' }}</div>
+          </div>
+          <el-icon v-if="roleStore.currentRole?.id === role.id || selectedRoleId === role.id"><Check /></el-icon>
+        </div>
+      </div>
+    </el-drawer>
+
+    <FileManager v-model="showFileManager" @fileSelected="handleFileSelected" />
+  </div>
 </template>
 
 <script setup lang="ts">
-const historyItems = [
-  { title: '撰写一份企业数据安全合规方案', time: '今天 10:32' },
-  { title: '解释联邦学习的工作原理', time: '今天 09:18' },
-  { title: '帮我优化这段 Python 代码', time: '昨天 16:45' },
-  { title: '生成一篇关于人工智能的演讲稿', time: '昨天 14:21' },
-  { title: '比较区块链与传统数据库的优劣', time: '昨天 11:07' }
-]
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  ArrowDownBold,
+  ArrowUp,
+  Check,
+  Close,
+  Folder,
+  Loading,
+  Microphone,
+  MoreFilled,
+  UploadFilled,
+  User
+} from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import MessageBubble from '@/components/MessageBubble.vue'
+import FileManager from '@/components/FileManager.vue'
+import LawyerSkillPanel from '@/components/agent/LawyerSkillPanel.vue'
+import TeacherSkillPanel from '@/components/agent/TeacherSkillPanel.vue'
+import ProgrammerSkillPanel from '@/components/agent/ProgrammerSkillPanel.vue'
+import WriterSkillPanel from '@/components/agent/WriterSkillPanel.vue'
+import EvidenceAnalysisCard from '@/components/agent/EvidenceAnalysisCard.vue'
+import LimitationTimeline from '@/components/agent/LimitationTimeline.vue'
+import JurisdictionCard from '@/components/agent/JurisdictionCard.vue'
+import HearingOutlineViewer from '@/components/agent/HearingOutlineViewer.vue'
+import DiagnosisRadar from '@/components/agent/DiagnosisRadar.vue'
+import LessonPlanViewer from '@/components/agent/LessonPlanViewer.vue'
+import GradingResultCard from '@/components/agent/GradingResultCard.vue'
+import QuestionPushList from '@/components/agent/QuestionPushList.vue'
+import DiagramViewer from '@/components/agent/DiagramViewer.vue'
+import MindMapViewer from '@/components/agent/MindMapViewer.vue'
+import RelationGraph from '@/components/agent/RelationGraph.vue'
+import { agentTeacherApi } from '@/services/api/agentTeacher'
+import { federatedModelApi } from '@/services/api/federatedModel'
+import { fileApi } from '@/services/api/file'
+import { useChatStore } from '@/stores/chat'
+import { useRoleStore } from '@/stores/role'
+
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+
+const roleStore = useRoleStore()
+const chatStore = useChatStore()
+
+const selectedRoleId = ref<string | null>(null)
+const inputText = ref('')
+const loading = ref(false)
+const showRoleDrawer = ref(false)
+const showFileManager = ref(false)
+const isRecording = ref(false)
+const messagesRef = ref<HTMLElement | null>(null)
+const teacherUploadInputRef = ref<HTMLInputElement | null>(null)
+const showAssistTools = ref(true)
+const isNearBottom = ref(true)
+const pendingMessageCount = ref(0)
+const federatedOptimizing = ref(false)
+const activeLawyerResultPanels = ref<string[]>([])
+const activeTeacherResultPanels = ref<string[]>([])
+const activeProgrammerResultPanels = ref<string[]>([])
+const activeWriterResultPanels = ref<string[]>([])
+const ASSIST_TOOL_VISIBLE_KEY = 'chat.assist_tools_visible'
+
+const roles = computed(() => roleStore.roles)
+const currentRole = computed(() => roleStore.currentRole)
+
+const isLawyerMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('律师') || name.includes('lawyer') || name.includes('法律')
+})
+
+const isTeacherMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('教师') || name.includes('teacher') || name.includes('教学')
+})
+
+const isProgrammerMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('程序') || name.includes('programmer') || name.includes('开发')
+})
+
+const isWriterMode = computed(() => {
+  const name = (currentRole.value?.name || '').toLowerCase()
+  return name.includes('作家') || name.includes('writer') || name.includes('写作')
+})
+
+const isAgentMode = computed(() => isLawyerMode.value || isTeacherMode.value || isProgrammerMode.value || isWriterMode.value)
+
+const headerClass = computed(() => {
+  if (isLawyerMode.value) return 'lawyer-active'
+  if (isTeacherMode.value) return 'teacher-active'
+  if (isProgrammerMode.value) return 'programmer-active'
+  if (isWriterMode.value) return 'writer-active'
+  return ''
+})
+
+const chatMainClass = computed(() => {
+  if (isLawyerMode.value) return 'lawyer'
+  if (isTeacherMode.value) return 'teacher'
+  if (isProgrammerMode.value) return 'programmer'
+  if (isWriterMode.value) return 'writer'
+  return ''
+})
+
+const agentIcon = computed(() => {
+  if (isLawyerMode.value) return '⚖️'
+  if (isTeacherMode.value) return '👩‍🏫'
+  if (isProgrammerMode.value) return '💻'
+  if (isWriterMode.value) return '✍️'
+  return '🤖'
+})
+
+const agentTitle = computed(() => {
+  if (isLawyerMode.value) return '律师 Agent 对话'
+  if (isTeacherMode.value) return '教师 Agent 对话'
+  if (isProgrammerMode.value) return '程序员 Agent 对话'
+  if (isWriterMode.value) return '作家 Agent 对话'
+  return '开始一次新对话'
+})
+
+const agentSubtitle = computed(() => {
+  if (isLawyerMode.value) return '专业法律咨询，智能证据分析与风险评估'
+  if (isTeacherMode.value) return '智能学情诊断、个性化教案与作业批改'
+  if (isProgrammerMode.value) return '需求分析、代码库语义检索、代码生成与 Mermaid 图表'
+  if (isWriterMode.value) return '灵感拓展、大纲生成、正文写作与人物关系图'
+  return '你可以直接输入问题，或使用下方快捷模板。'
+})
+
+const latestLawyerMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'lawyer')
+})
+
+const latestTeacherMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'teacher')
+})
+
+const latestProgrammerMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'programmer')
+})
+
+const latestWriterMessage = computed(() => {
+  return [...chatStore.messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant' && msg.agentMode === 'writer')
+})
+
+const latestLawyerMeta = computed(() => {
+  const lastAssistant = latestLawyerMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {},
+    riskLevel: lastAssistant?.riskLevel || ''
+  }
+})
+
+const latestTeacherMeta = computed(() => {
+  const lastAssistant = latestTeacherMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {}
+  }
+})
+
+const latestProgrammerMeta = computed(() => {
+  const lastAssistant = latestProgrammerMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {}
+  }
+})
+
+const latestWriterMeta = computed(() => {
+  const lastAssistant = latestWriterMessage.value
+  return {
+    skillsUsed: lastAssistant?.skillsUsed || [],
+    trace: lastAssistant?.trace || [],
+    federated: lastAssistant?.federated || {}
+  }
+})
+
+const latestLawyerSkillResults = computed(() => {
+  const lastAssistant = latestLawyerMessage.value
+  return {
+    evidenceAnalysis: lastAssistant?.evidenceAnalysis,
+    limitationCalc: lastAssistant?.limitationCalc,
+    jurisdiction: lastAssistant?.jurisdiction,
+    hearingOutline: lastAssistant?.hearingOutline
+  }
+})
+
+const latestTeacherSkillResults = computed(() => {
+  const lastAssistant = latestTeacherMessage.value
+  return {
+    studentDiagnosis: lastAssistant?.studentDiagnosis,
+    lessonPlan: lastAssistant?.lessonPlan,
+    homeworkGrading: lastAssistant?.homeworkGrading,
+    errorQuestionPush: lastAssistant?.errorQuestionPush
+  }
+})
+
+const latestProgrammerSkillResults = computed(() => {
+  const lastAssistant = latestProgrammerMessage.value
+  const searchPayload = lastAssistant?.codebaseSemanticSearch
+  const codeGenerationPayload = lastAssistant?.codeGeneration
+  const diagramPayload = lastAssistant?.diagramGeneration
+  const generationMermaidCode = codeGenerationPayload?.mermaid_code
+  const diagramMermaidCode = diagramPayload?.mermaid_code
+  const searchHits = Array.isArray(searchPayload?.hits) ? searchPayload?.hits : []
+  const suggestedTests = Array.isArray(codeGenerationPayload?.suggested_tests) ? codeGenerationPayload?.suggested_tests : []
+
+  const diagramData = diagramPayload?.mermaid_code
+    ? diagramPayload
+    : (generationMermaidCode
+      ? {
+        title: 'Generated Diagram',
+        diagram_type: 'flowchart',
+        mermaid_code: generationMermaidCode
+      }
+      : undefined)
+
+  return {
+    requirementAnalysis: lastAssistant?.requirementAnalysis,
+    codebaseSemanticSearch: searchPayload,
+    codeGeneration: codeGenerationPayload,
+    diagramGeneration: diagramPayload,
+    generatedCode: codeGenerationPayload?.code || '',
+    suggestedTests,
+    searchHits,
+    diagramData,
+    diagramCode: diagramMermaidCode || generationMermaidCode || ''
+  }
+})
+
+const latestWriterSkillResults = computed(() => {
+  const lastAssistant = latestWriterMessage.value
+  return {
+    creativeTree: lastAssistant?.inspirationExpand?.creative_tree || lastAssistant?.inspirationExpand?.creativeTree,
+    outlineMarkdown: lastAssistant?.outlineGenerate?.outline_markdown || lastAssistant?.outlineGenerate?.outlineMarkdown,
+    content: lastAssistant?.contentWrite?.content,
+    characterRelationMap: lastAssistant?.characterRelationMap
+  }
+})
+
+const availableLawyerResultPanels = computed(() => {
+  const skillSet = new Set(latestLawyerMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestLawyerSkillResults.value.evidenceAnalysis || skillSet.has('evidence_analysis')) panels.push('evidence')
+  if (latestLawyerSkillResults.value.limitationCalc || skillSet.has('limitation_calculation')) panels.push('limitation')
+  if (latestLawyerSkillResults.value.jurisdiction || skillSet.has('jurisdiction_determination')) panels.push('jurisdiction')
+  if (latestLawyerSkillResults.value.hearingOutline || skillSet.has('hearing_outline_generation')) panels.push('hearing')
+  return panels
+})
+
+const availableTeacherResultPanels = computed(() => {
+  const skillSet = new Set(latestTeacherMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestTeacherSkillResults.value.studentDiagnosis || skillSet.has('student_diagnosis')) panels.push('diagnosis')
+  if (latestTeacherSkillResults.value.lessonPlan || skillSet.has('lesson_plan_generation') || skillSet.has('lesson_plan')) panels.push('lessonPlan')
+  if (latestTeacherSkillResults.value.homeworkGrading || skillSet.has('homework_grading') || skillSet.has('grading')) panels.push('grading')
+  if (latestTeacherSkillResults.value.errorQuestionPush || skillSet.has('error_analysis_question_push') || skillSet.has('error_attribution')) panels.push('questionPush')
+  return panels
+})
+
+const availableProgrammerResultPanels = computed(() => {
+  const skillSet = new Set(latestProgrammerMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestProgrammerSkillResults.value.requirementAnalysis || skillSet.has('requirement_analysis')) panels.push('requirement')
+  if (latestProgrammerSkillResults.value.searchHits.length || skillSet.has('codebase_semantic_search')) panels.push('search')
+  if (latestProgrammerSkillResults.value.generatedCode || skillSet.has('code_generation')) panels.push('code')
+  if (latestProgrammerSkillResults.value.diagramCode || skillSet.has('diagram_generation')) panels.push('diagram')
+  return panels
+})
+
+const availableWriterResultPanels = computed(() => {
+  const skillSet = new Set(latestWriterMeta.value.skillsUsed || [])
+  const panels: string[] = []
+  if (latestWriterSkillResults.value.creativeTree || skillSet.has('inspiration_expand')) panels.push('inspiration')
+  if (latestWriterSkillResults.value.outlineMarkdown || skillSet.has('outline_generate')) panels.push('outline')
+  if (latestWriterSkillResults.value.content || skillSet.has('content_write')) panels.push('content')
+  if (latestWriterSkillResults.value.characterRelationMap || skillSet.has('character_relation_map')) panels.push('relation')
+  return panels
+})
+
+const showScrollToBottom = computed(() => !isNearBottom.value && chatStore.messages.length > 0)
+const isSendDisabled = computed(() => loading.value || (!inputText.value.trim() && !isRecording.value))
+
+const currentTemplates = computed(() => {
+  const roleName = currentRole.value?.name || ''
+  const lower = roleName.toLowerCase()
+
+  if (roleName.includes('律师') || lower.includes('lawyer')) {
+    return ['合同纠纷咨询', '劳动仲裁流程', '法律风险评估', '文书草稿生成']
+  }
+  if (roleName.includes('教师') || lower.includes('teacher')) {
+    return ['制定学习计划', '错题归因推题', '生成课堂互动脚本', '学情报告总结']
+  }
+  if (roleName.includes('程序') || lower.includes('developer') || lower.includes('programmer')) {
+    return ['帮我做需求技术规格分析', '检索代码库中登录相关函数', '根据规格生成后端接口代码', '生成用户登录流程 Mermaid 图']
+  }
+  if (roleName.includes('作家') || lower.includes('writer')) {
+    return ['灵感拓展并生成创意树', '生成章节大纲思维导图', '按鲁迅体写第一章', '分析角色并生成人物关系图']
+  }
+  return ['日常问答', '帮我做个计划', '总结这段内容', '给我几个建议']
+})
+
+const getLawyerRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('律师') || roleName.includes('法律') || roleName.includes('lawyer')
+  })
+}
+
+const getTeacherRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('教师') || roleName.includes('教学') || roleName.includes('teacher')
+  })
+}
+
+const getProgrammerRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('程序') || roleName.includes('开发') || roleName.includes('programmer')
+  })
+}
+
+const getWriterRole = () => {
+  return roles.value.find(role => {
+    const roleName = (role.name || '').toLowerCase()
+    return roleName.includes('作家') || roleName.includes('写作') || roleName.includes('writer')
+  })
+}
+
+const switchRoleWithoutReset = async (role: any) => {
+  selectedRoleId.value = role.id
+  await roleStore.setCurrentRole(role)
+  chatStore.setRole(role.id)
+}
+
+const activateLawyerAgent = async () => {
+  if (isLawyerMode.value) {
+    ElMessage.info('当前已在律师模式')
+    return
+  }
+
+  const lawyerRole = getLawyerRole()
+  if (!lawyerRole) {
+    ElMessage.warning('未找到律师角色，请先在角色管理中启用律师角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await switchRoleWithoutReset(lawyerRole)
+  ElMessage.success('已切换到律师 Agent')
+}
+
+const activateTeacherAgent = async () => {
+  if (isTeacherMode.value) {
+    ElMessage.info('当前已在教师模式')
+    return
+  }
+
+  const teacherRole = getTeacherRole()
+  if (!teacherRole) {
+    ElMessage.warning('未找到教师角色，请先在角色管理中启用教师角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await switchRoleWithoutReset(teacherRole)
+  ElMessage.success('已切换到教师 Agent')
+}
+
+const activateProgrammerAgent = async () => {
+  if (isProgrammerMode.value) {
+    ElMessage.info('当前已在程序员模式')
+    return
+  }
+
+  const programmerRole = getProgrammerRole()
+  if (!programmerRole) {
+    ElMessage.warning('未找到程序员角色，请先在角色管理中启用程序员角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await switchRoleWithoutReset(programmerRole)
+  ElMessage.success('已切换到程序员 Agent')
+}
+
+const activateWriterAgent = async () => {
+  if (isWriterMode.value) {
+    ElMessage.info('当前已在作家模式')
+    return
+  }
+
+  const writerRole = getWriterRole()
+  if (!writerRole) {
+    ElMessage.warning('未找到作家角色，请先在角色管理中启用作家角色')
+    showRoleDrawer.value = true
+    return
+  }
+  await switchRoleWithoutReset(writerRole)
+  ElMessage.success('已切换到作家 Agent')
+}
+
+const toggleLawyerMode = async () => {
+  if (isLawyerMode.value) {
+    ElMessage.info('当前已在律师模式')
+    return
+  }
+  await activateLawyerAgent()
+}
+
+const toggleTeacherMode = async () => {
+  if (isTeacherMode.value) {
+    ElMessage.info('当前已在教师模式')
+    return
+  }
+  await activateTeacherAgent()
+}
+
+const toggleProgrammerMode = async () => {
+  if (isProgrammerMode.value) {
+    ElMessage.info('当前已在程序员模式')
+    return
+  }
+  await activateProgrammerAgent()
+}
+
+const toggleWriterMode = async () => {
+  if (isWriterMode.value) {
+    ElMessage.info('当前已在作家模式')
+    return
+  }
+  await activateWriterAgent()
+}
+
+const openFederatedConsole = () => {
+  router.push('/federated-learning')
+}
+
+const handleFederatedOptimize = async () => {
+  if (federatedOptimizing.value) return
+  federatedOptimizing.value = true
+  try {
+    const result = await federatedModelApi.optimizeModel('advanced', 'federated', 'quality', 1)
+    if (result?.success) {
+      ElMessage.success('联邦优化已触发')
+      return
+    }
+    ElMessage.warning('联邦优化请求未成功')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '联邦优化触发失败')
+  } finally {
+    federatedOptimizing.value = false
+  }
+}
+
+const goToSettings = () => {
+  router.push('/settings')
+}
+
+const toggleAssistTools = () => {
+  showAssistTools.value = !showAssistTools.value
+}
+
+const useTemplate = (text: string) => {
+  if (!text) return
+  inputText.value = text
+  nextTick(() => {
+    const textarea = document.querySelector('.composer textarea') as HTMLTextAreaElement | null
+    if (textarea) {
+      textarea.focus()
+      textarea.setSelectionRange(text.length, text.length)
+    }
+  })
+}
+
+const autoSegment = () => {
+  if (inputText.value.length <= 500) return
+  const segments = inputText.value.match(/.{1,500}/g) || []
+  inputText.value = segments.join('\n\n---\n\n')
+  ElMessage.success(t('chat.autoSegment'))
+}
+
+const selectRole = async (role: any) => {
+  if (chatStore.messages.length > 0) {
+    try {
+      await ElMessageBox.confirm(
+        `切换到角色 "${role.name}" 会清空当前对话，是否继续？`,
+        '切换角色',
+        {
+          confirmButtonText: '继续',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+      chatStore.clearMessages()
+    } catch {
+      return
+    }
+  }
+
+  selectedRoleId.value = role.id
+  await roleStore.setCurrentRole(role)
+  chatStore.setRole(role.id)
+  showRoleDrawer.value = false
+  ElMessage.success(`已切换到角色: ${role.name}`)
+}
+
+const sendMessage = async () => {
+  if (loading.value) return
+  if (!inputText.value.trim() && !isRecording.value) return
+
+  if (!selectedRoleId.value && roles.value.length > 0) {
+    const firstRole = roles.value[0]
+    await roleStore.setCurrentRole(firstRole)
+    selectedRoleId.value = firstRole.id
+    chatStore.setRole(firstRole.id)
+  } else if (!selectedRoleId.value) {
+    ElMessage.warning('请先选择角色')
+    showRoleDrawer.value = true
+    return
+  }
+
+  loading.value = true
+  const userText = inputText.value.trim()
+  inputText.value = ''
+
+  try {
+    let response: any
+    if (isLawyerMode.value) {
+      response = await chatStore.sendLawyerMessage(userText)
+    } else if (isTeacherMode.value) {
+      response = await chatStore.sendTeacherMessage(userText)
+    } else if (isProgrammerMode.value) {
+      response = await chatStore.sendProgrammerMessage(userText)
+    } else if (isWriterMode.value) {
+      response = await chatStore.sendWriterMessage(userText)
+    } else {
+      response = await chatStore.sendMessage(userText)
+    }
+
+    if (!response) throw new Error('消息发送失败')
+    scrollToBottom()
+  } catch (err: any) {
+    ElMessage.error(err.message || '发送消息失败')
+    inputText.value = userText
+  } finally {
+    loading.value = false
+  }
+}
+
+const startVoiceInput = () => {
+  isRecording.value = true
+}
+
+const stopVoiceInput = () => {
+  isRecording.value = false
+}
+
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key !== 'Enter') return
+
+  if (event.ctrlKey || event.shiftKey) {
+    event.preventDefault()
+    const textarea = event.target as HTMLTextAreaElement
+    const cursorPosition = textarea.selectionStart
+    const textBefore = inputText.value.substring(0, cursorPosition)
+    const textAfter = inputText.value.substring(cursorPosition)
+    inputText.value = `${textBefore}\n${textAfter}`
+
+    nextTick(() => {
+      textarea.selectionStart = cursorPosition + 1
+      textarea.selectionEnd = cursorPosition + 1
+    })
+    return
+  }
+
+  event.preventDefault()
+  sendMessage()
+}
+
+const openTeacherUploadDialog = () => {
+  if (!teacherUploadInputRef.value) return
+  teacherUploadInputRef.value.value = ''
+  teacherUploadInputRef.value.click()
+}
+
+const handleTeacherFileUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  loading.value = true
+  try {
+    // Reuse FileManager upload backend.
+    await fileApi.uploadFile(file, 'teacher').catch(() => undefined)
+
+    const ocr = await agentTeacherApi.extractOcrText(file)
+    if (!ocr.text) {
+      ElMessage.warning('未识别到文本，请更换更清晰的文件后重试')
+      return
+    }
+
+    const injected = `\n\n[OCR识别文本 - ${file.name}]\n${ocr.text}`
+    inputText.value = `${inputText.value}${injected}`.trim()
+    ElMessage.success('OCR 识别完成，已注入输入框')
+  } catch (error: any) {
+    ElMessage.error(error.message || '上传或 OCR 处理失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleControl = (type: string) => {
+  if (type === 'folder' || type === 'image') {
+    showFileManager.value = true
+  }
+}
+
+const handleFileSelected = async (file: any) => {
+  const fileUrl = file?.path ? `/api/files/download/${file.path}` : (file?.url || file?.fileUrl)
+  if (!fileUrl) {
+    ElMessage.warning('文件地址无效，无法发送')
+    return
+  }
+
+  if (isTeacherMode.value) {
+    showFileManager.value = false
+    ElMessage.info('教师模式建议使用“上传作业”按钮自动 OCR 注入文本')
+    return
+  }
+
+  if (!selectedRoleId.value && roles.value.length > 0) {
+    const firstRole = roles.value[0]
+    await roleStore.setCurrentRole(firstRole)
+    selectedRoleId.value = firstRole.id
+    chatStore.setRole(firstRole.id)
+  }
+
+  showFileManager.value = false
+  loading.value = true
+
+  try {
+    await chatStore.sendMessage('', fileUrl)
+    scrollToBottom()
+    ElMessage.success(`已发送文件: ${file.name}`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '发送文件失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const scrollToBottom = () => {
+  if (!messagesRef.value) return
+  nextTick(() => {
+    messagesRef.value?.scrollTo({
+      top: messagesRef.value.scrollHeight,
+      behavior: 'smooth'
+    })
+  })
+}
+
+const handleScrollToBottom = () => {
+  pendingMessageCount.value = 0
+  scrollToBottom()
+}
+
+watch(
+  () => chatStore.messages.length,
+  (newLen, oldLen) => {
+    if (newLen <= oldLen) return
+    const latest = chatStore.messages[newLen - 1]
+    const isUserMessage = latest?.role === 'user'
+
+    if (isNearBottom.value || isUserMessage) {
+      scrollToBottom()
+      return
+    }
+
+    pendingMessageCount.value = Math.min(99, pendingMessageCount.value + 1)
+  }
+)
+
+watch(
+  availableLawyerResultPanels,
+  panels => {
+    activeLawyerResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
+watch(
+  availableTeacherResultPanels,
+  panels => {
+    activeTeacherResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
+watch(
+  availableProgrammerResultPanels,
+  panels => {
+    activeProgrammerResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
+watch(
+  availableWriterResultPanels,
+  panels => {
+    activeWriterResultPanels.value = [...panels]
+  },
+  { immediate: true }
+)
+
+const checkScrollState = () => {
+  if (!messagesRef.value) return
+  const { scrollTop, scrollHeight, clientHeight } = messagesRef.value
+  const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 24
+  isNearBottom.value = isAtBottom
+  if (isAtBottom) pendingMessageCount.value = 0
+}
+
+watch(
+  () => route.query.contextId,
+  async contextId => {
+    const targetContextId = typeof contextId === 'string' ? contextId.trim() : ''
+    if (!targetContextId) return
+    if (chatStore.contextId === targetContextId) return
+
+    await chatStore.loadHistory(targetContextId)
+    scrollToBottom()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => roleStore.currentRole,
+  newRole => {
+    if (!newRole) return
+    selectedRoleId.value = newRole.id
+    chatStore.setRole(newRole.id)
+  },
+  { immediate: true }
+)
+
+watch(showAssistTools, visible => {
+  localStorage.setItem(ASSIST_TOOL_VISIBLE_KEY, visible ? '1' : '0')
+})
+
+onMounted(async () => {
+  await roleStore.loadRoles()
+
+  const assistToolVisible = localStorage.getItem(ASSIST_TOOL_VISIBLE_KEY)
+  if (assistToolVisible === '0') {
+    showAssistTools.value = false
+  }
+
+  if (roles.value.length > 0) {
+    if (!roleStore.currentRole) {
+      const firstRole = roles.value[0]
+      await roleStore.setCurrentRole(firstRole)
+      selectedRoleId.value = firstRole.id
+      chatStore.setRole(firstRole.id)
+    } else {
+      selectedRoleId.value = roleStore.currentRole.id
+      chatStore.setRole(roleStore.currentRole.id)
+    }
+  }
+
+  if (messagesRef.value) {
+    messagesRef.value.addEventListener('scroll', checkScrollState)
+    checkScrollState()
+  }
+})
+
+onUnmounted(() => {
+  if (messagesRef.value) {
+    messagesRef.value.removeEventListener('scroll', checkScrollState)
+  }
+})
 </script>
 
 <style scoped>
-.main-home {
-  min-height: 100%;
-  color: #14213d;
-  background:
-    radial-gradient(circle at 50% 18%, rgba(59, 130, 246, 0.08), transparent 32%),
-    linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
+.chat-view {
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg-app);
 }
 
-.top-strip {
-  height: 72px;
-  padding: 0 28px;
-  border-bottom: 1px solid #e8eef7;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(18px);
+.chat-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-}
-
-.brand-mark,
-.profile-button,
-.history-row,
-.more-button,
-.mode-pill,
-.attachment-button,
-.send-button {
-  border: 0;
-  font: inherit;
-}
-
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: 0;
-}
-
-.brand-symbol {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  color: #ffffff;
-  background: linear-gradient(135deg, #2f78ff 0%, #0f56d9 100%);
-  box-shadow: 0 10px 28px rgba(47, 120, 255, 0.22);
-  font-weight: 800;
-}
-
-.profile-button {
-  display: inline-flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  transition: border-bottom-color 0.3s ease, background 0.3s ease;
 }
 
-.profile-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 34%, #f7c8b8 0 17%, transparent 18%),
-    linear-gradient(160deg, #17213a 0 42%, #f5f8fc 43% 100%);
-  border: 3px solid #ffffff;
-  box-shadow: 0 8px 20px rgba(27, 47, 86, 0.14);
+.chat-header.lawyer-active {
+  border-bottom-color: #2563eb;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(255, 255, 255, 0.88));
 }
 
-.chevron,
-.more-button span {
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid #476286;
-  border-bottom: 2px solid #476286;
-  transform: rotate(45deg);
+.chat-header.teacher-active {
+  border-bottom-color: #059669;
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.04), rgba(255, 255, 255, 0.88));
 }
 
-.home-stage {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 118px 28px 64px;
+.chat-header.programmer-active {
+  border-bottom-color: #7c3aed;
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.04), rgba(255, 255, 255, 0.88));
 }
 
-.hero-copy {
-  text-align: center;
-  margin-bottom: 56px;
+.chat-header.writer-active {
+  border-bottom-color: #d97706;
+  background: linear-gradient(180deg, rgba(217, 119, 6, 0.04), rgba(255, 255, 255, 0.88));
 }
 
-.hero-copy h1 {
-  margin: 0;
-  font-size: 34px;
-  line-height: 1.22;
-  font-weight: 500;
-  color: #16284d;
-  letter-spacing: 0;
-}
-
-.hero-copy p {
-  margin: 16px 0 0;
-  font-size: 18px;
-  color: #8aa0bd;
-  letter-spacing: 0;
-}
-
-.prompt-panel {
-  width: min(760px, 100%);
-  min-height: 176px;
-  padding: 20px 22px 22px;
-  border: 1px solid #dce7f5;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 60px rgba(31, 78, 141, 0.08);
-}
-
-.mode-row {
+.chat-header .left {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 18px;
 }
 
-.mode-pill {
-  height: 36px;
-  padding: 0 24px;
-  border-radius: 18px;
-  color: #5d6f8e;
-  background: transparent;
-  cursor: pointer;
+.chat-header .title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
-.mode-pill.active {
-  color: #1f6fff;
-  background: #ffffff;
-  border: 1px solid #d7e6ff;
-  box-shadow: inset 0 0 0 1px rgba(62, 122, 255, 0.04);
-  font-weight: 600;
-}
-
-.prompt-input {
-  width: 100%;
-  height: 70px;
-  resize: none;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #18325a;
-  font-size: 17px;
-  line-height: 1.65;
-  font-family: inherit;
-}
-
-.prompt-input::placeholder {
-  color: #9aaac2;
-}
-
-.prompt-actions {
+.mode-switcher {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
+  gap: 2px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 3px;
 }
 
-.attachment-button {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-}
-
-.attachment-button span {
-  position: absolute;
-  width: 18px;
-  height: 22px;
-  left: 10px;
-  top: 8px;
-  border: 2px solid #7c91b1;
-  border-left-color: transparent;
-  border-bottom-left-radius: 11px;
-  border-top-right-radius: 11px;
-  transform: rotate(35deg);
-}
-
-.send-button {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #3b82ff 0%, #1e62df 100%);
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.28);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-
-.send-button span {
-  width: 17px;
-  height: 17px;
-  clip-path: polygon(0 0, 100% 50%, 0 100%, 20% 54%);
-  background: #ffffff;
-  transform: translateX(1px);
-}
-
-.history-panel {
-  width: min(660px, 100%);
-  margin-top: 34px;
-  padding: 20px 32px 22px;
-  border: 1px solid #dce7f5;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 18px 48px rgba(44, 75, 126, 0.06);
-}
-
-.history-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: #273b5f;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e3eaf4;
-}
-
-.history-row {
-  width: 100%;
-  min-height: 52px;
-  display: grid;
-  grid-template-columns: 24px 1fr auto;
+.mode-btn {
+  display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 5px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
   background: transparent;
-  border-bottom: 1px solid #e3eaf4;
-  color: #324668;
   cursor: pointer;
-}
-
-.row-icon {
-  width: 18px;
-  height: 16px;
-  border: 1.8px solid #8ba0bd;
-  border-radius: 5px;
-  position: relative;
-}
-
-.row-icon::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  bottom: -5px;
-  width: 6px;
-  height: 6px;
-  border-left: 1.8px solid #8ba0bd;
-  border-bottom: 1.8px solid #8ba0bd;
-  background: #ffffff;
-  transform: skewY(-28deg);
-}
-
-.row-title {
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
   white-space: nowrap;
 }
 
-.row-time {
-  color: #8095b4;
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-primary);
 }
 
-.more-button {
-  height: 42px;
-  margin: 10px auto 0;
-  padding: 0 18px;
+.mode-btn.active {
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.mode-btn:first-child.active {
+  color: #2563eb;
+}
+
+.mode-btn:nth-child(2).active {
+  color: #059669;
+}
+
+.mode-btn:nth-child(3).active {
+  color: #7c3aed;
+}
+
+.mode-btn:nth-child(4).active {
+  color: #d97706;
+}
+
+.mode-icon {
+  font-size: 14px;
+}
+
+.mode-label {
+  font-size: 12px;
+}
+
+.chat-header .right {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #2372ff;
+  flex-wrap: wrap;
+}
+
+.chat-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  transition: grid-template-columns 0.3s ease;
+}
+
+.chat-main.lawyer,
+.chat-main.teacher,
+.chat-main.programmer,
+.chat-main.writer {
+  grid-template-columns: 1fr 340px;
+}
+
+.chat-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.messages::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.empty-state {
+  margin: 80px auto;
+  text-align: center;
+  max-width: 520px;
+  animation: fade-in 0.4s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.empty-state h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.quick-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.quick-btn {
+  border: 1px solid var(--border-light);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  white-space: nowrap;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
 }
 
-.more-button span {
-  border-color: #2372ff;
-  transform: rotate(45deg) translateY(-2px);
+.quick-btn:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+  transform: translateY(-1px);
 }
 
-@media (max-width: 900px) {
-  .home-stage {
-    padding-top: 72px;
+.quick-btn.lawyer-btn {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.quick-btn.lawyer-btn:hover {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.quick-btn.teacher-btn {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.quick-btn.teacher-btn:hover {
+  border-color: #059669;
+  background: #d1fae5;
+}
+
+.quick-btn.programmer-btn {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.quick-btn.programmer-btn:hover {
+  border-color: #7c3aed;
+  background: #ede9fe;
+}
+
+.quick-btn.writer-btn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.quick-btn.writer-btn:hover {
+  border-color: #d97706;
+  background: #fef3c7;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.typing {
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.to-bottom {
+  position: absolute;
+  right: 18px;
+  bottom: 180px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.to-bottom:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.chat-main.teacher .to-bottom {
+  background: #059669;
+}
+
+.chat-main.teacher .to-bottom:hover {
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.chat-main.programmer .to-bottom {
+  background: #7c3aed;
+}
+
+.chat-main.programmer .to-bottom:hover {
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.chat-main.writer .to-bottom {
+  background: #d97706;
+}
+
+.chat-main.writer .to-bottom:hover {
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+}
+
+.to-bottom .badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  line-height: 16px;
+  font-size: 10px;
+  background: #ef4444;
+}
+
+.template-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  overflow-x: auto;
+}
+
+.template-item {
+  border: 1px solid var(--border-light);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.template-item:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+}
+
+.composer {
+  border-top: 1px solid var(--border-light);
+  background: #fff;
+  padding: 12px 16px;
+  transition: border-top-color 0.3s ease;
+}
+
+.chat-main.teacher .composer {
+  border-top-color: #a7f3d0;
+}
+
+.chat-main.lawyer .composer {
+  border-top-color: #bfdbfe;
+}
+
+.chat-main.programmer .composer {
+  border-top-color: #c4b5fd;
+}
+
+.chat-main.writer .composer {
+  border-top-color: #fcd34d;
+}
+
+.composer-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.left-actions,
+.right-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.word-count.warning {
+  color: #f59e0b;
+}
+
+.agent-panel {
+  border-left: 1px solid var(--border-light);
+  background: #fafbfc;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px;
+  transition: border-left-color 0.3s ease, background 0.3s ease;
+}
+
+.chat-main.lawyer .agent-panel {
+  border-left-color: #bfdbfe;
+  background: linear-gradient(180deg, #f8faff, #fafbfc);
+}
+
+.chat-main.teacher .agent-panel {
+  border-left-color: #a7f3d0;
+  background: linear-gradient(180deg, #f6fdf8, #fafbfc);
+}
+
+.chat-main.programmer .agent-panel {
+  border-left-color: #c4b5fd;
+  background: linear-gradient(180deg, #faf8ff, #fafbfc);
+}
+
+.chat-main.writer .agent-panel {
+  border-left-color: #fcd34d;
+  background: linear-gradient(180deg, #fffdf5, #fafbfc);
+}
+
+.results-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.results-empty .empty-icon {
+  font-size: 28px;
+  opacity: 0.6;
+}
+
+.writer-content-preview {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #78350f;
+  white-space: pre-wrap;
+}
+
+.programmer-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.programmer-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.programmer-grid.two-cols {
+  grid-template-columns: 1fr 1fr;
+}
+
+.programmer-card {
+  border: 1px solid #ddd6fe;
+  background: #faf5ff;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.programmer-card .card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6d28d9;
+  margin-bottom: 6px;
+}
+
+.programmer-card ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.programmer-meta {
+  font-size: 12px;
+  color: #475569;
+}
+
+.programmer-search-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.search-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.search-head .path {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4338ca;
+  word-break: break-all;
+}
+
+.search-head .score {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.search-item pre,
+.code-block {
+  margin: 0;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: auto;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.role-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.role-item:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+}
+
+.role-item.active {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+}
+
+.role-text .name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.role-text .desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 1100px) {
+  .chat-main.lawyer,
+  .chat-main.teacher,
+  .chat-main.programmer,
+  .chat-main.writer {
+    grid-template-columns: 1fr;
   }
 
-  .hero-copy h1 {
-    font-size: 28px;
+  .agent-panel {
+    border-left: none;
+    border-top: 1px solid var(--border-light);
+    max-height: 300px;
   }
 
-  .history-panel {
-    padding: 18px;
+  .programmer-grid.two-cols {
+    grid-template-columns: 1fr;
   }
 }
 </style>
+
