@@ -10,9 +10,16 @@
       </div>
 
       <div class="header-tools">
+        <label class="mode-toggle" :class="{ api: !isDemoMode }">
+          <span>演示</span>
+          <button type="button" @click="toggleDemoMode">
+            <span class="toggle-knob"></span>
+          </button>
+          <span>API</span>
+        </label>
         <div class="mode-switch" aria-label="模式切换">
-          <button type="button">普通用户模式</button>
-          <button class="active" type="button">专业用户模式</button>
+          <button type="button" :class="{ active: currentMode === 'normal' }" @click="toggleUserMode('normal')">普通用户模式</button>
+          <button :class="{ active: currentMode === 'pro' }" type="button" @click="toggleUserMode('pro')">专业用户模式</button>
         </div>
         <div class="status-chip online">
           <span></span>
@@ -36,25 +43,16 @@
             <span>我的专业体</span>
             <button type="button">管理</button>
           </div>
-          <div class="expert-card active">
-            <div class="expert-avatar lawyer">律</div>
+          <div
+            v-for="expert in experts" :key="expert.id"
+            class="expert-card"
+            :class="{ active: activeExpert === expert.id }"
+            @click="activeExpert = expert.id"
+          >
+            <div class="expert-avatar" :class="expert.cls">{{ expert.avatar }}</div>
             <div>
-              <strong>法律顾问</strong>
-              <span>合同法务 · 在线</span>
-            </div>
-          </div>
-          <div class="expert-card">
-            <div class="expert-avatar pm">需</div>
-            <div>
-              <strong>需求分析师</strong>
-              <span>业务建模 · 在线</span>
-            </div>
-          </div>
-          <div class="expert-card">
-            <div class="expert-avatar writer">文</div>
-            <div>
-              <strong>文档专家</strong>
-              <span>格式审校 · 待命</span>
+              <strong>{{ expert.label }}</strong>
+              <span>{{ expert.sub }}</span>
             </div>
           </div>
         </section>
@@ -117,23 +115,23 @@
           </div>
           <div class="progress-card">
             <span>任务进度</span>
-            <strong>75%</strong>
+            <strong>{{ currentProgress }}%</strong>
             <div class="progress-track">
-              <div style="width: 75%"></div>
+              <div :style="{ width: currentProgress + '%' }"></div>
             </div>
-            <small>预计 12 分钟后完成初稿</small>
+            <small>{{ currentProgress >= 100 ? '任务已完成' : '预计 ' + Math.max(1, Math.ceil((100 - currentProgress) / 2)) + ' 分钟后完成' }}</small>
           </div>
         </section>
 
         <section class="panel flow-panel">
           <div class="toolbar">
             <nav class="view-tabs">
-              <button class="active" type="button">流程视图</button>
-              <button type="button">思维链视图</button>
-              <button type="button">甘特视图</button>
-              <button type="button">对比视图</button>
+              <button :class="{ active: activeFlowTab === 'flow' }" type="button" @click="activeFlowTab = 'flow'">流程视图</button>
+              <button :class="{ active: activeFlowTab === 'chain' }" type="button" @click="activeFlowTab = 'chain'">思维链视图</button>
+              <button :class="{ active: activeFlowTab === 'gantt' }" type="button" @click="activeFlowTab = 'gantt'">甘特视图</button>
+              <button :class="{ active: activeFlowTab === 'compare' }" type="button" @click="activeFlowTab = 'compare'">对比视图</button>
             </nav>
-            <button class="outline-button" type="button">导出报告</button>
+            <button class="outline-button" type="button" @click="handleExportReport">导出报告</button>
           </div>
 
           <div class="flow-lane">
@@ -141,7 +139,8 @@
               v-for="step in flowSteps"
               :key="step.no"
               class="flow-step"
-              :class="[step.state, { active: step.active }]"
+              :class="[step.state, { active: step.no === selectedStepNo }]"
+              @click="selectFlowStep(step.no)"
             >
               <span class="step-no">{{ step.no }}</span>
               <strong>{{ step.title }}</strong>
@@ -154,23 +153,23 @@
           <article class="panel detail-card">
             <div class="section-head">
               <div>
-                <span class="eyebrow">Step 03</span>
-                <h3>当前步骤详情：条款结构生成</h3>
+                <span class="eyebrow">Step {{ selectedStepNo }}</span>
+                <h3>当前步骤详情：{{ selectedStepInfo.title }}</h3>
               </div>
-              <span class="status-badge running">执行中</span>
+              <span class="status-badge" :class="selectedStepInfo.state">{{ selectedStepInfo.state === 'running' ? '执行中' : selectedStepInfo.state === 'done' ? '已完成' : '等待中' }}</span>
             </div>
             <dl class="detail-meta">
               <div>
                 <dt>执行体</dt>
-                <dd>法律顾问 + 文档专家</dd>
+                <dd>{{ activeExpert === 'lawyer' ? '法律顾问' : activeExpert === 'analyst' ? '需求分析师' : '文档专家' }} + 文档专家</dd>
               </div>
               <div>
                 <dt>置信度</dt>
-                <dd>92%</dd>
+                <dd>{{ currentProgress }}%</dd>
               </div>
               <div>
                 <dt>风险扫描</dt>
-                <dd>已发现 3 项待确认条款</dd>
+                <dd>{{ selectedStepInfo.state === 'done' ? '已通过' : selectedStepInfo.state === 'running' ? '已发现 3 项待确认条款' : '待执行' }}</dd>
               </div>
             </dl>
             <div class="cot-list">
@@ -191,10 +190,7 @@
             </div>
             <div class="document-preview">
               <h4>软件开发合同</h4>
-              <p>一、项目范围：乙方根据甲方需求完成系统设计、开发、测试及交付。</p>
-              <p>二、交付节点：需求确认、原型评审、阶段验收、最终上线。</p>
-              <p>三、知识产权：除双方另有约定，定制开发成果归甲方所有。</p>
-              <p>四、保密义务：双方对技术资料、业务数据及交易信息承担保密责任。</p>
+              <p v-for="(line, i) in documentPreview" :key="i">{{ line }}</p>
             </div>
           </article>
         </section>
@@ -220,11 +216,14 @@
           <input
             id="workbench-command"
             name="workbench-command"
-            value="请重点补充验收标准、违约责任和源代码交付约定"
+            v-model="commandText"
+            :disabled="isGenerating"
             aria-label="任务指令"
-            readonly
+            @keyup.enter="handleSend"
           />
-          <button type="button">发送</button>
+          <button type="button" :disabled="isGenerating" @click="handleSend">
+            {{ isGenerating ? '执行中...' : '发送' }}
+          </button>
         </section>
       </main>
 
@@ -248,7 +247,7 @@
           <div class="voice-wave" aria-hidden="true">
             <span v-for="bar in 12" :key="bar"></span>
           </div>
-          <button class="assistant-action" type="button">语音说明</button>
+          <button class="assistant-action" type="button" @click="goToVoiceChat">语音说明</button>
         </section>
 
         <section class="panel source-panel">
@@ -274,12 +273,12 @@
             <span>实时</span>
           </div>
           <nav class="mini-tabs">
-            <button class="active" type="button">条款</button>
-            <button type="button">风险</button>
-            <button type="button">案例</button>
+            <button :class="{ active: activeRecommendTab === 'clause' }" type="button" @click="selectRecommendTab('clause')">条款</button>
+            <button :class="{ active: activeRecommendTab === 'risk' }" type="button" @click="selectRecommendTab('risk')">风险</button>
+            <button :class="{ active: activeRecommendTab === 'case' }" type="button" @click="selectRecommendTab('case')">案例</button>
           </nav>
           <div class="recommendation-list">
-            <button v-for="item in recommendations" :key="item" type="button">{{ item }}</button>
+            <button v-for="item in recommendations" :key="item" type="button" @click="selectRecommendation(item)">{{ item }}</button>
           </div>
         </section>
       </aside>
@@ -288,17 +287,49 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import DigitalHuman from '@/components/DigitalHuman.vue'
 import { useDigitalHumanRole } from '@/composables/useDigitalHumanRole'
+import { agentLawyerApi } from '@/services/api/agentLawyer'
+import { federatedModelApi } from '@/services/api/federatedModel'
+import type { LawyerAgentResponse } from '@/services/api/agentLawyer'
 
 const { digitalHumanRoleId, digitalHumanRoleName } = useDigitalHumanRole()
+const router = useRouter()
 
-const capabilityModules = [
+function goToVoiceChat() {
+  router.push('/voice-chat')
+}
+
+// ---- 模式 ----
+const isDemoMode = ref(true)
+const isGenerating = ref(false)
+const currentProgress = ref(75)
+const currentStepNo = ref(3)
+
+// ---- 用户模式 ----
+const currentMode = ref<'normal' | 'pro'>('pro')
+
+function toggleUserMode(mode: 'normal' | 'pro') {
+  currentMode.value = mode
+}
+
+// ---- 专业体 ----
+const activeExpert = ref<'lawyer' | 'analyst' | 'writer'>('lawyer')
+const experts = [
+  { id: 'lawyer' as const, label: '法律顾问', sub: '合同法务 · 在线', avatar: '律', cls: 'lawyer' },
+  { id: 'analyst' as const, label: '需求分析师', sub: '业务建模 · 在线', avatar: '需', cls: 'pm' },
+  { id: 'writer' as const, label: '文档专家', sub: '格式审校 · 待命', avatar: '文', cls: 'writer' }
+]
+
+const capabilityModules = ref([
   { short: '需', name: '需求理解', desc: '识别业务目标与边界条件', score: '98%', tone: 'blue' },
   { short: '法', name: '法律适配', desc: '匹配合同法规与行业惯例', score: '92%', tone: 'green' },
   { short: '风', name: '风险审查', desc: '定位履约、付款与权属风险', score: '89%', tone: 'orange' },
   { short: '文', name: '文档生成', desc: '输出结构化合同文本', score: '96%', tone: 'purple' }
-]
+])
 
 const platformSupports = [
   { value: '12', label: '在线专业体' },
@@ -307,45 +338,240 @@ const platformSupports = [
   { value: '99.8%', label: '服务可用性' }
 ]
 
-const nodes = [
+const nodes = ref([
   { name: '北京节点', desc: '法律知识增强', latency: '22ms', state: 'online' },
   { name: '上海节点', desc: '合同模板索引', latency: '31ms', state: 'online' },
   { name: '深圳节点', desc: '企业案例检索', latency: '46ms', state: 'busy' }
-]
+])
 
-const flowSteps = [
-  { no: '01', title: '任务理解', desc: '解析目标与交付物', state: 'done', active: false },
-  { no: '02', title: '资料检索', desc: '抽取法规与模板', state: 'done', active: false },
-  { no: '03', title: '条款结构生成', desc: '生成合同骨架', state: 'running', active: true },
-  { no: '04', title: '风险审校', desc: '补充约束与例外', state: 'waiting', active: false },
-  { no: '05', title: '正式草案输出', desc: '合并与格式化', state: 'waiting', active: false }
+// ---- 流程步骤 ----
+type FlowState = 'done' | 'running' | 'waiting'
+interface FlowStep { no: string; title: string; desc: string; state: FlowState }
+const initialFlowSteps: FlowStep[] = [
+  { no: '01', title: '任务理解', desc: '解析目标与交付物', state: 'done' },
+  { no: '02', title: '资料检索', desc: '抽取法规与模板', state: 'done' },
+  { no: '03', title: '条款结构生成', desc: '生成合同骨架', state: 'running' },
+  { no: '04', title: '风险审校', desc: '补充约束与例外', state: 'waiting' },
+  { no: '05', title: '正式草案输出', desc: '合并与格式化', state: 'waiting' }
 ]
+const flowSteps = ref<FlowStep[]>(structuredClone(initialFlowSteps))
+const selectedStepNo = ref('03')
 
-const reasoningItems = [
+// ---- 思维链 ----
+type FlowTab = 'flow' | 'chain' | 'gantt' | 'compare'
+const activeFlowTab = ref<FlowTab>('flow')
+
+const reasoningItems = ref([
   { title: '提取合同主体与交易背景', desc: '识别甲乙双方、开发范围、交付方式与付款结构。' },
   { title: '匹配软件开发合同常用条款', desc: '引用项目范围、验收标准、知识产权、保密与违约责任模块。' },
   { title: '生成双版本条款骨架', desc: '同时输出律师严谨版与客户友好版，供下一步对比合并。' }
-]
+])
 
-const timelineItems = [
+const timelineItems = ref([
   { time: '10:21', title: '任务创建', desc: '用户发起软件开发合同起草任务。' },
   { time: '10:24', title: '完成资料检索', desc: '命中 21 条法规、8 份模板、5 个相似项目。' },
   { time: '10:28', title: '进入条款结构生成', desc: '法律顾问与文档专家正在并行生成。' }
-]
+])
 
-const dataSources = [
+const documentPreview = ref([
+  '一、项目范围：乙方根据甲方需求完成系统设计、开发、测试及交付。',
+  '二、交付节点：需求确认、原型评审、阶段验收、最终上线。',
+  '三、知识产权：除双方另有约定，定制开发成果归甲方所有。',
+  '四、保密义务：双方对技术资料、业务数据及交易信息承担保密责任。'
+])
+
+// ---- 右侧面板 ----
+const dataSources = ref([
   { type: '法', name: '民法典合同编', meta: '国家法律法规数据库', score: '98' },
   { type: '模', name: '软件开发合同模板库', meta: '企业常用模板 128 份', score: '94' },
   { type: '例', name: '交付验收争议案例', meta: '近三年相关裁判摘要', score: '87' },
   { type: '库', name: '知识产权条款库', meta: '源代码与著作权专题', score: '91' }
-]
+])
 
-const recommendations = [
+type RecommendTab = 'clause' | 'risk' | 'case'
+const activeRecommendTab = ref<RecommendTab>('clause')
+const recommendations = ref([
   '补充阶段验收的判定标准',
   '增加源代码交付与部署文档清单',
   '明确需求变更的计费机制',
   '将逾期交付责任拆分为宽限期与违约金'
+])
+const riskRecommendations = [
+  '验收标准模糊可能导致无限期免费维护',
+  '知识产权归属条款缺失源代码相关约定',
+  '需求变更无计费机制可能引发成本失控',
+  '保密义务未覆盖第三方外包人员'
 ]
+const caseRecommendations = [
+  '北京某科技公司 vs 外包商：验收标准不明确，法院判令重新交付',
+  '上海知识产权法院：未约定源代码归属，判归受托方所有',
+  '深圳仲裁委：需求变更未计价，委托方需补付 127 万',
+  '杭州中院：保密协议范围过窄，前员工利用技术资料不构成违约'
+]
+
+function selectRecommendTab(tab: RecommendTab) {
+  activeRecommendTab.value = tab
+  if (tab === 'risk') recommendations.value = riskRecommendations
+  else if (tab === 'case') recommendations.value = caseRecommendations
+  else recommendations.value = ['补充阶段验收的判定标准', '增加源代码交付与部署文档清单', '明确需求变更的计费机制', '将逾期交付责任拆分为宽限期与违约金']
+}
+
+function selectRecommendation(text: string) {
+  commandText.value = text
+}
+
+// ---- 命令栏 ----
+const commandText = ref('请重点补充验收标准、违约责任和源代码交付约定')
+const commandHistory = ref<string[]>([])
+const sessionId = ref('')
+
+function addToHistory(text: string) {
+  commandHistory.value.unshift(text)
+  if (commandHistory.value.length > 10) commandHistory.value.pop()
+}
+
+function selectFlowStep(no: string) {
+  selectedStepNo.value = no
+}
+
+const selectedStepInfo = computed(() => {
+  return flowSteps.value.find(s => s.no === selectedStepNo.value) || flowSteps.value[0]
+})
+
+// ---- Demo 模式 ----
+async function runDemoMode() {
+  isGenerating.value = true
+  addToHistory(commandText.value)
+  flowSteps.value = structuredClone(initialFlowSteps)
+  currentProgress.value = 75
+  currentStepNo.value = 3
+
+  // Step 03 running → done
+  await new Promise(r => setTimeout(r, 1200))
+  currentProgress.value = 84
+  flowSteps.value[2].state = 'done'
+  // Step 04 waiting → running
+  flowSteps.value[3].state = 'running'
+  selectedStepNo.value = '04'
+  currentStepNo.value = 4
+  reasoningItems.value = [
+    { title: '扫描合同骨架风险点', desc: '已识别付款节点、验收标准、知识产权归属 3 项潜在风险条款。' },
+    { title: '对比行业惯例与裁判规则', desc: '引用近三年软件开发合同争议裁判摘要，定位高频争议焦点。' },
+    { title: '生成约束建议与例外条款', desc: '为每一步骤补充违约边界、宽限期与免责条件。' }
+  ]
+
+  await new Promise(r => setTimeout(r, 1000))
+  currentProgress.value = 91
+  flowSteps.value[3].state = 'done'
+  // Step 05 waiting → running
+  flowSteps.value[4].state = 'running'
+  selectedStepNo.value = '05'
+  currentStepNo.value = 5
+  reasoningItems.value = [
+    { title: '合并律师版与客户版差异', desc: '同步合并语义相同的条款，保留双版本中差异化的表述。' },
+    { title: '应用格式模板', desc: '按正式合同格式排版，添加页眉、页脚、签署栏。' },
+    { title: '生成最终草案', desc: '输出完整合同草案，标记待确认条款 3 项。' }
+  ]
+  documentPreview.value = [
+    '一、项目范围：乙方根据甲方需求完成系统设计、开发、测试及交付，具体需求以附件一《需求规格说明书》为准。',
+    '二、交付节点：需求确认（签约后 5 日）、原型评审（签约后 20 日）、阶段验收（签约后 45 日）、最终上线（签约后 90 日）。',
+    '三、知识产权：定制开发成果（含源代码、文档、接口设计）的知识产权归甲方所有。',
+    '四、保密义务：双方对技术资料、业务数据及交易信息承担保密责任，保密期限为合同终止后 3 年。',
+    '五、违约责任：逾期交付每日按合同总价 0.05% 计收违约金，上限不超过合同总价 20%。'
+  ]
+  timelineItems.value.push({ time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), title: '进入风险审校', desc: '已完成 3 项风险条款扫描。' })
+
+  await new Promise(r => setTimeout(r, 800))
+  currentProgress.value = 100
+  flowSteps.value[4].state = 'done'
+  selectedStepNo.value = '05'
+  timelineItems.value.push({ time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), title: '正式草案输出完成', desc: '合同草案已生成，含 5 大条款模块。' })
+  nodes.value[2].state = 'online'
+  nodes.value[2].latency = '28ms'
+
+  isGenerating.value = false
+  ElMessage.success('Demo 联邦任务执行完成')
+}
+
+// ---- API 模式 ----
+async function runApiMode() {
+  isGenerating.value = true
+  addToHistory(commandText.value)
+  flowSteps.value = structuredClone(initialFlowSteps)
+
+  try {
+    const [lawyerRes, modelStatusRes] = await Promise.allSettled([
+      agentLawyerApi.chat({ text: commandText.value, sessionId: sessionId.value || undefined }),
+      federatedModelApi.getOptimizationStatus()
+    ])
+
+    if (lawyerRes.status === 'fulfilled' && lawyerRes.value.success) {
+      const res: LawyerAgentResponse = lawyerRes.value
+      sessionId.value = res.sessionId || ''
+
+      if (res.trace && res.trace.length > 0) {
+        const states: FlowState[] = ['done', 'done', 'done', 'done', 'done']
+        flowSteps.value = res.trace.slice(0, 5).map((t, i) => ({
+          no: String(i + 1).padStart(2, '0'),
+          title: t.action || `步骤 ${i + 1}`,
+          desc: (t.observation || t.thought).slice(0, 20),
+          state: i < res.trace.length - 1 ? 'done' : 'running'
+        }))
+        if (flowSteps.value.length > 0 && flowSteps.value[flowSteps.value.length - 1].state === 'running') {
+          flowSteps.value[flowSteps.value.length - 1].state = 'done'
+        }
+        selectedStepNo.value = flowSteps.value[flowSteps.value.length - 1]?.no || '01'
+        currentProgress.value = 100
+      }
+      if (res.answer) {
+        documentPreview.value = res.answer.split('\n').filter(l => l.trim())
+        if (documentPreview.value.length === 0) documentPreview.value = [res.answer]
+      }
+      ElMessage.success('API 返回成功')
+    }
+
+    if (modelStatusRes.status === 'fulfilled' && modelStatusRes.value?.success) {
+      const statusData = modelStatusRes.value.data || modelStatusRes.value
+      if (statusData?.nodes) {
+        nodes.value = statusData.nodes.map((n: any, i: number) => ({
+          name: n.name || `节点 ${i + 1}`,
+          desc: n.description || n.desc || '',
+          latency: n.latency || `${20 + i * 10}ms`,
+          state: n.state || n.status || 'online'
+        }))
+      }
+    }
+  } catch {
+    ElMessage.warning('API 调用失败，请检查后端服务是否可用')
+  } finally {
+    isGenerating.value = false
+  }
+}
+
+async function handleSend() {
+  if (!commandText.value.trim()) return
+  if (isDemoMode.value) {
+    await runDemoMode()
+  } else {
+    await runApiMode()
+  }
+}
+
+async function handleExportReport() {
+  if (isDemoMode.value) {
+    ElMessage.info('演示模式下导出功能暂不可用，请切换到 API 模式')
+  } else {
+    ElMessage.info('报告导出功能开发中')
+  }
+}
+
+function toggleDemoMode() {
+  isDemoMode.value = !isDemoMode.value
+}
+
+// ---- 时间 ----
+const now = ref(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
+setInterval(() => { now.value = new Date().toLocaleTimeString('zh-CN', { hour12: false }) }, 30000)
 </script>
 
 <style scoped>
@@ -1139,6 +1365,81 @@ button {
   color: #1e314f;
   background: transparent;
   font-size: 14px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid #dbe8f5;
+  border-radius: 20px;
+  background: #eef5ff;
+  font-size: 11px;
+  color: #2b72ec;
+  cursor: pointer;
+  user-select: none;
+}
+.mode-toggle.api {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+.mode-toggle button {
+  width: 34px;
+  height: 20px;
+  border: 0;
+  border-radius: 10px;
+  background: #195ee4;
+  cursor: pointer;
+  position: relative;
+}
+.mode-toggle.api button {
+  background: #f59e0b;
+}
+.toggle-knob {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: left 0.2s;
+}
+.mode-toggle.api .toggle-knob {
+  left: 17px;
+}
+
+.flow-step {
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.flow-step:hover {
+  box-shadow: 0 12px 28px rgba(36, 74, 121, 0.1);
+}
+
+.expert-card {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.expert-card:hover {
+  border-color: #b8d3ff;
+}
+
+.command-bar button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.recommendation-list button:hover {
+  border-color: #b8d3ff;
+  background: #f0f6ff;
+}
+
+.status-badge.done {
+  color: #047857;
+  background: #d1fae5;
 }
 
 .command-bar button,

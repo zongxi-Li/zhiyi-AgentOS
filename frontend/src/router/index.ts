@@ -128,6 +128,15 @@ const routes: RouteRecordRaw[] = [
       title: '软件开发合同起草',
       requiresAuth: true
     }
+  },
+  {
+    path: '/voice-chat',
+    name: 'VoiceChat',
+    component: () => import('@/views/VoiceChatView.vue'),
+    meta: {
+      title: '语音讲解',
+      requiresAuth: true
+    }
   }
 ]
 
