@@ -244,6 +244,15 @@ export const useChatStore = defineStore('chat', () => {
       agentMode: 'lawyer'
     }
     messages.value.push(streamMsg)
+    const streamIndex = messages.value.length - 1
+    const setStreamContent = (content: string) => {
+      const message = messages.value[streamIndex]
+      if (message) message.content = content
+    }
+    const appendStreamContent = (delta: string) => {
+      const message = messages.value[streamIndex]
+      if (message) message.content = (message.content || '') + delta
+    }
 
     const token = localStorage.getItem('token')
     try {
@@ -257,7 +266,7 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       const reader = resp.body?.getReader()
-      if (!reader) { streamMsg.content = '流式读取失败'; return }
+      if (!reader) { setStreamContent('流式读取失败'); return }
       const decoder = new TextDecoder()
       let buffer = ''
 
@@ -274,7 +283,7 @@ export const useChatStore = defineStore('chat', () => {
             try {
               const parsed = JSON.parse(data)
               if (parsed.delta) {
-                streamMsg.content += parsed.delta
+                appendStreamContent(parsed.delta)
               }
             } catch { /* skip parse errors */ }
           }
@@ -282,7 +291,7 @@ export const useChatStore = defineStore('chat', () => {
       }
       emitHistoryRefresh()
     } catch (e) {
-      streamMsg.content = '流式请求失败: ' + (e as Error).message
+      setStreamContent('流式请求失败: ' + (e as Error).message)
     } finally {
       loading.value = false
     }
@@ -303,6 +312,15 @@ export const useChatStore = defineStore('chat', () => {
       agentMode: 'default'
     }
     messages.value.push(streamMsg)
+    const streamIndex = messages.value.length - 1
+    const setStreamContent = (content: string) => {
+      const message = messages.value[streamIndex]
+      if (message) message.content = content
+    }
+    const appendStreamContent = (delta: string) => {
+      const message = messages.value[streamIndex]
+      if (message) message.content = (message.content || '') + delta
+    }
 
     const token = localStorage.getItem('token')
     try {
@@ -316,7 +334,7 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       const reader = resp.body?.getReader()
-      if (!reader) { streamMsg.content = '流式读取失败'; return }
+      if (!reader) { setStreamContent('流式读取失败'); return }
       const decoder = new TextDecoder()
       let buffer = ''
 
@@ -333,7 +351,7 @@ export const useChatStore = defineStore('chat', () => {
             try {
               const parsed = JSON.parse(data)
               if (parsed.delta) {
-                streamMsg.content += parsed.delta
+                appendStreamContent(parsed.delta)
               }
             } catch { /* skip parse errors */ }
           }
@@ -341,7 +359,7 @@ export const useChatStore = defineStore('chat', () => {
       }
       emitHistoryRefresh()
     } catch (e) {
-      streamMsg.content = '流式请求失败: ' + (e as Error).message
+      setStreamContent('流式请求失败: ' + (e as Error).message)
     } finally {
       loading.value = false
     }

@@ -4,6 +4,7 @@
 智能选择：麒麟操作系统使用麒麟SDK，其他系统使用通义千问
 """
 import logging
+import asyncio
 from typing import List, Dict, Optional
 import httpx
 import platform
@@ -373,7 +374,11 @@ class KylinSDKClient:
                     temperature=kwargs.get("temperature", 0.7),
                     max_tokens=kwargs.get("max_tokens", 4096)
                 )
-                for chunk in stream:
+                sentinel = object()
+                while True:
+                    chunk = await asyncio.to_thread(next, stream, sentinel)
+                    if chunk is sentinel:
+                        break
                     delta = chunk.choices[0].delta.content if chunk.choices else ""
                     if delta:
                         yield delta

@@ -1140,6 +1140,14 @@ watch(
 )
 
 watch(
+  () => chatStore.messages[chatStore.messages.length - 1]?.content,
+  () => {
+    if (isNearBottom.value) scrollToBottom()
+  },
+  { flush: 'post' }
+)
+
+watch(
   availableLawyerResultPanels,
   panels => {
     activeLawyerResultPanels.value = [...panels]
@@ -1852,4 +1860,3 @@ onUnmounted(() => {
   }
 }
 </style>
-
