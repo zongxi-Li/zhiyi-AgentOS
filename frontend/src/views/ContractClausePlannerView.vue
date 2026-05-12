@@ -320,6 +320,20 @@ import type { LawyerAgentResponse } from '@/services/api/agentLawyer'
 const { digitalHumanRoleId, digitalHumanRoleName } = useDigitalHumanRole()
 const router = useRouter()
 
+type MapTab = 'tree' | 'timeline' | 'compare'
+type MindNode = {
+  id: string
+  title: string
+  desc: string
+  confidence: string
+  x: number
+  y: number
+  tone: string
+  active?: boolean
+}
+
+const activeTab = ref<MapTab>('tree')
+
 function goToVoiceChat() {
   router.push('/voice-chat')
 }
@@ -330,7 +344,7 @@ const transformer = new Transformer()
 let markmap: Markmap | null = null
 let clickBound = false
 
-const nodesToMarkdown = (nodes: typeof initialMindNodes): string => {
+const nodesToMarkdown = (nodes: MindNode[]): string => {
   const root = nodes.find(n => n.tone === 'root')
   if (!root) return '# 合同起草\n\n- 无数据'
   const children = nodes.filter(n => n.tone !== 'root')
@@ -635,10 +649,7 @@ function selectDomain(domainId: string) {
 }
 
 // ---- 思维树 / 时间线 / 对比视图 ----
-type MapTab = 'tree' | 'timeline' | 'compare'
-const activeTab = ref<MapTab>('tree')
-
-const initialMindNodes = [
+const initialMindNodes: MindNode[] = [
   { id: 'task', title: '任务理解', desc: '软件开发合同起草', confidence: '98%', x: 50, y: 12, tone: 'root' },
   { id: 'keyword', title: '关键词提取', desc: '软件开发、验收、交付', confidence: '94%', x: 28, y: 30, tone: 'blue' },
   { id: 'law', title: '法律适用选择', desc: '民法典合同编 + 著作权法', confidence: '92%', x: 50, y: 32, tone: 'orange' },
@@ -647,21 +658,21 @@ const initialMindNodes = [
   { id: 'merge', title: '对比与合并', desc: '合并差异条款与语气', confidence: '84%', x: 50, y: 72, tone: 'blue' },
   { id: 'final', title: '最终版本生成', desc: '输出正式合同草案', confidence: '待执行', x: 50, y: 90, tone: 'muted' }
 ]
-const mindNodes = ref(structuredClone(initialMindNodes))
+const mindNodes = ref<MindNode[]>(structuredClone(initialMindNodes))
 const selectedNodeId = ref('law')
 
-const timelineNodes = [
+const timelineNodes: MindNode[] = [
   { id: 't1', title: '第 1 步', desc: '10:15 接收合同起草指令，解析甲方需求和项目背景', confidence: '完成', x: 18, y: 40, tone: 'root' },
   { id: 't2', title: '第 2 步', desc: '10:18 检索民法典合同编、著作权法、数据安全法相关条款', confidence: '完成', x: 50, y: 40, tone: 'blue' },
   { id: 't3', title: '第 3 步', desc: '10:24 提取关键词：软件开发、验收、交付、知识产权、保密', confidence: '92%', x: 82, y: 40, tone: 'orange' }
 ]
 
-const compareNodes = [
+const compareNodes: MindNode[] = [
   { id: 'c1', title: '律师版', desc: '强调违约责任、证据保留、法律适用', confidence: '严谨', x: 25, y: 40, tone: 'blue' },
   { id: 'c2', title: '客户版', desc: '强调可读性、交付清单、通俗表述', confidence: '友好', x: 75, y: 40, tone: 'green' }
 ]
 
-const mapDisplayNodes = computed(() => {
+const mapDisplayNodes = computed<MindNode[]>(() => {
   switch (activeTab.value) {
     case 'timeline': return timelineNodes
     case 'compare': return compareNodes
@@ -790,9 +801,10 @@ async function runApiMode() {
           return {
             id: `api-${i}`,
             title: t.action || `步骤 ${i + 1}`,
-            desc: t.observation || t.thought,
+            desc: t.observation || t.thought || '',
             confidence: i < res.trace.length - 1 ? `${85 + i * 2}%` : '已完成',
-            x: positions[i]?.[0] ?? 50, y: positions[i]?.[1] ?? 50,
+            x: positions[i]?.x ?? 50,
+            y: positions[i]?.y ?? 50,
             tone: tones[i] || 'blue'
           }
         })

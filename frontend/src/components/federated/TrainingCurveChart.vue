@@ -105,7 +105,7 @@
         <text :x="latestAcc.x" :y="latestAcc.y - 9" text-anchor="middle" fill="#0891b2" font-size="8" font-weight="600">{{ accuracyData[accuracyData.length - 1] }}%</text>
       </g>
 
-      <text x="padLeft + 4" :y="padTop + 12" fill="#94a3b8" font-size="7">准确率 / 损失值</text>
+      <text :x="padLeft + 4" :y="padTop + 12" fill="#94a3b8" font-size="7">准确率 / 损失值</text>
     </svg>
 
     <div class="curve-legend">

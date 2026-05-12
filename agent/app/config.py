@@ -63,7 +63,16 @@ class Settings(BaseSettings):
     QWEN_MODEL_ADVANCED: str = "qwen-max"  # 高级模型，可在.env文件中配置
     QWEN_MODEL_LATEST: str = "qwen3-max"  # 最新模型（推荐用于高质量场景），可在.env文件中配置
     QWEN_ENABLED: bool = True  # 是否启用通义千问（如果设置了API密钥则自动启用），可在.env文件中配置
-    
+
+    # DeepSeek 配置（文本生成主引擎，速度快）
+    DEEPSEEK_API_KEY: str = ""  # DeepSeek API密钥，从 https://platform.deepseek.com/ 获取
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"  # DeepSeek API基础URL
+    DEEPSEEK_MODEL: str = "deepseek-chat"  # DeepSeek模型名称
+    DEEPSEEK_ENABLED: bool = True  # 是否启用DeepSeek
+
+    # 文本生成引擎选择: "deepseek" | "qwen" | "auto"
+    TEXT_ENGINE: str = "auto"  # auto=优先DeepSeek，未配置key则回退Qwen
+
     # 模型配置
     TEXT_MODEL_NAME: str = "default"
     ASR_MODEL_NAME: str = "default"

@@ -228,6 +228,125 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // ---- 流式发送（SSE）----
+  const sendLawyerMessageStream = async (text: string) => {
+    if (!text.trim() || loading.value) return
+
+    pushUserMessage(text)
+    loading.value = true
+
+    const streamMsg: Message = {
+      id: Date.now() + 1,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+      modelInfo: 'Lawyer Agent (streaming)',
+      agentMode: 'lawyer'
+    }
+    messages.value.push(streamMsg)
+
+    const token = localStorage.getItem('token')
+    try {
+      const resp = await fetch('/ai/chat/text/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ text, role_id: currentRoleId.value || undefined })
+      })
+
+      const reader = resp.body?.getReader()
+      if (!reader) { streamMsg.content = '流式读取失败'; return }
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.delta) {
+                streamMsg.content += parsed.delta
+              }
+            } catch { /* skip parse errors */ }
+          }
+        }
+      }
+      emitHistoryRefresh()
+    } catch (e) {
+      streamMsg.content = '流式请求失败: ' + (e as Error).message
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const sendMessageStream = async (text: string) => {
+    if ((!text.trim()) || loading.value) return
+
+    pushUserMessage(text)
+    loading.value = true
+
+    const streamMsg: Message = {
+      id: Date.now() + 1,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+      modelInfo: 'AI (streaming)',
+      agentMode: 'default'
+    }
+    messages.value.push(streamMsg)
+
+    const token = localStorage.getItem('token')
+    try {
+      const resp = await fetch('/ai/chat/text/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ text, role_id: currentRoleId.value || undefined })
+      })
+
+      const reader = resp.body?.getReader()
+      if (!reader) { streamMsg.content = '流式读取失败'; return }
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.delta) {
+                streamMsg.content += parsed.delta
+              }
+            } catch { /* skip parse errors */ }
+          }
+        }
+      }
+      emitHistoryRefresh()
+    } catch (e) {
+      streamMsg.content = '流式请求失败: ' + (e as Error).message
+    } finally {
+      loading.value = false
+    }
+  }
+
   const sendTeacherMessage = async (text: string) => {
     if (!text.trim() || loading.value) return
 
@@ -446,6 +565,8 @@ export const useChatStore = defineStore('chat', () => {
     currentRoleId,
     sendMessage,
     sendLawyerMessage,
+    sendLawyerMessageStream,
+    sendMessageStream,
     sendTeacherMessage,
     sendProgrammerMessage,
     sendWriterMessage,
