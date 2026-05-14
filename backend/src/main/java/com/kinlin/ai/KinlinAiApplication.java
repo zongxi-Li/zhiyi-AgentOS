@@ -5,9 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
- * 联邦智枢 后端应用主类
+ * 知弈 后端应用主类
  * 
- * @author 联邦智枢 Team
+ * @author 知弈 Team
  * @version 1.0.0
  */
 @SpringBootApplication

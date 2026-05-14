@@ -16,11 +16,11 @@ public class SwaggerConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("联邦智枢 API")
+                        .title("知弈 API")
                         .version("1.0.0")
-                        .description("联邦智枢 - 多角色智能体系统 API文档")
+                        .description("知弈 - 职业智能体操作系统 API文档")
                         .contact(new Contact()
-                                .name("联邦智枢 Team")
+                                .name("知弈 Team")
                                 .email("support@kinlin.ai")));
     }
 }

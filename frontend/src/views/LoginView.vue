@@ -20,12 +20,12 @@
                 <line x1="12" y1="28" x2="28" y2="28" stroke="white" stroke-width="1.5" opacity="0.4"/>
               </svg>
             </div>
-            <span class="brand-name">联邦智枢</span>
+            <span class="brand-name">知弈</span>
           </div>
           
           <div class="hero-text">
-            <h1 class="title">联邦智枢 · 多角色智能体</h1>
-            <p class="subtitle">聚智联邦，枢联万物 —— 让 AI 像专家一样思考与行动</p>
+            <h1 class="title">知弈 · 职业智能体操作系统</h1>
+            <p class="subtitle">以知识推演任务，以智能体驾驭专业工作流</p>
           </div>
           
           <div class="visual-area">

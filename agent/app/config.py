@@ -33,7 +33,7 @@ else:
 
 class Settings(BaseSettings):
     # 应用配置
-    APP_NAME: str = "联邦智枢 AI Service"
+    APP_NAME: str = "知弈 AI Service"
     DEBUG: bool = False
 
     @field_validator("DEBUG", mode="before")

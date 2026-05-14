@@ -17,7 +17,7 @@
                 <line x1="9" y1="22" x2="23" y2="22" stroke="white" stroke-width="1.2" opacity="0.4"/>
               </svg>
             </div>
-            <span class="logo-text">联邦智枢</span>
+            <span class="logo-text">知弈</span>
           </div>
 
           <!-- Main Navigation -->
