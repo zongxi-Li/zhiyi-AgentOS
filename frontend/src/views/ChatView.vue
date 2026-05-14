@@ -106,6 +106,18 @@
           </button>
         </div>
 
+        <div class="recommendation-row">
+          <RecommendationPanel
+            title="下一步推荐"
+            subtitle="基于当前角色和最近对话生成"
+            :items="chatRecommendations"
+            :loading="recommendationLoading"
+            refreshable
+            @refresh="loadChatRecommendations"
+            @select="applyChatRecommendation"
+          />
+        </div>
+
         <div class="composer">
           <el-input
             v-model="inputText"
@@ -486,11 +498,14 @@ import QuestionPushList from '@/components/agent/QuestionPushList.vue'
 import DiagramViewer from '@/components/agent/DiagramViewer.vue'
 import MindMapViewer from '@/components/agent/MindMapViewer.vue'
 import RelationGraph from '@/components/agent/RelationGraph.vue'
+import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { federatedModelApi } from '@/services/api/federatedModel'
 import { fileApi } from '@/services/api/file'
+import { recommendationApi, type RecommendationItem } from '@/services/api/recommendation'
 import { useChatStore } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
+import { useDebounce } from '@/composables/useDebounce'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -515,7 +530,10 @@ const activeLawyerResultPanels = ref<string[]>([])
 const activeTeacherResultPanels = ref<string[]>([])
 const activeProgrammerResultPanels = ref<string[]>([])
 const activeWriterResultPanels = ref<string[]>([])
+const chatRecommendations = ref<RecommendationItem[]>([])
+const recommendationLoading = ref(false)
 const ASSIST_TOOL_VISIBLE_KEY = 'chat.assist_tools_visible'
+const debouncedInputText = useDebounce(inputText, 350)
 
 const roles = computed(() => roleStore.roles)
 const currentRole = computed(() => roleStore.currentRole)
@@ -946,6 +964,43 @@ const autoSegment = () => {
   ElMessage.success(t('chat.autoSegment'))
 }
 
+const currentRecommendationRoleName = computed(() => {
+  if (currentRole.value?.name) return currentRole.value.name
+  if (isLawyerMode.value) return '律师'
+  if (isTeacherMode.value) return '教师'
+  if (isProgrammerMode.value) return '程序员'
+  if (isWriterMode.value) return '作家'
+  return undefined
+})
+
+const buildConversationHistoryForRecommendation = () => {
+  return chatStore.messages
+    .slice(-6)
+    .map(msg => msg.content?.trim())
+    .filter((content): content is string => Boolean(content))
+}
+
+const loadChatRecommendations = async () => {
+  recommendationLoading.value = true
+  try {
+    chatRecommendations.value = await recommendationApi.getContextualRecommendations({
+      roleName: currentRecommendationRoleName.value,
+      scope: 'chat',
+      currentInput: inputText.value.trim(),
+      conversationHistory: buildConversationHistoryForRecommendation()
+    })
+  } catch (error) {
+    console.warn('加载聊天推荐失败', error)
+    chatRecommendations.value = []
+  } finally {
+    recommendationLoading.value = false
+  }
+}
+
+const applyChatRecommendation = (item: RecommendationItem) => {
+  useTemplate(item.text)
+}
+
 const selectRole = async (role: any) => {
   if (chatStore.messages.length > 0) {
     try {
@@ -1206,6 +1261,14 @@ watch(
     if (!newRole) return
     selectedRoleId.value = newRole.id
     chatStore.setRole(newRole.id)
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => chatStore.messages.length, debouncedInputText, currentRecommendationRoleName],
+  () => {
+    void loadChatRecommendations()
   },
   { immediate: true }
 )
@@ -1584,6 +1647,10 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 16px;
   overflow-x: auto;
+}
+
+.recommendation-row {
+  padding: 0 16px 12px;
 }
 
 .template-item {

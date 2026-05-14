@@ -26,14 +26,6 @@
           <div class="inner-glow"></div>
         </div>
         
-        <!-- 核心动态标签 -->
-        <!-- <div class="core-tag">
-          <div class="tag-title">NEXUS_ALPHA</div>
-          <div class="tag-status">
-            <span class="pulse-dot"></span>
-            MASTER_SYNC_ACTIVE
-          </div>
-        </div> -->
       </div>
 
       <!-- 神经连接系统 -->

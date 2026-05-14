@@ -277,9 +277,15 @@
             <button :class="{ active: activeRecommendTab === 'risk' }" type="button" @click="selectRecommendTab('risk')">风险</button>
             <button :class="{ active: activeRecommendTab === 'case' }" type="button" @click="selectRecommendTab('case')">案例</button>
           </nav>
-          <div class="recommendation-list">
-            <button v-for="item in recommendations" :key="item" type="button" @click="selectRecommendation(item)">{{ item }}</button>
-          </div>
+          <RecommendationPanel
+            title="工作流建议"
+            subtitle="基于当前任务和标签生成"
+            :items="recommendations"
+            :loading="recommendationLoading"
+            refreshable
+            @refresh="loadWorkbenchRecommendations"
+            @select="applyWorkbenchRecommendation"
+          />
         </section>
       </aside>
     </div>
@@ -287,13 +293,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DigitalHuman from '@/components/DigitalHuman.vue'
+import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import { useDigitalHumanRole } from '@/composables/useDigitalHumanRole'
 import { agentLawyerApi } from '@/services/api/agentLawyer'
 import { federatedModelApi } from '@/services/api/federatedModel'
+import { recommendationApi, type RecommendationItem } from '@/services/api/recommendation'
+import { useDebounce } from '@/composables/useDebounce'
 import type { LawyerAgentResponse } from '@/services/api/agentLawyer'
 
 const { digitalHumanRoleId, digitalHumanRoleName } = useDigitalHumanRole()
@@ -390,40 +399,42 @@ const dataSources = ref([
 
 type RecommendTab = 'clause' | 'risk' | 'case'
 const activeRecommendTab = ref<RecommendTab>('clause')
-const recommendations = ref([
-  '补充阶段验收的判定标准',
-  '增加源代码交付与部署文档清单',
-  '明确需求变更的计费机制',
-  '将逾期交付责任拆分为宽限期与违约金'
-])
-const riskRecommendations = [
-  '验收标准模糊可能导致无限期免费维护',
-  '知识产权归属条款缺失源代码相关约定',
-  '需求变更无计费机制可能引发成本失控',
-  '保密义务未覆盖第三方外包人员'
-]
-const caseRecommendations = [
-  '北京某科技公司 vs 外包商：验收标准不明确，法院判令重新交付',
-  '上海知识产权法院：未约定源代码归属，判归受托方所有',
-  '深圳仲裁委：需求变更未计价，委托方需补付 127 万',
-  '杭州中院：保密协议范围过窄，前员工利用技术资料不构成违约'
-]
+const recommendations = ref<RecommendationItem[]>([])
+const recommendationLoading = ref(false)
 
 function selectRecommendTab(tab: RecommendTab) {
   activeRecommendTab.value = tab
-  if (tab === 'risk') recommendations.value = riskRecommendations
-  else if (tab === 'case') recommendations.value = caseRecommendations
-  else recommendations.value = ['补充阶段验收的判定标准', '增加源代码交付与部署文档清单', '明确需求变更的计费机制', '将逾期交付责任拆分为宽限期与违约金']
+  void loadWorkbenchRecommendations()
 }
 
-function selectRecommendation(text: string) {
-  commandText.value = text
+function applyWorkbenchRecommendation(item: RecommendationItem) {
+  commandText.value = item.text
+}
+
+async function loadWorkbenchRecommendations() {
+  recommendationLoading.value = true
+  try {
+    recommendations.value = await recommendationApi.getContextualRecommendations({
+      roleName: activeExpert.value === 'lawyer' ? '律师' : activeExpert.value === 'analyst' ? '需求分析师' : '文档专家',
+      scope: 'workbench',
+      scene: activeRecommendTab.value,
+      currentInput: commandText.value,
+      currentOutput: documentPreview.value.join('\n'),
+      conversationHistory: commandHistory.value.slice(0, 5)
+    })
+  } catch (error) {
+    console.warn('加载工作台推荐失败', error)
+    recommendations.value = []
+  } finally {
+    recommendationLoading.value = false
+  }
 }
 
 // ---- 命令栏 ----
 const commandText = ref('请重点补充验收标准、违约责任和源代码交付约定')
 const commandHistory = ref<string[]>([])
 const sessionId = ref('')
+const debouncedCommandText = useDebounce(commandText, 400)
 
 function addToHistory(text: string) {
   commandHistory.value.unshift(text)
@@ -555,6 +566,7 @@ async function handleSend() {
   } else {
     await runApiMode()
   }
+  void loadWorkbenchRecommendations()
 }
 
 async function handleExportReport() {
@@ -572,6 +584,14 @@ function toggleDemoMode() {
 // ---- 时间 ----
 const now = ref(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
 setInterval(() => { now.value = new Date().toLocaleTimeString('zh-CN', { hour12: false }) }, 30000)
+
+watch([activeRecommendTab, activeExpert, debouncedCommandText], () => {
+  void loadWorkbenchRecommendations()
+})
+
+onMounted(() => {
+  void loadWorkbenchRecommendations()
+})
 </script>
 
 <style scoped>

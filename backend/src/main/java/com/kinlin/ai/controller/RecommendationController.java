@@ -1,5 +1,7 @@
 package com.kinlin.ai.controller;
 
+import com.kinlin.ai.dto.RecommendationContextRequest;
+import com.kinlin.ai.dto.RecommendationItem;
 import com.kinlin.ai.service.RecommendationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +35,20 @@ public class RecommendationController {
             List<String> recommendations = recommendationService.generateRecommendations(
                     conversationHistory != null ? conversationHistory : List.of(),
                     roleName
+            );
+            return ResponseEntity.ok(recommendations);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("/contextual")
+    public ResponseEntity<List<RecommendationItem>> getContextualRecommendations(
+            @RequestBody(required = false) RecommendationContextRequest request
+    ) {
+        try {
+            List<RecommendationItem> recommendations = recommendationService.generateContextualRecommendations(
+                    request == null ? new RecommendationContextRequest() : request
             );
             return ResponseEntity.ok(recommendations);
         } catch (Exception e) {

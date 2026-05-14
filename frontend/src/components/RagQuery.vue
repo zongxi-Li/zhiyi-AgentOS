@@ -41,6 +41,16 @@
             <span>查询</span>
           </button>
         </div>
+
+        <RecommendationPanel
+          title="检索推荐"
+          subtitle="基于当前角色、查询和检索结果生成"
+          :items="recommendations"
+          :loading="recommendationLoading"
+          refreshable
+          @refresh="loadRecommendations"
+          @select="applyRecommendation"
+        />
       </div>
 
       <transition name="fade-slide">
@@ -83,12 +93,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, ArrowRight, Link, Loading } from '@element-plus/icons-vue'
+import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import { ragApi } from '@/services/api/rag'
+import { recommendationApi, type RecommendationItem } from '@/services/api/recommendation'
 import { useRoleStore } from '@/stores/role'
 import { resolveKnowledgeRoleId } from '@/utils/knowledgeRole'
+import { useDebounce } from '@/composables/useDebounce'
 
 const emit = defineEmits<{
   refresh: []
@@ -98,10 +111,12 @@ const queryText = ref('')
 const topK = ref(5)
 const loading = ref(false)
 const result = ref<any>(null)
-
+const recommendations = ref<RecommendationItem[]>([])
+const recommendationLoading = ref(false)
 
 const roleStore = useRoleStore()
 const currentRoleId = computed(() => resolveKnowledgeRoleId(roleStore.currentRole))
+const debouncedQueryText = useDebounce(queryText, 350)
 
 const handleQuery = async () => {
   if (!queryText.value.trim()) {
@@ -122,6 +137,41 @@ const handleQuery = async () => {
     loading.value = false
   }
 }
+
+const loadRecommendations = async () => {
+  recommendationLoading.value = true
+  try {
+    recommendations.value = await recommendationApi.getContextualRecommendations({
+      roleName: roleStore.currentRole?.name,
+      scope: 'rag',
+      scene: 'query',
+      currentInput: queryText.value,
+      currentOutput: result.value?.answer,
+      conversationHistory: queryText.value.trim() ? [queryText.value.trim()] : []
+    })
+  } catch (error) {
+    console.warn('加载 RAG 推荐失败', error)
+    recommendations.value = []
+  } finally {
+    recommendationLoading.value = false
+  }
+}
+
+const applyRecommendation = (item: RecommendationItem) => {
+  queryText.value = item.text
+}
+
+watch(
+  [currentRoleId, debouncedQueryText, () => result.value?.answer],
+  () => {
+    void loadRecommendations()
+  },
+  { immediate: false }
+)
+
+onMounted(() => {
+  void loadRecommendations()
+})
 </script>
 
 <style scoped lang="scss">
