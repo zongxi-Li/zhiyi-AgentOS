@@ -1,0 +1,52 @@
+{
+  "workflowId": "legal_contract_review_v1",
+  "name": "法律合同审查工作流",
+  "domain": "legal",
+  "intent": "contract_review",
+  "version": "1.0.0",
+  "description": "Demo workflow for contract review with a human risk-review gate.",
+  "steps": [
+    {
+      "stepId": "case_intake",
+      "name": "案情接收",
+      "agentName": "case_intake",
+      "capability": "case_intake",
+      "nextStepId": "statute"
+    },
+    {
+      "stepId": "statute",
+      "name": "法条检索",
+      "agentName": "statute",
+      "capability": "statute_retrieval",
+      "nextStepId": "evidence"
+    },
+    {
+      "stepId": "evidence",
+      "name": "证据分析",
+      "agentName": "evidence",
+      "capability": "evidence_analysis",
+      "nextStepId": "risk"
+    },
+    {
+      "stepId": "risk",
+      "name": "风险评估",
+      "agentName": "risk",
+      "capability": "risk_assessment",
+      "reviewRequired": true,
+      "nextStepId": "draft"
+    },
+    {
+      "stepId": "draft",
+      "name": "文书草拟",
+      "agentName": "draft",
+      "capability": "document_draft",
+      "nextStepId": "final_review"
+    },
+    {
+      "stepId": "final_review",
+      "name": "最终审查",
+      "agentName": "review",
+      "capability": "final_review"
+    }
+  ]
+}

@@ -691,3 +691,303 @@ Stateful Governed Professional Multi-Agent Operating Platform
 
 参考来源：国产 OS / 信创行业覆盖与关键行业落地可参考统信、麒麟与信创方案介绍；企业私有化 AI 部署趋势可参考德勤中国和证券时报相关报道；Agent 平台竞争格局可参考 Dify、Coze、FastGPT、CrewAI、AutoGen、LangGraph 等横评资料。  
 来源链接：[国产操作系统关键行业应用](https://www.eefocus.com/article/1989910.html)、[AICOS 信创与政府企业平台](https://www.huilan.com/web/cp/jsdz/aicdsznzhddxt/index.shtml)、[金融大模型私有化部署](https://www.stcn.com/article/detail/1026873.html)、[Dify/Coze/FastGPT 横评](https://www.53ai.com/news/LargeLanguageModel/2025062095378.html)、[企业级多智能体平台选型](https://www.betteryeah.com/blog/2026-enterprise-multi-agent-platform-selection-guide)
+
+
+不太合适。准确说：**核心底座不能硬编码行业 Agent 和工作流**，但 **Skill/Tool 的具体实现可以是代码**。这两者要分开。
+
+你现在担心的是对的。如果把 `LawyerAgent`、`TeacherAgent`、`case_intake_agent.py`、`statute_agent.py` 这些都直接写进 Core 的调度逻辑里，短期容易跑通，长期会变成：
+
+- 每加一个行业，都要改 Core。
+- 每加一个 Agent，都要改 Orchestrator。
+- 每改一个流程，都要发版。
+- 政务、金融、教育、医疗会互相污染。
+- Core 不再是操作系统底座，而变成行业代码大杂烩。
+
+更好的方案是：**Core 只提供运行时，行业能力通过 Pack 注册进来。**
+
+**推荐方案：配置驱动 + 插件注册**
+
+核心思想：
+
+```text
+Core 不认识具体行业
+Core 只认识 Task / Workflow / Agent / Tool / State / Trace / Checkpoint
+
+行业包自己声明：
+我有哪些 Agent
+我有哪些 Workflow
+每个 Workflow 有哪些 Step
+每个 Step 用哪个 Agent
+每个 Agent 能调用哪些 Tool
+```
+
+也就是：
+
+```text
+知弈 AgentOS Core
+	负责运行、调度、状态、恢复、观测、审核、评估
+
+Industry Workflow Pack
+	负责行业 Agent、行业流程、行业知识、行业工具、行业规则
+```
+
+**哪些应该写代码，哪些不该写死**
+
+| 内容 | 是否硬编码 | 原因 |
+|---|---:|---|
+| `BaseAgent` 接口 | 可以代码化 | 这是稳定抽象 |
+| `WorkflowRuntime` | 可以代码化 | Core 的运行时能力 |
+| `StateMachine` | 可以代码化 | 全系统统一规则 |
+| `Checkpoint` | 可以代码化 | 通用恢复机制 |
+| `TraceEvent` | 可以代码化 | 通用观测机制 |
+| 具体行业 Agent 列表 | 不应写死 | 应由行业包注册 |
+| 具体工作流步骤 | 不应写死 | 应由配置声明 |
+| Agent 可调用哪些 Skill | 不应写死 | 应由 Agent manifest 声明 |
+| 行业知识库路径 | 不应写死 | 应由 pack 配置 |
+| 审核节点规则 | 不应写死 | 应由 workflow 配置 |
+
+**建议的结构**
+
+```text
+agent/
+	app/
+		agent_core/
+			orchestration/
+				orchestrator.py
+					只负责读取 WorkflowDefinition，然后按步骤调度，不关心具体行业。
+
+				workflow_registry.py
+					加载所有行业包里的 workflow.yaml / workflow.json。
+
+				agent_registry.py
+					加载所有行业包里的 agent.yaml / agent.json，并绑定到实际 Agent 类。
+
+				tool_registry.py
+					注册所有可调用工具，供 Agent 使用。
+
+				state_machine.py
+					统一状态流转。
+
+				checkpoint.py
+					统一恢复机制。
+
+				trace.py
+					统一执行轨迹。
+
+			agents/
+				base.py
+					定义 BaseAgent，不放具体行业逻辑。
+
+			packs/
+				legal/
+					pack.yaml
+						声明法律行业包基本信息。
+
+					agents.yaml
+						声明 CaseIntakeAgent、StatuteAgent、EvidenceAgent 等 Agent。
+
+					workflows/
+						contract_review.yaml
+							声明合同审查工作流步骤。
+
+						case_analysis.yaml
+							声明案件分析工作流步骤。
+
+					agents/
+						case_intake.py
+							实现案情接收 Agent。
+
+						statute.py
+							实现法条 Agent。
+
+					skills/
+						legal_search.py
+							实现法律检索工具。
+
+					prompts/
+						case_intake.md
+							该 Agent 使用的提示词模板。
+
+				education/
+					pack.yaml
+					agents.yaml
+					workflows/
+					agents/
+					skills/
+					prompts/
+
+				finance/
+					pack.yaml
+					agents.yaml
+					workflows/
+					agents/
+					skills/
+					prompts/
+```
+
+**一个 workflow 配置可以长这样**
+
+```yaml
+id: legal_contract_review
+name: 合同审查工作流
+domain: legal
+version: 1.0.0
+
+steps:
+  - id: intake
+    name: 材料接收
+    agent: case_intake
+    next: statute
+
+  - id: statute
+    name: 法条检索
+    agent: statute
+    next: risk
+
+  - id: risk
+    name: 风险评估
+    agent: risk
+    review: true
+    next: draft
+
+  - id: draft
+    name: 文书草拟
+    agent: draft
+    next: final_review
+
+  - id: final_review
+    name: 最终审查
+    agent: review
+    review: true
+    next: done
+```
+
+这样 Orchestrator 不需要知道“合同审查到底有哪些步骤”，它只需要按配置执行：
+
+```text
+读取 workflow
+	-> 找到 step
+	-> 根据 agent 名称从 registry 取 Agent
+	-> 执行 Agent
+	-> 写 trace
+	-> 写 checkpoint
+	-> 判断是否 review
+	-> 推进下一步
+```
+
+**一个 agent 配置可以长这样**
+
+```yaml
+id: risk
+name: 风险评估 Agent
+domain: legal
+class: packs.legal.agents.risk.RiskAgent
+
+capabilities:
+  - risk_assessment
+  - limitation_check
+  - jurisdiction_check
+
+tools:
+  - risk_assessment_skill
+  - limitation_calculation_skill
+  - jurisdiction_determination_skill
+
+memory:
+  read:
+    - workflow
+    - career
+  write:
+    - workflow
+
+review_required: false
+```
+
+这样 Agent 的能力边界、工具权限、记忆权限都可以配置，不需要写死在 Orchestrator 里。
+
+**我建议采用的最终模型**
+
+```text
+1. Core Runtime
+	稳定代码，不碰行业逻辑。
+
+2. Registry System
+	负责加载 Agent、Tool、Workflow、Pack。
+
+3. Pack Manifest
+	每个行业包用配置声明自己有什么。
+
+4. Agent Class
+	行业 Agent 是代码，但通过配置注册，不被 Core 直接 import。
+
+5. Workflow DSL
+	工作流用 YAML / JSON 声明，支持版本化。
+
+6. Tool Contract
+	Skill 是代码实现，但必须暴露统一 schema。
+
+7. Policy Layer
+	审核、权限、记忆、风险等级用配置控制。
+```
+
+**关键优化点**
+
+你现在不要让目录变成：
+
+```text
+agent_lawyer.py
+agent_teacher.py
+agent_programmer.py
+agent_writer.py
+```
+
+这种方式会把职业写死。
+
+更好的方向是：
+
+```text
+packs/legal/
+packs/education/
+packs/finance/
+packs/medical/
+packs/government/
+```
+
+每个 pack 自己注册：
+
+```text
+agents
+workflows
+tools
+prompts
+knowledge
+policies
+metrics
+```
+
+Core 只提供：
+
+```text
+load_pack()
+register_agent()
+register_workflow()
+run_workflow()
+resume_workflow()
+review_step()
+evaluate_run()
+```
+
+**结论**
+
+你的判断是对的，硬编码职业智能体会限制扩展性。最优方案不是完全不写代码，而是：
+
+```text
+Core 代码化
+行业配置化
+Agent 插件化
+Workflow 声明化
+Skill 工具化
+Policy 策略化
+```
+
+这样“知弈 AgentOS Core”才真正像操作系统底座，而不是一组固定 Agent 的集合。行业包可以不断扩展，但 Core 不需要频繁改动。

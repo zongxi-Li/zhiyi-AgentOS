@@ -1,0 +1,31 @@
+{
+  "workflowId": "legal_case_analysis_v1",
+  "name": "法律案件分析工作流",
+  "domain": "legal",
+  "intent": "case_analysis",
+  "version": "1.0.0",
+  "description": "Demo workflow for general legal case analysis.",
+  "steps": [
+    {
+      "stepId": "case_intake",
+      "name": "案情接收",
+      "agentName": "case_intake",
+      "capability": "case_intake",
+      "nextStepId": "statute"
+    },
+    {
+      "stepId": "statute",
+      "name": "法条检索",
+      "agentName": "statute",
+      "capability": "statute_retrieval",
+      "nextStepId": "risk"
+    },
+    {
+      "stepId": "risk",
+      "name": "风险评估",
+      "agentName": "risk",
+      "capability": "risk_assessment",
+      "reviewRequired": true
+    }
+  ]
+}
