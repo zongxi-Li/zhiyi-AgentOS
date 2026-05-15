@@ -103,5 +103,6 @@ python -m compileall app agentos tests
 1. 在 `agentos/packs/{pack_id}/` 创建 `manifest.yaml`、`workflows/`、`agents/`、`prompts/`、`data/`。
 2. 实现 `BaseAgent` 子类。
 3. 在 Workflow YAML 中声明步骤、Agent、审核节点和流转关系。
-4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`。
-5. 为 Pack 注册和 Workflow 冒烟路径添加测试。
+4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`，并在 `manifest.yaml` 中声明 pack 元数据。
+5. 默认运行时会按 manifest 自动发现并加载已安装 packs。
+6. 为 Pack 注册和 Workflow 冒烟路径添加测试。

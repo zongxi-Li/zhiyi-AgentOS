@@ -460,3 +460,20 @@ def test_default_runtime_uses_memory_store_when_env_is_missing(monkeypatch):
     runtime = agentos_core.build_default_runtime()
 
     assert isinstance(runtime.workflow_store, MemoryWorkflowStore)
+
+
+def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
+    from agentos.core import workflow_runtime
+
+    calls = []
+
+    def fake_register_installed_packs(agent_registry, workflow_registry):
+        calls.append((agent_registry, workflow_registry))
+        return []
+
+    monkeypatch.setattr(workflow_runtime, "register_installed_packs", fake_register_installed_packs)
+    monkeypatch.delenv("AGENTOS_WORKFLOW_DB_PATH", raising=False)
+
+    runtime = workflow_runtime.build_default_runtime()
+
+    assert calls == [(runtime.agent_registry, runtime.workflow_registry)]

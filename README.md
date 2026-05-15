@@ -465,9 +465,9 @@ AGENT_FEDERATED_TIMEOUT_MS: int = 1500
 1. 在 `agent/agentos/packs/{pack_id}/` 创建 `manifest.yaml`、`workflows/`、`agents/`、`prompts/`、`data/`。
 2. 在 `agent/agentos/packs/{pack_id}/agents/` 实现 `BaseAgent` 子类。
 3. 在 `workflows/` 中声明步骤、Agent、审核节点和流转关系。
-4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`。
-5. 如需对外兼容旧聊天协议，再在 `agent/app/api/` 增加薄 Route Adapter。
-6. 前端和 Java 网关优先接入 `/ai/core/*`；需要保留旧体验时再补 `agentXxx.ts` 和面板映射。
+4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`，并在 `manifest.yaml` 中声明 pack 元数据。
+5. 默认运行时会按 manifest 自动发现并加载已安装 packs。
+6. 前端和 Java 网关优先接入 `/ai/core/*`。
 
 ### 新增Skill
 

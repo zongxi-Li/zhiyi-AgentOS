@@ -18,7 +18,7 @@
 - `agent/agentos/core/workflow_runtime.py`：已跑通任务创建、工作流启动、状态查询、人工审核、恢复和取消。
 - `agent/agentos/core/orchestrator.py`、`state_machine.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py`：已形成核心运行闭环。
 - `agent/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
-- `agent/agentos/packs/legal/*`：法律 demo pack 已接入工作流注册。
+- `agent/agentos/packs/*/manifest.yaml`：已建立 pack manifest 发现与注册机制，默认运行时按 manifest 自动加载已安装 packs。
 - `agent/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
 - `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘，并支持 `WorkflowStore` 任务/运行分页查询。
 - 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
@@ -28,13 +28,12 @@
 
 ### 进行中
 
-- Pack manifest 驱动的自动加载。
 - 前端 AgentOS Console 与 Java 网关继续完善 `/ai/core/*` 查询、审核和恢复能力。
 - WorkflowStore 的备份、配置和索引治理能力。
 
 ### 下一步
 
-- 再把 Pack 注册从代码驱动推进到 manifest 驱动。
+- 给 `education`、`programmer`、`writer` 补最小 Workflow。
 - 补齐前端控制台的运行详情、审计面板和 Java typed gateway。
 
 ---
@@ -968,7 +967,7 @@ Federated Experience for Sensitive-domain Agents
 
 - [x] 1. 移除 `/ai/agent/{role}/chat` 旧入口和兼容执行链，统一保留 `/ai/core/*`。
 - [x] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
-- [ ] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
+- [x] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
 - [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
 - [x] 5. 把前端工作台接入 `/ai/core/*`。
 - [ ] 6. 给 Java 网关补 AgentOS 的统一入口。

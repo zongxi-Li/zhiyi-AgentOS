@@ -12,6 +12,7 @@ from agentos.core.state_machine import StateMachine
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 from agentos.stores.workflow_store import WorkflowStore
+from agentos.packs.registry import register_installed_packs
 from agentos.core.trace import TraceStore
 from agentos.core.types import (
     AgentTask,
@@ -362,11 +363,9 @@ class WorkflowRuntime:
 def build_default_runtime() -> WorkflowRuntime:
     """Build the default AgentOS Core runtime with installed packs."""
 
-    from agentos.packs.legal import register_pack as register_legal_pack
-
     agent_registry = AgentRegistry()
     workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    register_installed_packs(agent_registry=agent_registry, workflow_registry=workflow_registry)
     workflow_store_path = os.getenv("AGENTOS_WORKFLOW_DB_PATH", "").strip()
     workflow_store = SQLiteWorkflowStore(workflow_store_path) if workflow_store_path else MemoryWorkflowStore()
     return WorkflowRuntime(
