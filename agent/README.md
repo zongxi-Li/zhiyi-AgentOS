@@ -33,9 +33,11 @@ agent/
 
 - `POST /ai/core/tasks`：创建任务并推荐 Workflow。
 - `POST /ai/core/workflows/runs`：启动 WorkflowRun。
+- `POST /ai/core/workflows/start`：Workbench 直接创建任务并启动 WorkflowRun。
 - `GET /ai/core/workflows/runs/{runId}`：查询运行状态。
 - `POST /ai/core/workflows/runs/{runId}/reviews`：提交人工审核结果。
 - `POST /ai/core/workflows/runs/{runId}/resume`：从 Checkpoint 恢复。
+- `POST /ai/chat/workflows/upgrade`：将 Chat 输入和上下文升级为 WorkflowRun。
 
 旧的 `/ai/agent/{role}/chat` 专业体入口已移除，统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
 

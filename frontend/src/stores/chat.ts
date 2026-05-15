@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { agentosApi, type WorkflowStartResponse } from '@/services/api/agentos'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import {
   agentLawyerApi,
@@ -116,6 +117,9 @@ export interface Message {
   contentWrite?: ContentWriteResult
   characterRelationMap?: CharacterRelationResult
   agentMode?: 'default' | 'lawyer' | 'teacher' | 'programmer' | 'writer'
+  workflowRunId?: string
+  workflowId?: string
+  workflowStatus?: string
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -494,6 +498,65 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const upgradeToWorkflow = async (
+    text: string,
+    options: {
+      domain?: string
+      intent?: string
+      workflowId?: string
+      reviewMode?: string
+      title?: string
+    } = {}
+  ): Promise<WorkflowStartResponse | undefined> => {
+    if (!text.trim() || loading.value) return undefined
+
+    pushUserMessage(text)
+
+    loading.value = true
+    try {
+      const context = messages.value
+        .slice(-8)
+        .filter(message => message.content)
+        .map(message => ({
+          role: message.role,
+          content: message.content
+        }))
+
+      const response = await agentosApi.upgradeChatToWorkflow({
+        text,
+        title: options.title,
+        domain: options.domain || 'legal',
+        intent: options.intent || 'case_analysis',
+        workflowId: options.workflowId,
+        reviewMode: options.reviewMode || 'human_in_loop',
+        roleId: currentRoleId.value || undefined,
+        contextId: contextId.value || undefined,
+        context,
+        input: {
+          source: 'chat',
+          caseText: text
+        }
+      })
+
+      const assistantMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `已升级为 WorkflowRun：${response.run.workflowId}（状态：${response.run.status}）`,
+        createdAt: new Date(),
+        modelInfo: 'AgentOS Workflow',
+        agentMode: 'default',
+        workflowRunId: response.run.runId,
+        workflowId: response.run.workflowId,
+        workflowStatus: response.run.status
+      }
+      messages.value.push(assistantMessage)
+      emitHistoryRefresh()
+      return response
+    } finally {
+      loading.value = false
+    }
+  }
+
   const clearHistory = async () => {
     if (contextId.value) {
       await chatApi.clearHistory(contextId.value)
@@ -588,6 +651,7 @@ export const useChatStore = defineStore('chat', () => {
     sendTeacherMessage,
     sendProgrammerMessage,
     sendWriterMessage,
+    upgradeToWorkflow,
     clearHistory,
     setRole,
     loadHistory,

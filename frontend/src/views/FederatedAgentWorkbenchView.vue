@@ -299,11 +299,10 @@ import { ElMessage } from 'element-plus'
 import DigitalHuman from '@/components/DigitalHuman.vue'
 import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import { useDigitalHumanRole } from '@/composables/useDigitalHumanRole'
-import { agentLawyerApi } from '@/services/api/agentLawyer'
+import { agentosApi, type WorkflowRun, type WorkflowStep } from '@/services/api/agentos'
 import { federatedModelApi } from '@/services/api/federatedModel'
 import { recommendationApi, type RecommendationItem } from '@/services/api/recommendation'
 import { useDebounce } from '@/composables/useDebounce'
-import type { LawyerAgentResponse } from '@/services/api/agentLawyer'
 
 const { digitalHumanRoleId, digitalHumanRoleName } = useDigitalHumanRole()
 const router = useRouter()
@@ -434,6 +433,7 @@ async function loadWorkbenchRecommendations() {
 const commandText = ref('请重点补充验收标准、违约责任和源代码交付约定')
 const commandHistory = ref<string[]>([])
 const sessionId = ref('')
+const workflowRunId = ref('')
 const debouncedCommandText = useDebounce(commandText, 400)
 
 function addToHistory(text: string) {
@@ -505,40 +505,85 @@ async function runDemoMode() {
 }
 
 // ---- API 模式 ----
+function toFlowState(status: WorkflowStep['status']): FlowState {
+  if (status === 'completed') return 'done'
+  if (status === 'running' || status === 'retrying') return 'running'
+  if (status === 'failed' || status === 'cancelled') return 'waiting'
+  return 'waiting'
+}
+
+function updateWorkbenchFromRun(run: WorkflowRun) {
+  workflowRunId.value = run.runId
+  sessionId.value = run.runId
+  flowSteps.value = run.steps.map((step, index) => ({
+    no: String(index + 1).padStart(2, '0'),
+    title: step.name || step.stepId,
+    desc: step.error || step.capability || step.agentName,
+    state: toFlowState(step.status)
+  }))
+
+  const activeIndex = run.currentStepId
+    ? run.steps.findIndex(step => step.stepId === run.currentStepId)
+    : run.steps.findIndex(step => step.status !== 'completed')
+  const selectedIndex = activeIndex >= 0 ? activeIndex : Math.max(run.steps.length - 1, 0)
+  selectedStepNo.value = String(selectedIndex + 1).padStart(2, '0')
+  currentStepNo.value = selectedIndex + 1
+
+  const completedCount = run.steps.filter(step => step.status === 'completed').length
+  currentProgress.value = run.steps.length
+    ? Math.round((completedCount / run.steps.length) * 100)
+    : 0
+
+  reasoningItems.value = run.trace.slice(-5).map(event => ({
+    title: event.eventType,
+    desc: event.observation || event.agentName || event.stepId || ''
+  }))
+  timelineItems.value = run.trace.slice(-6).map(event => ({
+    time: event.createdAt ? new Date(event.createdAt).toLocaleTimeString('zh-CN', { hour12: false }) : '',
+    title: event.eventType,
+    desc: event.observation || ''
+  }))
+
+  const finalAnswer = run.output?.final_answer
+  if (finalAnswer) {
+    documentPreview.value = String(finalAnswer).split('\n').filter(line => line.trim())
+  } else {
+    const stepSummaries = run.steps
+      .map(step => step.output?.summary || step.output?.case_summary || step.output?.risk_summary || step.output?.legal_basis)
+      .filter(Boolean)
+      .map(String)
+    if (stepSummaries.length > 0) {
+      documentPreview.value = stepSummaries
+    }
+  }
+}
+
 async function runApiMode() {
   isGenerating.value = true
   addToHistory(commandText.value)
   flowSteps.value = structuredClone(initialFlowSteps)
 
   try {
-    const [lawyerRes, modelStatusRes] = await Promise.allSettled([
-      agentLawyerApi.chat({ text: commandText.value, sessionId: sessionId.value || undefined }),
+    const [workflowRes, modelStatusRes] = await Promise.allSettled([
+      agentosApi.startWorkflow({
+        title: `Workbench任务：${commandText.value.slice(0, 24)}`,
+        domain: 'legal',
+        intent: 'contract_review',
+        reviewMode: 'human_in_loop',
+        input: {
+          source: 'workbench',
+          activeExpert: activeExpert.value,
+          caseText: commandText.value
+        }
+      }),
       federatedModelApi.getOptimizationStatus()
     ])
 
-    if (lawyerRes.status === 'fulfilled' && lawyerRes.value.success) {
-      const res: LawyerAgentResponse = lawyerRes.value
-      sessionId.value = res.sessionId || ''
-
-      if (res.trace && res.trace.length > 0) {
-        const states: FlowState[] = ['done', 'done', 'done', 'done', 'done']
-        flowSteps.value = res.trace.slice(0, 5).map((t, i) => ({
-          no: String(i + 1).padStart(2, '0'),
-          title: t.action || `步骤 ${i + 1}`,
-          desc: (t.observation || t.thought).slice(0, 20),
-          state: i < res.trace.length - 1 ? 'done' : 'running'
-        }))
-        if (flowSteps.value.length > 0 && flowSteps.value[flowSteps.value.length - 1].state === 'running') {
-          flowSteps.value[flowSteps.value.length - 1].state = 'done'
-        }
-        selectedStepNo.value = flowSteps.value[flowSteps.value.length - 1]?.no || '01'
-        currentProgress.value = 100
-      }
-      if (res.answer) {
-        documentPreview.value = res.answer.split('\n').filter(l => l.trim())
-        if (documentPreview.value.length === 0) documentPreview.value = [res.answer]
-      }
-      ElMessage.success('API 返回成功')
+    if (workflowRes.status === 'fulfilled') {
+      updateWorkbenchFromRun(workflowRes.value.run)
+      ElMessage.success('Workflow 已发起')
+    } else {
+      ElMessage.warning('Workflow 发起失败，请检查 AgentOS Core 服务')
     }
 
     if (modelStatusRes.status === 'fulfilled' && modelStatusRes.value?.success) {

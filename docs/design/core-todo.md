@@ -22,19 +22,20 @@
 - `agent/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
 - `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘。
 - 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
-- `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、审核、恢复和取消接口。
+- `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、`/ai/core/workflows/start`、`/ai/chat/workflows/upgrade`、审核、恢复和取消接口。
+- Chat 已支持将当前输入和上下文升级为 `WorkflowRun`；Workbench API 模式已支持直接发起 `WorkflowRun`。
 - 文档已同步到 `agent/agentos` 作为 canonical 路径。
 
 ### 进行中
 
 - Pack manifest 驱动的自动加载。
-- 前端 AgentOS Console 与 Java 网关接入 `/ai/core/*`。
+- 前端 AgentOS Console 与 Java 网关继续完善 `/ai/core/*` 查询、审核和恢复能力。
 - WorkflowStore 的更完整持久化治理能力。
 
 ### 下一步
 
 - 再把 Pack 注册从代码驱动推进到 manifest 驱动。
-- 最后补齐前端控制台、审计面板和 Java 网关。
+- 补齐前端控制台的运行详情、审计面板和 Java typed gateway。
 
 ---
 
@@ -261,8 +262,8 @@ TODO：
 
 - [x] 定义 `AgentTask` 数据结构。
 - [x] 定义任务入口 API：`POST /ai/core/tasks`。
-- [ ] 支持从 Chat 升级为 Workflow。
-- [ ] 支持从 Workbench 直接发起 Workflow。
+- [x] 支持从 Chat 升级为 Workflow。
+- [x] 支持从 Workbench 直接发起 Workflow。
 - [x] 给任务增加 `domain`、`intent`、`priority`、`securityLevel` 字段。
 
 完成标准：
@@ -808,14 +809,16 @@ TODO：
 
 - [ ] Java 新增 `AgentOsGatewayService`。
 - [ ] Java 新增 `AgentOsController`。
-- [ ] 前端新增 `agentos.ts`。
+- [x] 前端新增 `agentos.ts`。
 - [ ] 前端新增 `workflow.ts`。
 - [ ] 前端新增 `AgentOsConsoleView.vue`。
 - [ ] 接入 `WorkflowRunPanel`、`WorkflowStepList`、`CheckpointPanel`、`TraceEventTimeline`。
+- [x] 支持从 Chat 升级为 Workflow。
+- [x] 支持从 Workbench 直接发起 Workflow。
 
 验收：
 
-- [ ] 用户能从前端创建工作流。
+- [x] 用户能从前端创建工作流。
 - [ ] 用户能查看步骤状态、trace、checkpoint。
 - [ ] 用户能执行审核和恢复。
 
@@ -916,7 +919,7 @@ Federated Experience for Sensitive-domain Agents
 - [ ] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
 - [ ] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
 - [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
-- [ ] 5. 把前端工作台接入 `/ai/core/*`。
+- [x] 5. 把前端工作台接入 `/ai/core/*`。
 - [ ] 6. 给 Java 网关补 AgentOS 的统一入口。
 - [ ] 7. 给 Trace 增加导出能力。
 - [ ] 8. 给 Review 增加更完整的审计记录。

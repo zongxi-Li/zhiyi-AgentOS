@@ -307,6 +307,79 @@ def test_agentos_core_api_task_run_review_flow():
     assert status_response.json()["output"]["final_answer"]
 
 
+def test_workbench_can_start_workflow_in_one_request():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    agent_registry = AgentRegistry()
+    workflow_registry = WorkflowRegistry()
+    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ai/core/workflows/start",
+        json={
+            "title": "Workbench合同审查",
+            "domain": "legal",
+            "intent": "contract_review",
+            "input": {"caseText": "供应商逾期交付，合同约定违约金。"},
+            "reviewMode": "human_in_loop",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["task"]["recommendedWorkflow"] == "legal_contract_review_v1"
+    assert payload["run"]["status"] == "waiting_review"
+    assert payload["run"]["currentStepId"] == "risk"
+    assert payload["run"]["input"]["caseText"] == "供应商逾期交付，合同约定违约金。"
+
+
+def test_chat_can_upgrade_message_to_workflow_run():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    agent_registry = AgentRegistry()
+    workflow_registry = WorkflowRegistry()
+    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ai/chat/workflows/upgrade",
+        json={
+            "text": "客户说合同逾期交付，想评估诉讼风险。",
+            "contextId": "chat_ctx_001",
+            "roleId": "legal-assistant",
+            "context": [{"role": "user", "content": "前面讨论过交付时间。"}],
+            "domain": "legal",
+            "intent": "case_analysis",
+            "reviewMode": "human_in_loop",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "chat"
+    assert payload["task"]["input"]["source"] == "chat"
+    assert payload["task"]["input"]["caseText"] == "客户说合同逾期交付，想评估诉讼风险。"
+    assert payload["task"]["input"]["chatContextId"] == "chat_ctx_001"
+    assert payload["task"]["input"]["chatContext"][0]["content"] == "前面讨论过交付时间。"
+    assert payload["run"]["status"] == "waiting_review"
+    assert payload["run"]["currentStepId"] == "risk"
+
+
 def test_default_runtime_uses_sqlite_store_when_env_is_set(tmp_path, monkeypatch):
     from app.api import agentos_core
 

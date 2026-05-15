@@ -8,9 +8,13 @@ const BACKEND_PROXY_TARGET = process.env.DEV_BACKEND_PROXY_TARGET || 'http://loc
 export default defineConfig({
   plugins: [vue()],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
+    alias: [
+      { find: '@', replacement: resolve(__dirname, 'src') },
+      {
+        find: /^dayjs\/plugin\/(.+)\.js$/,
+        replacement: `${resolve(__dirname, 'node_modules/dayjs/esm/plugin')}/$1/index.js`
+      }
+    ]
   },
   server: {
     port: 3000,

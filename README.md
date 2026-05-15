@@ -278,9 +278,11 @@ AgentOS Core:
 |------|------|------|
 | `/ai/core/tasks` | POST | 创建AgentOS任务 |
 | `/ai/core/workflows/runs` | POST | 启动AgentOS工作流 |
+| `/ai/core/workflows/start` | POST | Workbench直接创建并启动工作流 |
 | `/ai/core/workflows/runs/{runId}` | GET | 查询工作流状态 |
 | `/ai/core/workflows/runs/{runId}/reviews` | POST | 提交人工审核决定 |
 | `/ai/core/workflows/runs/{runId}/resume` | POST | 从Checkpoint恢复 |
+| `/ai/chat/workflows/upgrade` | POST | 从Chat升级为AgentOS工作流 |
 | `/ai/chat/text` | POST | 通用文本对话 |
 | `/ai/chat/text/stream` | POST | 流式文本对话 (SSE) |
 | `/ai/chat/voice` | POST | 语音对话 |

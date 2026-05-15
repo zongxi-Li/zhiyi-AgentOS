@@ -143,6 +143,9 @@
                 <el-icon><UploadFilled /></el-icon>
                 上传作业
               </el-button>
+              <el-button text :disabled="isWorkflowUpgradeDisabled" @click="upgradeChatToWorkflow">
+                升级 Workflow
+              </el-button>
               <input
                 ref="teacherUploadInputRef"
                 class="hidden-file-input"
@@ -766,6 +769,7 @@ const availableWriterResultPanels = computed(() => {
 
 const showScrollToBottom = computed(() => !isNearBottom.value && chatStore.messages.length > 0)
 const isSendDisabled = computed(() => loading.value || (!inputText.value.trim() && !isRecording.value))
+const isWorkflowUpgradeDisabled = computed(() => loading.value || !inputText.value.trim())
 
 const currentTemplates = computed(() => {
   const roleName = currentRole.value?.name || ''
@@ -1055,6 +1059,34 @@ const sendMessage = async () => {
   } catch (err: any) {
     ElMessage.error(err.message || '发送消息失败')
     inputText.value = userText
+  } finally {
+    loading.value = false
+  }
+}
+
+const upgradeChatToWorkflow = async () => {
+  if (loading.value) return
+  const userText = inputText.value.trim()
+  if (!userText) {
+    ElMessage.warning('请输入要升级为 Workflow 的内容')
+    return
+  }
+
+  loading.value = true
+  inputText.value = ''
+  try {
+    const response = await chatStore.upgradeToWorkflow(userText, {
+      domain: 'legal',
+      intent: isLawyerMode.value ? 'case_analysis' : 'case_analysis',
+      reviewMode: 'human_in_loop'
+    })
+    if (response?.run?.runId) {
+      ElMessage.success(`已创建 WorkflowRun：${response.run.runId}`)
+    }
+    scrollToBottom()
+  } catch (err: any) {
+    inputText.value = userText
+    ElMessage.error(err.message || '升级 Workflow 失败')
   } finally {
     loading.value = false
   }
