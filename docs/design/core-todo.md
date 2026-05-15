@@ -1,6 +1,6 @@
 # 知弈 AgentOS Core TODO 文档
 
-日期：2026-05-14
+日期：2026-05-15
 
 定位：知弈第一层通用智能体操作系统底座
 
@@ -20,9 +20,9 @@
 - `agent/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
 - `agent/agentos/packs/legal/*`：法律 demo pack 已接入工作流注册。
 - `agent/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
-- `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘。
+- `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘，并支持 `WorkflowStore` 任务/运行分页查询。
 - 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
-- `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、`/ai/core/workflows/start`、`/ai/chat/workflows/upgrade`、审核、恢复和取消接口。
+- `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、`/ai/core/workflows/start`、`/ai/chat/workflows/upgrade`、审核、恢复、取消和列表查询接口。
 - Chat 已支持将当前输入和上下文升级为 `WorkflowRun`；Workbench API 模式已支持直接发起 `WorkflowRun`。
 - 文档已同步到 `agent/agentos` 作为 canonical 路径。
 
@@ -30,7 +30,7 @@
 
 - Pack manifest 驱动的自动加载。
 - 前端 AgentOS Console 与 Java 网关继续完善 `/ai/core/*` 查询、审核和恢复能力。
-- WorkflowStore 的更完整持久化治理能力。
+- WorkflowStore 的备份、配置和索引治理能力。
 
 ### 下一步
 
@@ -630,7 +630,32 @@ POST /ai/core/tasks
 }
 ```
 
-### 6.2 启动工作流
+### 6.2 查询任务列表
+
+```text
+GET /ai/core/tasks?status=pending&domain=legal&source=chat&page=1&pageSize=20
+```
+
+支持过滤：
+
+- `status`
+- `domain`
+- `source`
+- `page`
+- `pageSize`
+
+响应：
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "pageSize": 20
+}
+```
+
+### 6.3 启动工作流
 
 ```text
 POST /ai/core/workflows/runs
@@ -657,7 +682,33 @@ POST /ai/core/workflows/runs
 }
 ```
 
-### 6.3 查询工作流
+### 6.4 查询工作流列表
+
+```text
+GET /ai/core/workflows/runs?status=waiting_review&domain=legal&workflowId=legal_contract_review_v1&source=workbench&page=1&pageSize=20
+```
+
+支持过滤：
+
+- `status`
+- `domain`
+- `workflowId`
+- `source`
+- `page`
+- `pageSize`
+
+响应：
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "pageSize": 20
+}
+```
+
+### 6.5 查询工作流详情
 
 ```text
 GET /ai/core/workflows/runs/{runId}
@@ -676,7 +727,7 @@ GET /ai/core/workflows/runs/{runId}
 }
 ```
 
-### 6.4 人工审核
+### 6.6 人工审核
 
 ```text
 POST /ai/core/workflows/runs/{runId}/reviews
@@ -692,7 +743,7 @@ POST /ai/core/workflows/runs/{runId}/reviews
 }
 ```
 
-### 6.5 从 Checkpoint 恢复
+### 6.7 从 Checkpoint 恢复
 
 ```text
 POST /ai/core/workflows/runs/{runId}/resume
@@ -916,7 +967,7 @@ Federated Experience for Sensitive-domain Agents
 建议按顺序执行：
 
 - [x] 1. 移除 `/ai/agent/{role}/chat` 旧入口和兼容执行链，统一保留 `/ai/core/*`。
-- [ ] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
+- [x] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
 - [ ] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
 - [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
 - [x] 5. 把前端工作台接入 `/ai/core/*`。

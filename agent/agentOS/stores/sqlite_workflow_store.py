@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Iterable
 
-from agentos.core.types import AgentTask, WorkflowRun
-from agentos.stores.workflow_store import WorkflowStore
+from agentos.core.types import AgentTask, WorkflowRun, WorkflowStatus
+from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value
 
 
 class SQLiteWorkflowStore(WorkflowStore):
@@ -59,9 +58,50 @@ class SQLiteWorkflowStore(WorkflowStore):
             raise KeyError(f"workflow run not found: {run_id}")
         return WorkflowRun.model_validate(json.loads(row["payload"]))
 
-    def list_runs(self) -> Iterable[WorkflowRun]:
-        rows = self._fetch_all("SELECT payload FROM runs ORDER BY updated_at ASC, run_id ASC")
-        return tuple(WorkflowRun.model_validate(json.loads(row["payload"])) for row in rows)
+    def list_tasks(
+        self,
+        *,
+        status: WorkflowStatus | str | None = None,
+        domain: str | None = None,
+        source: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> WorkflowStorePage[AgentTask]:
+        expected_status = status_value(status)
+        rows = self._fetch_all("SELECT payload FROM tasks")
+        tasks = [
+            task
+            for task in (AgentTask.model_validate(json.loads(row["payload"])) for row in rows)
+            if _matches_task(task, status=expected_status, domain=domain, source=source)
+        ]
+        tasks.sort(key=lambda task: (task.created_at, task.task_id), reverse=True)
+        return paginate_items(tasks, page=page, page_size=page_size)
+
+    def list_runs(
+        self,
+        *,
+        status: WorkflowStatus | str | None = None,
+        domain: str | None = None,
+        workflow_id: str | None = None,
+        source: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> WorkflowStorePage[WorkflowRun]:
+        expected_status = status_value(status)
+        rows = self._fetch_all("SELECT payload FROM runs")
+        runs = [
+            run
+            for run in (WorkflowRun.model_validate(json.loads(row["payload"])) for row in rows)
+            if _matches_run(
+                run,
+                status=expected_status,
+                domain=domain,
+                workflow_id=workflow_id,
+                source=source,
+            )
+        ]
+        runs.sort(key=lambda run: (run.created_at, run.run_id), reverse=True)
+        return paginate_items(runs, page=page, page_size=page_size)
 
     def _init_schema(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
@@ -102,3 +142,32 @@ class SQLiteWorkflowStore(WorkflowStore):
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(sql, params)
             return cursor.fetchall()
+
+
+def _matches_task(task: AgentTask, *, status: str | None, domain: str | None, source: str | None) -> bool:
+    if status is not None and task.status.value != status:
+        return False
+    if domain is not None and task.domain != domain:
+        return False
+    if source is not None and task.input.get("source") != source:
+        return False
+    return True
+
+
+def _matches_run(
+    run: WorkflowRun,
+    *,
+    status: str | None,
+    domain: str | None,
+    workflow_id: str | None,
+    source: str | None,
+) -> bool:
+    if status is not None and run.status.value != status:
+        return False
+    if domain is not None and run.domain != domain:
+        return False
+    if workflow_id is not None and run.workflow_id != workflow_id:
+        return False
+    if source is not None and run.input.get("source") != source:
+        return False
+    return True

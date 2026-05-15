@@ -380,6 +380,66 @@ def test_chat_can_upgrade_message_to_workflow_run():
     assert payload["run"]["currentStepId"] == "risk"
 
 
+def test_agentos_core_api_lists_tasks_and_runs_with_filters():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    agent_registry = AgentRegistry()
+    workflow_registry = WorkflowRegistry()
+    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    client.post(
+        "/ai/chat/workflows/upgrade",
+        json={
+            "text": "聊天升级案件分析",
+            "contextId": "chat_ctx_list",
+            "domain": "legal",
+            "intent": "case_analysis",
+            "reviewMode": "human_in_loop",
+        },
+    )
+    workbench_response = client.post(
+        "/ai/core/workflows/start",
+        json={
+            "title": "工作台合同审查",
+            "domain": "legal",
+            "intent": "contract_review",
+            "input": {"source": "workbench", "caseText": "工作台合同审查"},
+            "reviewMode": "human_in_loop",
+        },
+    )
+    assert workbench_response.status_code == 200
+
+    runs_response = client.get(
+        "/ai/core/workflows/runs",
+        params={"status": "waiting_review", "source": "workbench", "page": 1, "pageSize": 10},
+    )
+    assert runs_response.status_code == 200
+    runs_payload = runs_response.json()
+    assert runs_payload["total"] == 1
+    assert runs_payload["page"] == 1
+    assert runs_payload["pageSize"] == 10
+    assert runs_payload["items"][0]["input"]["source"] == "workbench"
+    assert runs_payload["items"][0]["workflowId"] == "legal_contract_review_v1"
+
+    tasks_response = client.get(
+        "/ai/core/tasks",
+        params={"source": "chat", "domain": "legal"},
+    )
+    assert tasks_response.status_code == 200
+    tasks_payload = tasks_response.json()
+    assert tasks_payload["total"] == 1
+    assert tasks_payload["items"][0]["input"]["source"] == "chat"
+    assert tasks_payload["items"][0]["recommendedWorkflow"] == "legal_case_analysis_v1"
+
+
 def test_default_runtime_uses_sqlite_store_when_env_is_set(tmp_path, monkeypatch):
     from app.api import agentos_core
 

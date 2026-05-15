@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.types import ReviewDecision, ReviewDecisionType
@@ -142,6 +142,15 @@ def _to_json(model) -> Dict[str, Any]:
     return model.model_dump(by_alias=True, mode="json")
 
 
+def _page_to_json(page) -> Dict[str, Any]:
+    return {
+        "items": [_to_json(item) for item in page.items],
+        "total": page.total,
+        "page": page.page,
+        "pageSize": page.page_size,
+    }
+
+
 async def _create_task_and_start(
     runtime: WorkflowRuntime,
     request: WorkflowStartRequest,
@@ -179,6 +188,24 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             return _to_json(task)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.get("/core/tasks")
+    async def list_tasks(
+        status: Optional[str] = None,
+        domain: Optional[str] = None,
+        source: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, alias="pageSize"),
+    ):
+        return _page_to_json(
+            runtime.workflow_store.list_tasks(
+                status=status,
+                domain=domain,
+                source=source,
+                page=page,
+                page_size=page_size,
+            )
+        )
 
     @router.post("/core/workflows/runs")
     async def start_workflow(request: WorkflowRunCreateRequest):
@@ -238,6 +265,26 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.get("/core/workflows/runs")
+    async def list_workflow_runs(
+        status: Optional[str] = None,
+        domain: Optional[str] = None,
+        workflow_id: Optional[str] = Query(None, alias="workflowId"),
+        source: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, alias="pageSize"),
+    ):
+        return _page_to_json(
+            runtime.workflow_store.list_runs(
+                status=status,
+                domain=domain,
+                workflow_id=workflow_id,
+                source=source,
+                page=page,
+                page_size=page_size,
+            )
+        )
 
     @router.get("/core/workflows/runs/{run_id}")
     async def get_workflow_run(run_id: str):
