@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping({"/api/agentos", "/agentos"})
+@RequestMapping({"/api/agentos", "/agentos", "/ai"})
 @RequiredArgsConstructor
 public class AgentOsGatewayController {
 
@@ -164,6 +164,9 @@ public class AgentOsGatewayController {
         }
         if (path.startsWith("/api/agentos")) {
             return path.replaceFirst("/api/agentos", "/ai");
+        }
+        if (path.startsWith("/ai")) {
+            return path;
         }
         return path.replaceFirst("/agentos", "/ai");
     }
