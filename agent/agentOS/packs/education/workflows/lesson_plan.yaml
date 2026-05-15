@@ -1,0 +1,16 @@
+{
+  "workflowId": "education_lesson_plan_v1",
+  "name": "Education Lesson Plan Workflow",
+  "domain": "education",
+  "intent": "lesson_plan",
+  "version": "1.0.0",
+  "description": "Minimal education workflow for lesson planning.",
+  "steps": [
+    {
+      "stepId": "lesson_plan",
+      "name": "Lesson Plan",
+      "agentName": "lesson_plan",
+      "capability": "lesson_plan"
+    }
+  ]
+}

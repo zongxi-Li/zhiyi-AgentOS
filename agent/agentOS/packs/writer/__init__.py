@@ -1,7 +1,12 @@
 """Writer workflow pack."""
 
+from pathlib import Path
+
+from agentos.packs.writer.agents import OutlineGenerateAgent
+
 
 def register_pack(agent_registry, workflow_registry) -> None:
-    """Placeholder registration hook for the writer pack."""
+    """Register the writer workflow pack."""
 
-    return None
+    agent_registry.register(OutlineGenerateAgent())
+    workflow_registry.load_directory(Path(__file__).resolve().parent / "workflows")

@@ -1,0 +1,16 @@
+{
+  "workflowId": "programmer_requirement_analysis_v1",
+  "name": "Programmer Requirement Analysis Workflow",
+  "domain": "programmer",
+  "intent": "requirement_analysis",
+  "version": "1.0.0",
+  "description": "Minimal programmer workflow for requirement analysis.",
+  "steps": [
+    {
+      "stepId": "requirement_analysis",
+      "name": "Requirement Analysis",
+      "agentName": "requirement_analysis",
+      "capability": "requirement_analysis"
+    }
+  ]
+}

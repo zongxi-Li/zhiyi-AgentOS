@@ -1,7 +1,12 @@
 """Education workflow pack."""
 
+from pathlib import Path
+
+from agentos.packs.education.agents import LessonPlanAgent
+
 
 def register_pack(agent_registry, workflow_registry) -> None:
-    """Placeholder registration hook for the education pack."""
+    """Register the education workflow pack."""
 
-    return None
+    agent_registry.register(LessonPlanAgent())
+    workflow_registry.load_directory(Path(__file__).resolve().parent / "workflows")

@@ -1,0 +1,16 @@
+{
+  "workflowId": "writer_story_outline_v1",
+  "name": "Writer Story Outline Workflow",
+  "domain": "writer",
+  "intent": "story_outline",
+  "version": "1.0.0",
+  "description": "Minimal writer workflow for story outline generation.",
+  "steps": [
+    {
+      "stepId": "outline_generate",
+      "name": "Outline Generate",
+      "agentName": "outline_generate",
+      "capability": "outline_generate"
+    }
+  ]
+}

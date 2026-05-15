@@ -277,7 +277,9 @@ AgentOS Core:
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/ai/core/tasks` | POST | 创建AgentOS任务 |
+| `/ai/core/tasks` | GET | 查询AgentOS任务列表 |
 | `/ai/core/workflows/runs` | POST | 启动AgentOS工作流 |
+| `/ai/core/workflows/runs` | GET | 查询AgentOS工作流列表 |
 | `/ai/core/workflows/start` | POST | Workbench直接创建并启动工作流 |
 | `/ai/core/workflows/runs/{runId}` | GET | 查询工作流状态 |
 | `/ai/core/workflows/runs/{runId}/reviews` | POST | 提交人工审核决定 |
@@ -289,6 +291,8 @@ AgentOS Core:
 | `/ai/tts` | POST | 语音合成 |
 | `/ai/rag/query` | POST | RAG检索 |
 | `/ai/federated-models/list` | GET | 联邦模型列表 |
+
+Java 网关同时提供 `/api/agentos/*` 与 `/agentos/*` 入口，路径会转发到 Python AgentOS 的 `/ai/*`，例如 `/api/agentos/core/workflows/start` → `/ai/core/workflows/start`。
 
 ### Agent请求/响应格式
 
@@ -467,7 +471,7 @@ AGENT_FEDERATED_TIMEOUT_MS: int = 1500
 3. 在 `workflows/` 中声明步骤、Agent、审核节点和流转关系。
 4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`，并在 `manifest.yaml` 中声明 pack 元数据。
 5. 默认运行时会按 manifest 自动发现并加载已安装 packs。
-6. 前端和 Java 网关优先接入 `/ai/core/*`。
+6. 前端和 Java 网关优先接入 AgentOS 统一入口：Python 侧为 `/ai/core/*`，Java 网关侧为 `/api/agentos/*`。
 
 ### 新增Skill
 

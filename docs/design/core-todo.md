@@ -19,22 +19,24 @@
 - `agent/agentos/core/orchestrator.py`、`state_machine.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py`：已形成核心运行闭环。
 - `agent/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
 - `agent/agentos/packs/*/manifest.yaml`：已建立 pack manifest 发现与注册机制，默认运行时按 manifest 自动加载已安装 packs。
+- `agent/agentos/packs/education`、`programmer`、`writer`：已补最小 Workflow 与轻量 Agent，可完成 lesson plan、requirement analysis、story outline 的 WorkflowRun 冒烟路径。
 - `agent/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
 - `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘，并支持 `WorkflowStore` 任务/运行分页查询。
 - 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
 - `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、`/ai/core/workflows/start`、`/ai/chat/workflows/upgrade`、审核、恢复、取消和列表查询接口。
+- `backend/src/main/java/com/kinlin/ai/controller/AgentOsGatewayController.java`：Java 网关已提供 `/api/agentos/*` 与 `/agentos/*` 统一入口，转发到 Python AgentOS `/ai/core/*` 生命周期接口。
 - Chat 已支持将当前输入和上下文升级为 `WorkflowRun`；Workbench API 模式已支持直接发起 `WorkflowRun`。
 - 文档已同步到 `agent/agentos` 作为 canonical 路径。
 
 ### 进行中
 
-- 前端 AgentOS Console 与 Java 网关继续完善 `/ai/core/*` 查询、审核和恢复能力。
+- 前端 AgentOS Console 继续完善 `/ai/core/*` 查询、审核和恢复能力。
 - WorkflowStore 的备份、配置和索引治理能力。
 
 ### 下一步
 
-- 给 `education`、`programmer`、`writer` 补最小 Workflow。
-- 补齐前端控制台的运行详情、审计面板和 Java typed gateway。
+- 补齐前端控制台的运行详情、审计面板、审核和恢复操作。
+- 继续把非 legal pack 从最小 smoke workflow 深化为多步骤专业工作流。
 
 ---
 
@@ -857,8 +859,8 @@ TODO：
 
 TODO：
 
-- [ ] Java 新增 `AgentOsGatewayService`。
-- [ ] Java 新增 `AgentOsController`。
+- [x] Java 新增 `AgentOsGatewayService`。
+- [x] Java 新增 `AgentOsController`。
 - [x] 前端新增 `agentos.ts`。
 - [ ] 前端新增 `workflow.ts`。
 - [ ] 前端新增 `AgentOsConsoleView.vue`。
@@ -908,7 +910,7 @@ TODO：
 - [ ] Core 能输出 trace。
 - [ ] Core 能等待人工审核。
 - [ ] Core 能生成运行评估指标。
-- [ ] Core 能通过 Java 网关服务前端。
+- [x] Core 能通过 Java 网关服务前端。
 - [ ] 前端有可用的 AgentOS Console。
 
 不要求：
@@ -968,9 +970,9 @@ Federated Experience for Sensitive-domain Agents
 - [x] 1. 移除 `/ai/agent/{role}/chat` 旧入口和兼容执行链，统一保留 `/ai/core/*`。
 - [x] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
 - [x] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
-- [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
+- [x] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
 - [x] 5. 把前端工作台接入 `/ai/core/*`。
-- [ ] 6. 给 Java 网关补 AgentOS 的统一入口。
+- [x] 6. 给 Java 网关补 AgentOS 的统一入口。
 - [ ] 7. 给 Trace 增加导出能力。
 - [ ] 8. 给 Review 增加更完整的审计记录。
 - [ ] 9. 让 `WorkflowStore` 支持更稳定的持久化配置与备份策略。

@@ -1,7 +1,12 @@
 """Programmer workflow pack."""
 
+from pathlib import Path
+
+from agentos.packs.programmer.agents import RequirementAnalysisAgent
+
 
 def register_pack(agent_registry, workflow_registry) -> None:
-    """Placeholder registration hook for the programmer pack."""
+    """Register the programmer workflow pack."""
 
-    return None
+    agent_registry.register(RequirementAnalysisAgent())
+    workflow_registry.load_directory(Path(__file__).resolve().parent / "workflows")
