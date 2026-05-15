@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter
 
 from app.api.language_guard import ensure_simplified_chinese
+from agentos.adapters.legacy_workflow_chat import compat_workflow_chat_enabled, run_legacy_chat_as_workflow
 from agentos.memory.session_memory import session_memory_store
 from agentos.react.executor import ReactExecutor
 from agentos.react.planner import ReactPlanner
@@ -109,8 +110,7 @@ def _build_fallback_answer(user_text: str, observations: Dict[str, Any]) -> str:
     )
 
 
-@router.post("/agent/lawyer/chat", response_model=AgentLawyerResponse)
-async def lawyer_agent_chat(request: AgentLawyerRequest):
+async def _lawyer_agent_chat_legacy(request: AgentLawyerRequest):
     session_id = request.session_id or str(uuid4())
     user_text = request.text
 
@@ -180,3 +180,16 @@ async def lawyer_agent_chat(request: AgentLawyerRequest):
             message="律师 Agent 执行失败。",
             error=str(exc),
         )
+
+
+@router.post("/agent/lawyer/chat", response_model=AgentLawyerResponse)
+async def lawyer_agent_chat(request: AgentLawyerRequest):
+    if compat_workflow_chat_enabled():
+        return await run_legacy_chat_as_workflow(
+            role="lawyer",
+            request=request,
+            request_model=AgentLawyerRequest,
+            response_model=AgentLawyerResponse,
+            legacy_runner=_lawyer_agent_chat_legacy,
+        )
+    return await _lawyer_agent_chat_legacy(request)

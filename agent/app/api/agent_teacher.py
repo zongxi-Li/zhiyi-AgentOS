@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter
 
 from app.api.language_guard import ensure_simplified_chinese
+from agentos.adapters.legacy_workflow_chat import compat_workflow_chat_enabled, run_legacy_chat_as_workflow
 from agentos.memory.session_memory import session_memory_store
 from agentos.react.executor import ReactExecutor
 from agentos.react.planner import ReactPlanner
@@ -154,8 +155,7 @@ def _pick_teacher_federated(observations: Dict[str, Any]) -> Dict[str, Any]:
     return candidates[0] if candidates else {}
 
 
-@router.post("/agent/teacher/chat", response_model=AgentTeacherResponse)
-async def teacher_agent_chat(request: AgentTeacherRequest):
+async def _teacher_agent_chat_legacy(request: AgentTeacherRequest):
     session_id = request.session_id or str(uuid4())
     user_text = request.text
 
@@ -224,3 +224,16 @@ async def teacher_agent_chat(request: AgentTeacherRequest):
             message="教师 Agent 执行失败。",
             error=str(exc),
         )
+
+
+@router.post("/agent/teacher/chat", response_model=AgentTeacherResponse)
+async def teacher_agent_chat(request: AgentTeacherRequest):
+    if compat_workflow_chat_enabled():
+        return await run_legacy_chat_as_workflow(
+            role="teacher",
+            request=request,
+            request_model=AgentTeacherRequest,
+            response_model=AgentTeacherResponse,
+            legacy_runner=_teacher_agent_chat_legacy,
+        )
+    return await _teacher_agent_chat_legacy(request)

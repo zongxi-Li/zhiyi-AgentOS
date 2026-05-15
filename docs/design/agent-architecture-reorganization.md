@@ -60,14 +60,14 @@ agent/agentos/
 /ai/agent/writer/chat
 ```
 
-下一步建议把它们包装成兼容 Adapter：
+这一步已经开始落地，旧入口现在可以在开关打开时进入单步 WorkflowRun。当前形态是：
 
 ```text
 agent/app/api/agent_lawyer.py
   -> CompatAgentChatAdapter
   -> WorkflowRuntime.create_task()
   -> WorkflowRuntime.start()
-  -> 返回旧 AgentChatResponse 形状
+  -> 返回旧 AgentChatResponse 形状 + workflowRunId/workflowStatus/workflowStepId
 ```
 
 这样前端和 Java 后端不需要立刻改协议，但执行过程会逐步进入统一的 `WorkflowRun`、`TraceEvent`、`Checkpoint` 和 `ReviewDecision`。

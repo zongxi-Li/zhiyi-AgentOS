@@ -21,19 +21,18 @@
 - `agent/agentos/packs/legal/*`：法律 demo pack 已接入工作流注册。
 - `agent/agentos/skills/*` 和 `agent/agentos/react/*`：已支撑现有专业体聊天链路。
 - `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘。
+- `agent/app/api/agent_lawyer.py`、`agent_teacher.py`、`agent_programmer.py`、`agent_writer.py`：已支持可选 Workflow Adapter，旧专业体入口可进入统一 `WorkflowRun` 生命周期。
 - `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、审核、恢复和取消接口。
 - 文档已同步到 `agent/agentos` 作为 canonical 路径。
 
 ### 进行中
 
-- 旧 `/ai/agent/{role}/chat` 兼容入口逐步收拢到统一 Workflow 生命周期。
 - Pack manifest 驱动的自动加载。
 - 前端 AgentOS Console 与 Java 网关接入 `/ai/core/*`。
 - WorkflowStore 的更完整持久化治理能力。
 
 ### 下一步
 
-- 先把兼容入口包装成 Workflow Adapter，减少重复的专业体运行逻辑。
 - 再把 Pack 注册从代码驱动推进到 manifest 驱动。
 - 最后补齐前端控制台、审计面板和 Java 网关。
 
@@ -914,7 +913,7 @@ Federated Experience for Sensitive-domain Agents
 
 建议按顺序执行：
 
-- [ ] 1. 把 `/ai/agent/{role}/chat` 包装成可选 Workflow Adapter，减少重复执行链。
+- [x] 1. 把 `/ai/agent/{role}/chat` 包装成可选 Workflow Adapter，减少重复执行链。
 - [ ] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
 - [ ] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
 - [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。

@@ -265,6 +265,9 @@ class AgentLawyerResponse(CoreModel):
     federated: Dict[str, Any] = Field(default_factory=dict)
     message: Optional[str] = None
     error: Optional[str] = None
+    workflow_run_id: Optional[str] = Field(default=None, alias="workflowRunId")
+    workflow_status: Optional[WorkflowStatus] = Field(default=None, alias="workflowStatus")
+    workflow_step_id: Optional[str] = Field(default=None, alias="workflowStepId")
 
 
 class AgentTeacherResponse(CoreModel):
@@ -277,6 +280,9 @@ class AgentTeacherResponse(CoreModel):
     federated: Dict[str, Any] = Field(default_factory=dict)
     message: Optional[str] = None
     error: Optional[str] = None
+    workflow_run_id: Optional[str] = Field(default=None, alias="workflowRunId")
+    workflow_status: Optional[WorkflowStatus] = Field(default=None, alias="workflowStatus")
+    workflow_step_id: Optional[str] = Field(default=None, alias="workflowStepId")
 
 
 class AgentWriterResponse(CoreModel):
@@ -293,6 +299,9 @@ class AgentWriterResponse(CoreModel):
     outline_generate: Optional[Dict[str, Any]] = None
     content_write: Optional[Dict[str, Any]] = None
     character_relation_map: Optional[Dict[str, Any]] = None
+    workflow_run_id: Optional[str] = Field(default=None, alias="workflowRunId")
+    workflow_status: Optional[WorkflowStatus] = Field(default=None, alias="workflowStatus")
+    workflow_step_id: Optional[str] = Field(default=None, alias="workflowStepId")
 
 
 class AgentProgrammerResponse(CoreModel):
@@ -309,3 +318,6 @@ class AgentProgrammerResponse(CoreModel):
     codebase_semantic_search: Optional[Dict[str, Any]] = None
     code_generation: Optional[Dict[str, Any]] = None
     diagram_generation: Optional[Dict[str, Any]] = None
+    workflow_run_id: Optional[str] = Field(default=None, alias="workflowRunId")
+    workflow_status: Optional[WorkflowStatus] = Field(default=None, alias="workflowStatus")
+    workflow_step_id: Optional[str] = Field(default=None, alias="workflowStepId")

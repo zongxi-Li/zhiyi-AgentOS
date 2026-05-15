@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter
 
 from app.api.language_guard import ensure_simplified_chinese
+from agentos.adapters.legacy_workflow_chat import compat_workflow_chat_enabled, run_legacy_chat_as_workflow
 from agentos.adapters.federated_adapter import FederatedAdapter
 from agentos.memory.session_memory import session_memory_store
 from agentos.react.executor import ReactExecutor
@@ -185,8 +186,7 @@ def _build_fallback_answer(user_text: str, skills_used: List[str], observations:
     return "\n".join(lines)
 
 
-@router.post("/agent/programmer/chat", response_model=AgentProgrammerResponse)
-async def programmer_agent_chat(request: AgentProgrammerRequest):
+async def _programmer_agent_chat_legacy(request: AgentProgrammerRequest):
     session_id = request.session_id or str(uuid4())
     user_text = request.text
 
@@ -262,3 +262,16 @@ async def programmer_agent_chat(request: AgentProgrammerRequest):
             message="程序员 Agent 执行失败。",
             error=str(exc),
         )
+
+
+@router.post("/agent/programmer/chat", response_model=AgentProgrammerResponse)
+async def programmer_agent_chat(request: AgentProgrammerRequest):
+    if compat_workflow_chat_enabled():
+        return await run_legacy_chat_as_workflow(
+            role="programmer",
+            request=request,
+            request_model=AgentProgrammerRequest,
+            response_model=AgentProgrammerResponse,
+            legacy_runner=_programmer_agent_chat_legacy,
+        )
+    return await _programmer_agent_chat_legacy(request)

@@ -155,6 +155,8 @@ POST /ai/agent/{lawyer,teacher,programmer,writer}/chat
 
 这条链路继续对前端和 Java 后端提供兼容接口。它使用 `agentos.react`、`agentos.skills`、`agentos.memory` 和 `agentos.adapters`，但暂时还没有完全纳入 `WorkflowRun` 生命周期。
 
+当 `AGENTOS_COMPAT_WORKFLOW_CHAT=1` 时，旧 `/ai/agent/{role}/chat` 会先包装成单步 `WorkflowRun`，再把原有 response 形状返回给调用方，并附带 `workflowRunId`、`workflowStatus`、`workflowStepId`。
+
 ---
 
 ## 5. 设计原则

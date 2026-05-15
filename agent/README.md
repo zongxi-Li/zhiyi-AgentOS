@@ -47,6 +47,8 @@ agent/
 
 这些接口继续使用 `agentos.react` 和 `agentos.skills`，后续可逐步包装到 `WorkflowRuntime` 生命周期中。
 
+当设置 `AGENTOS_COMPAT_WORKFLOW_CHAT=1` 时，这些旧入口会先进入一个单步 `WorkflowRun`，然后再返回原有响应形状，并额外带上 `workflowRunId`、`workflowStatus`、`workflowStepId`。
+
 ## 安装依赖
 
 ```bash
