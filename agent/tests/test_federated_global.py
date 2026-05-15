@@ -264,8 +264,10 @@ def test_parameter_encryption():
     # 加密
     encrypted = encryption_service.encrypt_parameters(original_params)
     
-    assert 'param1' in encrypted
-    assert encrypted['param1'] != original_params['param1']
+    assert encrypted['method'] == 'symmetric'
+    assert encrypted['format'] == 'json'
+    assert 'encrypted' in encrypted
+    assert 'param1' not in encrypted
     
     # 解密
     decrypted = encryption_service.decrypt_parameters(encrypted)

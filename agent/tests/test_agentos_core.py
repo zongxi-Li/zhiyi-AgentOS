@@ -1,12 +1,13 @@
 import asyncio
+from pathlib import Path
 
 import pytest
 
-from core.agents.base import AgentOutput, AgentProfile, BaseAgent
-from core.agents.registry import AgentRegistry
-from core.packs.legal import register_pack as register_legal_pack
-from core.state_machine import InvalidStateTransition, StateMachine
-from core.types import (
+from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
+from agentos.agents import AgentRegistry
+from agentos.packs.legal import register_pack as register_legal_pack
+from agentos.core.state_machine import InvalidStateTransition, StateMachine
+from agentos.core.types import (
     ReviewDecision,
     ReviewDecisionType,
     StepStatus,
@@ -15,8 +16,10 @@ from core.types import (
     WorkflowStatus,
     WorkflowStepDefinition,
 )
-from core.workflow_registry import WorkflowRegistry
-from core.workflow_runtime import WorkflowRuntime
+from agentos.core.workflow_registry import WorkflowRegistry
+from agentos.core.workflow_runtime import WorkflowRuntime
+from agentos.stores.memory_workflow_store import MemoryWorkflowStore
+from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 
 class RecordingAgent(BaseAgent):
@@ -302,3 +305,25 @@ def test_agentos_core_api_task_run_review_flow():
     status_response = client.get(f"/ai/core/workflows/runs/{run_payload['runId']}")
     assert status_response.status_code == 200
     assert status_response.json()["output"]["final_answer"]
+
+
+def test_default_runtime_uses_sqlite_store_when_env_is_set(tmp_path, monkeypatch):
+    from app.api import agentos_core
+
+    db_path = tmp_path / "workflow.db"
+    monkeypatch.setenv("AGENTOS_WORKFLOW_DB_PATH", str(db_path))
+
+    runtime = agentos_core.build_default_runtime()
+
+    assert isinstance(runtime.workflow_store, SQLiteWorkflowStore)
+    assert Path(runtime.workflow_store.db_path) == db_path
+
+
+def test_default_runtime_uses_memory_store_when_env_is_missing(monkeypatch):
+    from app.api import agentos_core
+
+    monkeypatch.delenv("AGENTOS_WORKFLOW_DB_PATH", raising=False)
+
+    runtime = agentos_core.build_default_runtime()
+
+    assert isinstance(runtime.workflow_store, MemoryWorkflowStore)

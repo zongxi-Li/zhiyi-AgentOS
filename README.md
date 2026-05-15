@@ -215,19 +215,6 @@ kinlin_-ai/
 │   │   │   ├── rag.py                 # RAG检索
 │   │   │   ├── tts.py                 # 语音合成
 │   │   │   └── ...
-│   │   ├── agent_core/                # Agent核心
-│   │   │   ├── react/                 # ReAct推理引擎
-│   │   │   │   ├── planner.py              # 规划器
-│   │   │   │   ├── tool_router.py          # 工具路由
-│   │   │   │   └── executor.py             # 执行器
-│   │   │   ├── skills/                # 技能实现
-│   │   │   │   ├── teacher/               # 教师Skills（9个）
-│   │   │   │   ├── base.py                # Skill基类
-│   │   │   │   └── ...律师Skills（8个）
-│   │   │   ├── memory/                # 会话记忆
-│   │   │   ├── retrieval/             # 检索模块
-│   │   │   ├── schema/                # 数据模型
-│   │   │   └── federated/             # 联邦学习适配
 │   │   ├── ai_engine/                 # AI引擎
 │   │   │   ├── deepseekadapter.py         # DeepSeek适配器（文本主引擎）
 │   │   │   ├── qwenadapter.py             # 通义千问适配器（图像/语音/多模态）
@@ -240,6 +227,16 @@ kinlin_-ai/
 │   │       ├── legal/                 # 法条/判例数据
 │   │       ├── education/             # 教育知识数据
 │   │       └── rag/                   # RAG知识库
+│   ├── agentos/                       # AgentOS运行时与专业能力包
+│   │   ├── core/                      # WorkflowRuntime、Orchestrator、状态、Trace、Checkpoint、Review
+│   │   ├── agents/                    # BaseAgent与AgentRegistry
+│   │   ├── packs/                     # 行业Pack（legal/education/programmer/writer）
+│   │   ├── skills/                    # Skill基类、注册表与内置Skill
+│   │   ├── react/                     # 兼容专业体聊天链路的Planner/Executor/ToolRouter
+│   │   ├── memory/                    # 会话记忆与Workflow上下文
+│   │   ├── stores/                    # WorkflowStore接口与内存实现
+│   │   └── adapters/                  # 模型、检索、联邦适配器
+│   ├── tests/                         # AgentOS与专业Skill测试
 │   ├── requirements.txt
 │   └── Dockerfile
 │
@@ -262,14 +259,14 @@ kinlin_-ai/
 
 ### Agent架构
 
-所有Agent共享统一的ReAct推理引擎，通过Skill插件实现专业能力：
+当前 Agent 系统以 `agent/agentos` 为核心：AgentOS Core 负责 Workflow 生命周期，Pack 提供行业能力，ReAct 模块继续兼容现有专业体聊天入口。
 
 ```
-用户请求 → ReAct Planner(规划) → Tool Router(路由) → Executor(执行)
-                                                        ↓
-                                              Skill调用 → ChromaDB检索
-                                                        ↓
-                                              结果聚合 → 响应生成
+AgentOS Core:
+用户请求 → WorkflowRuntime → Orchestrator → Pack Agent → Trace / Checkpoint / Review
+
+兼容聊天:
+用户请求 → ReAct Planner → Tool Router → Executor → Skill → Model / Retrieval / Federated Adapter
 ```
 
 ### 四种Agent角色
@@ -289,6 +286,11 @@ kinlin_-ai/
 | `/ai/agent/teacher/chat` | POST | 教师Agent对话 |
 | `/ai/agent/programmer/chat` | POST | 程序员Agent对话 |
 | `/ai/agent/writer/chat` | POST | 作家Agent对话 |
+| `/ai/core/tasks` | POST | 创建AgentOS任务 |
+| `/ai/core/workflows/runs` | POST | 启动AgentOS工作流 |
+| `/ai/core/workflows/runs/{runId}` | GET | 查询工作流状态 |
+| `/ai/core/workflows/runs/{runId}/reviews` | POST | 提交人工审核决定 |
+| `/ai/core/workflows/runs/{runId}/resume` | POST | 从Checkpoint恢复 |
 | `/ai/chat/text` | POST | 通用文本对话 |
 | `/ai/chat/text/stream` | POST | 流式文本对话 (SSE) |
 | `/ai/chat/voice` | POST | 语音对话 |
@@ -468,23 +470,22 @@ AGENT_FEDERATED_TIMEOUT_MS: int = 1500
 
 ## 开发指南
 
-### 新增Agent角色
+### 新增Agent角色 / 行业Pack
 
-1. **后端**: 在 `agent/app/api/` 创建 `agent_xxx.py`，实现Agent入口路由
-2. **Skills**: 在 `agent/app/agent_core/skills/` 创建Skill实现
-3. **Schema**: 在 `agent/app/agent_core/schema/agent_types.py` 添加请求/响应模型
-4. **前端API**: 在 `frontend/src/services/api/` 创建 `agentXxx.ts`
-5. **前端面板**: 在 `frontend/src/components/agent/` 创建 `XxxSkillPanel.vue`
-6. **状态管理**: 更新 `frontend/src/stores/chat.ts` 添加新Agent消息处理
-7. **显示映射**: 更新 `frontend/src/utils/agentDisplay.ts` 添加技能映射
-8. **集成**: 更新 `ChatView.vue` 添加新Agent切换逻辑
+1. 在 `agent/agentos/packs/{pack_id}/` 创建 `manifest.yaml`、`workflows/`、`agents/`、`prompts/`、`data/`。
+2. 在 `agent/agentos/packs/{pack_id}/agents/` 实现 `BaseAgent` 子类。
+3. 在 `workflows/` 中声明步骤、Agent、审核节点和流转关系。
+4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`。
+5. 如需对外兼容旧聊天协议，再在 `agent/app/api/` 增加薄 Route Adapter。
+6. 前端和 Java 网关优先接入 `/ai/core/*`；需要保留旧体验时再补 `agentXxx.ts` 和面板映射。
 
 ### 新增Skill
 
-1. 继承 `agent/app/agent_core/skills/base.py` 中的Skill基类
+1. 继承 `agent/agentos/skills/base.py` 中的Skill基类
 2. 实现 `execute()` 方法
-3. 在 `agent/app/agent_core/react/tool_router.py` 中注册
-4. 在对应Agent的API文件中添加上下文构建逻辑
+3. 可复用Skill放入 `agent/agentos/skills/builtin/`，Pack专属Skill放入 `agent/agentos/packs/{pack_id}/skills/`
+4. 在 `agent/agentos/skills/registry.py` 或对应 Pack 注册入口中注册
+5. 为 Skill 输入输出和关键降级逻辑补充测试
 
 ### 代码规范
 

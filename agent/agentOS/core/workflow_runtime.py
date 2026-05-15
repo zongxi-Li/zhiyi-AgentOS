@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import os
 from typing import Optional
 
-from agentOS.agents import AgentRegistry
-from memory.workflow_memory import WorkflowMemory
-from agentOS.core.checkpoint import CheckpointStore
-from agentOS.core.orchestrator import Orchestrator
-from agentOS.core.review import ReviewManager
-from agentOS.core.state_machine import StateMachine
-from stores.memory_workflow_store import MemoryWorkflowStore
-from stores.workflow_store import WorkflowStore
-from agentOS.core.trace import TraceStore
-from agentOS.core.types import (
+from agentos.agents import AgentRegistry
+from agentos.memory.workflow_memory import WorkflowMemory
+from agentos.core.checkpoint import CheckpointStore
+from agentos.core.orchestrator import Orchestrator
+from agentos.core.review import ReviewManager
+from agentos.core.state_machine import StateMachine
+from agentos.stores.memory_workflow_store import MemoryWorkflowStore
+from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
+from agentos.stores.workflow_store import WorkflowStore
+from agentos.core.trace import TraceStore
+from agentos.core.types import (
     AgentTask,
     ReviewDecision,
     ReviewDecisionType,
@@ -21,8 +23,8 @@ from agentOS.core.types import (
     WorkflowStatus,
     WorkflowStep,
 )
-from agentOS.core.types import utc_now
-from agentOS.core.workflow_registry import WorkflowRegistry
+from agentos.core.types import utc_now
+from agentos.core.workflow_registry import WorkflowRegistry
 
 
 class WorkflowRuntime:
@@ -360,9 +362,15 @@ class WorkflowRuntime:
 def build_default_runtime() -> WorkflowRuntime:
     """Build the default AgentOS Core runtime with installed packs."""
 
-    from packs.legal import register_pack as register_legal_pack
+    from agentos.packs.legal import register_pack as register_legal_pack
 
     agent_registry = AgentRegistry()
     workflow_registry = WorkflowRegistry()
     register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    return WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    workflow_store_path = os.getenv("AGENTOS_WORKFLOW_DB_PATH", "").strip()
+    workflow_store = SQLiteWorkflowStore(workflow_store_path) if workflow_store_path else MemoryWorkflowStore()
+    return WorkflowRuntime(
+        agent_registry=agent_registry,
+        workflow_registry=workflow_registry,
+        workflow_store=workflow_store,
+    )

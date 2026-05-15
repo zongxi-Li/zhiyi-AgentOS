@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import TypeVar
 
-from agentOS.core.types import StepStatus, WorkflowStatus
+from agentos.core.types import StepStatus, WorkflowStatus
 
 StatusT = TypeVar("StatusT", WorkflowStatus, StepStatus)
 

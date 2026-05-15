@@ -10,6 +10,35 @@
 
 ---
 
+## 0. 当前进度摘要
+
+### 已完成
+
+- `agent/agentos/core/types.py`：已定义 `AgentTask`、`WorkflowDefinition`、`WorkflowRun`、`WorkflowStep`、`TraceEvent`、`Checkpoint`、`ReviewDecision`。
+- `agent/agentos/core/workflow_runtime.py`：已跑通任务创建、工作流启动、状态查询、人工审核、恢复和取消。
+- `agent/agentos/core/orchestrator.py`、`state_machine.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py`：已形成核心运行闭环。
+- `agent/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
+- `agent/agentos/packs/legal/*`：法律 demo pack 已接入工作流注册。
+- `agent/agentos/skills/*` 和 `agent/agentos/react/*`：已支撑现有专业体聊天链路。
+- `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘。
+- `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、审核、恢复和取消接口。
+- 文档已同步到 `agent/agentos` 作为 canonical 路径。
+
+### 进行中
+
+- 旧 `/ai/agent/{role}/chat` 兼容入口逐步收拢到统一 Workflow 生命周期。
+- Pack manifest 驱动的自动加载。
+- 前端 AgentOS Console 与 Java 网关接入 `/ai/core/*`。
+- WorkflowStore 的更完整持久化治理能力。
+
+### 下一步
+
+- 先把兼容入口包装成 Workflow Adapter，减少重复的专业体运行逻辑。
+- 再把 Pack 注册从代码驱动推进到 manifest 驱动。
+- 最后补齐前端控制台、审计面板和 Java 网关。
+
+---
+
 ## 1. 总体判断
 
 知弈要成为“面向信创与信息敏感行业的职业智能体操作系统”，第一阶段不能先追逐所有行业场景，而要先完成通用底座。
@@ -231,11 +260,11 @@ AgentOS Core 建议拆成十个模块。
 
 TODO：
 
-- [ ] 定义 `AgentTask` 数据结构。
-- [ ] 定义任务入口 API：`POST /ai/core/tasks`。
+- [x] 定义 `AgentTask` 数据结构。
+- [x] 定义任务入口 API：`POST /ai/core/tasks`。
 - [ ] 支持从 Chat 升级为 Workflow。
 - [ ] 支持从 Workbench 直接发起 Workflow。
-- [ ] 给任务增加 `domain`、`intent`、`priority`、`securityLevel` 字段。
+- [x] 给任务增加 `domain`、`intent`、`priority`、`securityLevel` 字段。
 
 完成标准：
 
@@ -254,12 +283,12 @@ TODO：
 
 TODO：
 
-- [ ] 定义 `WorkflowDefinition`。
-- [ ] 定义 `WorkflowRun`。
-- [ ] 定义 `WorkflowStep`。
-- [ ] 实现 `WorkflowRuntime.start()`。
-- [ ] 实现 `WorkflowRuntime.get_status()`。
-- [ ] 实现 `WorkflowRuntime.cancel()`。
+- [x] 定义 `WorkflowDefinition`。
+- [x] 定义 `WorkflowRun`。
+- [x] 定义 `WorkflowStep`。
+- [x] 实现 `WorkflowRuntime.start()`。
+- [x] 实现 `WorkflowRuntime.get_status()`。
+- [x] 实现 `WorkflowRuntime.cancel()`。
 
 完成标准：
 
@@ -277,12 +306,11 @@ TODO：
 
 TODO：
 
-- [ ] 新建 `agent/app/agent_core/orchestration/orchestrator.py`。
-- [ ] 实现 `select_next_step()`。
-- [ ] 实现 `dispatch_agent()`。
-- [ ] 实现 `handle_step_result()`。
-- [ ] 实现 `handle_failure()`。
-- [ ] 实现 `compose_final_output()`。
+- [x] 新建 `agent/agentos/core/orchestrator.py`。
+- [x] 实现 `select_next_step()`。
+- [x] 实现 `dispatch_agent()`。
+- [ ] 实现更显式的 `handle_step_result()` / `handle_failure()` 对外封装。
+- [x] 实现 `compose_final_output()`。
 
 完成标准：
 
@@ -300,11 +328,11 @@ TODO：
 
 TODO：
 
-- [ ] 定义 `AgentProfile`。
+- [x] 定义 `AgentProfile`。
 - [ ] 定义 `AgentCapability`。
-- [ ] 实现 `AgentRegistry.register()`。
-- [ ] 实现 `AgentRegistry.resolve()`。
-- [ ] 支持行业包注册自己的 Agent。
+- [x] 实现 `AgentRegistry.register()`。
+- [x] 实现 `AgentRegistry.resolve()`。
+- [x] 支持行业包注册自己的 Agent。
 
 完成标准：
 
@@ -335,10 +363,10 @@ cancelled
 
 TODO：
 
-- [ ] 新建 `agent/app/agent_core/orchestration/state_machine.py`。
-- [ ] 定义合法状态迁移。
-- [ ] 阻止非法状态跳转。
-- [ ] 每次状态变化写入 trace。
+- [x] 新建 `agent/agentos/core/state_machine.py`。
+- [x] 定义合法状态迁移。
+- [x] 阻止非法状态跳转。
+- [x] 每次状态变化写入 trace。
 - [ ] 状态变化能被前端 Workbench 消费。
 
 完成标准：
@@ -377,8 +405,9 @@ Federated Memory
 
 TODO：
 
-- [ ] 保留现有 `SessionMemoryStore`。
-- [ ] 新增 `WorkflowMemoryStore`。
+- [x] 保留现有 `SessionMemoryStore`。
+- [x] 新增 `WorkflowMemoryStore`。
+- [x] 新增 `SQLiteWorkflowStore` 作为持久化 seam。
 - [ ] 定义 `MemoryScope`。
 - [ ] 定义哪些内容允许进入 `FederatedMemory`。
 - [ ] 明确敏感行业默认不上传原始内容。
@@ -399,11 +428,11 @@ TODO：
 
 TODO：
 
-- [ ] 定义 `Checkpoint`。
-- [ ] 实现 `create_checkpoint()`。
+- [x] 定义 `Checkpoint`。
+- [x] 实现 `create_checkpoint()`。
 - [ ] 实现 `list_checkpoints()`。
-- [ ] 实现 `resume_from_checkpoint()`。
-- [ ] 支持恢复后继续生成 trace。
+- [x] 实现 `resume_from_checkpoint()`。
+- [x] 支持恢复后继续生成 trace。
 
 完成标准：
 
@@ -422,9 +451,9 @@ TODO：
 
 TODO：
 
-- [ ] 定义统一 `TraceEvent`。
-- [ ] 将现有 `AgentTraceStep` 升级为更通用事件。
-- [ ] 支持事件类型：`task_created`、`step_started`、`agent_called`、`tool_called`、`checkpoint_created`、`review_required`、`step_failed`、`run_completed`。
+- [x] 定义统一 `TraceEvent`。
+- [x] 将现有 `AgentTraceStep` 升级为更通用事件。
+- [x] 支持事件类型：`task_created`、`step_started`、`agent_called`、`tool_called`、`checkpoint_created`、`review_required`、`step_failed`、`run_completed`。
 - [ ] 前端复用 `TraceTimeline` 展示。
 - [ ] 后续支持导出审计报告。
 
@@ -443,11 +472,11 @@ TODO：
 
 TODO：
 
+- [x] 定义 `ReviewDecision`。
+- [x] 支持状态 `waiting_review`。
 - [ ] 定义 `ReviewRequest`。
-- [ ] 定义 `ReviewDecision`。
-- [ ] 支持状态 `waiting_review`。
 - [ ] 前端增加审核面板。
-- [ ] 后端或 Python 侧记录审核日志。
+- [ ] 后端或 Python 侧记录更完整的审核日志。
 
 完成标准：
 
@@ -476,6 +505,7 @@ HRR: Human Revision Rate
 
 TODO：
 
+- [x] 定义基础 `evaluation.py`。
 - [ ] 定义 `WorkflowMetric`。
 - [ ] 定义 `EvaluationRun`。
 - [ ] 记录完成率、失败率、恢复率、循环率。
@@ -494,8 +524,8 @@ TODO：
 ### 5.1 Python AgentOS Core
 
 ```text
-agent/app/agent_core/
-  orchestration/
+agent/agentos/
+  core/
     __init__.py
     types.py
     orchestrator.py
@@ -880,25 +910,20 @@ Federated Experience for Sensitive-domain Agents
 
 ---
 
-## 10. 最近 15 个执行 TODO
+## 10. 接下来 10 项工作
 
 建议按顺序执行：
 
-- [ ] 1. 确认 `知弈 AgentOS Core` 作为第一层正式名称。
-- [ ] 2. 冻结行业包扩张，先只保留法律 demo pack 用于验证 Core。
-- [ ] 3. 新建 `agent/app/agent_core/orchestration/types.py`。
-- [ ] 4. 新建 `agent/app/agent_core/orchestration/state_machine.py`。
-- [ ] 5. 给状态机写单元测试。
-- [ ] 6. 新建 `workflow_runtime.py`，跑通内存版 3 步工作流。
-- [ ] 7. 新建 `agents/base.py` 和 `agents/registry.py`。
-- [ ] 8. 包装一个 demo `CaseIntakeAgent`。
-- [ ] 9. 新建 `trace.py`，把每一步写成事件。
-- [ ] 10. 新建 `checkpoint.py`，每步完成后保存快照。
-- [ ] 11. 实现从 checkpoint 恢复。
-- [ ] 12. 新建 Python API `agentos_core.py`。
-- [ ] 13. 新建 Java 网关 `AgentOsGatewayService`。
-- [ ] 14. 新建前端 `AgentOsConsoleView.vue`。
-- [ ] 15. 输出第一份 Core 运行评估报告。
+- [ ] 1. 把 `/ai/agent/{role}/chat` 包装成可选 Workflow Adapter，减少重复执行链。
+- [ ] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
+- [ ] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
+- [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
+- [ ] 5. 把前端工作台接入 `/ai/core/*`。
+- [ ] 6. 给 Java 网关补 AgentOS 的统一入口。
+- [ ] 7. 给 Trace 增加导出能力。
+- [ ] 8. 给 Review 增加更完整的审计记录。
+- [ ] 9. 让 `WorkflowStore` 支持更稳定的持久化配置与备份策略。
+- [ ] 10. 输出第一份可对外展示的 Core 运行评估报告。
 
 ---
 

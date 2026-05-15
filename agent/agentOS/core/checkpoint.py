@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from agentOS.core.types import Checkpoint, WorkflowRun
+from agentos.core.types import Checkpoint, WorkflowRun
 
 
 class CheckpointStore:

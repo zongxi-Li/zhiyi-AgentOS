@@ -2,8 +2,19 @@
 配置管理
 所有配置统一从主目录的.env文件读取
 """
-from pydantic import field_validator
-from pydantic_settings import BaseSettings
+try:
+    from pydantic import field_validator
+    from pydantic_settings import BaseSettings
+except ModuleNotFoundError:
+    from pydantic.v1 import BaseSettings, validator
+
+    def field_validator(*fields, mode=None, **kwargs):
+        def decorator(func):
+            if isinstance(func, classmethod):
+                func = func.__func__
+            return validator(*fields, pre=mode == "before", allow_reuse=True)(func)
+
+        return decorator
 from typing import List
 from pathlib import Path
 import os

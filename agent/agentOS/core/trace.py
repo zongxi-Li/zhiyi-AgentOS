@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from agentOS.core.types import TraceEvent, TraceEventType, WorkflowRun
+from agentos.core.types import TraceEvent, TraceEventType, WorkflowRun
 
 
 class TraceStore:

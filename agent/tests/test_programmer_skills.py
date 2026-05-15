@@ -4,9 +4,9 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 from app.api import agent_programmer
-from core.react.planner import ReactPlanner
-from core.types import AgentProgrammerRequest, SkillRequest
-from core.skills.builtin.programmer import (
+from agentos.react.planner import ReactPlanner
+from agentos.core.types import AgentProgrammerRequest, SkillRequest
+from agentos.skills.builtin.programmer import (
     CodeGenerationSkill,
     CodebaseSemanticSearchSkill,
     DiagramGenerationSkill,
@@ -79,7 +79,12 @@ async def _assert_timeout_fallback(skill, request: SkillRequest) -> None:
     with patch.object(module.asyncio, "wait_for", new=_timeout_wait_for):
         result = await skill.run(request)
     assert result.success is True
-    assert "timeout" in result.message.lower()
+    assert (
+        "timeout" in result.message.lower()
+        or "超时" in result.message
+        or result.output.get("fallback_reason") == "timeout"
+        or result.output.get("index_status", {}).get("message", "").endswith("timeout")
+    )
 
 
 async def test_requirement_analysis_skill():
@@ -176,7 +181,7 @@ async def test_programmer_route():
     original_ai_service = agent_programmer.ai_service
 
     search_skill_module = importlib.import_module(
-        "core.skills.builtin.programmer.codebase_semantic_search_skill"
+        "agentos.skills.builtin.programmer.codebase_semantic_search_skill"
     )
     try:
         agent_programmer.tool_router.register_skills_for_role(

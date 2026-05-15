@@ -8,11 +8,11 @@ from uuid import uuid4
 from fastapi import APIRouter
 
 from app.api.language_guard import ensure_simplified_chinese
-from core.memory.session_memory import session_memory_store
-from core.react.executor import ReactExecutor
-from core.react.planner import ReactPlanner
-from core.react.tool_router import ToolRouter
-from core.types import AgentLawyerRequest, AgentLawyerResponse
+from agentos.memory.session_memory import session_memory_store
+from agentos.react.executor import ReactExecutor
+from agentos.react.planner import ReactPlanner
+from agentos.react.tool_router import ToolRouter
+from agentos.core.types import AgentLawyerRequest, AgentLawyerResponse
 from app.services.aiservice import AIService
 
 logger = logging.getLogger(__name__)

@@ -71,7 +71,7 @@ agent/
 			agent_writer.py
 				旧作家专业体兼容入口；后续由行业 Agent 注册机制接管。
 
-		agent_core/
+		agentos/
 			orchestration/
 				__init__.py
 					AgentOS Core 控制平面包入口。
@@ -585,12 +585,12 @@ Legal Demo Pack
 
 | 现有文件 | 在 Core 中的角色 |
 |---|---|
-| `agent/app/agent_core/react/planner.py` | 可作为 Agent 内部步骤规划器 |
-| `agent/app/agent_core/react/executor.py` | 可作为 Agent 内部 skill 执行器 |
-| `agent/app/agent_core/react/tool_router.py` | 可作为 Agent 内部 tool router |
-| `agent/app/agent_core/schema/agent_types.py` | 可迁移出 `AgentTraceStep`、`SkillRequest`、`SkillResult` 概念 |
-| `agent/app/agent_core/memory/session_memory.py` | 保留为 Session Memory |
-| `agent/app/agent_core/federated/federated_adapter.py` | 后续接入 Federated Memory / Experience |
+| `agent/agentos/react/planner.py` | 可作为 Agent 内部步骤规划器 |
+| `agent/agentos/react/executor.py` | 可作为 Agent 内部 skill 执行器 |
+| `agent/agentos/react/tool_router.py` | 可作为 Agent 内部 tool router |
+| `agent/agentos/core/types.py` | 可迁移出 `AgentTraceStep`、`SkillRequest`、`SkillResult` 概念 |
+| `agent/agentos/memory/session_memory.py` | 保留为 Session Memory |
+| `agent/agentos/adapters/federated_adapter.py` | 后续接入 Federated Memory / Experience |
 | `frontend/src/components/agent/TraceTimeline.vue` | 可升级为 `TraceEventTimeline.vue` |
 | `frontend/src/views/FederatedAgentWorkbenchView.vue` | 可迁移为 AgentOS Console 雏形 |
 | `backend/src/main/java/com/kinlin/ai/service/AgentGatewayService.java` | 可参考实现 `AgentOsGatewayService` |
@@ -600,8 +600,8 @@ Legal Demo Pack
 
 ## 10. 第一层代码架构完成标准
 
-- [ ] Python 有独立 `agent_core/orchestration/` 包。
-- [ ] Python 有独立 `agent_core/agents/` 包。
+- [ ] Python 有独立 `agentos/core/` 包。
+- [ ] Python 有独立 `agentos/agents/` 包。
 - [ ] Core 类型不依赖法律、教育、金融、医疗等具体行业。
 - [ ] 行业包通过 registry 注册 Agent 和 Workflow。
 - [ ] Java 有 AgentOS Core 网关和 DTO。

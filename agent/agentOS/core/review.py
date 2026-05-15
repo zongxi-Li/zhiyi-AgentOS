@@ -1,5 +1,5 @@
-from agentOS.core.types import ReviewDecision, TraceEventType, WorkflowRun
-from agentOS.core.trace import TraceStore
+from agentos.core.types import ReviewDecision, TraceEventType, WorkflowRun
+from agentos.core.trace import TraceStore
 
 
 class ReviewManager:

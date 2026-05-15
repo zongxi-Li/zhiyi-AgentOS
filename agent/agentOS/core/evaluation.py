@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from agentOS.core.types import WorkflowRun, WorkflowStatus
+from agentos.core.types import WorkflowRun, WorkflowStatus
 
 
 class WorkflowEvaluator:

@@ -176,13 +176,13 @@ Java 后端仍然是系统的业务中枢，负责：
 ┌─────────────────────────────────────┐
 │            编排核心层               │
 ├─────────────────────────────────────┤
-│ Schema 层 (agent_core/schema/)      │
+│ Schema 层 (agentos/core/)      │
 │  • PlannedAction                    │
 │  • SkillRequest / SkillResult       │
 │  • AgentTraceStep                   │
 │  • Agent*Request / Agent*Response   │
 ├─────────────────────────────────────┤
-│ 规划执行层 (agent_core/react/)      │
+│ 规划执行层 (agentos/react/)      │
 │  • ReactPlanner     (意图拆解/规划) │
 │  • ReactExecutor    (逐步执行/汇总) │
 │  • ToolRouter       (动作到技能映射) │
@@ -231,17 +231,17 @@ Java 后端仍然是系统的业务中枢，负责：
 ┌─────────────────────────────────────┐
 │            能力执行层               │
 ├─────────────────────────────────────┤
-│ 技能库 (agent_core/skills/)         │
+│ 技能库 (agentos/skills/)         │
 │  • 律师技能                         │
 │  • 教师技能                         │
 │  • 程序员技能                       │
 │  • 作家技能                         │
 ├─────────────────────────────────────┤
-│ 检索层 (agent_core/retrieval/)      │
+│ 检索层 (agentos/adapters/retrieval/)      │
 │  • 法律/教育/代码索引构建器          │
 │  • Chroma 向量客户端                 │
 ├─────────────────────────────────────┤
-│ 联邦适配 (agent_core/federated/)    │
+│ 联邦适配 (agentos/adapters/)    │
 │  • FederatedAdapter                 │
 ├─────────────────────────────────────┤
 │ 服务层 (app/services/)              │
@@ -751,7 +751,7 @@ Industry Workflow Pack
 ```text
 agent/
 	app/
-		agent_core/
+		agentos/
 			orchestration/
 				orchestrator.py
 					只负责读取 WorkflowDefinition，然后按步骤调度，不关心具体行业。

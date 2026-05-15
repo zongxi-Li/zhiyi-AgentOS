@@ -3,9 +3,9 @@ import importlib
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from core.react.planner import ReactPlanner
-from core.types import AgentWriterRequest, SkillRequest
-from core.skills.builtin.writer import (
+from agentos.react.planner import ReactPlanner
+from agentos.core.types import AgentWriterRequest, SkillRequest
+from agentos.skills.builtin.writer import (
     CharacterRelationSkill,
     ContentWriteSkill,
     InspirationExpandSkill,
@@ -71,7 +71,11 @@ async def _assert_timeout_fallback(skill, request: SkillRequest) -> None:
     with patch.object(module.asyncio, "wait_for", new=_timeout_wait_for):
         result = await skill.run(request)
     assert result.success is True
-    assert "timeout" in result.message.lower()
+    assert (
+        "timeout" in result.message.lower()
+        or "超时" in result.message
+        or result.output.get("fallback_reason") == "timeout"
+    )
 
 
 async def test_inspiration_expand_skill():

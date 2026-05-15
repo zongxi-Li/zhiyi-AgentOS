@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
-from agentOS.core.types import WorkflowDefinition
+from agentos.core.types import WorkflowDefinition
 
 
 class WorkflowRegistry:

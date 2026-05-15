@@ -1,10 +1,10 @@
 from time import perf_counter
 from typing import Optional, Tuple
 
-from agentOS.agents.base import AgentOutput, AgentRunContext
-from agentOS.agents import AgentRegistry
-from memory.workflow_memory import WorkflowMemory
-from agentOS.core.types import (
+from agentos.agents.base import AgentOutput, AgentRunContext
+from agentos.agents import AgentRegistry
+from agentos.memory.workflow_memory import WorkflowMemory
+from agentos.core.types import (
     AgentTask,
     StepStatus,
     WorkflowDefinition,

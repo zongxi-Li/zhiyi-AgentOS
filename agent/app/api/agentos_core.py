@@ -3,8 +3,8 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.types import ReviewDecision, ReviewDecisionType
-from core.workflow_runtime import WorkflowRuntime, build_default_runtime
+from agentos.core.types import ReviewDecision, ReviewDecisionType
+from agentos.core.workflow_runtime import WorkflowRuntime, build_default_runtime
 
 
 class AgentTaskCreateRequest(BaseModel):

@@ -1,12 +1,51 @@
-# 联邦智枢 AI Service
+# 知弈 AI Service
 
-Python AI服务，提供AI能力
+Python AI 服务，提供 FastAPI 接口、模型调用、RAG、专业 Agent 和 AgentOS Workflow Runtime。
 
-## 技术栈
+## 当前结构
 
-- FastAPI
-- 麒麟AI SDK
-- Python 3.9+
+```text
+agent/
+  app/
+    main.py
+    config.py
+    api/
+    services/
+    ai_engine/
+    middleware/
+    data/
+
+  agentos/
+    core/
+    agents/
+    packs/
+    skills/
+    react/
+    memory/
+    stores/
+    adapters/
+
+  tests/
+```
+
+`app/` 负责应用启动、HTTP 路由、配置和传统服务；`agentos/` 是 Agent 运行时核心，负责 Workflow、Pack、Skill、ReAct、Memory、Store 和 Adapter。
+
+## AgentOS 入口
+
+- `POST /ai/core/tasks`：创建任务并推荐 Workflow。
+- `POST /ai/core/workflows/runs`：启动 WorkflowRun。
+- `GET /ai/core/workflows/runs/{runId}`：查询运行状态。
+- `POST /ai/core/workflows/runs/{runId}/reviews`：提交人工审核结果。
+- `POST /ai/core/workflows/runs/{runId}/resume`：从 Checkpoint 恢复。
+
+旧专业体聊天接口仍保留：
+
+- `POST /ai/agent/lawyer/chat`
+- `POST /ai/agent/teacher/chat`
+- `POST /ai/agent/programmer/chat`
+- `POST /ai/agent/writer/chat`
+
+这些接口继续使用 `agentos.react` 和 `agentos.skills`，后续可逐步包装到 `WorkflowRuntime` 生命周期中。
 
 ## 安装依赖
 
@@ -16,57 +55,32 @@ pip install -r requirements.txt
 
 ## 配置
 
-### 创建 `.env` 文件
+`.env` 文件放在项目主目录，即与 `agent/`、`backend/`、`frontend/` 同级。
 
-**重要**：`.env` 文件应该创建在**主目录**下（与 `agent/` 同级），而不是在 `agent/` 目录内。
-
-例如：
-```
-Kinlin_AI/              # 主目录
-├── .env                # ← 配置文件在这里（与agent同级）
-├── agent/
-│   └── app/
-│       └── config.py   # 会自动读取主目录的 .env
-├── backend/
-└── frontend/
+```text
+Kinlin_AI/
+  .env
+  agent/
+  backend/
+  frontend/
 ```
 
-在主目录下创建 `.env` 文件，所有配置都统一在这里管理：
+常用配置：
 
 ```env
-# ============================================
-# 通义千问大模型配置（推荐使用）⭐
-# ============================================
-# 方式1：使用官方推荐的环境变量名（推荐）
 DASHSCOPE_API_KEY=sk-your_api_key_here
-
-# 方式2：使用兼容的环境变量名（也支持）
-# QWEN_API_KEY=sk-your_api_key_here
-
-# API基础URL（通常不需要修改）
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-
-# 模型选择（根据需求选择）
-QWEN_MODEL_FAST=qwen-turbo          # 快速模型
-QWEN_MODEL_BALANCED=qwen-plus       # 平衡模型（推荐）⭐
-QWEN_MODEL_ADVANCED=qwen-max         # 高级模型
-QWEN_MODEL_LATEST=qwen3-max          # 最新模型
-
-# 是否启用通义千问
+QWEN_MODEL_FAST=qwen-turbo
+QWEN_MODEL_BALANCED=qwen-plus
+QWEN_MODEL_ADVANCED=qwen-max
+QWEN_MODEL_LATEST=qwen3-max
 QWEN_ENABLED=true
 
-# ============================================
-# 麒麟AI SDK配置（兼容旧配置，可选）
-# ============================================
-KYLIN_AI_API_KEY=your_api_key
-KYLIN_AI_ENDPOINT=https://api.kylin.ai
-KYLIN_AI_TIMEOUT=30
+DEEPSEEK_API_KEY=sk-your_deepseek_key
+DEEPSEEK_MODEL=deepseek-chat
 ```
 
-**重要说明**：
-- 所有通义千问相关配置都从 `.env` 文件读取
-- 系统全局只保留 `config.py` 中的 `settings` 作为唯一配置来源
-- 获取API密钥：https://dashscope.aliyuncs.com/
+系统全局使用 `app/config.py` 中的 `settings` 作为配置来源。
 
 ## 启动服务
 
@@ -74,9 +88,26 @@ KYLIN_AI_TIMEOUT=30
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## API接口
+或：
 
-- `POST /ai/chat/text` - 文本对话
-- `POST /ai/chat/voice` - 语音对话
-- `POST /ai/tts` - 文本转语音
+```bash
+python app/main.py
+```
 
+## 测试
+
+在 `agent/` 目录下运行：
+
+```bash
+python -m pytest tests/test_agentos_core.py -q
+python -m pytest tests/test_programmer_skills.py tests/test_teacher_skills.py tests/test_writer_skills.py -q
+python -m compileall app agentos tests
+```
+
+## 新增 Pack
+
+1. 在 `agentos/packs/{pack_id}/` 创建 `manifest.yaml`、`workflows/`、`agents/`、`prompts/`、`data/`。
+2. 实现 `BaseAgent` 子类。
+3. 在 Workflow YAML 中声明步骤、Agent、审核节点和流转关系。
+4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`。
+5. 为 Pack 注册和 Workflow 冒烟路径添加测试。
