@@ -2,7 +2,9 @@
   <section class="skill-panel programmer-panel">
     <div class="panel-header">
       <div class="header-left">
-        <div class="agent-avatar">💻</div>
+        <div class="agent-avatar">
+          <el-icon><Cpu /></el-icon>
+        </div>
         <div class="header-text">
           <h3>程序员 Agent 工作台</h3>
           <span class="header-sub">需求分析 · 代码检索 · 代码生成 · Mermaid 图表</span>
@@ -24,7 +26,7 @@
         :class="{ active: activeTab === tab.key }"
         @click="activeTab = tab.key"
       >
-        <span class="tab-icon">{{ tab.icon }}</span>
+        <el-icon class="tab-icon"><component :is="tab.icon" /></el-icon>
         <span class="tab-label">{{ tab.label }}</span>
         <span v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</span>
       </button>
@@ -69,7 +71,7 @@
               :style="{ animationDelay: `${idx * 0.06}s` }"
               :title="item.raw"
             >
-              <span class="skill-icon">{{ item.icon }}</span>
+              <el-icon class="skill-icon"><component :is="item.icon" /></el-icon>
               <span class="skill-name">{{ item.zh }}</span>
               <span class="skill-state">
                 <span class="state-dot"></span>
@@ -103,7 +105,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, type Component } from 'vue'
+import { Connection, Cpu, Document, Operation, Search, Share } from '@element-plus/icons-vue'
 import TraceTimeline, { type TraceStep } from './TraceTimeline.vue'
 import { toSkillNameZh } from '@/utils/agentDisplay'
 
@@ -116,7 +119,7 @@ interface FederatedInfo {
 }
 
 interface SkillVisual {
-  icon: string
+  icon: Component
   tone: 'violet' | 'indigo' | 'cyan' | 'emerald'
 }
 
@@ -134,22 +137,22 @@ const emit = defineEmits<{
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
-  { key: 'skills' as const, label: '技能调用', icon: '⚡', count: props.skillsUsed?.length || 0 },
-  { key: 'trace' as const, label: '执行轨迹', icon: '🔗', count: props.trace?.length || 0 },
-  { key: 'results' as const, label: '结果面板', icon: '📊', count: props.resultCount || 0 }
+  { key: 'skills' as const, label: '技能调用', icon: Operation, count: props.skillsUsed?.length || 0 },
+  { key: 'trace' as const, label: '执行轨迹', icon: Connection, count: props.trace?.length || 0 },
+  { key: 'results' as const, label: '结果面板', icon: Document, count: props.resultCount || 0 }
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
-  requirement_analysis: { icon: '🧩', tone: 'violet' },
-  codebase_semantic_search: { icon: '🔎', tone: 'indigo' },
-  code_generation: { icon: '🛠️', tone: 'emerald' },
-  diagram_generation: { icon: '🧭', tone: 'cyan' }
+  requirement_analysis: { icon: Operation, tone: 'violet' },
+  codebase_semantic_search: { icon: Search, tone: 'indigo' },
+  code_generation: { icon: Document, tone: 'emerald' },
+  diagram_generation: { icon: Share, tone: 'cyan' }
 }
 
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '🧠', tone: 'violet' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: Cpu, tone: 'violet' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),

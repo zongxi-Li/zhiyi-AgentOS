@@ -63,7 +63,7 @@ export function exportConversationToMarkdown(data: ConversationExport): string {
   content += `---\n\n`
 
   data.messages.forEach((msg) => {
-    const roleLabel = msg.role === 'user' ? '👤 用户' : '🤖 AI助手'
+    const roleLabel = msg.role === 'user' ? '用户' : 'AI助手'
     content += `## ${roleLabel} - ${msg.time}\n\n`
     // 转义Markdown特殊字符，但保留换行
     const escapedContent = msg.content

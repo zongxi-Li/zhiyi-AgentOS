@@ -6,10 +6,7 @@
     <section class="page-header glass-panel">
       <div class="header-brand">
         <div class="brand-icon">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <path d="M14 2L24 7v10l-10 5L4 17V7l10-5z" stroke="#6366f1" stroke-width="1.5" />
-            <path d="M14 2v10m0 0l10-5m-10 5L4 7m10 5v13" stroke="#6366f1" stroke-width="0.8" opacity="0.4" />
-          </svg>
+          <el-icon><Box /></el-icon>
         </div>
         <div>
           <h1>模型管理</h1>
@@ -29,10 +26,10 @@
     </section>
 
     <section class="stats-grid">
-      <div class="stat-card glass-panel" v-for="stat in statsConfig" :key="stat.label">
+      <div class="stat-card glass-panel" v-for="(stat, index) in statsConfig" :key="stat.label">
         <div class="stat-accent" :style="{ background: stat.gradient }"></div>
         <div class="stat-icon-wrap" :style="{ background: stat.iconBg }">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" v-html="stat.svgPath"></svg>
+          <el-icon><component :is="statsIcons[index]" /></el-icon>
         </div>
         <div class="stat-body">
           <span class="stat-value">{{ stat.value }}</span>
@@ -237,10 +234,7 @@
         </div>
 
         <div v-else class="panel-empty">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" opacity="0.3">
-            <path d="M24 4L42 14v20L24 44 6 34V14L24 4z" stroke="#6366f1" stroke-width="1.5" />
-            <path d="M24 4v20m0 0l18-10m-18 10L6 14m18 10v20" stroke="#6366f1" stroke-width="0.8" opacity="0.4" />
-          </svg>
+          <el-icon><Box /></el-icon>
           <p>点击左侧模型查看详情或评估</p>
         </div>
       </aside>
@@ -255,7 +249,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Plus, Refresh, Search, TrendCharts, Upload, View, InfoFilled } from '@element-plus/icons-vue'
+import { Box, Finished, InfoFilled, Plus, Refresh, Search, Timer, TrendCharts, Upload, View } from '@element-plus/icons-vue'
 import { federatedModelApi, type ModelInfo } from '@/services/api/federatedModel'
 
 type ModelStatus = 'draft' | 'training' | 'ready' | 'online' | 'offline'
@@ -489,34 +483,32 @@ const averageAccuracy = computed(() => {
   return avg.toFixed(1)
 })
 
+const statsIcons = [Box, Finished, Timer, TrendCharts]
+
 const statsConfig = computed(() => [
   {
     label: '模型总数',
     value: totalCount.value,
-    gradient: 'linear-gradient(135deg, #6366f1, #818cf8)',
-    iconBg: 'rgba(99, 102, 241, 0.1)',
-    svgPath: '<path d="M10 2L18 6v8l-8 4-8-4V6l8-4z" stroke="#6366f1" stroke-width="1.3"/><path d="M10 2v8m0 0l8-4m-8 4L2 6m8 4v8" stroke="#6366f1" stroke-width="0.7" opacity="0.4"/>'
+    gradient: 'linear-gradient(180deg, #3f6b63, rgba(63, 107, 99, 0.16))',
+    iconBg: 'rgba(63, 107, 99, 0.1)'
   },
   {
     label: '在线服务',
     value: onlineCount.value,
-    gradient: 'linear-gradient(135deg, #22c55e, #4ade80)',
-    iconBg: 'rgba(34, 197, 94, 0.1)',
-    svgPath: '<circle cx="10" cy="10" r="7" stroke="#22c55e" stroke-width="1.3"/><path d="M7 10l2 2 4-4" stroke="#22c55e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    gradient: 'linear-gradient(180deg, #3d7656, rgba(61, 118, 86, 0.16))',
+    iconBg: 'rgba(61, 118, 86, 0.1)'
   },
   {
     label: '训练中',
     value: trainingCount.value,
-    gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
-    iconBg: 'rgba(245, 158, 11, 0.1)',
-    svgPath: '<path d="M10 3a7 7 0 0 1 0 14" stroke="#f59e0b" stroke-width="1.3" stroke-linecap="round"/><path d="M10 3a7 7 0 0 0 0 14" stroke="#f59e0b" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="2 3" opacity="0.4"/>'
+    gradient: 'linear-gradient(180deg, #9a7432, rgba(154, 116, 50, 0.16))',
+    iconBg: 'rgba(154, 116, 50, 0.1)'
   },
   {
     label: '平均精度',
     value: averageAccuracy.value + '%',
-    gradient: 'linear-gradient(135deg, #06b6d4, #22d3ee)',
-    iconBg: 'rgba(6, 182, 212, 0.1)',
-    svgPath: '<path d="M3 14l4-4 3 3 7-7" stroke="#06b6d4" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="6" r="1.5" fill="#06b6d4"/>'
+    gradient: 'linear-gradient(180deg, #6f668f, rgba(111, 102, 143, 0.16))',
+    iconBg: 'rgba(111, 102, 143, 0.1)'
   }
 ])
 
@@ -562,18 +554,18 @@ function formatTimeShort(iso: string): string {
 }
 
 function getAccentGradient(status: ModelStatus): string {
-  if (status === 'online') return 'linear-gradient(135deg, #22c55e, #4ade80)'
-  if (status === 'training') return 'linear-gradient(135deg, #f59e0b, #fbbf24)'
-  if (status === 'ready') return 'linear-gradient(135deg, #6366f1, #818cf8)'
-  if (status === 'offline') return 'linear-gradient(135deg, #ef4444, #f87171)'
-  return 'linear-gradient(135deg, #94a3b8, #cbd5e1)'
+  if (status === 'online') return 'linear-gradient(180deg, #3d7656, rgba(61, 118, 86, 0.14))'
+  if (status === 'training') return 'linear-gradient(180deg, #9a7432, rgba(154, 116, 50, 0.14))'
+  if (status === 'ready') return 'linear-gradient(180deg, #3f6b63, rgba(63, 107, 99, 0.14))'
+  if (status === 'offline') return 'linear-gradient(180deg, #b24a4a, rgba(178, 74, 74, 0.14))'
+  return 'linear-gradient(180deg, #a6aca8, rgba(166, 172, 168, 0.14))'
 }
 
 function getProgressColor(accuracy: number): string {
-  if (accuracy >= 90) return 'linear-gradient(90deg, #22c55e, #4ade80)'
-  if (accuracy >= 85) return 'linear-gradient(90deg, #06b6d4, #22d3ee)'
-  if (accuracy >= 80) return 'linear-gradient(90deg, #6366f1, #818cf8)'
-  return 'linear-gradient(90deg, #f59e0b, #fbbf24)'
+  if (accuracy >= 90) return 'linear-gradient(90deg, #3d7656, rgba(61, 118, 86, 0.64))'
+  if (accuracy >= 85) return 'linear-gradient(90deg, #3f6b63, rgba(63, 107, 99, 0.64))'
+  if (accuracy >= 80) return 'linear-gradient(90deg, #6f668f, rgba(111, 102, 143, 0.64))'
+  return 'linear-gradient(90deg, #9a7432, rgba(154, 116, 50, 0.64))'
 }
 
 function normalizeAccuracyPercent(accuracy: number | undefined, fallback = 85): number {
@@ -684,32 +676,32 @@ onMounted(() => {
 
 <style scoped>
 .model-management-view {
-  --primary: #6366f1;
-  --primary-light: #818cf8;
-  --primary-bg: rgba(99, 102, 241, 0.06);
-  --primary-border: rgba(99, 102, 241, 0.12);
-  --cyan: #22d3ee;
-  --cyan-dark: #0891b2;
-  --purple: #a78bfa;
-  --green: #34d399;
-  --green-dark: #059669;
-  --pink: #f472b6;
-  --amber: #f59e0b;
+  --primary: var(--primary-color, #3f6b63);
+  --primary-light: #5d817a;
+  --primary-bg: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  --primary-border: var(--border-light, #e3e6df);
+  --cyan: var(--accent-color, #6f668f);
+  --cyan-dark: var(--accent-color, #6f668f);
+  --purple: var(--accent-color, #6f668f);
+  --green: var(--success, #3d7656);
+  --green-dark: var(--success, #3d7656);
+  --pink: var(--warning, #9a7432);
+  --amber: var(--warning, #9a7432);
   --surface: #ffffff;
-  --surface-alt: #f8fafc;
-  --border: rgba(99, 102, 241, 0.06);
-  --border-hover: rgba(99, 102, 241, 0.15);
-  --text-primary: #1e293b;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --surface-alt: var(--bg-input, #f1f3ef);
+  --border: var(--border-light, #e3e6df);
+  --border-hover: var(--border-hover, #cfd6cd);
+  --text-primary: var(--text-primary, #1d2422);
+  --text-secondary: var(--text-regular, #3d4642);
+  --text-muted: var(--text-secondary, #727c76);
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
-  --shadow-primary: 0 4px 20px rgba(99, 102, 241, 0.12);
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --shadow-sm: var(--shadow-sm, 0 1px 2px rgba(29, 36, 34, 0.04));
+  --shadow-md: var(--shadow-md, 0 8px 24px rgba(29, 36, 34, 0.06));
+  --shadow-lg: var(--shadow-lg, 0 18px 48px rgba(29, 36, 34, 0.08));
+  --shadow-primary: var(--shadow-glow, 0 12px 28px rgba(63, 107, 99, 0.14));
   --transition-fast: 0.15s ease;
   --transition-base: 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   --transition-smooth: 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -721,7 +713,7 @@ onMounted(() => {
 
   position: relative;
   min-height: 100vh;
-  padding: var(--gap-lg) 28px;
+  padding: 20px 24px 28px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -729,18 +721,11 @@ onMounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
-  background: var(--surface-alt);
+  background: transparent;
 }
 
 .ambient-glow {
-  position: fixed;
-  width: 400px;
-  height: 400px;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.12;
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .ambient-glow.top-left {
@@ -752,17 +737,18 @@ onMounted(() => {
 .ambient-glow.bottom-right {
   right: -140px;
   bottom: -160px;
-  background: #06b6d4;
+  background: var(--accent-color);
 }
 
 .glass-panel {
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.86);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition-base), transform var(--transition-base);
+  backdrop-filter: var(--backdrop-blur, blur(20px));
+  transition: var(--transition);
 }
 
 .page-header {
@@ -783,7 +769,9 @@ onMounted(() => {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  background: var(--primary-bg);
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -794,7 +782,7 @@ onMounted(() => {
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--text-primary);
 }
 
@@ -823,6 +811,7 @@ onMounted(() => {
   align-items: center;
   gap: 14px;
   overflow: hidden;
+  min-height: 86px;
 }
 
 .stat-accent {
@@ -842,6 +831,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--primary);
+  border: 1px solid var(--border);
 }
 
 .stat-body {
@@ -897,13 +888,13 @@ onMounted(() => {
 }
 
 .model-card:hover {
-  box-shadow: var(--shadow-primary);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .model-card.active {
-  border-color: rgba(99, 102, 241, 0.25);
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.12);
+  border-color: var(--primary-line, rgba(63, 107, 99, 0.22));
+  box-shadow: inset 0 0 0 1px var(--primary-line, rgba(63, 107, 99, 0.22));
 }
 
 .card-accent {
@@ -987,7 +978,7 @@ onMounted(() => {
 .progress-track {
   width: 100%;
   height: 6px;
-  background: #f1f5f9;
+  background: var(--surface-alt);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1012,7 +1003,7 @@ onMounted(() => {
   padding: 6px 8px;
   background: var(--surface-alt);
   border-radius: var(--radius-sm);
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--border);
 }
 
 .chip-label {
@@ -1061,7 +1052,7 @@ onMounted(() => {
 .panel-mode-tabs {
   display: flex;
   gap: 2px;
-  background: #f1f5f9;
+  background: var(--surface-alt);
   border-radius: var(--radius-sm);
   padding: 2px;
 }
@@ -1104,7 +1095,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--gap-xs);
   padding-bottom: 14px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border);
 }
 
 .panel-model-name {
@@ -1127,7 +1118,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--border);
 }
 
 .panel-item span {
@@ -1142,7 +1133,7 @@ onMounted(() => {
 .panel-block {
   margin-top: var(--gap-md);
   padding-top: 14px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--border);
 }
 
 .panel-block h4 {
@@ -1181,7 +1172,7 @@ onMounted(() => {
 .detail-progress-track {
   flex: 1;
   height: 6px;
-  background: #f1f5f9;
+  background: var(--surface-alt);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1214,7 +1205,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--border);
   text-align: center;
 }
 
@@ -1242,7 +1233,7 @@ onMounted(() => {
   padding: var(--gap-md);
   background: var(--primary-bg);
   border-radius: var(--radius-md);
-  border: 1px solid rgba(99, 102, 241, 0.08);
+  border: 1px solid var(--primary-line, rgba(63, 107, 99, 0.22));
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1268,6 +1259,16 @@ onMounted(() => {
   gap: var(--gap-md);
   padding: 48px 20px;
   color: var(--text-muted);
+}
+
+.panel-empty .el-icon {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--primary);
+  background: #fff;
+  font-size: 24px;
 }
 
 .panel-empty p {

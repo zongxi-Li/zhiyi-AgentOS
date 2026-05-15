@@ -3,19 +3,7 @@
     <div class="panel-header">
       <div class="header-left">
         <div class="agent-avatar">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="14" r="12" stroke="#6366f1" stroke-width="1.5" />
-            <circle cx="14" cy="14" r="6" fill="#6366f1" opacity="0.3" />
-            <circle cx="14" cy="14" r="3" fill="#6366f1" />
-            <circle cx="8" cy="8" r="2" fill="#22d3ee" />
-            <circle cx="20" cy="8" r="2" fill="#22d3ee" />
-            <circle cx="8" cy="20" r="2" fill="#22d3ee" />
-            <circle cx="20" cy="20" r="2" fill="#22d3ee" />
-            <line x1="14" y1="14" x2="8" y2="8" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-            <line x1="14" y1="14" x2="20" y2="8" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-            <line x1="14" y1="14" x2="8" y2="20" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-            <line x1="14" y1="14" x2="20" y2="20" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-          </svg>
+          <el-icon><Connection /></el-icon>
         </div>
         <div class="header-text">
           <h3>联邦学习控制台</h3>
@@ -39,29 +27,7 @@
         :class="{ active: activeTab === tab.key }"
         @click="activeTab = tab.key"
       >
-        <svg v-if="tab.key === 'topology'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.2" />
-          <circle cx="7" cy="7" r="2" fill="currentColor" opacity="0.3" />
-          <circle cx="4" cy="4" r="1" fill="currentColor" />
-          <circle cx="10" cy="4" r="1" fill="currentColor" />
-          <circle cx="4" cy="10" r="1" fill="currentColor" />
-          <circle cx="10" cy="10" r="1" fill="currentColor" />
-        </svg>
-        <svg v-else-if="tab.key === 'training'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M2 11L5 7L8 9L12 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="12" cy="3" r="1.5" fill="currentColor" opacity="0.3" />
-        </svg>
-        <svg v-else-if="tab.key === 'aggregation'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="3" r="1.5" fill="currentColor" />
-          <circle cx="3" cy="10" r="1.5" fill="currentColor" />
-          <circle cx="11" cy="10" r="1.5" fill="currentColor" />
-          <line x1="7" y1="4.5" x2="3" y2="8.5" stroke="currentColor" stroke-width="0.8" opacity="0.5" />
-          <line x1="7" y1="4.5" x2="11" y2="8.5" stroke="currentColor" stroke-width="0.8" opacity="0.5" />
-        </svg>
-        <svg v-else-if="tab.key === 'models'" class="tab-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M7 1L13 4v6l-6 3-6-3V4l6-3z" stroke="currentColor" stroke-width="1.2" />
-          <path d="M7 1v6m0 0l6-3m-6 3l-6-3m6 3v6" stroke="currentColor" stroke-width="0.6" opacity="0.4" />
-        </svg>
+        <el-icon class="tab-icon"><component :is="tab.icon" /></el-icon>
         <span class="tab-label">{{ tab.label }}</span>
       </button>
     </div>
@@ -94,9 +60,13 @@
           <span class="training-title">训练曲线</span>
           <div class="training-controls">
             <button class="ctrl-btn" :class="{ active: trainingRunning }" @click="toggleTraining">
-              {{ trainingRunning ? '⏸ 暂停' : '▶ 继续' }}
+              <el-icon><component :is="trainingRunning ? VideoPause : VideoPlay" /></el-icon>
+              {{ trainingRunning ? '暂停' : '继续' }}
             </button>
-            <button class="ctrl-btn" @click="resetTraining">↺ 重置</button>
+            <button class="ctrl-btn" @click="resetTraining">
+              <el-icon><Refresh /></el-icon>
+              重置
+            </button>
           </div>
         </div>
         <TrainingCurveChart
@@ -107,9 +77,7 @@
         <div class="training-metrics">
           <div class="metric-card">
             <div class="metric-icon">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 14L6 8L10 11L14 2" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
+              <el-icon><TrendCharts /></el-icon>
             </div>
             <div class="metric-info">
               <span class="metric-label">当前准确率</span>
@@ -118,9 +86,7 @@
           </div>
           <div class="metric-card">
             <div class="metric-icon">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 2L6 8L10 5L14 14" stroke="#f472b6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
+              <el-icon><DataLine /></el-icon>
             </div>
             <div class="metric-info">
               <span class="metric-label">当前损失</span>
@@ -129,10 +95,7 @@
           </div>
           <div class="metric-card">
             <div class="metric-icon">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6" stroke="#a78bfa" stroke-width="1.5" />
-                <path d="M8 4v4l3 2" stroke="#a78bfa" stroke-width="1.2" stroke-linecap="round" />
-              </svg>
+              <el-icon><Timer /></el-icon>
             </div>
             <div class="metric-info">
               <span class="metric-label">训练耗时</span>
@@ -153,11 +116,7 @@
 
         <div class="privacy-section">
           <div class="privacy-header">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="#34d399" stroke-width="1.2" />
-              <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="#34d399" stroke-width="1.2" stroke-linecap="round" />
-              <circle cx="8" cy="10.5" r="1" fill="#34d399" />
-            </svg>
+            <el-icon><Lock /></el-icon>
             <span>隐私保护机制</span>
           </div>
           <div class="privacy-items">
@@ -175,10 +134,7 @@
           <div v-for="model in models" :key="model.id" class="model-item" :class="model.status">
             <div class="model-head">
               <div class="model-icon-wrap">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 2L18 6v8l-8 4-8-4V6l8-4z" :stroke="model.color" stroke-width="1.2" />
-                  <path d="M10 2v8m0 0l8-4m-8 4l-8-4m8 4v8" :stroke="model.color" stroke-width="0.8" opacity="0.5" />
-                </svg>
+                <el-icon><Box /></el-icon>
               </div>
               <div class="model-info">
                 <span class="model-name">{{ model.name }}</span>
@@ -211,10 +167,7 @@
 
         <div class="version-timeline">
           <div class="timeline-header">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6" stroke="#6366f1" stroke-width="1.2" />
-              <path d="M8 5v3l2 1.5" stroke="#6366f1" stroke-width="1" stroke-linecap="round" />
-            </svg>
+            <el-icon><Timer /></el-icon>
             <span>版本历史</span>
           </div>
           <div class="timeline-list">
@@ -241,6 +194,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Box, Connection, DataLine, Lock, Refresh, Share, Timer, TrendCharts, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import FederatedTopologyGraph from './FederatedTopologyGraph.vue'
 import TrainingCurveChart from './TrainingCurveChart.vue'
 import ModelAggregationCard from './ModelAggregationCard.vue'
@@ -255,10 +209,10 @@ const dataTransferRate = ref('12.4')
 const commOverhead = ref('8.2')
 
 const tabs = [
-  { key: 'topology', label: '网络拓扑' },
-  { key: 'training', label: '训练监控' },
-  { key: 'aggregation', label: '聚合与隐私' },
-  { key: 'models', label: '模型与版本' }
+  { key: 'topology', label: '网络拓扑', icon: Connection },
+  { key: 'training', label: '训练监控', icon: TrendCharts },
+  { key: 'aggregation', label: '聚合与隐私', icon: Share },
+  { key: 'models', label: '模型与版本', icon: Box }
 ]
 
 const topologyClients = ref([
@@ -295,9 +249,9 @@ const versionHistory = ref([
 ])
 
 const models = ref([
-  { id: 'lawyer', name: '律师Agent模型', version: '3.2', status: 'online', statusText: '在线', accuracy: 87.3, efficiency: 82, color: '#3b82f6' },
+  { id: 'lawyer', name: '律师Agent模型', version: '3.2', status: 'online', statusText: '在线', accuracy: 87.3, efficiency: 82, color: '#496b8f' },
   { id: 'teacher', name: '教师Agent模型', version: '2.8', status: 'online', statusText: '在线', accuracy: 84.6, efficiency: 79, color: '#10b981' },
-  { id: 'programmer', name: '程序员Agent模型', version: '4.1', status: 'training', statusText: '训练中', accuracy: 86.1, efficiency: 85, color: '#8b5cf6' },
+  { id: 'programmer', name: '程序员Agent模型', version: '4.1', status: 'training', statusText: '训练中', accuracy: 86.1, efficiency: 85, color: '#6f668f' },
   { id: 'writer', name: '作家Agent模型', version: '2.3', status: 'ready', statusText: '就绪', accuracy: 83.2, efficiency: 76, color: '#f59e0b' }
 ])
 
@@ -419,7 +373,7 @@ onMounted(async () => {
             statusText: model.status === 'active' ? '在线' : '就绪',
             accuracy: Math.round((model.performance?.accuracy || 0.85) * 100),
             efficiency: Math.round((model.performance?.efficiency || 0.80) * 100),
-            color: '#6366f1'
+            color: '#3f6b63'
           })
         })
       })
@@ -439,8 +393,9 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.97);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border-light, #e3e6df);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(29, 36, 34, 0.04));
   overflow: hidden;
 }
 
@@ -449,8 +404,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.03), rgba(34, 211, 238, 0.02));
+  border-bottom: 1px solid var(--border-light, #e3e6df);
+  background: rgba(251, 252, 250, 0.92);
 }
 
 .header-left {
@@ -462,24 +417,26 @@ onMounted(async () => {
 .agent-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #e3e6df);
+  background: #fff;
+  color: var(--primary-color, #3f6b63);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(29, 36, 34, 0.04));
 }
 
 .header-text h3 {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #1e1b4b;
+  color: var(--text-primary, #1d2422);
 }
 
 .header-sub {
   font-size: 11px;
-  color: #6366f1;
+  color: var(--primary-color, #3f6b63);
   font-weight: 500;
 }
 
@@ -500,15 +457,15 @@ onMounted(async () => {
 }
 
 .status-pill.training {
-  background: rgba(34, 211, 238, 0.1);
-  color: #0891b2;
-  border: 1px solid rgba(34, 211, 238, 0.2);
+  background: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  color: var(--primary-color, #3f6b63);
+  border: 1px solid var(--primary-line, rgba(63, 107, 99, 0.22));
 }
 
 .status-pill.aggregating {
-  background: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: var(--accent-fade, rgba(111, 102, 143, 0.1));
+  color: var(--accent-color, #6f668f);
+  border: 1px solid var(--border-light, #e3e6df);
 }
 
 .status-pill.paused {
@@ -535,17 +492,17 @@ onMounted(async () => {
   border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(99, 102, 241, 0.06);
-  color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: var(--bg-input, #f1f3ef);
+  color: var(--text-secondary, #727c76);
+  border: 1px solid var(--border-light, #e3e6df);
 }
 
 .panel-tabs {
   display: flex;
   gap: 2px;
   padding: 8px 12px;
-  background: rgba(99, 102, 241, 0.02);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.06);
+  background: #fff;
+  border-bottom: 1px solid var(--border-light, #e3e6df);
 }
 
 .tab-btn {
@@ -559,22 +516,22 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary, #727c76);
   background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .tab-btn:hover {
-  background: rgba(99, 102, 241, 0.06);
-  color: #475569;
+  background: var(--bg-input, #f1f3ef);
+  color: var(--primary-color, #3f6b63);
 }
 
 .tab-btn.active {
-  background: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
+  background: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  color: var(--primary-color, #3f6b63);
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
+  box-shadow: none;
 }
 
 .tab-icon {
@@ -611,24 +568,24 @@ onMounted(async () => {
   align-items: center;
   gap: 2px;
   padding: 8px;
-  background: rgba(99, 102, 241, 0.04);
+  background: var(--bg-input, #f1f3ef);
   border-radius: 8px;
-  border: 1px solid rgba(99, 102, 241, 0.06);
+  border: 1px solid var(--border-light, #e3e6df);
 }
 
 .mini-label {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--text-disabled, #a6aca8);
 }
 
 .mini-value {
   font-size: 13px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-primary, #1d2422);
 }
 
 .mini-value.accent {
-  color: #6366f1;
+  color: var(--primary-color, #3f6b63);
 }
 
 .training-header {
@@ -641,7 +598,7 @@ onMounted(async () => {
 .training-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1d2422);
 }
 
 .training-controls {
@@ -650,25 +607,28 @@ onMounted(async () => {
 }
 
 .ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 11px;
-  border: 1px solid rgba(99, 102, 241, 0.15);
-  background: rgba(99, 102, 241, 0.04);
-  color: #64748b;
+  border: 1px solid var(--border-light, #e3e6df);
+  background: #fff;
+  color: var(--text-secondary, #727c76);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .ctrl-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: #475569;
+  background: var(--bg-input, #f1f3ef);
+  color: var(--primary-color, #3f6b63);
 }
 
 .ctrl-btn.active {
-  background: rgba(99, 102, 241, 0.12);
-  color: #6366f1;
-  border-color: rgba(99, 102, 241, 0.3);
+  background: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  color: var(--primary-color, #3f6b63);
+  border-color: var(--primary-line, rgba(63, 107, 99, 0.22));
 }
 
 .training-metrics {
@@ -683,14 +643,15 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 10px;
-  background: rgba(15, 23, 42, 0.03);
-  border-radius: 10px;
-  border: 1px solid rgba(99, 102, 241, 0.06);
+  background: var(--bg-input, #f1f3ef);
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #e3e6df);
 }
 
 .metric-icon {
   display: flex;
   align-items: center;
+  color: var(--primary-color, #3f6b63);
 }
 
 .metric-info {
@@ -700,7 +661,7 @@ onMounted(async () => {
 
 .metric-label {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--text-disabled, #a6aca8);
 }
 
 .metric-value {
@@ -708,16 +669,16 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.metric-value.cyan { color: #0891b2; }
-.metric-value.pink { color: #db2777; }
-.metric-value.purple { color: #7c3aed; }
+.metric-value.cyan { color: var(--primary-color, #3f6b63); }
+.metric-value.pink { color: var(--warning, #9a7432); }
+.metric-value.purple { color: var(--accent-color, #6f668f); }
 
 .privacy-section {
   margin-top: 14px;
-  background: rgba(15, 23, 42, 0.03);
-  border-radius: 10px;
+  background: var(--bg-input, #f1f3ef);
+  border-radius: 8px;
   padding: 12px;
-  border: 1px solid rgba(52, 211, 153, 0.1);
+  border: 1px solid var(--border-light, #e3e6df);
 }
 
 .privacy-header {
@@ -726,7 +687,7 @@ onMounted(async () => {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1d2422);
   margin-bottom: 10px;
 }
 
@@ -751,18 +712,18 @@ onMounted(async () => {
 }
 
 .privacy-dot.active {
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  background: var(--success, #3d7656);
+  box-shadow: none;
 }
 
 .privacy-label {
   flex: 1;
-  color: #475569;
+  color: var(--text-secondary, #727c76);
 }
 
 .privacy-status {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--text-disabled, #a6aca8);
 }
 
 .version-timeline {
@@ -775,7 +736,7 @@ onMounted(async () => {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1d2422);
   margin-bottom: 10px;
 }
 
@@ -808,29 +769,29 @@ onMounted(async () => {
 }
 
 .timeline-item.latest {
-  border-left-color: #6366f1;
+  border-left-color: var(--primary-color, #3f6b63);
 }
 
 .timeline-item.latest::before {
-  background: #6366f1;
-  box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+  background: var(--primary-color, #3f6b63);
+  box-shadow: none;
 }
 
 .timeline-version {
   font-size: 12px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1d2422);
 }
 
 .timeline-item.latest .timeline-version {
-  color: #6366f1;
+  color: var(--primary-color, #3f6b63);
 }
 
 .timeline-meta {
   display: flex;
   gap: 4px;
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--text-disabled, #a6aca8);
   margin-top: 2px;
 }
 
@@ -848,15 +809,15 @@ onMounted(async () => {
 
 .model-item {
   padding: 10px;
-  background: rgba(15, 23, 42, 0.03);
-  border-radius: 10px;
-  border: 1px solid rgba(99, 102, 241, 0.08);
+  background: var(--bg-input, #f1f3ef);
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #e3e6df);
   transition: all 0.2s ease;
 }
 
 .model-item:hover {
-  border-color: rgba(99, 102, 241, 0.2);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+  border-color: var(--border-hover, #cfd6cd);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(29, 36, 34, 0.04));
 }
 
 .model-head {
@@ -869,6 +830,7 @@ onMounted(async () => {
 .model-icon-wrap {
   display: flex;
   align-items: center;
+  color: var(--primary-color, #3f6b63);
 }
 
 .model-info {
@@ -880,7 +842,7 @@ onMounted(async () => {
 .model-name {
   font-size: 11px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary, #1d2422);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -888,7 +850,7 @@ onMounted(async () => {
 
 .model-version {
   font-size: 9px;
-  color: #94a3b8;
+  color: var(--text-disabled, #a6aca8);
 }
 
 .model-status-badge {
@@ -900,8 +862,8 @@ onMounted(async () => {
 }
 
 .model-status-badge.online {
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
+  background: rgba(61, 118, 86, 0.1);
+  color: var(--success, #3d7656);
 }
 
 .model-status-badge.training {
@@ -937,7 +899,7 @@ onMounted(async () => {
 .perf-bar {
   flex: 1;
   height: 3px;
-  background: #e2e8f0;
+  background: #fff;
   border-radius: 2px;
   overflow: hidden;
 }
@@ -952,7 +914,7 @@ onMounted(async () => {
   width: 32px;
   text-align: right;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary, #727c76);
   font-size: 9px;
 }
 
@@ -966,26 +928,26 @@ onMounted(async () => {
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 10px;
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  border: 1px solid var(--border-light, #e3e6df);
   background: transparent;
-  color: #64748b;
+  color: var(--text-secondary, #727c76);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .model-btn:hover {
-  background: rgba(99, 102, 241, 0.06);
-  color: #475569;
+  background: #fff;
+  color: var(--primary-color, #3f6b63);
 }
 
 .model-btn.primary {
-  background: rgba(99, 102, 241, 0.08);
-  color: #6366f1;
-  border-color: rgba(99, 102, 241, 0.2);
+  background: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  color: var(--primary-color, #3f6b63);
+  border-color: var(--primary-line, rgba(63, 107, 99, 0.22));
 }
 
 .model-btn.primary:hover {
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--primary-fade, rgba(63, 107, 99, 0.1));
 }
 
 @media (max-width: 768px) {

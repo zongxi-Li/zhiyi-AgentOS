@@ -2,7 +2,7 @@
   <section class="card debug-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🐛</span>
+        <el-icon class="head-icon"><Search /></el-icon>
         <h4>调试追踪</h4>
       </div>
       <span class="status-pill" :class="statusClass">{{ statusLabel }}</span>
@@ -10,17 +10,17 @@
 
     <div v-if="!steps?.length && !rootCause" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <circle cx="20" cy="20" r="14" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-          <path d="M16 16l8 8M24 16l-8 8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <el-icon><Tools /></el-icon>
       </div>
       <span>暂无调试追踪信息</span>
     </div>
 
     <template v-else>
       <div v-if="rootCause" class="root-cause-block">
-        <div class="cause-label">🎯 根因定位</div>
+        <div class="cause-label">
+          <el-icon><Aim /></el-icon>
+          根因定位
+        </div>
         <p class="cause-text">{{ rootCause }}</p>
       </div>
 
@@ -41,7 +41,8 @@
               <span class="step-status" :class="stepStatusClass(step.status)">{{ stepStatusLabel(step.status) }}</span>
             </div>
             <div v-if="step.file || step.line" class="step-location">
-              📄 {{ step.file }}{{ step.line ? `:${step.line}` : '' }}
+              <el-icon><Document /></el-icon>
+              {{ step.file }}{{ step.line ? `:${step.line}` : '' }}
             </div>
             <div v-if="step.detail || step.output" class="step-detail">
               {{ step.detail || step.output }}
@@ -51,7 +52,10 @@
       </div>
 
       <div v-if="fixSuggestion" class="fix-block">
-        <div class="fix-label">🔧 修复建议</div>
+        <div class="fix-label">
+          <el-icon><Tools /></el-icon>
+          修复建议
+        </div>
         <p class="fix-text">{{ fixSuggestion }}</p>
       </div>
     </template>
@@ -60,6 +64,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Aim, Document, Search, Tools } from '@element-plus/icons-vue'
 
 interface DebugStep {
   action?: string

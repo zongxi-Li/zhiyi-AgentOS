@@ -2,7 +2,7 @@
   <section class="card review-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🔍</span>
+        <el-icon class="head-icon"><Search /></el-icon>
         <h4>代码审查</h4>
       </div>
       <span class="quality-pill" :class="qualityClass">质量 {{ qualityLabel }}</span>
@@ -10,12 +10,7 @@
 
     <div v-if="!issues?.length && !summary" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect x="6" y="8" width="28" height="24" rx="3" stroke="#d1d5db" stroke-width="1.5"/>
-          <path d="M12 14h16M12 18h12M12 22h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-          <circle cx="30" cy="28" r="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
-          <path d="M28 28h4M30 26v4" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <el-icon><Document /></el-icon>
       </div>
       <span>暂无代码审查结果</span>
     </div>
@@ -42,7 +37,10 @@
           </div>
           <p class="issue-msg">{{ issue.message || issue.description }}</p>
           <div v-if="issue.suggestion" class="issue-suggestion">
-            <span class="suggestion-label">💡 建议</span>
+            <span class="suggestion-label">
+              <el-icon><MagicStick /></el-icon>
+              建议
+            </span>
             <span>{{ issue.suggestion }}</span>
           </div>
         </div>
@@ -72,6 +70,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Document, MagicStick, Search } from '@element-plus/icons-vue'
 
 interface CodeIssue {
   severity?: string

@@ -2,7 +2,7 @@
   <section class="card push-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🎯</span>
+        <el-icon class="head-icon"><Aim /></el-icon>
         <h4>错题归因与推题</h4>
       </div>
       <span class="count">推题 {{ questions.length }}</span>
@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Aim } from '@element-plus/icons-vue'
 
 interface SimilarQuestion {
   id?: string
@@ -128,10 +129,6 @@ const difficultyClass = (difficulty?: string) => {
   color: var(--text-secondary);
 }
 
-.gap-title::before {
-  content: '🔍 ';
-}
-
 .gap-tags {
   display: flex;
   flex-wrap: wrap;
@@ -148,10 +145,6 @@ const difficultyClass = (difficulty?: string) => {
   font-weight: 500;
 }
 
-.analysis-title::before {
-  content: '📊 ';
-}
-
 .analysis-text {
   margin: 0;
   font-size: 13px;
@@ -160,10 +153,6 @@ const difficultyClass = (difficulty?: string) => {
   background: #fffbeb;
   border-radius: 8px;
   border-left: 3px solid #d97706;
-}
-
-.question-title::before {
-  content: '📚 ';
 }
 
 .question-list {

@@ -1,7 +1,10 @@
 <template>
-  <section class="human-review-panel">
+  <section class="human-review-panel ui-surface ui-surface--pad">
     <div class="section-head">
-      <h3>人工审核</h3>
+      <div class="section-title">
+        <el-icon><EditPen /></el-icon>
+        <h3>人工审核</h3>
+      </div>
       <span :class="{ active: canReview }">{{ canReview ? '可处理' : '无待审节点' }}</span>
     </div>
 
@@ -39,6 +42,7 @@
         </label>
 
         <button type="submit" :disabled="submitting || !stepId">
+          <el-icon><Check /></el-icon>
           {{ submitting ? '提交中...' : '提交审核' }}
         </button>
       </form>
@@ -67,6 +71,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { Check, EditPen } from '@element-plus/icons-vue'
 import type { ReviewDecision, ReviewRecord, ReviewRequest, WorkflowRun } from '@/services/api/workflow'
 
 const props = defineProps<{
@@ -126,10 +131,7 @@ const formatTime = (value?: string) => {
 
 <style scoped>
 .human-review-panel {
-  padding: 16px;
-  border: 1px solid #dde4ef;
-  border-radius: 8px;
-  background: #fff;
+  min-width: 0;
 }
 
 .section-head,
@@ -145,13 +147,20 @@ const formatTime = (value?: string) => {
   margin-bottom: 12px;
 }
 
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
+}
+
 h3,
 p {
   margin: 0;
 }
 
 h3 {
-  color: #0f172a;
+  color: var(--text-primary);
   font-size: 15px;
 }
 
@@ -160,12 +169,12 @@ h3 {
 .empty,
 time,
 p {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .section-head span.active {
-  color: #b45309;
+  color: var(--warning);
   font-weight: 700;
 }
 
@@ -180,7 +189,7 @@ label {
 }
 
 label span {
-  color: #334155;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -189,11 +198,13 @@ select,
 input,
 textarea {
   width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fff;
-  color: #0f172a;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-primary);
   font-size: 13px;
+  outline: none;
+  transition: var(--transition);
 }
 
 select,
@@ -208,14 +219,32 @@ textarea {
   resize: vertical;
 }
 
+select:focus,
+input:focus,
+textarea:focus {
+  background: #fff;
+  border-color: var(--primary-line);
+  box-shadow: 0 0 0 3px var(--primary-fade);
+}
+
 button {
   height: 34px;
   border: 0;
-  border-radius: 6px;
-  background: #2563eb;
+  border-radius: 8px;
+  background: var(--primary-color);
   color: #fff;
   cursor: pointer;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
 }
 
 button:disabled {
@@ -231,7 +260,7 @@ button:disabled {
 
 .history-head strong,
 .review-record strong {
-  color: #111827;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -239,13 +268,13 @@ button:disabled {
   display: grid;
   gap: 6px;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-panel);
 }
 
 .review-record span {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 

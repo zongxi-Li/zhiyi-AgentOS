@@ -2,7 +2,7 @@
   <section class="card diagnosis-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🩺</span>
+        <el-icon class="head-icon"><Search /></el-icon>
         <h4>学情诊断</h4>
       </div>
       <span class="level" :class="masteryLevelClass">掌握度 {{ masteryLevelText }}</span>
@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Search } from '@element-plus/icons-vue'
 
 interface DiagnosisData {
   weak_points?: string[]
@@ -317,13 +318,19 @@ const polygonPoints = computed(() => {
 }
 
 .weakness-title::before {
-  content: '⚠️';
-  font-size: 11px;
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .strength-title::before {
-  content: '✨';
-  font-size: 11px;
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .list {

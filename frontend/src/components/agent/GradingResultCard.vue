@@ -2,7 +2,7 @@
   <section class="card grading-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">✅</span>
+        <el-icon class="head-icon"><Check /></el-icon>
         <h4>作业批改结果</h4>
       </div>
       <span class="score-pill" :class="scoreLevelClass">评分 {{ scoreText }}</span>
@@ -41,6 +41,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Check } from '@element-plus/icons-vue'
 
 interface GradingData {
   score?: number
@@ -174,10 +175,6 @@ const scoreLevelClass = computed(() => {
   border-left: 3px solid #059669;
 }
 
-.correction-title::before {
-  content: '🔧 ';
-}
-
 .correction-list {
   margin: 0;
   padding-left: 16px;
@@ -188,10 +185,6 @@ const scoreLevelClass = computed(() => {
 .correction-list li {
   color: #b45309;
   margin-bottom: 2px;
-}
-
-.reference-title::before {
-  content: '📖 ';
 }
 
 .reference-text {

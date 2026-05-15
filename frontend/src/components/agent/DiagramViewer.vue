@@ -2,21 +2,17 @@
   <section class="card diagram-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🧭</span>
+        <el-icon class="head-icon"><Share /></el-icon>
         <h4>{{ headerTitle }}</h4>
       </div>
       <div class="head-right">
         <span v-if="diagramType" class="meta">{{ diagramType }}</span>
         <div class="head-actions">
           <button v-if="mermaidCode" class="action-btn" @click="openFullscreen" title="全屏查看">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 5V2a1 1 0 0 1 1-1h3M9 1h3a1 1 0 0 1 1 1v3M13 9v3a1 1 0 0 1-1 1H9M5 13H2a1 1 0 0 1-1-1V9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
+            <el-icon><FullScreen /></el-icon>
           </button>
           <button v-if="mermaidCode" class="action-btn" @click="downloadDiagram" title="下载图片">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 2v7M4 6.5L7 9.5 10 6.5M2 11v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
+            <el-icon><Download /></el-icon>
           </button>
         </div>
       </div>
@@ -45,6 +41,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { Download, FullScreen, Share } from '@element-plus/icons-vue'
 import MermaidRenderer from './MermaidRenderer.vue'
 import ImageViewer from '@/components/common/ImageViewer.vue'
 import mermaid from 'mermaid'

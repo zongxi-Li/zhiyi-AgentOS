@@ -2,7 +2,7 @@
   <section class="card style-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🎨</span>
+        <el-icon class="head-icon"><MagicStick /></el-icon>
         <h4>风格分析</h4>
       </div>
       <span class="style-pill" v-if="dominantStyle">{{ dominantStyle }}</span>
@@ -10,10 +10,7 @@
 
     <div v-if="!dimensions?.length && !overallScore" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <circle cx="20" cy="20" r="14" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-          <path d="M14 18l3 3 5-6" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <el-icon><Document /></el-icon>
       </div>
       <span>暂无风格分析</span>
     </div>
@@ -48,7 +45,10 @@
       </div>
 
       <div v-if="suggestions?.length" class="suggestions-block">
-        <div class="sug-label">✍️ 改进建议</div>
+        <div class="sug-label">
+          <el-icon><EditPen /></el-icon>
+          改进建议
+        </div>
         <ul class="sug-list">
           <li v-for="(sug, idx) in suggestions" :key="idx">{{ sug }}</li>
         </ul>
@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Document, EditPen, MagicStick } from '@element-plus/icons-vue'
 
 interface StyleDimension {
   name?: string

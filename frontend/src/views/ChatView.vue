@@ -9,7 +9,7 @@
             :class="{ active: isLawyerMode }"
             @click="toggleLawyerMode"
           >
-            <span class="mode-icon">⚖️</span>
+            <el-icon class="mode-icon"><ScaleToOriginal /></el-icon>
             <span class="mode-label">律师</span>
           </button>
           <button
@@ -17,7 +17,7 @@
             :class="{ active: isTeacherMode }"
             @click="toggleTeacherMode"
           >
-            <span class="mode-icon">👩‍🏫</span>
+            <el-icon class="mode-icon"><School /></el-icon>
             <span class="mode-label">教师</span>
           </button>
           <button
@@ -25,7 +25,7 @@
             :class="{ active: isProgrammerMode }"
             @click="toggleProgrammerMode"
           >
-            <span class="mode-icon">💻</span>
+            <el-icon class="mode-icon"><Cpu /></el-icon>
             <span class="mode-label">程序员</span>
           </button>
           <button
@@ -33,7 +33,7 @@
             :class="{ active: isWriterMode }"
             @click="toggleWriterMode"
           >
-            <span class="mode-icon">✍️</span>
+            <el-icon class="mode-icon"><EditPen /></el-icon>
             <span class="mode-label">作家</span>
           </button>
         </div>
@@ -57,17 +57,31 @@
       <section class="chat-panel">
         <div class="messages" ref="messagesRef">
           <div v-if="chatStore.messages.length === 0" class="empty-state">
-            <div class="empty-icon">{{ agentIcon }}</div>
+            <div class="empty-icon">
+              <el-icon><component :is="agentIcon" /></el-icon>
+            </div>
             <h2>{{ agentTitle }}</h2>
             <p>{{ agentSubtitle }}</p>
             <div class="quick-actions">
               <button v-if="currentTemplates[0]" class="quick-btn" @click="useTemplate(currentTemplates[0])">{{ currentTemplates[0] }}</button>
               <button v-if="currentTemplates[1]" class="quick-btn" @click="useTemplate(currentTemplates[1])">{{ currentTemplates[1] }}</button>
               <button v-if="currentTemplates[2]" class="quick-btn" @click="useTemplate(currentTemplates[2])">{{ currentTemplates[2] }}</button>
-              <button v-if="!isLawyerMode" class="quick-btn lawyer-btn" @click="toggleLawyerMode">⚖️ 律师 Agent</button>
-              <button v-if="!isTeacherMode" class="quick-btn teacher-btn" @click="toggleTeacherMode">👩‍🏫 教师 Agent</button>
-              <button v-if="!isProgrammerMode" class="quick-btn programmer-btn" @click="toggleProgrammerMode">💻 程序员 Agent</button>
-              <button v-if="!isWriterMode" class="quick-btn writer-btn" @click="toggleWriterMode">✍️ 作家 Agent</button>
+              <button v-if="!isLawyerMode" class="quick-btn lawyer-btn" @click="toggleLawyerMode">
+                <el-icon><ScaleToOriginal /></el-icon>
+                <span>律师 Agent</span>
+              </button>
+              <button v-if="!isTeacherMode" class="quick-btn teacher-btn" @click="toggleTeacherMode">
+                <el-icon><School /></el-icon>
+                <span>教师 Agent</span>
+              </button>
+              <button v-if="!isProgrammerMode" class="quick-btn programmer-btn" @click="toggleProgrammerMode">
+                <el-icon><Cpu /></el-icon>
+                <span>程序员 Agent</span>
+              </button>
+              <button v-if="!isWriterMode" class="quick-btn writer-btn" @click="toggleWriterMode">
+                <el-icon><EditPen /></el-icon>
+                <span>作家 Agent</span>
+              </button>
             </div>
           </div>
 
@@ -184,7 +198,7 @@
         >
           <template #results>
             <div v-if="!availableLawyerResultPanels.length" class="results-empty">
-              <span class="empty-icon">📚</span>
+              <el-icon class="empty-icon"><Notebook /></el-icon>
               <span>暂无技能调用结果</span>
             </div>
             <el-collapse v-else v-model="activeLawyerResultPanels">
@@ -234,7 +248,7 @@
         >
           <template #results>
             <div v-if="!availableTeacherResultPanels.length" class="results-empty">
-              <span class="empty-icon">🧪</span>
+              <el-icon class="empty-icon"><Reading /></el-icon>
               <span>暂无技能调用结果</span>
             </div>
             <el-collapse v-else v-model="activeTeacherResultPanels">
@@ -284,7 +298,7 @@
         >
           <template #results>
             <div v-if="!availableProgrammerResultPanels.length" class="results-empty">
-              <span class="empty-icon">💻</span>
+              <el-icon class="empty-icon"><Cpu /></el-icon>
               <span>暂无技能调用结果</span>
             </div>
             <el-collapse v-else v-model="activeProgrammerResultPanels">
@@ -394,7 +408,7 @@
         >
           <template #results>
             <div v-if="!availableWriterResultPanels.length" class="results-empty">
-              <span class="empty-icon">✍️</span>
+              <el-icon class="empty-icon"><EditPen /></el-icon>
               <span>暂无技能调用结果</span>
             </div>
             <el-collapse v-else v-model="activeWriterResultPanels">
@@ -477,12 +491,19 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDownBold,
   ArrowUp,
+  ChatDotRound,
   Check,
   Close,
+  Cpu,
+  EditPen,
   Folder,
   Loading,
   Microphone,
   MoreFilled,
+  Notebook,
+  Reading,
+  ScaleToOriginal,
+  School,
   UploadFilled,
   User
 } from '@element-plus/icons-vue'
@@ -583,11 +604,11 @@ const chatMainClass = computed(() => {
 })
 
 const agentIcon = computed(() => {
-  if (isLawyerMode.value) return '⚖️'
-  if (isTeacherMode.value) return '👩‍🏫'
-  if (isProgrammerMode.value) return '💻'
-  if (isWriterMode.value) return '✍️'
-  return '🤖'
+  if (isLawyerMode.value) return ScaleToOriginal
+  if (isTeacherMode.value) return School
+  if (isProgrammerMode.value) return Cpu
+  if (isWriterMode.value) return EditPen
+  return ChatDotRound
 })
 
 const agentTitle = computed(() => {
@@ -1355,39 +1376,35 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--bg-app);
+  background: transparent;
 }
 
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  gap: 16px;
+  padding: 18px 24px 14px;
   border-bottom: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
+  background: rgba(251, 251, 248, 0.72);
+  backdrop-filter: blur(18px);
   transition: border-bottom-color 0.3s ease, background 0.3s ease;
 }
 
 .chat-header.lawyer-active {
-  border-bottom-color: #2563eb;
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(255, 255, 255, 0.88));
+  border-bottom-color: rgba(73, 107, 143, 0.32);
 }
 
 .chat-header.teacher-active {
-  border-bottom-color: #059669;
-  background: linear-gradient(180deg, rgba(5, 150, 105, 0.04), rgba(255, 255, 255, 0.88));
+  border-bottom-color: rgba(61, 118, 86, 0.32);
 }
 
 .chat-header.programmer-active {
-  border-bottom-color: #7c3aed;
-  background: linear-gradient(180deg, rgba(124, 58, 237, 0.04), rgba(255, 255, 255, 0.88));
+  border-bottom-color: rgba(111, 102, 143, 0.32);
 }
 
 .chat-header.writer-active {
-  border-bottom-color: #d97706;
-  background: linear-gradient(180deg, rgba(217, 119, 6, 0.04), rgba(255, 255, 255, 0.88));
+  border-bottom-color: rgba(154, 116, 50, 0.32);
 }
 
 .chat-header .left {
@@ -1397,65 +1414,69 @@ onUnmounted(() => {
 }
 
 .chat-header .title {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 650;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .mode-switcher {
   display: flex;
   align-items: center;
-  gap: 2px;
-  background: #f1f5f9;
-  border-radius: 10px;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   padding: 3px;
+  box-shadow: var(--shadow-sm);
 }
 
 .mode-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 560;
   color: var(--text-secondary);
-  transition: all 0.25s ease;
+  transition: var(--transition);
   white-space: nowrap;
 }
 
 .mode-btn:hover {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg-panel);
   color: var(--text-primary);
 }
 
 .mode-btn.active {
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  box-shadow: inset 0 0 0 1px var(--primary-line);
 }
 
 .mode-btn:first-child.active {
-  color: #2563eb;
+  color: var(--info);
 }
 
 .mode-btn:nth-child(2).active {
-  color: #059669;
+  color: var(--success);
 }
 
 .mode-btn:nth-child(3).active {
-  color: #7c3aed;
+  color: var(--accent-color);
 }
 
 .mode-btn:nth-child(4).active {
-  color: #d97706;
+  color: var(--warning);
 }
 
 .mode-icon {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .mode-label {
@@ -1474,7 +1495,9 @@ onUnmounted(() => {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
-  transition: grid-template-columns 0.3s ease;
+  gap: 16px;
+  padding: 16px 18px 18px;
+  transition: grid-template-columns 0.24s var(--ease-out);
 }
 
 .chat-main.lawyer,
@@ -1489,13 +1512,18 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-sm);
 }
 
 .messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px;
+  padding: 22px 16px;
 }
 
 .messages::-webkit-scrollbar {
@@ -1512,10 +1540,10 @@ onUnmounted(() => {
 }
 
 .empty-state {
-  margin: 80px auto;
+  margin: 58px auto;
   text-align: center;
-  max-width: 520px;
-  animation: fade-in 0.4s ease;
+  max-width: 640px;
+  animation: fade-in 0.28s var(--ease-out);
 }
 
 @keyframes fade-in {
@@ -1524,23 +1552,32 @@ onUnmounted(() => {
 }
 
 .empty-state .empty-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  display: block;
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border: 1px solid var(--primary-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary-color);
+  font-size: 26px;
+  box-shadow: var(--shadow-sm);
 }
 
 .empty-state h2 {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 650;
   color: var(--text-primary);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .empty-state p {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.7;
 }
 
 .quick-actions {
@@ -1554,14 +1591,17 @@ onUnmounted(() => {
 .quick-btn {
   border: 1px solid var(--border-light);
   background: #fff;
-  border-radius: 999px;
-  padding: 8px 16px;
+  border-radius: 8px;
+  padding: 8px 14px;
   white-space: nowrap;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 560;
   color: var(--text-primary);
-  transition: all 0.2s ease;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .quick-btn:hover {
@@ -1571,47 +1611,39 @@ onUnmounted(() => {
 }
 
 .quick-btn.lawyer-btn {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: rgba(73, 107, 143, 0.2);
+  color: var(--info);
 }
 
 .quick-btn.lawyer-btn:hover {
-  border-color: #2563eb;
-  background: #dbeafe;
+  background: rgba(73, 107, 143, 0.08);
 }
 
 .quick-btn.teacher-btn {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
+  border-color: rgba(61, 118, 86, 0.2);
+  color: var(--success);
 }
 
 .quick-btn.teacher-btn:hover {
-  border-color: #059669;
-  background: #d1fae5;
+  background: rgba(61, 118, 86, 0.08);
 }
 
 .quick-btn.programmer-btn {
-  border-color: #c4b5fd;
-  background: #f5f3ff;
-  color: #6d28d9;
+  border-color: rgba(111, 102, 143, 0.2);
+  color: var(--accent-color);
 }
 
 .quick-btn.programmer-btn:hover {
-  border-color: #7c3aed;
-  background: #ede9fe;
+  background: rgba(111, 102, 143, 0.08);
 }
 
 .quick-btn.writer-btn {
-  border-color: #fcd34d;
-  background: #fffbeb;
-  color: #b45309;
+  border-color: rgba(154, 116, 50, 0.2);
+  color: var(--warning);
 }
 
 .quick-btn.writer-btn:hover {
-  border-color: #d97706;
-  background: #fef3c7;
+  background: rgba(154, 116, 50, 0.08);
 }
 
 .message-list {
@@ -1633,40 +1665,40 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border: none;
-  border-radius: 12px;
-  background: #2563eb;
+  border-radius: 8px;
+  background: var(--primary-color);
   color: #fff;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: var(--transition);
 }
 
 .to-bottom:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  box-shadow: var(--shadow-glow);
 }
 
 .chat-main.teacher .to-bottom {
-  background: #059669;
+  background: var(--success);
 }
 
 .chat-main.teacher .to-bottom:hover {
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+  box-shadow: 0 10px 24px rgba(61, 118, 86, 0.18);
 }
 
 .chat-main.programmer .to-bottom {
-  background: #7c3aed;
+  background: var(--accent-color);
 }
 
 .chat-main.programmer .to-bottom:hover {
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 10px 24px rgba(111, 102, 143, 0.18);
 }
 
 .chat-main.writer .to-bottom {
-  background: #d97706;
+  background: var(--warning);
 }
 
 .chat-main.writer .to-bottom:hover {
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+  box-shadow: 0 10px 24px rgba(154, 116, 50, 0.18);
 }
 
 .to-bottom .badge {
@@ -1684,23 +1716,23 @@ onUnmounted(() => {
 .template-row {
   display: flex;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 10px 16px 0;
   overflow-x: auto;
 }
 
 .recommendation-row {
-  padding: 0 16px 12px;
+  padding: 6px 16px 12px;
 }
 
 .template-item {
   border: 1px solid var(--border-light);
   background: #fff;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 6px 14px;
   white-space: nowrap;
   cursor: pointer;
   font-size: 13px;
-  transition: all 0.2s ease;
+  transition: var(--transition);
 }
 
 .template-item:hover {
@@ -1710,25 +1742,25 @@ onUnmounted(() => {
 
 .composer {
   border-top: 1px solid var(--border-light);
-  background: #fff;
-  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 14px 16px 16px;
   transition: border-top-color 0.3s ease;
 }
 
 .chat-main.teacher .composer {
-  border-top-color: #a7f3d0;
+  border-top-color: rgba(61, 118, 86, 0.22);
 }
 
 .chat-main.lawyer .composer {
-  border-top-color: #bfdbfe;
+  border-top-color: rgba(73, 107, 143, 0.22);
 }
 
 .chat-main.programmer .composer {
-  border-top-color: #c4b5fd;
+  border-top-color: rgba(111, 102, 143, 0.22);
 }
 
 .chat-main.writer .composer {
-  border-top-color: #fcd34d;
+  border-top-color: rgba(154, 116, 50, 0.22);
 }
 
 .composer-footer {
@@ -1757,33 +1789,31 @@ onUnmounted(() => {
 
 .agent-panel {
   border-left: 1px solid var(--border-light);
-  background: #fafbfc;
+  background: rgba(251, 251, 248, 0.9);
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 10px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   transition: border-left-color 0.3s ease, background 0.3s ease;
 }
 
 .chat-main.lawyer .agent-panel {
-  border-left-color: #bfdbfe;
-  background: linear-gradient(180deg, #f8faff, #fafbfc);
+  border-left-color: rgba(73, 107, 143, 0.22);
 }
 
 .chat-main.teacher .agent-panel {
-  border-left-color: #a7f3d0;
-  background: linear-gradient(180deg, #f6fdf8, #fafbfc);
+  border-left-color: rgba(61, 118, 86, 0.22);
 }
 
 .chat-main.programmer .agent-panel {
-  border-left-color: #c4b5fd;
-  background: linear-gradient(180deg, #faf8ff, #fafbfc);
+  border-left-color: rgba(111, 102, 143, 0.22);
 }
 
 .chat-main.writer .agent-panel {
-  border-left-color: #fcd34d;
-  background: linear-gradient(180deg, #fffdf5, #fafbfc);
+  border-left-color: rgba(154, 116, 50, 0.22);
 }
 
 .results-empty {
@@ -1798,18 +1828,18 @@ onUnmounted(() => {
 }
 
 .results-empty .empty-icon {
-  font-size: 28px;
-  opacity: 0.6;
+  font-size: 24px;
+  opacity: 0.8;
 }
 
 .writer-content-preview {
-  border: 1px solid #fcd34d;
-  background: #fffbeb;
-  border-radius: 10px;
+  border: 1px solid rgba(154, 116, 50, 0.18);
+  background: rgba(154, 116, 50, 0.05);
+  border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;
   line-height: 1.6;
-  color: #78350f;
+  color: #67491c;
   white-space: pre-wrap;
 }
 
@@ -1829,16 +1859,16 @@ onUnmounted(() => {
 }
 
 .programmer-card {
-  border: 1px solid #ddd6fe;
-  background: #faf5ff;
-  border-radius: 10px;
+  border: 1px solid rgba(111, 102, 143, 0.16);
+  background: rgba(111, 102, 143, 0.05);
+  border-radius: 8px;
   padding: 10px;
 }
 
 .programmer-card .card-title {
   font-size: 12px;
   font-weight: 700;
-  color: #6d28d9;
+  color: var(--accent-color);
   margin-bottom: 6px;
 }
 
@@ -1862,8 +1892,8 @@ onUnmounted(() => {
 }
 
 .search-item {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: #fff;
   padding: 8px 10px;
 }
@@ -1879,7 +1909,7 @@ onUnmounted(() => {
 .search-head .path {
   font-size: 12px;
   font-weight: 600;
-  color: #4338ca;
+  color: var(--primary-color);
   word-break: break-all;
 }
 
@@ -1893,8 +1923,8 @@ onUnmounted(() => {
 .code-block {
   margin: 0;
   border-radius: 8px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #1f2428;
+  color: #e8ece8;
   padding: 10px;
   font-size: 12px;
   line-height: 1.45;

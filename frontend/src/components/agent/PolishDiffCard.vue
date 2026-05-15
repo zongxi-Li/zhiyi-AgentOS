@@ -2,7 +2,7 @@
   <section class="card polish-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">✨</span>
+        <el-icon class="head-icon"><MagicStick /></el-icon>
         <h4>润色对比</h4>
       </div>
       <span class="change-count" v-if="changes?.length">{{ changes.length }} 处修改</span>
@@ -10,27 +10,33 @@
 
     <div v-if="!original && !polished && !changes?.length" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <circle cx="20" cy="20" r="14" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-          <path d="M14 20h12" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <el-icon><Document /></el-icon>
       </div>
       <span>暂无润色结果</span>
     </div>
 
     <template v-else>
       <div v-if="original" class="text-block original-block">
-        <div class="block-label">📝 原文</div>
+        <div class="block-label">
+          <el-icon><Document /></el-icon>
+          原文
+        </div>
         <p class="text-content">{{ original }}</p>
       </div>
 
       <div v-if="polished" class="text-block polished-block">
-        <div class="block-label">✨ 润色后</div>
+        <div class="block-label">
+          <el-icon><MagicStick /></el-icon>
+          润色后
+        </div>
         <p class="text-content">{{ polished }}</p>
       </div>
 
       <div v-if="changes?.length" class="changes-section">
-        <div class="section-label">📝 修改明细</div>
+        <div class="section-label">
+          <el-icon><EditPen /></el-icon>
+          修改明细
+        </div>
         <div class="changes-list">
           <div
             v-for="(change, idx) in changes"
@@ -54,7 +60,10 @@
       </div>
 
       <div v-if="overallComment" class="comment-block">
-        <div class="comment-label">💬 总体评价</div>
+        <div class="comment-label">
+          <el-icon><ChatDotRound /></el-icon>
+          总体评价
+        </div>
         <p class="comment-text">{{ overallComment }}</p>
       </div>
     </template>
@@ -63,6 +72,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { ChatDotRound, Document, EditPen, MagicStick } from '@element-plus/icons-vue'
 
 interface TextChange {
   type?: string

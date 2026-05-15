@@ -2,7 +2,9 @@
   <section class="agent-workbench">
     <header class="workbench-header">
       <div class="brand-area">
-        <div class="brand-logo">联</div>
+        <div class="brand-logo">
+          <el-icon><Connection /></el-icon>
+        </div>
         <div>
           <h1>联邦智能体工作台</h1>
           <p>多专业体协同编排 · 任务规划 · 知识融合</p>
@@ -27,7 +29,7 @@
         </div>
         <div class="status-chip">模型版本：v2.3.1</div>
         <button class="square-button" type="button" aria-label="通知">
-          <span class="bell-icon"></span>
+          <el-icon><Bell /></el-icon>
         </button>
         <button class="profile-button" type="button">
           <span class="avatar"></span>
@@ -211,8 +213,10 @@
           </div>
         </section>
 
-        <section class="command-bar panel">
-          <span class="plus-sign">+</span>
+      <section class="command-bar panel">
+          <span class="plus-sign">
+            <el-icon><Plus /></el-icon>
+          </span>
           <input
             id="workbench-command"
             name="workbench-command"
@@ -296,6 +300,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Bell, Connection, Plus } from '@element-plus/icons-vue'
 import DigitalHuman from '@/components/DigitalHuman.vue'
 import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import { useDigitalHumanRole } from '@/composables/useDigitalHumanRole'
@@ -679,7 +684,7 @@ button {
   display: grid;
   place-items: center;
   color: #ffffff;
-  background: linear-gradient(135deg, #2d7ff9, #1d4ed8);
+  background: var(--primary-color);
   font-weight: 800;
   box-shadow: 0 12px 24px rgba(45, 127, 249, 0.2);
 }
@@ -723,7 +728,7 @@ button {
 }
 
 .mode-switch button.active {
-  color: #1d5fd8;
+  color: var(--primary-color);
   background: #ffffff;
   font-weight: 700;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
@@ -765,27 +770,6 @@ button {
   place-items: center;
 }
 
-.bell-icon {
-  width: 14px;
-  height: 16px;
-  border: 2px solid #5e7490;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  border-bottom: 0;
-  position: relative;
-}
-
-.bell-icon::after {
-  content: "";
-  position: absolute;
-  left: 3px;
-  bottom: -5px;
-  width: 6px;
-  height: 2px;
-  border-radius: 2px;
-  background: #5e7490;
-}
-
 .profile-button {
   min-height: 36px;
   padding: 3px 10px 3px 4px;
@@ -800,7 +784,7 @@ button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #dbeafe 0 45%, #2d7ff9 46% 100%);
+  background: var(--primary-fade);
 }
 
 .workspace-grid {
@@ -942,7 +926,7 @@ button {
 }
 
 .module-icon.blue {
-  background: #2d7ff9;
+  background: var(--primary-color);
 }
 
 .module-icon.green {
@@ -954,7 +938,7 @@ button {
 }
 
 .module-icon.purple {
-  background: #8b5cf6;
+  background: var(--accent-color);
 }
 
 .module-item em,
@@ -1331,7 +1315,7 @@ button {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #2d7ff9;
+  background: var(--primary-color);
   margin-top: 5px;
 }
 
@@ -1512,7 +1496,7 @@ button {
   border: 0;
   border-radius: 8px;
   color: #ffffff;
-  background: linear-gradient(135deg, #2d7ff9, #1d5fd8);
+  background: var(--primary-color);
   cursor: pointer;
 }
 
@@ -1580,7 +1564,7 @@ button {
   width: 4px;
   height: 12px;
   border-radius: 3px;
-  background: #2d7ff9;
+  background: var(--primary-color);
 }
 
 .voice-wave span:nth-child(2n) {
@@ -1627,7 +1611,7 @@ button {
   border-radius: 9px;
   display: grid;
   place-items: center;
-  color: #1d5fd8;
+  color: var(--primary-color);
   background: #e8f1ff;
   font-weight: 800;
 }
@@ -1749,5 +1733,177 @@ button {
   .command-bar button {
     grid-column: 1 / -1;
   }
+}
+
+/* Gallery minimal pass */
+.agent-workbench {
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  padding: 20px 24px 28px;
+}
+
+.workbench-header,
+.panel {
+  border-color: var(--border-light);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-sm);
+}
+
+.workbench-header {
+  backdrop-filter: var(--backdrop-blur);
+}
+
+.brand-logo,
+.expert-avatar,
+.module-icon,
+.source-icon,
+.plus-sign {
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-logo {
+  font-size: 22px;
+}
+
+.brand-area h1,
+.panel-title,
+.section-head h3,
+.task-copy h2,
+.expert-card strong,
+.module-item strong,
+.node-row strong,
+.source-list strong,
+.assistant-name,
+.document-preview h4 {
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+
+.brand-area p,
+.expert-card span,
+.module-item span,
+.node-row small,
+.source-list small,
+.task-copy p,
+.assistant-panel p,
+.cot-list p,
+.timeline-item span,
+.document-preview p {
+  color: var(--text-secondary);
+}
+
+.mode-switch,
+.view-tabs,
+.mini-tabs,
+.mode-toggle,
+.status-chip,
+.expert-card,
+.module-item,
+.support-grid div,
+.task-tags span,
+.progress-card,
+.flow-step,
+.detail-meta div,
+.document-preview,
+.timeline-item,
+.command-bar,
+.assistant-avatar-stage,
+.source-list > div,
+.recommendation-list button,
+.source-panel,
+.recommendation-panel {
+  border-color: var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-input);
+}
+
+.mode-switch button.active,
+.view-tabs button.active,
+.mini-tabs button.active,
+.expert-card.active,
+.flow-step.active,
+.flow-step.running,
+.task-tags span {
+  background: var(--primary-fade);
+  border-color: var(--primary-line);
+  color: var(--primary-color);
+  box-shadow: none;
+}
+
+.panel-title button,
+.eyebrow,
+.module-item em,
+.node-row em,
+.source-list em,
+.support-grid strong,
+.progress-card strong,
+.timeline-item time {
+  color: var(--primary-color);
+}
+
+.status-chip.online span,
+.node-dot.online,
+.cot-list span,
+.progress-track div {
+  background: var(--primary-color);
+  box-shadow: none;
+}
+
+.node-dot.busy {
+  background: var(--warning);
+}
+
+.flow-step.done {
+  background: rgba(61, 118, 86, 0.1);
+  border-color: rgba(61, 118, 86, 0.2);
+}
+
+.flow-step.done .step-no,
+.status-badge.done,
+.status-badge.online {
+  color: var(--success);
+  background: rgba(61, 118, 86, 0.1);
+}
+
+.flow-step.running .step-no,
+.status-badge.running {
+  color: var(--warning);
+  background: rgba(154, 116, 50, 0.1);
+}
+
+.command-bar button,
+.assistant-action {
+  background: var(--primary-color);
+  color: #fff;
+  border: 0;
+}
+
+.voice-wave span,
+.voice-wave span:nth-child(2n),
+.voice-wave span:nth-child(3n) {
+  background: var(--primary-color);
+  opacity: 0.7;
+}
+
+.square-button,
+.profile-button,
+.outline-button {
+  border-color: var(--border-light);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-secondary);
+}
+
+.square-button:hover,
+.outline-button:hover,
+.profile-button:hover {
+  color: var(--primary-color);
+  border-color: var(--border-hover);
 }
 </style>

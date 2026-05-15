@@ -1,13 +1,19 @@
 <template>
-  <section class="workflow-run-panel">
+  <section class="workflow-run-panel ui-surface ui-surface--pad">
     <div class="panel-head">
       <div>
         <span class="eyebrow">WorkflowRun</span>
         <h2>{{ run?.workflowId || '暂无运行' }}</h2>
       </div>
       <div class="actions">
-        <button type="button" @click="$emit('refresh')" :disabled="loading">刷新</button>
-        <button type="button" @click="$emit('export-trace')" :disabled="!run || loading">导出 Trace</button>
+        <button type="button" @click="$emit('refresh')" :disabled="loading">
+          <el-icon><Refresh /></el-icon>
+          <span>刷新</span>
+        </button>
+        <button type="button" @click="$emit('export-trace')" :disabled="!run || loading">
+          <el-icon><Download /></el-icon>
+          <span>导出 Trace</span>
+        </button>
       </div>
     </div>
 
@@ -64,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import { Download, Refresh } from '@element-plus/icons-vue'
 import type { EvaluationRun, WorkflowRun, WorkflowStatus } from '@/services/api/workflow'
 
 defineProps<{
@@ -99,10 +106,6 @@ const percent = (value?: number) => `${Math.round((value || 0) * 100)}%`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 18px;
-  border: 1px solid #dde4ef;
-  border-radius: 8px;
-  background: #fff;
 }
 
 .panel-head,
@@ -120,24 +123,34 @@ const percent = (value?: number) => `${Math.round((value || 0) * 100)}%`
 
 .eyebrow,
 small {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 h2 {
   margin: 4px 0 0;
   font-size: 18px;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 button {
   height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: #fff;
-  color: #0f172a;
+  color: var(--text-primary);
   cursor: pointer;
+  transition: var(--transition);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  color: var(--primary-color);
+  transform: translateY(-1px);
 }
 
 button:disabled {
@@ -147,39 +160,39 @@ button:disabled {
 
 .status-row {
   flex-wrap: wrap;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .status-pill {
   padding: 4px 8px;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #334155;
+  background: var(--bg-input);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
 
 .status-pill.running,
 .status-pill.retrying {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: rgba(73, 107, 143, 0.12);
+  color: var(--info);
 }
 
 .status-pill.waiting_review {
-  background: #fef3c7;
-  color: #b45309;
+  background: rgba(154, 116, 50, 0.12);
+  color: var(--warning);
 }
 
 .status-pill.completed {
-  background: #dcfce7;
-  color: #15803d;
+  background: rgba(61, 118, 86, 0.12);
+  color: var(--success);
 }
 
 .status-pill.failed,
 .status-pill.cancelled {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: rgba(178, 74, 74, 0.12);
+  color: var(--danger);
 }
 
 .meta-grid,
@@ -193,16 +206,16 @@ button:disabled {
 .metric-strip > div {
   min-width: 0;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-panel);
 }
 
 strong {
   display: block;
   margin-top: 4px;
   overflow-wrap: anywhere;
-  color: #111827;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -212,16 +225,16 @@ strong {
 
 .empty,
 .error-line {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .error-line {
   padding: 10px;
-  border: 1px solid #fecaca;
+  border: 1px solid rgba(178, 74, 74, 0.18);
   border-radius: 8px;
-  background: #fef2f2;
-  color: #b91c1c;
+  background: rgba(178, 74, 74, 0.08);
+  color: var(--danger);
 }
 
 @media (max-width: 900px) {

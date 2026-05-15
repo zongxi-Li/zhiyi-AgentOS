@@ -2,7 +2,7 @@
   <section class="card plot-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">📖</span>
+        <el-icon class="head-icon"><Reading /></el-icon>
         <h4>情节逻辑检查</h4>
       </div>
       <span class="logic-pill" :class="logicClass">逻辑 {{ logicLabel }}</span>
@@ -10,10 +10,7 @@
 
     <div v-if="!issues?.length && !summary" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <circle cx="20" cy="20" r="14" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-          <path d="M14 20h12M20 14v12" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <el-icon><Document /></el-icon>
       </div>
       <span>暂无情节逻辑检查</span>
     </div>
@@ -24,7 +21,10 @@
       </div>
 
       <div v-if="timeline?.length" class="timeline-section">
-        <div class="section-label">📍 情节时间线</div>
+        <div class="section-label">
+          <el-icon><Clock /></el-icon>
+          情节时间线
+        </div>
         <div class="timeline-list">
           <div
             v-for="(event, idx) in timeline"
@@ -44,7 +44,10 @@
       </div>
 
       <div v-if="issues?.length" class="issues-section">
-        <div class="section-label">⚠️ 逻辑问题</div>
+        <div class="section-label">
+          <el-icon><Warning /></el-icon>
+          逻辑问题
+        </div>
         <div class="issues-list">
           <div
             v-for="(issue, idx) in issues"
@@ -62,7 +65,8 @@
             </div>
             <p class="issue-desc">{{ issue.description || issue.message }}</p>
             <div v-if="issue.suggestion" class="issue-fix">
-              💡 {{ issue.suggestion }}
+              <el-icon><MagicStick /></el-icon>
+              {{ issue.suggestion }}
             </div>
           </div>
         </div>
@@ -73,6 +77,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Clock, Document, MagicStick, Reading, Warning } from '@element-plus/icons-vue'
 
 interface PlotIssue {
   type?: string

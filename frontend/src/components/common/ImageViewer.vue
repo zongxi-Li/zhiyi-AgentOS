@@ -56,11 +56,7 @@
           <div class="viewer-toolbar">
             <div class="toolbar-group">
               <button class="toolbar-btn" @click="zoomOut" title="缩小 (-)">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4" />
-                  <line x1="12" y1="12" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                  <line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                </svg>
+                <el-icon><ZoomOut /></el-icon>
               </button>
 
               <span class="zoom-display" @click="resetView" title="重置缩放 (0)">
@@ -68,12 +64,7 @@
               </span>
 
               <button class="toolbar-btn" @click="zoomIn" title="放大 (+)">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4" />
-                  <line x1="12" y1="12" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                  <line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                  <line x1="8" y1="5" x2="8" y2="11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                </svg>
+                <el-icon><ZoomIn /></el-icon>
               </button>
             </div>
 
@@ -81,16 +72,11 @@
 
             <div class="toolbar-group">
               <button class="toolbar-btn" @click="resetView" title="适应窗口 (0)">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M2 6V3a1 1 0 0 1 1-1h3M12 2h3a1 1 0 0 1 1 1v3M16 12v3a1 1 0 0 1-1 1h-3M6 16H3a1 1 0 0 1-1-1v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
+                <el-icon><RefreshRight /></el-icon>
               </button>
 
               <button class="toolbar-btn" @click="zoomToActual" title="原始大小 (1:1)">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <rect x="2" y="2" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4" />
-                  <text x="9" y="12" text-anchor="middle" fill="currentColor" font-size="7" font-weight="600">1:1</text>
-                </svg>
+                <el-icon><FullScreen /></el-icon>
               </button>
             </div>
 
@@ -98,17 +84,11 @@
 
             <div class="toolbar-group">
               <button class="toolbar-btn" @click="rotateLeft" title="向左旋转">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M4 9a5 5 0 1 1 1.5 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                  <path d="M4 6v3h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
+                <el-icon><RefreshLeft /></el-icon>
               </button>
 
               <button class="toolbar-btn" @click="rotateRight" title="向右旋转">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M14 9a5 5 0 1 0-1.5 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                  <path d="M14 6v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
+                <el-icon><RefreshRight /></el-icon>
               </button>
             </div>
 
@@ -116,19 +96,13 @@
 
             <div class="toolbar-group">
               <button class="toolbar-btn" @click="downloadImage" title="下载图片">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M9 2v9M5.5 8L9 11.5 12.5 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                  <path d="M2 13v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                </svg>
+                <el-icon><Download /></el-icon>
               </button>
             </div>
           </div>
 
           <button class="viewer-close" @click="close" title="关闭 (Esc)">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <line x1="5" y1="5" x2="15" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-              <line x1="15" y1="5" x2="5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-            </svg>
+            <el-icon><Close /></el-icon>
           </button>
 
           <div class="viewer-hint" v-if="showHint">
@@ -142,6 +116,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { Close, Download, FullScreen, RefreshLeft, RefreshRight, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 
 const props = withDefaults(defineProps<{
   visible: boolean

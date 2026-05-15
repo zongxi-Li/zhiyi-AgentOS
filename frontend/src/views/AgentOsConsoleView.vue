@@ -1,17 +1,29 @@
 <template>
-  <main class="agentos-console">
-    <header class="console-header">
-      <div>
-        <span>Zhiyi AgentOS</span>
-        <h1>AgentOS Console</h1>
-        <p>统一查看 WorkflowRun 生命周期、审核记录、恢复点和治理指标。</p>
+  <main class="agentos-console ui-shell">
+    <header class="console-header ui-hero">
+      <div class="console-title">
+        <span class="ui-icon-badge">
+          <el-icon><Monitor /></el-icon>
+        </span>
+        <div>
+          <span class="ui-hero__eyebrow">Zhiyi AgentOS</span>
+          <h1 class="ui-hero__title">AgentOS Console</h1>
+          <p class="ui-hero__subtitle">统一查看 WorkflowRun 生命周期、审核记录、恢复点和治理指标。</p>
+        </div>
       </div>
-      <button type="button" @click="refreshAll" :disabled="loading.runs || loading.detail">刷新</button>
+      <button class="console-refresh" type="button" @click="refreshAll" :disabled="loading.runs || loading.detail">
+        <el-icon><Refresh /></el-icon>
+        <span>刷新</span>
+      </button>
     </header>
 
     <section class="console-layout">
-      <aside class="run-sidebar">
+      <aside class="run-sidebar ui-surface ui-surface--pad">
         <div class="filter-panel">
+          <div class="filter-title">
+            <el-icon><Search /></el-icon>
+            <span>筛选运行</span>
+          </div>
           <div class="filter-row">
             <label>
               <span>状态</span>
@@ -37,7 +49,7 @@
 
         <div class="run-list-head">
           <strong>运行列表</strong>
-          <span>{{ totalRuns }} 条</span>
+          <span class="ui-chip">{{ totalRuns }} 条</span>
         </div>
 
         <div v-if="loading.runs" class="empty">正在加载...</div>
@@ -47,7 +59,7 @@
             v-for="run in runs"
             :key="run.runId"
             type="button"
-            class="run-item"
+              class="run-item"
             :class="{ active: run.runId === selectedRunId }"
             @click="selectRun(run.runId)"
           >
@@ -102,6 +114,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { Monitor, Refresh, Search } from '@element-plus/icons-vue'
 import CheckpointPanel from '@/components/agentos/CheckpointPanel.vue'
 import HumanReviewPanel from '@/components/agentos/HumanReviewPanel.vue'
 import TraceEventTimeline from '@/components/agentos/TraceEventTimeline.vue'
@@ -139,6 +152,7 @@ const loading = reactive({
 
 const statusOptions = [
   { value: 'pending', label: '等待中' },
+  { value: 'planning', label: '规划中' },
   { value: 'running', label: '运行中' },
   { value: 'waiting_review', label: '待审核' },
   { value: 'retrying', label: '重试中' },
@@ -287,25 +301,19 @@ onMounted(loadRuns)
 
 <style scoped>
 .agentos-console {
-  min-height: 100vh;
-  padding: 20px;
-  background: #f1f5f9;
-  color: #0f172a;
+  min-height: 100%;
+  color: var(--text-primary);
+  overflow: auto;
 }
 
 .console-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
-.console-header span {
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0;
+.console-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
 }
 
 h1,
@@ -313,31 +321,35 @@ p {
   margin: 0;
 }
 
-h1 {
-  margin-top: 4px;
-  font-size: 24px;
-}
-
-.console-header p {
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.console-header button {
-  height: 34px;
+.console-refresh {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: #fff;
-  color: #0f172a;
+  color: var(--text-primary);
   cursor: pointer;
+  transition: var(--transition);
+}
+
+.console-refresh:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.console-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .console-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 380px);
-  gap: 14px;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(310px, 380px);
+  gap: 16px;
   align-items: start;
 }
 
@@ -349,19 +361,23 @@ h1 {
   gap: 12px;
 }
 
-.filter-panel,
-.run-list-head,
-.run-item,
-.error-message {
-  border: 1px solid #dde4ef;
-  border-radius: 8px;
-  background: #fff;
+.run-sidebar {
+  position: sticky;
+  top: 16px;
 }
 
 .filter-panel {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 12px;
+}
+
+.filter-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .filter-row {
@@ -376,7 +392,7 @@ label {
 }
 
 label span {
-  color: #334155;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -384,20 +400,30 @@ label span {
 select,
 input {
   width: 100%;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: var(--transition);
+}
+
+select:focus,
+input:focus {
   background: #fff;
-  color: #0f172a;
-  font-size: 12px;
+  border-color: var(--primary-line);
+  box-shadow: 0 0 0 3px var(--primary-fade);
 }
 
 .run-list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--border-light);
 }
 
 .run-list-head strong {
@@ -406,12 +432,12 @@ input {
 
 .run-list-head span,
 .empty {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .empty {
-  padding: 12px;
+  padding: 12px 0;
 }
 
 .run-item {
@@ -419,45 +445,55 @@ input {
   gap: 6px;
   width: 100%;
   padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
   text-align: left;
   cursor: pointer;
+  transition: var(--transition);
 }
 
 .run-item.active {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  border-color: var(--primary-line);
+  background: #fff;
+  box-shadow: inset 2px 0 0 var(--primary-color), var(--shadow-sm);
+}
+
+.run-item:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
 }
 
 .run-status {
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #334155;
+  background: var(--bg-input);
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 800;
 }
 
 .run-status.running,
 .run-status.retrying {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: rgba(73, 107, 143, 0.12);
+  color: var(--info);
 }
 
 .run-status.waiting_review {
-  background: #fef3c7;
-  color: #b45309;
+  background: rgba(154, 116, 50, 0.12);
+  color: var(--warning);
 }
 
 .run-status.completed {
-  background: #dcfce7;
-  color: #15803d;
+  background: rgba(61, 118, 86, 0.12);
+  color: var(--success);
 }
 
 .run-status.failed,
 .run-status.cancelled {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: rgba(178, 74, 74, 0.12);
+  color: var(--danger);
 }
 
 .run-item strong,
@@ -466,20 +502,21 @@ input {
 }
 
 .run-item strong {
-  color: #111827;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .run-item small {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
 .error-message {
   padding: 10px;
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
+  border: 1px solid rgba(178, 74, 74, 0.18);
+  border-radius: 8px;
+  color: var(--danger);
+  background: rgba(178, 74, 74, 0.08);
   font-size: 13px;
 }
 

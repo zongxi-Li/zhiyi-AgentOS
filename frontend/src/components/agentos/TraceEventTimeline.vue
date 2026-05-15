@@ -1,8 +1,14 @@
 <template>
-  <section class="trace-event-timeline">
+  <section class="trace-event-timeline ui-surface ui-surface--pad">
     <div class="section-head">
-      <h3>Trace 事件</h3>
-      <button type="button" :disabled="!events.length" @click="$emit('export-markdown')">Markdown</button>
+      <div class="section-title">
+        <el-icon><Connection /></el-icon>
+        <h3>Trace 事件</h3>
+      </div>
+      <button type="button" :disabled="!events.length" @click="$emit('export-markdown')">
+        <el-icon><Download /></el-icon>
+        Markdown
+      </button>
     </div>
 
     <div v-if="loading" class="empty">正在加载 Trace...</div>
@@ -29,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { Connection, Download } from '@element-plus/icons-vue'
 import type { TraceEvent } from '@/services/api/workflow'
 
 defineProps<{
@@ -67,10 +74,7 @@ const formatTime = (value?: string) => {
 
 <style scoped>
 .trace-event-timeline {
-  padding: 16px;
-  border: 1px solid #dde4ef;
-  border-radius: 8px;
-  background: #fff;
+  min-width: 0;
 }
 
 .section-head,
@@ -86,24 +90,40 @@ const formatTime = (value?: string) => {
   margin-bottom: 12px;
 }
 
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
+}
+
 h3,
 p {
   margin: 0;
 }
 
 h3 {
-  color: #0f172a;
+  color: var(--text-primary);
   font-size: 15px;
 }
 
 button {
   height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: #fff;
-  color: #0f172a;
+  color: var(--text-primary);
   cursor: pointer;
+  transition: var(--transition);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  color: var(--primary-color);
 }
 
 button:disabled {
@@ -112,7 +132,7 @@ button:disabled {
 }
 
 .empty {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -135,32 +155,32 @@ button:disabled {
   height: 10px;
   margin-top: 6px;
   border-radius: 50%;
-  background: #94a3b8;
+  background: var(--text-disabled);
 }
 
 .event-dot.agent_called,
 .event-dot.run_completed {
-  background: #22c55e;
+  background: var(--success);
 }
 
 .event-dot.review_required,
 .event-dot.review_decided,
 .event-dot.checkpoint_created {
-  background: #f59e0b;
+  background: var(--warning);
 }
 
 .event-dot.step_failed,
 .event-dot.run_failed,
 .event-dot.run_cancelled {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 .event-content {
   min-width: 0;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-panel);
 }
 
 .event-top {
@@ -168,14 +188,14 @@ button:disabled {
 }
 
 strong {
-  color: #111827;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 time,
 p,
 .event-meta {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 

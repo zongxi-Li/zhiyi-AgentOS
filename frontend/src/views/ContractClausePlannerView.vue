@@ -34,7 +34,7 @@
               :class="{ active: activeParent === cat.id }"
               @click="selectParent(cat.id)"
             >
-              <span class="parent-icon">{{ cat.icon }}</span>
+              <el-icon class="parent-icon"><component :is="cat.icon" /></el-icon>
               <span class="parent-label">{{ cat.name }}</span>
             </button>
           </div>
@@ -307,9 +307,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Connection, Cpu, DataAnalysis, Reading, ScaleToOriginal } from '@element-plus/icons-vue'
 import { Transformer } from 'markmap-lib'
 import { Markmap } from 'markmap-view'
 import DigitalHuman from '@/components/DigitalHuman.vue'
@@ -460,14 +461,14 @@ interface SubCategory {
 interface ParentCategory {
   id: string
   name: string
-  icon: string
+  icon: Component
   count: number
   subs: SubCategory[]
 }
 
 const parentCategories: ParentCategory[] = [
   {
-    id: 'law', name: '法律', icon: '⚖', count: 7,
+    id: 'law', name: '法律', icon: ScaleToOriginal, count: 7,
     subs: [
       { id: '合同法务', label: '合同法务' }, { id: '公司法务', label: '公司法务' },
       { id: '知识产权', label: '知识产权' }, { id: '劳动法务', label: '劳动法务' },
@@ -476,7 +477,7 @@ const parentCategories: ParentCategory[] = [
     ]
   },
   {
-    id: 'tech', name: '技术', icon: '💻', count: 6,
+    id: 'tech', name: '技术', icon: Cpu, count: 6,
     subs: [
       { id: '软件开发', label: '软件开发' }, { id: '系统架构', label: '系统架构' },
       { id: '数据科学', label: '数据科学' }, { id: '网络安全', label: '网络安全' },
@@ -484,7 +485,7 @@ const parentCategories: ParentCategory[] = [
     ]
   },
   {
-    id: 'finance', name: '财务', icon: '📊', count: 6,
+    id: 'finance', name: '财务', icon: DataAnalysis, count: 6,
     subs: [
       { id: '审计', label: '审计' }, { id: '税务', label: '税务筹划' },
       { id: '财务分析', label: '财务分析' }, { id: '投融资', label: '投融资' },
@@ -492,7 +493,7 @@ const parentCategories: ParentCategory[] = [
     ]
   },
   {
-    id: 'medical', name: '医疗', icon: '🏥', count: 6,
+    id: 'medical', name: '医疗', icon: Connection, count: 6,
     subs: [
       { id: '临床', label: '临床医学' }, { id: '药学', label: '药学研发' },
       { id: '公卫', label: '公共卫生' }, { id: '医保', label: '医疗保险' },
@@ -500,7 +501,7 @@ const parentCategories: ParentCategory[] = [
     ]
   },
   {
-    id: 'edu', name: '教育', icon: '📚', count: 6,
+    id: 'edu', name: '教育', icon: Reading, count: 6,
     subs: [
       { id: '课程设计', label: '课程设计' }, { id: '教学评估', label: '教学评估' },
       { id: '教育科技', label: '教育科技' }, { id: '学术研究', label: '学术研究' },

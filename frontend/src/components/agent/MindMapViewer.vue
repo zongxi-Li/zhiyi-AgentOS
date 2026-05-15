@@ -2,19 +2,15 @@
   <section class="card mindmap-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🧠</span>
+        <el-icon class="head-icon"><Share /></el-icon>
         <h4>{{ titleText }}</h4>
       </div>
       <div class="head-actions">
         <button v-if="sourceMarkdown" class="action-btn" @click="openFullscreen" title="全屏查看">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1 5V2a1 1 0 0 1 1-1h3M9 1h3a1 1 0 0 1 1 1v3M13 9v3a1 1 0 0 1-1 1H9M5 13H2a1 1 0 0 1-1-1V9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          <el-icon><FullScreen /></el-icon>
         </button>
         <button v-if="sourceMarkdown" class="action-btn" @click="downloadSvg" title="下载图片">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 2v7M4 6.5L7 9.5 10 6.5M2 11v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          <el-icon><Download /></el-icon>
         </button>
       </div>
     </header>
@@ -38,6 +34,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Download, FullScreen, Share } from '@element-plus/icons-vue'
 import { Transformer } from 'markmap-lib'
 import { Markmap } from 'markmap-view'
 import ImageViewer from '@/components/common/ImageViewer.vue'

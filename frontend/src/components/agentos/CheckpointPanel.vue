@@ -1,7 +1,10 @@
 <template>
-  <section class="checkpoint-panel">
+  <section class="checkpoint-panel ui-surface ui-surface--pad">
     <div class="section-head">
-      <h3>恢复点</h3>
+      <div class="section-title">
+        <el-icon><Clock /></el-icon>
+        <h3>恢复点</h3>
+      </div>
       <span>{{ checkpoints.length }} 个</span>
     </div>
 
@@ -20,6 +23,7 @@
           :disabled="!checkpoint.canResume"
           @click="$emit('resume', checkpoint.checkpointId)"
         >
+          <el-icon><Refresh /></el-icon>
           恢复
         </button>
       </article>
@@ -28,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { Clock, Refresh } from '@element-plus/icons-vue'
 import type { Checkpoint } from '@/services/api/workflow'
 
 defineProps<{
@@ -47,10 +52,7 @@ const formatTime = (value?: string) => {
 
 <style scoped>
 .checkpoint-panel {
-  padding: 16px;
-  border: 1px solid #dde4ef;
-  border-radius: 8px;
-  background: #fff;
+  min-width: 0;
 }
 
 .section-head,
@@ -65,15 +67,22 @@ const formatTime = (value?: string) => {
   margin-bottom: 12px;
 }
 
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
+}
+
 h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-primary);
   font-size: 15px;
 }
 
 .section-head span,
 .empty {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -85,9 +94,9 @@ h3 {
 
 .checkpoint-item {
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-panel);
 }
 
 .checkpoint-item > div {
@@ -101,7 +110,7 @@ time {
 }
 
 strong {
-  color: #111827;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -109,7 +118,7 @@ span,
 time {
   margin-top: 3px;
   overflow-wrap: anywhere;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -117,11 +126,21 @@ button {
   flex: 0 0 auto;
   height: 30px;
   padding: 0 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   background: #fff;
-  color: #0f172a;
+  color: var(--text-primary);
   cursor: pointer;
+  transition: var(--transition);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  color: var(--primary-color);
+  transform: translateY(-1px);
 }
 
 button:disabled {

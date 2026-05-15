@@ -3,13 +3,7 @@
     <div class="aggregation-header">
       <div class="header-left">
         <div class="header-icon">
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-            <circle cx="10" cy="4" r="2.5" fill="#6366f1" />
-            <circle cx="4" cy="14" r="2.5" fill="#22d3ee" />
-            <circle cx="16" cy="14" r="2.5" fill="#a78bfa" />
-            <line x1="10" y1="6.5" x2="4" y2="11.5" stroke="#6366f1" stroke-width="1" opacity="0.4" />
-            <line x1="10" y1="6.5" x2="16" y2="11.5" stroke="#6366f1" stroke-width="1" opacity="0.4" />
-          </svg>
+          <el-icon><Share /></el-icon>
         </div>
         <span class="header-title">模型聚合</span>
       </div>
@@ -29,9 +23,7 @@
           ></div>
         </div>
         <div class="upload-status" :class="{ uploaded: client.uploaded }">
-          <svg v-if="client.uploaded" width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 5l2.5 2.5L8 3" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          <el-icon v-if="client.uploaded"><Select /></el-icon>
           <span v-else class="upload-waiting">...</span>
         </div>
       </div>
@@ -49,17 +41,11 @@
 
     <div class="aggregation-actions">
       <button class="agg-btn primary" @click="$emit('aggregate')" :disabled="!canAggregate">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-          <path d="M7 1v4M7 9v4M1 7h4M9 7h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-          <circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1" opacity="0.4" />
-        </svg>
+        <el-icon><Share /></el-icon>
         执行聚合
       </button>
       <button class="agg-btn" @click="$emit('refresh')">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-          <path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-          <path d="M11 1v3h-3M3 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <el-icon><Refresh /></el-icon>
         刷新
       </button>
     </div>
@@ -68,6 +54,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Refresh, Select, Share } from '@element-plus/icons-vue'
 
 interface AggClient {
   id: string
@@ -113,18 +100,18 @@ const statusClass = computed(() => {
 
 <style scoped>
 .aggregation-card {
-  --primary: #6366f1;
-  --primary-bg: rgba(99, 102, 241, 0.06);
-  --primary-border: rgba(99, 102, 241, 0.12);
-  --cyan: #22d3ee;
-  --green: #34d399;
+  --primary: var(--primary-color, #3f6b63);
+  --primary-bg: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  --primary-border: var(--border-light, #e3e6df);
+  --cyan: var(--accent-color, #6f668f);
+  --green: var(--success, #3d7656);
   --surface: #ffffff;
-  --surface-alt: #f8fafc;
-  --text-primary: #1e293b;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --surface-alt: var(--bg-input, #f1f3ef);
+  --text-primary: var(--text-primary, #1d2422);
+  --text-secondary: var(--text-secondary, #727c76);
+  --text-muted: var(--text-disabled, #a6aca8);
   --radius-sm: 8px;
-  --radius-md: 12px;
+  --radius-md: 8px;
   --transition-fast: 0.15s ease;
   --transition-base: 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 
@@ -132,7 +119,7 @@ const statusClass = computed(() => {
   border: 1px solid var(--primary-border);
   border-radius: var(--radius-md);
   padding: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(29, 36, 34, 0.04));
 }
 
 .aggregation-header {
@@ -153,7 +140,9 @@ const statusClass = computed(() => {
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
-  background: var(--primary-bg);
+  border: 1px solid var(--primary-border);
+  background: #fff;
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -173,9 +162,9 @@ const statusClass = computed(() => {
 }
 
 .header-badge.ready {
-  background: rgba(16, 185, 129, 0.08);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.15);
+  background: rgba(61, 118, 86, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(61, 118, 86, 0.2);
 }
 
 .header-badge.running {
@@ -223,7 +212,7 @@ const statusClass = computed(() => {
 .weight-track {
   flex: 1;
   height: 6px;
-  background: #f1f5f9;
+  background: var(--surface-alt);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -243,13 +232,14 @@ const statusClass = computed(() => {
   align-items: center;
   justify-content: center;
   background: var(--surface-alt);
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--primary-border);
   transition: all var(--transition-fast);
 }
 
 .upload-status.uploaded {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.15);
+  background: rgba(61, 118, 86, 0.1);
+  border-color: rgba(61, 118, 86, 0.2);
+  color: var(--green);
 }
 
 .upload-waiting {
@@ -264,7 +254,7 @@ const statusClass = computed(() => {
   gap: 4px;
   margin-top: var(--gap-sm, 10px);
   padding-top: var(--gap-sm, 10px);
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--primary-border);
   font-size: 10px;
   color: var(--text-muted);
 }
@@ -309,7 +299,7 @@ const statusClass = computed(() => {
   border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 500;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--primary-border);
   background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
@@ -319,7 +309,7 @@ const statusClass = computed(() => {
 .agg-btn:hover:not(:disabled) {
   background: var(--surface-alt);
   color: var(--text-primary);
-  border-color: #cbd5e1;
+  border-color: var(--border-hover, #cfd6cd);
 }
 
 .agg-btn.primary {

@@ -3,19 +3,11 @@
     <div id="app">
       <el-container class="app-layout" :class="{ 'immersive-mode': isImmersive }">
         <!-- Sidebar Navigation -->
-        <el-aside width="260px" class="app-sidebar" v-if="!isImmersive">
+        <el-aside width="248px" class="app-sidebar" v-if="!isImmersive">
           <!-- Logo Section -->
           <div class="sidebar-header" @click="router.push('/chat')">
             <div class="logo-icon">
-              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="14" stroke="white" stroke-width="1.8" fill="none"/>
-                <circle cx="16" cy="11" r="4" fill="white"/>
-                <circle cx="9" cy="22" r="3.2" fill="white" opacity="0.7"/>
-                <circle cx="23" cy="22" r="3.2" fill="white" opacity="0.7"/>
-                <line x1="16" y1="15" x2="9" y2="19" stroke="white" stroke-width="1.2" opacity="0.6"/>
-                <line x1="16" y1="15" x2="23" y2="19" stroke="white" stroke-width="1.2" opacity="0.6"/>
-                <line x1="9" y1="22" x2="23" y2="22" stroke="white" stroke-width="1.2" opacity="0.4"/>
-              </svg>
+              <el-icon><Connection /></el-icon>
             </div>
             <span class="logo-text">知弈</span>
           </div>
@@ -34,11 +26,15 @@
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
               <el-menu-item index="/federated-agent-workbench">
-                <el-icon><DataAnalysis /></el-icon>
+                <el-icon><Operation /></el-icon>
                 <span>智能体工作台</span>
               </el-menu-item>
+              <el-menu-item index="/agentos-console">
+                <el-icon><Monitor /></el-icon>
+                <span>AgentOS 控制台</span>
+              </el-menu-item>
               <el-menu-item index="/contract-clause-planner">
-                <el-icon><DataAnalysis /></el-icon>
+                <el-icon><DocumentChecked /></el-icon>
                 <span>合同起草规划</span>
               </el-menu-item>
 
@@ -58,11 +54,11 @@
                 <span>{{ $t('nav.roles') }}</span>
               </el-menu-item>
               <el-menu-item index="/federated-learning">
-                <el-icon><DataAnalysis /></el-icon>
+                <el-icon><Connection /></el-icon>
                 <span>联邦管理</span>
               </el-menu-item>
               <el-menu-item index="/federated-models">
-                <el-icon><DataAnalysis /></el-icon>
+                <el-icon><Cpu /></el-icon>
                 <span>模型管理</span>
               </el-menu-item>
               <el-menu-item index="/settings">
@@ -127,7 +123,8 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   ChatDotRound, User, Search, 
-  Clock, Setting, SwitchButton, DataAnalysis
+  Clock, Setting, SwitchButton, Connection,
+  Operation, Monitor, DocumentChecked, Cpu
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { authApi } from '@/services/api/auth'
@@ -171,6 +168,7 @@ const isRouteScrollable = computed(() => {
     path.startsWith('/federated-learning') ||
     path.startsWith('/federated-models') ||
     path.startsWith('/federated-agent-workbench') ||
+    path.startsWith('/agentos-console') ||
     path.startsWith('/contract-clause-planner')
   )
 })
@@ -179,6 +177,7 @@ const activeMenu = computed(() => {
   const path = route.path
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
   if (path.startsWith('/federated-agent-workbench')) return '/federated-agent-workbench'
+  if (path.startsWith('/agentos-console')) return '/agentos-console'
   if (path.startsWith('/contract-clause-planner')) return '/contract-clause-planner'
   if (path === '/roles' || path.startsWith('/roles')) return '/roles'
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
@@ -251,59 +250,63 @@ onUnmounted(() => {
 .app-layout {
   height: 100%;
   width: 100%;
-  background-color: var(--bg-app);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(246, 247, 244, 0.98)),
+    var(--bg-app);
   overflow: hidden;
   display: flex;
 }
 
 /* Sidebar Styles */
 .app-sidebar {
-  background-color: var(--bg-sidebar);
+  background-color: rgba(251, 251, 248, 0.92);
   border-right: 1px solid var(--border-light);
+  backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
+  transition: width 0.24s var(--ease-out);
 }
 
 .sidebar-header {
-  height: 64px;
+  height: 72px;
   display: flex;
   align-items: center;
-  padding: 0 24px;
+  padding: 0 22px;
   cursor: pointer;
-  gap: 12px;
+  gap: 10px;
+  border-bottom: 1px solid rgba(227, 230, 223, 0.72);
 }
 
 .logo-icon {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-active));
+  width: 34px;
+  height: 34px;
+  background: #fff;
+  border: 1px solid var(--primary-line);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--primary-color);
   font-weight: bold;
-  font-family: var(--font-serif);
   font-size: 18px;
-  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .logo-text {
   font-family: var(--font-serif);
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 16px 8px;
+  padding: 18px 8px 12px;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  max-height: calc(100vh - 200px); /* 减少底部空白，优化高度 */
+  max-height: calc(100vh - 196px);
 }
 
 /* Sidebar menu scrolling */
@@ -316,20 +319,20 @@ onUnmounted(() => {
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  background: rgba(63, 107, 99, 0.16);
+  border-radius: 999px;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(63, 107, 99, 0.24);
 }
 
 .menu-group-title {
-  padding: 12px 16px 8px;
+  padding: 14px 16px 7px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-disabled);
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -369,22 +372,25 @@ onUnmounted(() => {
 }
 
 .sidebar-footer {
-  padding: 16px;
-  margin-top: auto; /* 确保底部区域始终在底部 */
+  padding: 14px;
+  margin-top: auto;
+  border-top: 1px solid rgba(227, 230, 223, 0.72);
 }
 
 .user-profile {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 10px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color 0.2s;
+  border: 1px solid transparent;
+  transition: var(--transition);
 }
 
 .user-profile:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: #fff;
+  border-color: var(--border-light);
 }
 
 .user-avatar {
@@ -411,25 +417,25 @@ onUnmounted(() => {
 
 /* Footer layout */
 .logout-section {
-  margin-top: 12px;
-  padding: 0 12px;
+  margin-top: 10px;
+  padding: 0;
 }
 
 .logout-btn {
   width: 100%;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border: none;
+  background: #fff !important;
+  border: 1px solid rgba(178, 74, 74, 0.22) !important;
   border-radius: 8px;
-  color: white;
+  color: var(--danger) !important;
   font-weight: 500;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  transition: var(--transition);
+  box-shadow: none;
 }
 
 .logout-btn:hover {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  background: rgba(178, 74, 74, 0.08) !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  box-shadow: none;
 }
 
 .logout-btn:active {
@@ -443,7 +449,7 @@ onUnmounted(() => {
 
 /* Main Content Styles */
 .main-container {
-  background-color: var(--bg-app);
+  background-color: transparent;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -474,12 +480,13 @@ onUnmounted(() => {
 /* Transitions */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out);
 }
 
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+  transform: translateY(4px);
 }
 
 /* Immersive Mode Overrides */
@@ -509,5 +516,3 @@ onUnmounted(() => {
   background: rgba(99, 102, 241, 0.2);
 }
 </style>
-
-''

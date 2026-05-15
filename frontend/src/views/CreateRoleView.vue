@@ -125,7 +125,7 @@
                   @click="form.digitalHumanStyle = style.id"
                 >
                   <div class="style-header">
-                    <div class="style-icon">{{ style.icon }}</div>
+                    <el-icon class="style-icon"><component :is="style.icon" /></el-icon>
                     <div class="style-check" v-if="form.digitalHumanStyle === style.id">
                       <el-icon><Check /></el-icon>
                     </div>
@@ -188,7 +188,7 @@
               <div class="advanced-config">
                 <div class="config-card">
                   <div class="card-header">
-                    <div class="card-icon">💬</div>
+                    <el-icon class="card-icon"><ChatDotRound /></el-icon>
                     <div class="card-title">对话风格</div>
                   </div>
                   <div class="card-content">
@@ -204,7 +204,7 @@
 
                 <div class="config-card">
                   <div class="card-header">
-                    <div class="card-icon">🎭</div>
+                    <el-icon class="card-icon"><UserFilled /></el-icon>
                     <div class="card-title">性格特点</div>
                   </div>
                   <div class="card-content">
@@ -277,7 +277,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowLeft, Check } from '@element-plus/icons-vue'
+import { ArrowLeft, Check, ChatDotRound, MagicStick, Monitor, UserFilled } from '@element-plus/icons-vue'
 import { useRoleStore } from '@/stores/role'
 import { digitalHumanApi } from '@/services/api/digitalHuman'
 import type { RoleCreateRequest } from '@/services/api/role'
@@ -299,9 +299,9 @@ const form = reactive({
   profession: '',
   personality: '',
   colors: {
-    primary: '#4F46E5',
-    secondary: '#818CF8',
-    accent: '#10B981'
+    primary: '#3f6b63',
+    secondary: '#6f668f',
+    accent: '#3d7656'
   }
 })
 
@@ -309,21 +309,21 @@ const digitalHumanStyles = [
   {
     id: 'realistic',
     name: '写实风格',
-    icon: '🎭',
+    icon: UserFilled,
     description: '极其写实，如同真实人类一般',
     features: ['逼真', '专业', '正式']
   },
   {
     id: 'cartoon',
     name: '卡通风格',
-    icon: '🎨',
+    icon: Monitor,
     description: '清新可爱，适合日常交流',
     features: ['亲和', '活泼', '轻松']
   },
   {
     id: 'anime',
     name: '二次元风格',
-    icon: '✨',
+    icon: MagicStick,
     description: '充满艺术感，深受年轻用户喜爱',
     features: ['时尚', '个性', '年轻']
   }

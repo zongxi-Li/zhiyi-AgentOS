@@ -2,7 +2,7 @@
   <section class="card outline-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">📋</span>
+        <el-icon class="head-icon"><Notebook /></el-icon>
         <h4>文章大纲</h4>
       </div>
       <span class="meta" v-if="titleText">{{ titleText }}</span>
@@ -10,10 +10,7 @@
 
     <div v-if="!outline?.length && !outlineMarkdown" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect x="8" y="6" width="24" height="28" rx="3" stroke="#d1d5db" stroke-width="1.5"/>
-          <path d="M14 14h12M14 18h12M14 22h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <el-icon><Document /></el-icon>
       </div>
       <span>暂无大纲内容</span>
     </div>
@@ -51,6 +48,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Document, Notebook } from '@element-plus/icons-vue'
 
 interface OutlineNode {
   title: string
@@ -86,9 +84,9 @@ const renderedHtml = computed(() => {
 
 const nodeMarker = (level?: number) => {
   switch (level) {
-    case 1: return '📌'
-    case 2: return '📎'
-    case 3: return '🔹'
+    case 1: return '1'
+    case 2: return '2'
+    case 3: return '3'
     default: return '•'
   }
 }

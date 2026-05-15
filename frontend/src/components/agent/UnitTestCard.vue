@@ -2,7 +2,7 @@
   <section class="card test-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🧪</span>
+        <el-icon class="head-icon"><Check /></el-icon>
         <h4>单元测试生成</h4>
       </div>
       <span class="coverage-pill" :class="coverageClass">覆盖率 {{ coverageLabel }}</span>
@@ -10,12 +10,7 @@
 
     <div v-if="!testCases?.length && !summary" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect x="8" y="6" width="24" height="28" rx="3" stroke="#d1d5db" stroke-width="1.5"/>
-          <path d="M14 14h12M14 18h12M14 22h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-          <circle cx="30" cy="30" r="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
-          <path d="M27 30l2 2 4-4" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <el-icon><Document /></el-icon>
       </div>
       <span>暂无测试用例</span>
     </div>
@@ -63,6 +58,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Check, Document } from '@element-plus/icons-vue'
 
 interface TestCase {
   name?: string
@@ -108,9 +104,9 @@ const testStatusClass = (status?: string) => {
 
 const testStatusIcon = (status?: string) => {
   const s = (status || '').toLowerCase()
-  if (s === 'pass' || s === 'passed' || s === 'success') return '✅'
-  if (s === 'fail' || s === 'failed' || s === 'error') return '❌'
-  return '⏳'
+  if (s === 'pass' || s === 'passed' || s === 'success') return 'OK'
+  if (s === 'fail' || s === 'failed' || s === 'error') return '!'
+  return '...'
 }
 </script>
 

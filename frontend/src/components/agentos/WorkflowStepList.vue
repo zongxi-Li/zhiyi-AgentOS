@@ -1,7 +1,10 @@
 <template>
-  <section class="workflow-step-list">
+  <section class="workflow-step-list ui-surface ui-surface--pad">
     <div class="section-head">
-      <h3>步骤状态</h3>
+      <div class="section-title">
+        <el-icon><Operation /></el-icon>
+        <h3>步骤状态</h3>
+      </div>
       <span>{{ steps.length }} 个步骤</span>
     </div>
 
@@ -32,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { Operation } from '@element-plus/icons-vue'
 import type { StepStatus, WorkflowStep } from '@/services/api/agentos'
 
 defineProps<{
@@ -55,10 +59,7 @@ const statusLabel = (status: StepStatus) => {
 
 <style scoped>
 .workflow-step-list {
-  padding: 16px;
-  border: 1px solid #dde4ef;
-  border-radius: 8px;
-  background: #fff;
+  min-width: 0;
 }
 
 .section-head {
@@ -66,6 +67,13 @@ const statusLabel = (status: StepStatus) => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
 }
 
 h3,
@@ -76,14 +84,14 @@ p {
 
 h3 {
   font-size: 15px;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .section-head span,
 .empty,
 p,
 .step-meta {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -99,14 +107,16 @@ p,
   gap: 8px;
   min-height: 138px;
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-panel);
+  transition: var(--transition);
 }
 
 .step-card.active {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  border-color: var(--primary-line);
+  background: #fff;
+  box-shadow: inset 2px 0 0 var(--primary-color), var(--shadow-sm);
 }
 
 .step-top,
@@ -119,7 +129,7 @@ p,
 
 .step-top span {
   overflow-wrap: anywhere;
-  color: #334155;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -128,35 +138,35 @@ p,
   flex: 0 0 auto;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #334155;
+  background: var(--bg-input);
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
 .running .step-top strong,
 .retrying .step-top strong {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: rgba(73, 107, 143, 0.12);
+  color: var(--info);
 }
 
 .waiting_review .step-top strong {
-  background: #fef3c7;
-  color: #b45309;
+  background: rgba(154, 116, 50, 0.12);
+  color: var(--warning);
 }
 
 .completed .step-top strong {
-  background: #dcfce7;
-  color: #15803d;
+  background: rgba(61, 118, 86, 0.12);
+  color: var(--success);
 }
 
 .failed .step-top strong,
 .cancelled .step-top strong {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: rgba(178, 74, 74, 0.12);
+  color: var(--danger);
 }
 
 h4 {
-  color: #111827;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -168,8 +178,8 @@ h4 {
 .step-error {
   padding: 8px;
   border-radius: 6px;
-  background: #fef2f2;
-  color: #b91c1c;
+  background: rgba(178, 74, 74, 0.08);
+  color: var(--danger);
   overflow-wrap: anywhere;
 }
 </style>

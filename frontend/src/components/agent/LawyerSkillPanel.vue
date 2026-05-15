@@ -2,7 +2,9 @@
   <section class="skill-panel lawyer-panel">
     <div class="panel-header">
       <div class="header-left">
-        <div class="agent-avatar">⚖️</div>
+        <div class="agent-avatar">
+          <el-icon><ScaleToOriginal /></el-icon>
+        </div>
         <div class="header-text">
           <h3>律师 Agent 工作台</h3>
           <span class="header-sub">智能法律助手</span>
@@ -25,7 +27,7 @@
         :class="{ active: activeTab === tab.key }"
         @click="activeTab = tab.key"
       >
-        <span class="tab-icon">{{ tab.icon }}</span>
+        <el-icon class="tab-icon"><component :is="tab.icon" /></el-icon>
         <span class="tab-label">{{ tab.label }}</span>
         <span v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</span>
       </button>
@@ -59,10 +61,7 @@
           <div class="sub-title">已调用技能</div>
           <div v-if="!skillVisuals.length" class="empty">
             <div class="empty-illustration">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <path d="M18 22h12M18 26h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+              <el-icon><Notebook /></el-icon>
             </div>
             <span>暂无技能调用记录</span>
             <span class="empty-hint">发送消息后，律师 Agent 将自动调用相关技能</span>
@@ -76,7 +75,7 @@
               :style="{ animationDelay: `${idx * 0.06}s` }"
               :title="item.raw"
             >
-              <span class="skill-icon">{{ item.icon }}</span>
+              <el-icon class="skill-icon"><component :is="item.icon" /></el-icon>
               <span class="skill-name">{{ item.zh }}</span>
               <span class="skill-state">
                 <span class="state-dot"></span>
@@ -90,10 +89,7 @@
       <div v-show="activeTab === 'trace'" class="tab-content">
         <div v-if="!trace.length" class="empty">
           <div class="empty-illustration">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-              <path d="M16 20l6 6 10-10" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <el-icon><Connection /></el-icon>
           </div>
           <span>暂无调用轨迹</span>
           <span class="empty-hint">技能执行后将展示完整调用链路</span>
@@ -107,11 +103,7 @@
         <slot name="results">
           <div class="empty">
             <div class="empty-illustration">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <rect x="16" y="16" width="16" height="16" rx="3" stroke="#9ca3af" stroke-width="1.5"/>
-                <path d="M20 24h8M24 20v8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+              <el-icon><Document /></el-icon>
             </div>
             <span>暂无技能调用结果</span>
             <span class="empty-hint">技能执行完成后将展示详细结果</span>
@@ -123,7 +115,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, type Component } from 'vue'
+import { Clock, Connection, Document, EditPen, Notebook, Operation, Reading, ScaleToOriginal, Search } from '@element-plus/icons-vue'
 import TraceTimeline, { type TraceStep } from './TraceTimeline.vue'
 import { toRiskLevelZh, toSkillNameZh } from '@/utils/agentDisplay'
 
@@ -136,7 +129,7 @@ interface FederatedInfo {
 }
 
 interface SkillVisual {
-  icon: string
+  icon: Component
   tone: 'blue' | 'sky' | 'indigo' | 'cyan' | 'slate'
 }
 
@@ -156,27 +149,27 @@ const emit = defineEmits<{
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
-  { key: 'skills' as const, label: '技能调用', icon: '⚡', count: props.skillsUsed?.length || 0 },
-  { key: 'trace' as const, label: '调用轨迹', icon: '🔗', count: props.trace?.length || 0 },
-  { key: 'results' as const, label: '调用结果', icon: '📊', count: props.resultCount || 0 }
+  { key: 'skills' as const, label: '技能调用', icon: Operation, count: props.skillsUsed?.length || 0 },
+  { key: 'trace' as const, label: '调用轨迹', icon: Connection, count: props.trace?.length || 0 },
+  { key: 'results' as const, label: '调用结果', icon: Document, count: props.resultCount || 0 }
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
-  case_understanding: { icon: '🧠', tone: 'indigo' },
-  statute_retrieval: { icon: '📚', tone: 'blue' },
-  case_retrieval: { icon: '⚖️', tone: 'sky' },
-  evidence_analysis: { icon: '📋', tone: 'cyan' },
-  limitation_calculation: { icon: '⏳', tone: 'slate' },
-  jurisdiction_determination: { icon: '📍', tone: 'indigo' },
-  hearing_outline_generation: { icon: '📝', tone: 'blue' },
-  document_generation: { icon: '✍️', tone: 'sky' },
-  risk_assessment: { icon: '🛡️', tone: 'cyan' }
+  case_understanding: { icon: Search, tone: 'indigo' },
+  statute_retrieval: { icon: Reading, tone: 'blue' },
+  case_retrieval: { icon: ScaleToOriginal, tone: 'sky' },
+  evidence_analysis: { icon: Document, tone: 'cyan' },
+  limitation_calculation: { icon: Clock, tone: 'slate' },
+  jurisdiction_determination: { icon: Connection, tone: 'indigo' },
+  hearing_outline_generation: { icon: Notebook, tone: 'blue' },
+  document_generation: { icon: EditPen, tone: 'sky' },
+  risk_assessment: { icon: Operation, tone: 'cyan' }
 }
 
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '🧩', tone: 'blue' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: Operation, tone: 'blue' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),

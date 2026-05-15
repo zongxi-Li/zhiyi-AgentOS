@@ -1,24 +1,16 @@
 <template>
-  <div class="login-view">
+  <div class="login-view ui-shell">
     <!-- Atmospheric Background -->
     <div class="ambient-glow top-left"></div>
     <div class="ambient-glow bottom-right"></div>
     
-    <div class="login-container glass-panel">
+    <div class="login-container ui-surface">
       <!-- Left side: Brand/Promo -->
       <div class="promo-side">
         <div class="promo-content">
           <div class="brand">
             <div class="logo-box">
-              <svg viewBox="0 0 40 40" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="20" cy="20" r="18" stroke="white" stroke-width="2" fill="none"/>
-                <circle cx="20" cy="14" r="5" fill="white"/>
-                <circle cx="12" cy="28" r="4" fill="white" opacity="0.7"/>
-                <circle cx="28" cy="28" r="4" fill="white" opacity="0.7"/>
-                <line x1="20" y1="19" x2="12" y2="24" stroke="white" stroke-width="1.5" opacity="0.6"/>
-                <line x1="20" y1="19" x2="28" y2="24" stroke="white" stroke-width="1.5" opacity="0.6"/>
-                <line x1="12" y1="28" x2="28" y2="28" stroke="white" stroke-width="1.5" opacity="0.4"/>
-              </svg>
+              <el-icon :size="20"><Connection /></el-icon>
             </div>
             <span class="brand-name">知弈</span>
           </div>
@@ -177,7 +169,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, Lock, Message, Monitor, Connection, UserFilled } from '@element-plus/icons-vue'
+import { User, Lock, Message, Monitor, Connection } from '@element-plus/icons-vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { authApi } from '@/services/api/auth'
 
@@ -323,23 +315,23 @@ const handleRegister = async () => {
 /* Ambient Background */
 .ambient-glow {
   position: absolute;
-  width: 800px;
-  height: 800px;
+  width: 680px;
+  height: 680px;
   border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.3;
+  filter: blur(140px);
+  opacity: 0.18;
   z-index: 0;
   pointer-events: none;
 }
 .top-left {
-  top: -300px;
-  left: -200px;
-  background: radial-gradient(circle, var(--primary-color) 0%, transparent 70%);
+  top: -260px;
+  left: -180px;
+  background: radial-gradient(circle, rgba(63, 107, 99, 0.45) 0%, transparent 70%);
 }
 .bottom-right {
-  bottom: -300px;
-  right: -200px;
-  background: radial-gradient(circle, #818cf8 0%, transparent 70%);
+  bottom: -260px;
+  right: -180px;
+  background: radial-gradient(circle, rgba(111, 102, 143, 0.4) 0%, transparent 70%);
 }
 
 .login-container {
@@ -351,16 +343,18 @@ const handleRegister = async () => {
   display: flex;
   overflow: hidden;
   z-index: 10;
-  border-radius: 32px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   margin: 20px;
 }
 
 /* Promo Side */
 .promo-side {
   flex: 1.1;
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(129, 140, 248, 0.05) 100%);
+  background:
+    linear-gradient(180deg, rgba(63, 107, 99, 0.06) 0%, rgba(255, 255, 255, 0.68) 100%),
+    radial-gradient(at 12% 18%, rgba(63, 107, 99, 0.08) 0px, transparent 44%);
   padding: 40px 60px;
   display: flex;
   flex-direction: column;
@@ -378,15 +372,17 @@ const handleRegister = async () => {
 .logo-box {
   width: 40px;
   height: 40px;
-  background: var(--primary-color);
-  color: white;
+  background: #fff;
+  color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   font-size: 20px;
-  border-radius: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
   font-family: var(--font-serif);
+  box-shadow: var(--shadow-sm);
 }
 
 .brand-name {
@@ -471,7 +467,7 @@ const handleRegister = async () => {
 /* Auth Side */
 .auth-side {
   flex: 0.9;
-  background: white;
+  background: rgba(255, 255, 255, 0.94);
   padding: 40px 60px;
   display: flex;
   flex-direction: column;
@@ -540,8 +536,8 @@ const handleRegister = async () => {
 
 .premium-input :deep(.el-input__wrapper) {
   height: 52px;
-  background-color: #f8fafc !important;
-  border-radius: 14px !important;
+  background-color: var(--bg-input) !important;
+  border-radius: 8px !important;
   padding-left: 16px;
 }
 
@@ -564,18 +560,18 @@ const handleRegister = async () => {
 
 .submit-btn {
   height: 54px;
-  border-radius: 16px;
+  border-radius: 8px;
   font-size: 16px;
   font-weight: 700;
   margin-top: 12px;
   background: var(--primary-color);
   border: none;
-  box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
+  box-shadow: none;
 }
 
 .submit-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px -5px rgba(79, 70, 229, 0.5);
+  box-shadow: var(--shadow-glow);
 }
 
 @keyframes aura-pulse {

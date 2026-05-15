@@ -265,8 +265,8 @@ const loadDigitalHuman = async () => {
         })
         if (createResponse && createResponse.success) {
           modelData = createResponse.data
-          console.log('✅ 数字人创建成功:', modelData)
-          console.log('📦 数据字段:', Object.keys(modelData))
+          console.log('数字人创建成功:', modelData)
+          console.log('数据字段:', Object.keys(modelData))
         }
       }
     } catch (e: any) {
@@ -285,8 +285,8 @@ const loadDigitalHuman = async () => {
           })
           if (createResponse && createResponse.success) {
         modelData = createResponse.data
-        console.log('✅ 数字人创建成功:', modelData)
-        console.log('📦 数据字段:', Object.keys(modelData || {}))
+        console.log('数字人创建成功:', modelData)
+        console.log('数据字段:', Object.keys(modelData || {}))
             // 更新角色头像
             const avatarUrl = modelData.avatar || modelData.local_image_url
             if (avatarUrl && props.roleId) {
@@ -306,11 +306,11 @@ const loadDigitalHuman = async () => {
     
     // 如果获取或创建成功，加载模型或图像
     if (modelData) {
-      console.log('📦 数字人数据:', JSON.stringify(modelData, null, 2))
+      console.log('数字人数据:', JSON.stringify(modelData, null, 2))
       
       // 优先使用2D图像（如果存在）
       const imageUrl = normalizeDigitalHumanAssetUrl(modelData.avatar || modelData.local_image_url || modelData.image_url)
-      console.log('🖼️ 图像URL检查:', {
+      console.log('图像URL检查:', {
         avatar: modelData.avatar,
         local_image_url: modelData.local_image_url,
         image_url: modelData.image_url,
@@ -331,25 +331,25 @@ const loadDigitalHuman = async () => {
           // /ai 路径会被代理到 http://localhost:8080/ai
           // /api 路径会被代理到 http://localhost:8080/api
         }
-        console.log('🖼️ 完整图像URL:', fullImageUrl)
+        console.log('完整图像URL:', fullImageUrl)
         await load2DImage(fullImageUrl)
       } else if (modelData.modelUrl) {
         // 如果没有图像，尝试加载3D模型
-        console.log('📦 尝试加载3D模型:', modelData.modelUrl)
+        console.log('尝试加载3D模型:', modelData.modelUrl)
         await load3DModel(modelData.modelUrl)
       } else if (modelData.modelPath) {
-        console.log('📦 尝试加载3D模型路径:', modelData.modelPath)
+        console.log('尝试加载3D模型路径:', modelData.modelPath)
         await load3DModel(modelData.modelPath)
       } else {
         // 如果都没有，使用占位符
-        console.warn('⚠️ 没有找到图像或模型，使用占位符')
+        console.warn('没有找到图像或模型，使用占位符')
         createPlaceholderModel()
       }
       
       ElMessage.success('数字人加载成功')
       loading.value = false
     } else {
-      console.error('❌ 无法获取数字人数据')
+      console.error('无法获取数字人数据')
       throw new Error('无法获取数字人数据')
     }
   } catch (e: any) {
@@ -446,11 +446,11 @@ const load3DModel = async (modelUrl: string) => {
  */
 const load2DImage = async (imageUrl: string) => {
   if (!scene) {
-    console.error('❌ 场景未初始化，无法加载图像')
+    console.error('场景未初始化，无法加载图像')
     return
   }
   
-  console.log('🖼️ 开始加载2D图像:', imageUrl)
+  console.log('开始加载2D图像:', imageUrl)
   
   try {
     // 清除旧模型和所有占位符
@@ -482,7 +482,7 @@ const load2DImage = async (imageUrl: string) => {
       }
     })
     
-    console.log('🧹 已清除所有旧对象，准备加载新图像')
+    console.log('已清除所有旧对象，准备加载新图像')
     
     // 创建纹理加载器
     const textureLoader = new THREE.TextureLoader()
@@ -492,12 +492,12 @@ const load2DImage = async (imageUrl: string) => {
     
     // 加载图像纹理
     const texture = await new Promise<THREE.Texture>((resolve, reject) => {
-      console.log('📥 开始加载纹理:', imageUrl)
+      console.log('开始加载纹理:', imageUrl)
       
       textureLoader.load(
         imageUrl,
         (texture) => {
-          console.log('✅ 纹理加载成功:', {
+          console.log('纹理加载成功:', {
             width: texture.image.width,
             height: texture.image.height,
             url: imageUrl
@@ -514,11 +514,11 @@ const load2DImage = async (imageUrl: string) => {
           // 加载进度
           if (progress.total > 0) {
             const percent = (progress.loaded / progress.total) * 100
-            console.log(`📊 图像加载进度: ${percent.toFixed(1)}%`)
+            console.log(`图像加载进度: ${percent.toFixed(1)}%`)
           }
         },
         (error) => {
-          console.error('❌ 加载图像纹理失败:', {
+          console.error('加载图像纹理失败:', {
             error,
             url: imageUrl,
             message: error instanceof Error ? error.message : '未知错误'
@@ -538,7 +538,7 @@ const load2DImage = async (imageUrl: string) => {
     const imageHeight = texture.image.height
     const imageAspect = imageWidth / imageHeight
     
-    console.log('📐 容器和图像尺寸:', {
+    console.log('容器和图像尺寸:', {
       container: { width: containerWidth, height: containerHeight, aspect: containerAspect },
       image: { width: imageWidth, height: imageHeight, aspect: imageAspect }
     })
@@ -559,7 +559,7 @@ const load2DImage = async (imageUrl: string) => {
     
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight)
     
-    console.log('📐 创建平面几何体:', { width: planeWidth, height: planeHeight })
+    console.log('创建平面几何体:', { width: planeWidth, height: planeHeight })
     
     // 创建材质
     const material = new THREE.MeshBasicMaterial({
@@ -579,7 +579,7 @@ const load2DImage = async (imageUrl: string) => {
     // 添加到场景
     scene.add(digitalHumanModel)
     
-    console.log('✅ 图像网格已添加到场景')
+    console.log('图像网格已添加到场景')
     
     // 调整相机位置以适应图像，确保图像填满视口
     if (camera) {
@@ -593,12 +593,12 @@ const load2DImage = async (imageUrl: string) => {
       camera.position.z = distance
       camera.lookAt(0, 0, 0)
       camera.updateProjectionMatrix()
-      console.log('📷 相机位置已调整:', { z: distance, fov: camera.fov })
+      console.log('相机位置已调整:', { z: distance, fov: camera.fov })
     }
     
-    console.log('✅ 2D图像加载并显示成功:', imageUrl)
+    console.log('2D图像加载并显示成功:', imageUrl)
   } catch (e: any) {
-    console.error('❌ 加载2D图像失败:', {
+    console.error('加载2D图像失败:', {
       error: e,
       message: e?.message,
       url: imageUrl,
@@ -608,10 +608,10 @@ const load2DImage = async (imageUrl: string) => {
     // 尝试使用img标签预加载，检查图像是否可访问
     const img = new Image()
     img.onload = () => {
-      console.log('✅ 图像可以访问，但Three.js加载失败，可能是CORS问题')
+      console.log('图像可以访问，但Three.js加载失败，可能是CORS问题')
     }
     img.onerror = (err) => {
-      console.error('❌ 图像无法访问:', {
+      console.error('图像无法访问:', {
         url: imageUrl,
         error: err
       })
@@ -619,7 +619,7 @@ const load2DImage = async (imageUrl: string) => {
     img.src = imageUrl
     
     // 如果加载失败，使用占位符
-    console.warn('⚠️ 使用占位符替代')
+    console.warn('使用占位符替代')
     createPlaceholderModel()
   }
 }

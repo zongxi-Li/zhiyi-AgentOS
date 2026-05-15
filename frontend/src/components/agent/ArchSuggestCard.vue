@@ -2,7 +2,7 @@
   <section class="card arch-card">
     <header class="card-head">
       <div class="head-left">
-        <span class="head-icon">🏗️</span>
+        <el-icon class="head-icon"><Connection /></el-icon>
         <h4>架构建议</h4>
       </div>
       <span class="pattern-pill" v-if="pattern">{{ pattern }}</span>
@@ -10,12 +10,7 @@
 
     <div v-if="!suggestions?.length && !overview" class="empty">
       <div class="empty-illustration">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect x="8" y="6" width="24" height="8" rx="2" stroke="#d1d5db" stroke-width="1.5"/>
-          <rect x="4" y="18" width="14" height="16" rx="2" stroke="#d1d5db" stroke-width="1.5"/>
-          <rect x="22" y="18" width="14" height="16" rx="2" stroke="#d1d5db" stroke-width="1.5"/>
-          <path d="M20 10v8M11 18h18" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <el-icon><Operation /></el-icon>
       </div>
       <span>暂无架构建议</span>
     </div>
@@ -41,7 +36,10 @@
           <h5 class="suggest-title">{{ item.title || item.name }}</h5>
           <p class="suggest-desc">{{ item.description || item.reason }}</p>
           <div v-if="item.implementation" class="suggest-impl">
-            <span class="impl-label">⚡ 实施要点</span>
+            <span class="impl-label">
+              <el-icon><DocumentChecked /></el-icon>
+              实施要点
+            </span>
             <span>{{ item.implementation }}</span>
           </div>
         </div>
@@ -59,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Connection, DocumentChecked, Operation } from '@element-plus/icons-vue'
 
 interface ArchSuggestion {
   title?: string

@@ -2,7 +2,9 @@
   <section class="skill-panel writer-panel">
     <div class="panel-header">
       <div class="header-left">
-        <div class="agent-avatar">✍️</div>
+        <div class="agent-avatar">
+          <el-icon><EditPen /></el-icon>
+        </div>
         <div class="header-text">
           <h3>作家 Agent 工作台</h3>
           <span class="header-sub">智能写作助手</span>
@@ -24,7 +26,7 @@
         :class="{ active: activeTab === tab.key }"
         @click="activeTab = tab.key"
       >
-        <span class="tab-icon">{{ tab.icon }}</span>
+        <el-icon class="tab-icon"><component :is="tab.icon" /></el-icon>
         <span class="tab-label">{{ tab.label }}</span>
         <span v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</span>
       </button>
@@ -58,10 +60,7 @@
           <div class="sub-title">已调用技能</div>
           <div v-if="!skillVisuals.length" class="empty">
             <div class="empty-illustration">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <path d="M18 22h12M18 26h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+              <el-icon><EditPen /></el-icon>
             </div>
             <span>暂无技能调用记录</span>
             <span class="empty-hint">发送写作需求后，作家 Agent 将自动调用相关技能</span>
@@ -75,7 +74,7 @@
               :style="{ animationDelay: `${idx * 0.06}s` }"
               :title="item.raw"
             >
-              <span class="skill-icon">{{ item.icon }}</span>
+              <el-icon class="skill-icon"><component :is="item.icon" /></el-icon>
               <span class="skill-name">{{ item.zh }}</span>
               <span class="skill-state">
                 <span class="state-dot"></span>
@@ -89,10 +88,7 @@
       <div v-show="activeTab === 'trace'" class="tab-content">
         <div v-if="!trace.length" class="empty">
           <div class="empty-illustration">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-              <path d="M16 20l4 4-4 4M24 28h8" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
+            <el-icon><Connection /></el-icon>
           </div>
           <span>暂无执行轨迹</span>
           <span class="empty-hint">发送写作需求后，作家 Agent 将自动调用相关技能</span>
@@ -106,11 +102,7 @@
         <slot name="results">
           <div class="empty">
             <div class="empty-illustration">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <rect x="16" y="18" width="16" height="12" rx="2" stroke="#9ca3af" stroke-width="1.5"/>
-                <path d="M20 22h8M20 26h5" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+              <el-icon><Document /></el-icon>
             </div>
             <span>暂无技能调用记录</span>
             <span class="empty-hint">技能执行完成后将展示结构化结果</span>
@@ -122,7 +114,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, type Component } from 'vue'
+import { Connection, Document, EditPen, Notebook, Operation, Share } from '@element-plus/icons-vue'
 import TraceTimeline, { type TraceStep } from './TraceTimeline.vue'
 import { toSkillNameZh } from '@/utils/agentDisplay'
 
@@ -135,7 +128,7 @@ interface FederatedInfo {
 }
 
 interface SkillVisual {
-  icon: string
+  icon: Component
   tone: 'amber' | 'orange' | 'warm' | 'rose' | 'teal'
 }
 
@@ -153,22 +146,22 @@ const emit = defineEmits<{
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
-  { key: 'skills' as const, label: '技能调用', icon: '⚡', count: props.skillsUsed?.length || 0 },
-  { key: 'trace' as const, label: '执行轨迹', icon: '🔗', count: props.trace?.length || 0 },
-  { key: 'results' as const, label: '结果面板', icon: '📘', count: props.resultCount || 0 }
+  { key: 'skills' as const, label: '技能调用', icon: Operation, count: props.skillsUsed?.length || 0 },
+  { key: 'trace' as const, label: '执行轨迹', icon: Connection, count: props.trace?.length || 0 },
+  { key: 'results' as const, label: '结果面板', icon: Document, count: props.resultCount || 0 }
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {
-  inspiration_expand: { icon: '💡', tone: 'amber' },
-  outline_generate: { icon: '🗺️', tone: 'orange' },
-  content_write: { icon: '📝', tone: 'warm' },
-  character_relation_map: { icon: '🕸️', tone: 'rose' }
+  inspiration_expand: { icon: Share, tone: 'amber' },
+  outline_generate: { icon: Notebook, tone: 'orange' },
+  content_write: { icon: EditPen, tone: 'warm' },
+  character_relation_map: { icon: Connection, tone: 'rose' }
 }
 
 const skillVisuals = computed(() => {
   return (props.skillsUsed || []).map(raw => {
     const key = (raw || '').trim().toLowerCase()
-    const visual = SKILL_VISUAL_MAP[key] || { icon: '✨', tone: 'amber' as const }
+    const visual = SKILL_VISUAL_MAP[key] || { icon: EditPen, tone: 'amber' as const }
     return {
       raw,
       zh: toSkillNameZh(raw),

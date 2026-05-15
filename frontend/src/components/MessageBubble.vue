@@ -21,9 +21,7 @@
           >
             <img :src="message.fileUrl" class="message-image" />
             <div class="image-overlay">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M1 6V3a2 2 0 0 1 2-2h3M14 1h3a2 2 0 0 1 2 2v3M19 14v3a2 2 0 0 1-2 2h-3M6 19H3a2 2 0 0 1-2-2v-3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
+              <el-icon><FullScreen /></el-icon>
             </div>
           </div>
           <div v-else class="file-attachment">
@@ -142,7 +140,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Document, InfoFilled, Link, CopyDocument, ChatLineSquare, Delete, Microphone, Download } from '@element-plus/icons-vue'
+import { Document, InfoFilled, Link, CopyDocument, ChatLineSquare, Delete, Microphone, Download, FullScreen } from '@element-plus/icons-vue'
 import { useRoleStore } from '@/stores/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ImageViewer from '@/components/common/ImageViewer.vue'
@@ -338,9 +336,9 @@ const hasExplanation = computed(() => {
 })
 
 const getConfidenceColor = (confidence: number) => {
-  if (confidence >= 0.8) return 'var(--success-color)'
-  if (confidence >= 0.6) return 'var(--warning-color)'
-  return 'var(--danger-color)'
+  if (confidence >= 0.8) return 'var(--success)'
+  if (confidence >= 0.6) return 'var(--warning)'
+  return 'var(--danger)'
 }
 
 const isImage = (url: string) => {
@@ -360,10 +358,10 @@ const formatTime = (date: Date) => {
 <style scoped lang="scss">
 .message-bubble {
   display: flex;
-  margin-bottom: 24px;
-  gap: 16px;
-  animation: fadeIn 0.3s ease-out;
-  padding: 0 16px;
+  margin-bottom: 18px;
+  gap: 12px;
+  animation: fadeIn 180ms var(--ease-out);
+  padding: 0 12px;
 }
 
 .message-bubble.user {
@@ -372,11 +370,11 @@ const formatTime = (date: Date) => {
 
 .message-avatar {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .message-content-wrapper {
-  max-width: 75%;
+  max-width: 76%;
   min-width: 120px;
   display: flex;
   flex-direction: column;
@@ -392,7 +390,7 @@ const formatTime = (date: Date) => {
   gap: 8px;
   margin-bottom: 6px;
   font-size: 12px;
-  color: var(--text-color-secondary);
+  color: var(--text-secondary);
 }
 
 .message-bubble.user .message-meta {
@@ -401,34 +399,32 @@ const formatTime = (date: Date) => {
 
 .sender-name {
   font-weight: 500;
-  color: var(--text-color-primary);
+  color: var(--text-primary);
 }
 
 .message-content {
-  padding: 12px 16px;
-  border-radius: 12px;
+  padding: 13px 15px;
+  border-radius: 8px;
   word-wrap: break-word;
   line-height: 1.6;
   font-size: 15px;
   position: relative;
-  transition: all 0.2s ease;
+  transition: var(--transition);
 }
 
-/* User Bubble Style - Purple, No Gradient */
 .message-bubble.user .message-content {
-  background-color: #7c3aed; /* Vibrant Purple */
+  background-color: var(--primary-color);
   color: white;
-  border-top-right-radius: 2px;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+  border-top-right-radius: 3px;
+  box-shadow: none;
 }
 
-/* Assistant Bubble Style - Grey-white, Bordered */
 .message-bubble.assistant .message-content {
-  background-color: #f8fafc; /* Slate 50 */
-  color: var(--text-color-primary);
-  border: 1px solid #e2e8f0; /* Slate 200 */
-  border-top-left-radius: 2px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background-color: #fff;
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-top-left-radius: 3px;
+  box-shadow: var(--shadow-sm);
 }
 
 /* System/History Messages (Placeholder for role='system') */
@@ -437,11 +433,11 @@ const formatTime = (date: Date) => {
   margin: 16px 0;
 }
 .message-bubble.system .message-content {
-  background-color: #f1f5f9; /* Slate 100 */
-  color: #64748b; /* Slate 500 */
+  background-color: var(--bg-input);
+  color: var(--text-secondary);
   font-size: 12px;
   padding: 4px 12px;
-  border-radius: 12px;
+  border-radius: 8px;
   border: none;
   box-shadow: none;
 }
@@ -456,12 +452,12 @@ const formatTime = (date: Date) => {
   margin: 16px 0;
 }
 .message-bubble.error .message-content {
-  background-color: #fee2e2; /* Red 100 */
-  color: #dc2626; /* Red 600 */
+  background-color: rgba(178, 74, 74, 0.08);
+  color: var(--danger);
   font-size: 13px;
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid #fecaca; /* Red 200 */
+  border: 1px solid rgba(178, 74, 74, 0.18);
 }
 .message-bubble.error .message-avatar, 
 .message-bubble.error .message-meta {
@@ -472,7 +468,7 @@ const formatTime = (date: Date) => {
 .message-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   margin-top: 8px;
   padding: 4px 0;
   opacity: 1;
@@ -485,26 +481,26 @@ const formatTime = (date: Date) => {
 }
 
 .action-item {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
   cursor: pointer;
-  color: #94a3b8; /* Slate 400 */
-  transition: all 0.2s;
-  background: rgba(0, 0, 0, 0.02);
+  color: var(--text-disabled);
+  transition: var(--transition);
+  background: rgba(29, 36, 34, 0.03);
 }
 
 .action-item:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(63, 107, 99, 0.08);
   color: var(--primary-color);
   transform: translateY(-1px);
 }
 
 .action-item.delete:hover {
-  color: var(--danger-color);
+  color: var(--danger);
 }
 
 .action-item .el-icon {
@@ -512,13 +508,13 @@ const formatTime = (date: Date) => {
 }
 
 .message-bubble.user .action-item {
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .message-bubble.user .action-item:hover {
   color: white;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 /* File Attachments */
@@ -533,7 +529,7 @@ const formatTime = (date: Date) => {
 .message-image {
   max-width: 100%;
   border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid var(--border-light);
   display: block;
 }
 
@@ -551,8 +547,13 @@ const formatTime = (date: Date) => {
 }
 
 .message-image-wrapper:hover .image-overlay {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(29, 36, 34, 0.24);
   opacity: 1;
+}
+
+.image-overlay .el-icon {
+  color: #fff;
+  font-size: 20px;
 }
 
 .file-attachment {
@@ -560,14 +561,14 @@ const formatTime = (date: Date) => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
 }
 
 .message-bubble.assistant .file-attachment {
-  background: var(--bg-color-secondary);
-  border-color: var(--border-color-base);
+  background: var(--bg-input);
+  border-color: var(--border-light);
 }
 
 .message-text {
@@ -612,8 +613,8 @@ const formatTime = (date: Date) => {
   margin: 10px 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #20262b;
+  color: #eef1ef;
   overflow-x: auto;
 }
 
@@ -621,7 +622,7 @@ const formatTime = (date: Date) => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   padding: 0 4px;
   border-radius: 4px;
-  background: rgba(100, 116, 139, 0.15);
+  background: rgba(63, 107, 99, 0.12);
 }
 
 .message-text.markdown-body :deep(pre code) {
@@ -630,7 +631,7 @@ const formatTime = (date: Date) => {
 }
 
 .message-text.markdown-body :deep(a) {
-  color: #2563eb;
+  color: var(--primary-color);
   text-decoration: underline;
   word-break: break-all;
 }
@@ -638,12 +639,12 @@ const formatTime = (date: Date) => {
 /* Explanation Section */
 .message-explanation {
   margin-top: 12px;
-  border-top: 1px solid rgba(0,0,0,0.05);
+  border-top: 1px solid rgba(29, 36, 34, 0.06);
   padding-top: 8px;
 }
 
 .message-bubble.user .message-explanation {
-  border-top-color: rgba(255,255,255,0.2);
+  border-top-color: rgba(255,255,255,0.18);
 }
 
 .explanation-toggle {
@@ -651,7 +652,7 @@ const formatTime = (date: Date) => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--text-color-secondary);
+  color: var(--text-secondary);
   cursor: pointer;
   
   &:hover {
@@ -690,7 +691,7 @@ const formatTime = (date: Date) => {
 }
 
 .explanation-label {
-  color: var(--text-color-secondary);
+  color: var(--text-secondary);
   font-weight: 500;
   min-width: 60px;
 }
@@ -703,7 +704,7 @@ const formatTime = (date: Date) => {
 
 .value-text {
   font-size: 12px;
-  color: var(--text-color-regular);
+  color: var(--text-regular);
 }
 
 .source-tag {
@@ -711,13 +712,13 @@ const formatTime = (date: Date) => {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background-color: var(--bg-color-secondary);
+  background-color: var(--bg-input);
   border-radius: 4px;
   font-size: 12px;
-  color: var(--text-color-regular);
+  color: var(--text-regular);
   margin-right: 4px;
   margin-bottom: 4px;
-  border: 1px solid var(--border-color-light);
+  border: 1px solid var(--border-light);
 }
 
 .reasoning-path {

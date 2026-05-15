@@ -11,19 +11,7 @@
       <header class="view-header">
         <div class="header-left">
           <div class="brand-icon">
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-              <circle cx="18" cy="18" r="16" stroke="#6366f1" stroke-width="1.5" />
-              <circle cx="18" cy="18" r="8" fill="#6366f1" opacity="0.2" />
-              <circle cx="18" cy="18" r="4" fill="#6366f1" />
-              <circle cx="10" cy="10" r="2.5" fill="#22d3ee" />
-              <circle cx="26" cy="10" r="2.5" fill="#22d3ee" />
-              <circle cx="10" cy="26" r="2.5" fill="#22d3ee" />
-              <circle cx="26" cy="26" r="2.5" fill="#22d3ee" />
-              <line x1="18" y1="18" x2="10" y2="10" stroke="#6366f1" stroke-width="0.8" opacity="0.4" />
-              <line x1="18" y1="18" x2="26" y2="10" stroke="#6366f1" stroke-width="0.8" opacity="0.4" />
-              <line x1="18" y1="18" x2="10" y2="26" stroke="#6366f1" stroke-width="0.8" opacity="0.4" />
-              <line x1="18" y1="18" x2="26" y2="26" stroke="#6366f1" stroke-width="0.8" opacity="0.4" />
-            </svg>
+            <el-icon><Connection /></el-icon>
           </div>
           <div class="brand-text">
             <h1>联邦学习系统</h1>
@@ -40,16 +28,11 @@
           </div>
           <div class="header-actions">
             <button class="action-btn" @click="startDemo" :disabled="demoRunning">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <polygon points="3,1 12,7 3,13" fill="currentColor" />
-              </svg>
+              <el-icon><VideoPlay /></el-icon>
               演示
             </button>
             <button class="action-btn" @click="resetSystem">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-                <path d="M11 1v3h-3M3 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
+              <el-icon><Refresh /></el-icon>
               重置
             </button>
           </div>
@@ -57,19 +40,16 @@
       </header>
 
       <div class="stats-row">
-        <div v-for="stat in systemStats" :key="stat.label" class="stat-card">
+        <div v-for="(stat, index) in systemStats" :key="stat.label" class="stat-card">
           <div class="stat-icon-wrap" :style="{ background: stat.bgColor }">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" v-html="stat.svgPath"></svg>
+            <el-icon><component :is="statIcons[index]" /></el-icon>
           </div>
           <div class="stat-body">
             <span class="stat-value">{{ stat.value }}</span>
             <span class="stat-label">{{ stat.label }}</span>
           </div>
           <div class="stat-trend" :class="stat.trend > 0 ? 'up' : 'down'" v-if="stat.trend">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path v-if="stat.trend > 0" d="M6 2L10 7H2L6 2Z" fill="currentColor" />
-              <path v-else d="M6 10L2 5H10L6 10Z" fill="currentColor" />
-            </svg>
+            <el-icon><TrendCharts /></el-icon>
             {{ Math.abs(stat.trend) }}%
           </div>
         </div>
@@ -79,23 +59,12 @@
         <div class="panel-card topology-panel">
           <div class="panel-card-header">
             <div class="panel-title-group">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="9" r="7" stroke="#6366f1" stroke-width="1.2" />
-                <circle cx="9" cy="9" r="3" fill="#6366f1" opacity="0.3" />
-                <circle cx="9" cy="9" r="1.5" fill="#6366f1" />
-                <circle cx="5" cy="5" r="1.5" fill="#22d3ee" />
-                <circle cx="13" cy="5" r="1.5" fill="#22d3ee" />
-                <circle cx="5" cy="13" r="1.5" fill="#22d3ee" />
-                <circle cx="13" cy="13" r="1.5" fill="#22d3ee" />
-              </svg>
+              <el-icon><Connection /></el-icon>
               <h2>联邦网络拓扑</h2>
             </div>
             <div class="panel-actions">
               <button class="icon-btn" @click="refreshNetwork" title="刷新">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-                  <path d="M11 1v3h-3M3 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
+                <el-icon><Refresh /></el-icon>
               </button>
             </div>
           </div>
@@ -109,17 +78,18 @@
         <div class="panel-card training-panel">
           <div class="panel-card-header">
             <div class="panel-title-group">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M2 14L6 8L10 11L16 3" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                <circle cx="16" cy="3" r="2" fill="#22d3ee" opacity="0.3" />
-              </svg>
+              <el-icon><TrendCharts /></el-icon>
               <h2>训练曲线</h2>
             </div>
             <div class="training-controls">
               <button class="ctrl-btn" :class="{ active: trainingRunning }" @click="toggleTraining">
-                {{ trainingRunning ? '⏸ 暂停' : '▶ 继续' }}
+                <el-icon><component :is="trainingRunning ? VideoPause : VideoPlay" /></el-icon>
+                {{ trainingRunning ? '暂停' : '继续' }}
               </button>
-              <button class="ctrl-btn" @click="resetTraining">↺ 重置</button>
+              <button class="ctrl-btn" @click="resetTraining">
+                <el-icon><Refresh /></el-icon>
+                重置
+              </button>
             </div>
           </div>
           <TrainingCurveChart
@@ -152,14 +122,8 @@
         <div class="detail-col detail-col-left">
           <div class="panel-card aggregation-panel">
             <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="4" r="2" fill="#6366f1" />
-                  <circle cx="4" cy="13" r="2" fill="#22d3ee" />
-                  <circle cx="14" cy="13" r="2" fill="#a78bfa" />
-                  <line x1="9" y1="6" x2="4" y2="11" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-                  <line x1="9" y1="6" x2="14" y2="11" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-                </svg>
+            <div class="panel-title-group">
+                <el-icon><Share /></el-icon>
                 <h2>模型聚合</h2>
               </div>
             </div>
@@ -174,46 +138,19 @@
 
           <div class="panel-card privacy-panel">
             <div class="panel-card-header">
-              <div class="panel-title-group">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <rect x="4" y="8" width="10" height="7" rx="1.5" stroke="#34d399" stroke-width="1.2" />
-                  <path d="M6 8V6a3 3 0 0 1 6 0v2" stroke="#34d399" stroke-width="1.2" stroke-linecap="round" />
-                  <circle cx="9" cy="11.5" r="1" fill="#34d399" />
-                </svg>
+            <div class="panel-title-group">
+                <el-icon><Lock /></el-icon>
                 <h2>隐私保护</h2>
               </div>
             </div>
           <div class="privacy-content">
             <div class="privacy-visual">
-              <svg width="100%" height="80" viewBox="0 0 280 80" class="privacy-svg">
-                <defs>
-                  <linearGradient id="privGrad" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.2" />
-                    <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.1" />
-                    <stop offset="100%" stop-color="#34d399" stop-opacity="0.2" />
-                  </linearGradient>
-                </defs>
-                <rect x="0" y="0" width="280" height="80" rx="8" fill="url(#privGrad)" />
-                <g transform="translate(30, 20)">
-                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#6366f1" opacity="0.15" stroke="#6366f1" stroke-width="0.5" />
-                  <text x="20" y="24" text-anchor="middle" fill="#6366f1" font-size="8">∇x</text>
-                </g>
-                <g transform="translate(90, 20)">
-                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#22d3ee" opacity="0.15" stroke="#22d3ee" stroke-width="0.5" />
-                  <text x="20" y="24" text-anchor="middle" fill="#22d3ee" font-size="8">ε-δ</text>
-                </g>
-                <g transform="translate(150, 20)">
-                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#a78bfa" opacity="0.15" stroke="#a78bfa" stroke-width="0.5" />
-                  <text x="20" y="24" text-anchor="middle" fill="#a78bfa" font-size="8">E[·]</text>
-                </g>
-                <g transform="translate(210, 20)">
-                  <rect x="0" y="0" width="40" height="40" rx="4" fill="#34d399" opacity="0.15" stroke="#34d399" stroke-width="0.5" />
-                  <text x="20" y="24" text-anchor="middle" fill="#34d399" font-size="8">||g||</text>
-                </g>
-                <line x1="70" y1="40" x2="90" y2="40" stroke="#64748b" stroke-width="0.8" marker-end="url(#arrowhead)" />
-                <line x1="130" y1="40" x2="150" y2="40" stroke="#64748b" stroke-width="0.8" />
-                <line x1="190" y1="40" x2="210" y2="40" stroke="#64748b" stroke-width="0.8" />
-              </svg>
+              <div class="privacy-flow" aria-hidden="true">
+                <span>∇x</span>
+                <span>ε-δ</span>
+                <span>E</span>
+                <span>||g||</span>
+              </div>
             </div>
             <div class="privacy-items">
               <div class="privacy-item" v-for="item in privacyMechanisms" :key="item.label">
@@ -230,10 +167,7 @@
           <div class="panel-card models-panel">
           <div class="panel-card-header">
             <div class="panel-title-group">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M9 2L16 6v6l-7 4-7-4V6l7-4z" stroke="#6366f1" stroke-width="1.2" />
-                <path d="M9 2v8m0 0l7-4m-7 4l-7-4m7 4v8" stroke="#6366f1" stroke-width="0.6" opacity="0.4" />
-              </svg>
+              <el-icon><Box /></el-icon>
               <h2>模型管理</h2>
             </div>
           </div>
@@ -241,9 +175,7 @@
             <div v-for="model in models" :key="model.id" class="model-item" :class="model.status">
               <div class="model-head">
                 <div class="model-icon-box" :style="{ borderColor: model.color }">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 1L14 4.5v7L8 15 2 11.5v-7L8 1z" :stroke="model.color" stroke-width="1" />
-                  </svg>
+                  <el-icon><Box /></el-icon>
                 </div>
                 <div class="model-info">
                   <span class="model-name">{{ model.name }}</span>
@@ -274,10 +206,7 @@
         <div class="panel-card version-panel">
           <div class="panel-card-header">
             <div class="panel-title-group">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="9" r="7" stroke="#6366f1" stroke-width="1.2" />
-                <path d="M9 5v4l2.5 1.5" stroke="#6366f1" stroke-width="1" stroke-linecap="round" />
-              </svg>
+              <el-icon><Timer /></el-icon>
               <h2>版本历史</h2>
             </div>
           </div>
@@ -306,11 +235,7 @@
       <div class="panel-card tasks-panel">
         <div class="panel-card-header">
           <div class="panel-title-group">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect x="2" y="3" width="14" height="12" rx="2" stroke="#6366f1" stroke-width="1.2" />
-              <line x1="5" y1="7" x2="13" y2="7" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-              <line x1="5" y1="10" x2="10" y2="10" stroke="#6366f1" stroke-width="0.8" opacity="0.5" />
-            </svg>
+            <el-icon><Document /></el-icon>
             <h2>联邦学习任务</h2>
           </div>
           <span class="task-count">{{ federatedTasks.length }} 个任务</span>
@@ -331,19 +256,19 @@
             </div>
             <div class="task-meta-row">
               <span class="task-meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1" /><circle cx="6" cy="6" r="1.5" fill="currentColor" /></svg>
+                <el-icon><User /></el-icon>
                 {{ task.participants }} 参与方
               </span>
               <span class="task-meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v5l3 2" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1" /></svg>
+                <el-icon><Timer /></el-icon>
                 轮次 {{ task.currentRound }}/{{ task.totalRounds }}
               </span>
               <span class="task-meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 9l2-3 2 2 4-5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <el-icon><TrendCharts /></el-icon>
                 {{ task.accuracy }}%
               </span>
               <span class="task-meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="3" width="10" height="6" rx="1" stroke="currentColor" stroke-width="1" /><line x1="4" y1="5" x2="4" y2="7" stroke="currentColor" stroke-width="0.8" /></svg>
+                <el-icon><Document /></el-icon>
                 {{ task.createdAt }}
               </span>
             </div>
@@ -355,7 +280,9 @@
         <div class="demo-card">
           <div class="demo-card-header">
             <h3>联邦学习交互演示</h3>
-            <button class="close-btn" @click="stopDemo">✕</button>
+            <button class="close-btn" @click="stopDemo">
+              <el-icon><Close /></el-icon>
+            </button>
           </div>
           <div class="demo-steps">
             <div class="demo-step" v-for="(step, idx) in demoSteps" :key="idx">
@@ -375,8 +302,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Box,
+  Close,
+  Connection,
+  Document,
+  Lock,
+  Refresh,
+  Share,
+  Timer,
+  TrendCharts,
+  User,
+  VideoPause,
+  VideoPlay
+} from '@element-plus/icons-vue'
 import FederatedTopologyGraph from '@/components/federated/FederatedTopologyGraph.vue'
 import TrainingCurveChart from '@/components/federated/TrainingCurveChart.vue'
 import ModelAggregationCard from '@/components/federated/ModelAggregationCard.vue'
@@ -395,31 +336,29 @@ const systemStats = ref([
     label: '活跃节点',
     value: '4',
     trend: 0,
-    bgColor: 'rgba(99, 102, 241, 0.1)',
-    svgPath: '<circle cx="10" cy="10" r="7" stroke="#6366f1" stroke-width="1.2"/><circle cx="10" cy="10" r="3" fill="#6366f1" opacity="0.3"/><circle cx="10" cy="10" r="1.5" fill="#6366f1"/>'
+    bgColor: 'rgba(63, 107, 99, 0.1)'
   },
   {
     label: '模型版本',
     value: '8',
     trend: 12,
-    bgColor: 'rgba(34, 211, 238, 0.1)',
-    svgPath: '<path d="M10 2L18 6v8l-8 4-8-4V6l8-4z" stroke="#22d3ee" stroke-width="1.2"/>'
+    bgColor: 'rgba(111, 102, 143, 0.1)'
   },
   {
     label: '训练轮次',
     value: '32',
     trend: 8,
-    bgColor: 'rgba(167, 139, 250, 0.1)',
-    svgPath: '<circle cx="10" cy="10" r="7" stroke="#a78bfa" stroke-width="1.2"/><path d="M10 6v4l2.5 1.5" stroke="#a78bfa" stroke-width="1" stroke-linecap="round"/>'
+    bgColor: 'rgba(154, 116, 50, 0.1)'
   },
   {
     label: '全局准确率',
     value: '85.3%',
     trend: 2.1,
-    bgColor: 'rgba(52, 211, 153, 0.1)',
-    svgPath: '<path d="M3 14L7 8L11 11L17 3" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    bgColor: 'rgba(61, 118, 86, 0.1)'
   }
 ])
+
+const statIcons = [Connection, Box, Timer, TrendCharts]
 
 const topologyClients = ref([
   { id: 'c1', label: '律师Agent', active: true, accuracy: 87.3, dataSize: 12450 },
@@ -459,10 +398,10 @@ const versionHistory = ref([
 ])
 
 const models = ref([
-  { id: 'lawyer', name: '律师Agent模型', version: '3.2', status: 'online', statusText: '在线', accuracy: 87.3, efficiency: 82, color: '#3b82f6' },
-  { id: 'teacher', name: '教师Agent模型', version: '2.8', status: 'online', statusText: '在线', accuracy: 84.6, efficiency: 79, color: '#10b981' },
-  { id: 'programmer', name: '程序员Agent模型', version: '4.1', status: 'training', statusText: '训练中', accuracy: 86.1, efficiency: 85, color: '#8b5cf6' },
-  { id: 'writer', name: '作家Agent模型', version: '2.3', status: 'ready', statusText: '就绪', accuracy: 83.2, efficiency: 76, color: '#f59e0b' }
+  { id: 'lawyer', name: '律师Agent模型', version: '3.2', status: 'online', statusText: '在线', accuracy: 87.3, efficiency: 82, color: '#496b8f' },
+  { id: 'teacher', name: '教师Agent模型', version: '2.8', status: 'online', statusText: '在线', accuracy: 84.6, efficiency: 79, color: '#3d7656' },
+  { id: 'programmer', name: '程序员Agent模型', version: '4.1', status: 'training', statusText: '训练中', accuracy: 86.1, efficiency: 85, color: '#6f668f' },
+  { id: 'writer', name: '作家Agent模型', version: '2.3', status: 'ready', statusText: '就绪', accuracy: 83.2, efficiency: 76, color: '#9a7432' }
 ])
 
 const federatedTasks = ref([
@@ -715,7 +654,7 @@ onMounted(async () => {
             statusText: model.status === 'active' ? '在线' : '就绪',
             accuracy: Math.round((model.performance?.accuracy || 0.85) * 100),
             efficiency: Math.round((model.performance?.efficiency || 0.80) * 100),
-            color: '#6366f1'
+            color: '#3f6b63'
           })
         })
       })
@@ -727,32 +666,32 @@ onMounted(async () => {
 
 <style scoped>
 .federated-learning-view {
-  --primary: #6366f1;
-  --primary-light: #818cf8;
-  --primary-bg: rgba(99, 102, 241, 0.06);
-  --primary-border: rgba(99, 102, 241, 0.12);
-  --cyan: #22d3ee;
-  --cyan-dark: #0891b2;
-  --purple: #a78bfa;
-  --green: #34d399;
-  --green-dark: #059669;
-  --pink: #f472b6;
-  --amber: #f59e0b;
+  --primary: var(--primary-color, #3f6b63);
+  --primary-light: #5d817a;
+  --primary-bg: var(--primary-fade, rgba(63, 107, 99, 0.1));
+  --primary-border: var(--border-light, #e3e6df);
+  --cyan: var(--accent-color, #6f668f);
+  --cyan-dark: var(--accent-color, #6f668f);
+  --purple: var(--accent-color, #6f668f);
+  --green: var(--success, #3d7656);
+  --green-dark: var(--success, #3d7656);
+  --pink: var(--warning, #9a7432);
+  --amber: var(--warning, #9a7432);
   --surface: #ffffff;
-  --surface-alt: #f8fafc;
-  --border: rgba(99, 102, 241, 0.06);
-  --border-hover: rgba(99, 102, 241, 0.15);
-  --text-primary: #1e293b;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --surface-alt: var(--bg-input, #f1f3ef);
+  --border: var(--border-light, #e3e6df);
+  --border-hover: var(--border-hover, #cfd6cd);
+  --text-primary: var(--text-primary, #1d2422);
+  --text-secondary: var(--text-regular, #3d4642);
+  --text-muted: var(--text-secondary, #727c76);
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
-  --shadow-primary: 0 4px 20px rgba(99, 102, 241, 0.12);
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 999px;
+  --shadow-sm: var(--shadow-sm, 0 1px 2px rgba(29, 36, 34, 0.04));
+  --shadow-md: var(--shadow-md, 0 8px 24px rgba(29, 36, 34, 0.06));
+  --shadow-lg: var(--shadow-lg, 0 18px 48px rgba(29, 36, 34, 0.08));
+  --shadow-primary: var(--shadow-glow, 0 12px 28px rgba(63, 107, 99, 0.14));
   --transition-fast: 0.15s ease;
   --transition-base: 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   --transition-smooth: 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -763,17 +702,13 @@ onMounted(async () => {
   --gap-xl: 32px;
 
   min-height: 100vh;
-  background: var(--surface-alt);
+  background: transparent;
   position: relative;
   overflow-x: hidden;
 }
 
 .ambient-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
+  display: none;
 }
 
 .ambient-orb {
@@ -830,16 +765,20 @@ onMounted(async () => {
   z-index: 1;
   max-width: 1440px;
   margin: 0 auto;
-  padding: var(--gap-lg) var(--gap-xl);
+  padding: 20px 24px 28px;
 }
 
 .view-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--gap-lg);
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: var(--backdrop-blur, blur(20px));
 }
 
 .header-left {
@@ -852,33 +791,35 @@ onMounted(async () => {
   width: 48px;
   height: 48px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-primary);
+  box-shadow: var(--shadow-sm);
   transition: transform var(--transition-base), box-shadow var(--transition-base);
 }
 
 .brand-icon:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .brand-text h1 {
   margin: 0;
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 650;
   color: var(--text-primary);
-  letter-spacing: -0.5px;
+  letter-spacing: 0;
 }
 
 .brand-text p {
   margin: 0;
   font-size: 13px;
-  color: var(--primary);
+  color: var(--text-muted);
   font-weight: 500;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
 }
 
 .header-right {
@@ -905,9 +846,9 @@ onMounted(async () => {
 }
 
 .status-indicator.training {
-  background: rgba(34, 211, 238, 0.1);
-  color: var(--cyan-dark);
-  border: 1px solid rgba(34, 211, 238, 0.2);
+  background: var(--primary-bg);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
 }
 
 .status-indicator.aggregating {
@@ -940,9 +881,9 @@ onMounted(async () => {
   border-radius: var(--radius-xl);
   font-size: 12px;
   font-weight: 600;
-  background: var(--primary-bg);
-  color: var(--primary);
-  border: 1px solid var(--primary-border);
+  background: var(--bg-input, #f1f3ef);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .header-actions {
@@ -958,7 +899,7 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
-  border: 1px solid var(--primary-border);
+  border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
@@ -968,8 +909,8 @@ onMounted(async () => {
 .action-btn:hover:not(:disabled) {
   background: var(--primary-bg);
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-primary);
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
@@ -1009,15 +950,7 @@ onMounted(async () => {
 }
 
 .stat-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  opacity: 0.04;
-  transform: translate(20px, -20px);
+  display: none;
 }
 
 .stat-card:nth-child(1)::after { background: var(--primary); }
@@ -1026,8 +959,8 @@ onMounted(async () => {
 .stat-card:nth-child(4)::after { background: var(--green); }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-primary);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
   border-color: var(--border-hover);
 }
 
@@ -1039,6 +972,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--primary);
+  border: 1px solid var(--border);
 }
 
 .stat-body {
@@ -1049,10 +984,10 @@ onMounted(async () => {
 
 .stat-value {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 650;
   color: var(--text-primary);
   line-height: 1;
-  letter-spacing: -0.3px;
+  letter-spacing: 0;
 }
 
 .stat-label {
@@ -1073,13 +1008,13 @@ onMounted(async () => {
 }
 
 .stat-trend.up {
-  color: #059669;
-  background: rgba(16, 185, 129, 0.08);
+  color: var(--green);
+  background: rgba(61, 118, 86, 0.1);
 }
 
 .stat-trend.down {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.08);
+  color: var(--danger, #b24a4a);
+  background: rgba(178, 74, 74, 0.1);
 }
 
 .viz-row {
@@ -1103,7 +1038,7 @@ onMounted(async () => {
 }
 
 .panel-card {
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.86);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -1115,7 +1050,7 @@ onMounted(async () => {
 }
 
 .panel-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   border-color: var(--border-hover);
 }
 
@@ -1125,7 +1060,7 @@ onMounted(async () => {
   align-items: center;
   padding: var(--gap-md) 20px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.02), rgba(34, 211, 238, 0.01));
+  background: rgba(251, 252, 250, 0.92);
   flex-shrink: 0;
 }
 
@@ -1133,14 +1068,15 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
+  color: var(--primary);
 }
 
 .panel-title-group h2 {
   margin: 0;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 650;
   color: var(--text-primary);
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 
 .panel-actions {
@@ -1152,7 +1088,7 @@ onMounted(async () => {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--primary-border);
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -1165,7 +1101,7 @@ onMounted(async () => {
 .icon-btn:hover {
   background: var(--primary-bg);
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.2);
+  border-color: var(--primary-border);
 }
 
 .icon-btn:focus-visible {
@@ -1195,11 +1131,14 @@ onMounted(async () => {
 }
 
 .ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 5px 12px;
   border-radius: var(--radius-sm);
   font-size: 12px;
-  border: 1px solid var(--primary-border);
-  background: var(--primary-bg);
+  border: 1px solid var(--border);
+  background: #fff;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-base);
@@ -1207,14 +1146,14 @@ onMounted(async () => {
 }
 
 .ctrl-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: var(--text-primary);
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 .ctrl-btn.active {
-  background: rgba(99, 102, 241, 0.1);
+  background: var(--primary-bg);
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.25);
+  border-color: var(--primary-border);
 }
 
 .ctrl-btn:focus-visible {
@@ -1236,14 +1175,14 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   padding: 10px 6px;
-  background: var(--primary-bg);
+  background: var(--bg-input, #f1f3ef);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   transition: all var(--transition-base);
 }
 
 .mini-metric:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--primary-bg);
   border-color: var(--border-hover);
 }
 
@@ -1259,10 +1198,10 @@ onMounted(async () => {
   letter-spacing: -0.3px;
 }
 
-.mini-metric-value.cyan { color: var(--cyan-dark); }
-.mini-metric-value.pink { color: #db2777; }
-.mini-metric-value.purple { color: #7c3aed; }
-.mini-metric-value.green { color: var(--green-dark); }
+.mini-metric-value.cyan { color: var(--primary); }
+.mini-metric-value.pink { color: var(--warning, #9a7432); }
+.mini-metric-value.purple { color: var(--purple); }
+.mini-metric-value.green { color: var(--green); }
 
 .aggregation-panel :deep(.aggregation-card) {
   border: none;
@@ -1288,8 +1227,27 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.privacy-svg {
-  display: block;
+.privacy-flow {
+  min-height: 80px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff, var(--bg-input, #f1f3ef));
+}
+
+.privacy-flow span {
+  display: grid;
+  place-items: center;
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
 }
 
 .privacy-items {
@@ -1311,7 +1269,7 @@ onMounted(async () => {
 }
 
 .privacy-item:hover {
-  background: var(--primary-bg);
+  background: var(--bg-input, #f1f3ef);
 }
 
 .privacy-dot {
@@ -1325,7 +1283,7 @@ onMounted(async () => {
 
 .privacy-dot.active {
   background: var(--green);
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+  box-shadow: none;
 }
 
 .privacy-label {
@@ -1357,7 +1315,7 @@ onMounted(async () => {
 
 .model-item {
   padding: 12px;
-  background: var(--primary-bg);
+  background: var(--bg-input, #f1f3ef);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   transition: all var(--transition-base);
@@ -1367,7 +1325,7 @@ onMounted(async () => {
 .model-item:hover {
   border-color: var(--border-hover);
   box-shadow: var(--shadow-sm);
-  background: rgba(99, 102, 241, 0.04);
+  background: #fff;
 }
 
 .model-head {
@@ -1385,7 +1343,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-bg);
+  background: #fff;
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -1424,18 +1383,18 @@ onMounted(async () => {
 }
 
 .model-badge.online {
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
+  background: rgba(61, 118, 86, 0.1);
+  color: var(--green);
 }
 
 .model-badge.training {
-  background: rgba(139, 92, 246, 0.1);
-  color: #7c3aed;
+  background: var(--accent-fade, rgba(111, 102, 143, 0.1));
+  color: var(--purple);
 }
 
 .model-badge.ready {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
+  background: rgba(154, 116, 50, 0.1);
+  color: var(--amber);
 }
 
 .model-perf {
@@ -1463,7 +1422,7 @@ onMounted(async () => {
 .perf-bar {
   flex: 1;
   height: 4px;
-  background: #e2e8f0;
+  background: #fff;
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1493,7 +1452,7 @@ onMounted(async () => {
   padding: 5px 8px;
   border-radius: var(--radius-sm);
   font-size: 11px;
-  border: 1px solid var(--primary-border);
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1502,20 +1461,20 @@ onMounted(async () => {
 }
 
 .model-btn:hover {
-  background: var(--primary-bg);
-  color: var(--text-primary);
-  border-color: rgba(99, 102, 241, 0.2);
+  background: #fff;
+  color: var(--primary);
+  border-color: var(--border-hover);
 }
 
 .model-btn.primary {
   background: var(--primary-bg);
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.15);
+  border-color: var(--primary-border);
 }
 
 .model-btn.primary:hover {
-  background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.3);
+  background: var(--primary-bg);
+  border-color: var(--primary-border);
 }
 
 .model-btn:focus-visible {
@@ -1558,7 +1517,7 @@ onMounted(async () => {
 }
 
 .version-item:hover {
-  background: var(--primary-bg);
+  background: var(--bg-input, #f1f3ef);
 }
 
 .version-item.latest {
@@ -1631,8 +1590,9 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: var(--gap-md) 20px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  color: white;
+  background: rgba(251, 252, 250, 0.96);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
 }
 
 .demo-card-header h3 {
@@ -1642,9 +1602,9 @@ onMounted(async () => {
 }
 
 .close-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
   border-radius: var(--radius-sm);
@@ -1657,7 +1617,8 @@ onMounted(async () => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--bg-input, #f1f3ef);
+  color: var(--danger, #b24a4a);
 }
 
 .close-btn:focus-visible {
@@ -1706,14 +1667,14 @@ onMounted(async () => {
 
 .step-progress {
   height: 5px;
-  background: #e2e8f0;
+  background: var(--bg-input, #f1f3ef);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .step-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary), var(--cyan));
+  background: linear-gradient(90deg, var(--primary), var(--purple));
   border-radius: 3px;
   transition: width 0.5s ease;
 }
@@ -1833,7 +1794,7 @@ onMounted(async () => {
   color: var(--text-muted);
   font-weight: 500;
   padding: 3px 10px;
-  background: var(--primary-bg);
+  background: var(--bg-input, #f1f3ef);
   border-radius: var(--radius-sm);
 }
 
@@ -1869,7 +1830,7 @@ onMounted(async () => {
 }
 
 .task-item.running {
-  border-left: 3px solid var(--cyan);
+  border-left: 3px solid var(--primary);
 }
 
 .task-item.paused {
@@ -1906,8 +1867,8 @@ onMounted(async () => {
 }
 
 .task-badge.running {
-  background: rgba(34, 211, 238, 0.1);
-  color: var(--cyan-dark);
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 .task-badge.paused {
@@ -1916,8 +1877,8 @@ onMounted(async () => {
 }
 
 .task-badge.completed {
-  background: rgba(52, 211, 153, 0.1);
-  color: var(--green-dark);
+  background: rgba(61, 118, 86, 0.1);
+  color: var(--green);
 }
 
 .task-badge.failed {
@@ -1949,7 +1910,7 @@ onMounted(async () => {
 .task-progress-track {
   flex: 1;
   height: 6px;
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--bg-input, #f1f3ef);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1961,7 +1922,7 @@ onMounted(async () => {
 }
 
 .task-progress-fill.running {
-  background: linear-gradient(90deg, var(--cyan), var(--primary));
+  background: linear-gradient(90deg, var(--primary), var(--purple));
 }
 
 .task-progress-fill.paused {
@@ -1969,7 +1930,7 @@ onMounted(async () => {
 }
 
 .task-progress-fill.completed {
-  background: linear-gradient(90deg, var(--green), #6ee7b7);
+  background: linear-gradient(90deg, var(--green), rgba(61, 118, 86, 0.64));
 }
 
 .task-progress-fill.failed {
@@ -2000,6 +1961,23 @@ onMounted(async () => {
 
 .task-meta-item svg {
   color: var(--primary);
-  opacity: 0.6;
+  opacity: 0.75;
+}
+
+.brand-icon .el-icon {
+  font-size: 24px;
+}
+
+.panel-title-group .el-icon,
+.task-meta-item .el-icon,
+.action-btn .el-icon,
+.ctrl-btn .el-icon,
+.close-btn .el-icon {
+  color: currentColor;
+}
+
+.task-meta-item .el-icon {
+  color: var(--primary);
+  opacity: 0.75;
 }
 </style>
