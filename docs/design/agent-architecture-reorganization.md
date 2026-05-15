@@ -33,8 +33,8 @@ agent/agentos/
 | Agent Interface | `agent/agentos/agents/base.py` | 已定义 `BaseAgent` 和运行上下文 |
 | Agent Registry | `agent/agentos/agents/registry.py` | 已支持按 domain / agent / capability 解析 |
 | Pack | `agent/agentos/packs/*` | 法律 Pack 已有 Agent、Workflow、Prompt、Data；教育、程序员、作家目录已预留 |
-| Skill Registry | `agent/agentos/skills/registry.py` | 已统一注册律师、教师、程序员、作家内置 Skill |
-| ReAct | `agent/agentos/react/*` | 继续支撑旧专业体聊天入口的局部规划和执行 |
+| Skill | `agent/agentos/skills/base.py`、`agent/agentos/skills/builtin/*` | 保留可复用原子能力，由 Pack Agent 调用 |
+| Legacy Chat Chain | 已删除 | 不再保留 ReAct 兼容链路和旧专业体聊天入口 |
 | Store | `agent/agentos/stores/*` | 已有内存实现，数据库持久化待补 |
 | Adapter | `agent/agentos/adapters/*` | 模型、检索、联邦能力已集中到适配层 |
 
@@ -49,28 +49,22 @@ agent/agentos/
 - `agent/app/api/*` 可以引用 `agentos`，但 `agentos/core` 不反向依赖 `app`。
 - 不再新增应用内核心目录、旧核心包名目录或顶层核心目录。
 
-### P1：把兼容入口逐步纳入 Workflow 生命周期
+### P1：把所有专业能力收拢进统一 Workflow 生命周期
 
-现有专业体聊天接口仍然有价值，不应立刻删除：
+旧的 `/ai/agent/{role}/chat` 专业体入口已经删除。接下来不再维护两套调用协议，而是直接把四类行业 Pack 的能力整理进 `WorkflowRuntime`、`WorkflowRegistry` 和 `BaseAgent`。
 
-```text
-/ai/agent/lawyer/chat
-/ai/agent/teacher/chat
-/ai/agent/programmer/chat
-/ai/agent/writer/chat
-```
-
-这一步已经开始落地，旧入口现在可以在开关打开时进入单步 WorkflowRun。当前形态是：
+当前统一链路是：
 
 ```text
-agent/app/api/agent_lawyer.py
-  -> CompatAgentChatAdapter
+POST /ai/core/tasks
   -> WorkflowRuntime.create_task()
   -> WorkflowRuntime.start()
-  -> 返回旧 AgentChatResponse 形状 + workflowRunId/workflowStatus/workflowStepId
+  -> AgentRegistry.resolve()
+  -> Pack Agent.run()
+  -> Trace / Checkpoint / Review
 ```
 
-这样前端和 Java 后端不需要立刻改协议，但执行过程会逐步进入统一的 `WorkflowRun`、`TraceEvent`、`Checkpoint` 和 `ReviewDecision`。
+这样前端和 Java 后端只需要围绕 `/ai/core/*` 扩展，不再回到旧聊天入口。
 
 ### P1：让 Store 成为真实持久化 Seam
 
@@ -120,8 +114,6 @@ agents:
 
 ### 应保留
 
-- `agent/app/api/agent_*.py`：兼容旧前端和 Java 网关。
-- `agent/agentos/react/*`：作为旧聊天链路和单步骤内部规划能力。
 - `agent/agentos/skills/builtin/*`：四类专业体已有 Skill 应继续复用。
 - `agent/agentos/adapters/*`：外部能力统一入口。
 
@@ -132,6 +124,13 @@ agents:
 - 顶层核心目录
 - 让 `core/` 直接 import 某个行业 Pack 的业务实现
 - 在 API Route 里继续堆复杂执行流程
+
+### 已清理
+
+- 旧专业体路由模块
+- 旧 ReAct 兼容链路
+- 旧会话记忆入口
+- 旧技能注册表
 
 ### 可后续清理
 

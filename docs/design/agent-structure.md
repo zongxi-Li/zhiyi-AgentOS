@@ -2,7 +2,7 @@
 
 日期：2026-05-14
 
-本文以当前实现为准。`agent/agentos/` 是 Agent 运行时、Pack、Skill、ReAct 和 Adapter 的 canonical 包路径；`agent/app/` 只保留 FastAPI 入口、API Route、配置、服务和数据入口。
+本文以当前实现为准。`agent/agentos/` 是 Agent 运行时、Pack、Skill、Memory、Store 和 Adapter 的 canonical 包路径；`agent/app/` 只保留 FastAPI 入口、API Route、配置、服务和数据入口。
 
 ---
 
@@ -16,10 +16,6 @@ agent/
     paths.py
     api/
       agentos_core.py
-      agent_lawyer.py
-      agent_teacher.py
-      agent_programmer.py
-      agent_writer.py
       chat.py
       rag.py
       ...
@@ -77,16 +73,9 @@ agent/agentos/
 
   skills/
     base.py
-    registry.py
     builtin/
 
-  react/
-    planner.py
-    executor.py
-    tool_router.py
-
   memory/
-    session_memory.py
     workflow_memory.py
 
   stores/
@@ -109,9 +98,8 @@ agent/agentos/
 | `core` | 管理 `AgentTask`、`WorkflowRun`、状态机、Trace、Checkpoint、审核和评估 | 不写行业逻辑，不直接依赖具体 Pack |
 | `agents` | 定义 `BaseAgent`、`AgentRunContext`、`AgentRegistry` | 只提供统一 Agent 接口和发现机制 |
 | `packs` | 承载行业能力包：Workflow、Agent、Prompt、数据、规则 | 行业能力从 Pack 注册进入系统 |
-| `skills` | 定义 Skill 接口、内置 Skill 注册表 | Skill 是可复用原子能力，可被 ReAct 或 Pack Agent 调用 |
-| `react` | 兼容现有专业体聊天链路的局部规划、执行和工具路由 | 作为步骤内部能力，不再承担全局 Workflow 生命周期 |
-| `memory` | 会话记忆和 Workflow 中间上下文 | 与持久化 Store 分离 |
+| `skills` | 定义 Skill 接口与内置 Skill | Skill 是可复用原子能力，可被 Pack Agent 调用 |
+| `memory` | Workflow 中间上下文 | 与持久化 Store 分离 |
 | `stores` | Workflow 任务和运行记录的存储接口与内存实现 | 后续数据库持久化从这里接入 |
 | `adapters` | 模型、检索、联邦增强等外部能力适配 | 调用外部系统集中从 Adapter 进入 |
 
@@ -140,22 +128,11 @@ POST /ai/core/workflows/runs
 
 当前已接入的演示 Pack：`agent/agentos/packs/legal/`
 
-### 4.2 兼容专业体聊天链路
+### 4.2 旧专业体聊天链路
 
-```text
-POST /ai/agent/{lawyer,teacher,programmer,writer}/chat
-  -> agent/app/api/agent_*.py
-  -> ReactPlanner
-  -> ReactExecutor
-  -> ToolRouter
-  -> SkillRegistry
-  -> Builtin Skill
-  -> Model / Retrieval / Federated Adapter
-```
+旧的 `/ai/agent/{role}/chat` 专业体入口已经移除，不再保留兼容路径。
 
-这条链路继续对前端和 Java 后端提供兼容接口。它使用 `agentos.react`、`agentos.skills`、`agentos.memory` 和 `agentos.adapters`，但暂时还没有完全纳入 `WorkflowRun` 生命周期。
-
-当 `AGENTOS_COMPAT_WORKFLOW_CHAT=1` 时，旧 `/ai/agent/{role}/chat` 会先包装成单步 `WorkflowRun`，再把原有 response 形状返回给调用方，并附带 `workflowRunId`、`workflowStatus`、`workflowStepId`。
+现在对外只保留 `agentos_core.py` 提供的 `/ai/core/*` 接口；如果某个 Pack 需要局部规划或技能编排，应直接在 Pack 的 `BaseAgent` 和 `WorkflowRuntime` 生命周期中完成。
 
 ---
 
@@ -191,7 +168,7 @@ API Route 只做协议适配，不承载复杂执行逻辑。
 |---|---|---|
 | P0 | 保持所有 Python 导入统一为 `agentos.*` | 避免大小写包名和旧路径漂移 |
 | P0 | 文档统一以 `agent/agentos` 为 canonical | 后续检查实现时不再混用旧目录 |
-| P1 | 把旧专业体聊天入口逐步包成 Workflow 兼容 Adapter | 让 Trace、Checkpoint、Review 进入同一生命周期 |
+| P1 | 让四类 Pack 逐步接入统一 Workflow 生命周期 | 所有专业能力通过 `/ai/core/*` 进入同一链路 |
 | P1 | 为 `WorkflowStore` 增加数据库实现 | 解决进程重启后任务状态丢失 |
 | P1 | 让 Pack manifest 驱动注册 | 减少默认运行时里的硬编码注册 |
 | P2 | 教育、程序员、作家 Pack 补齐 Workflow 和 Pack Agent | 让四类专业体都能走 AgentOS Core |

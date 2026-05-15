@@ -1,4 +1,2 @@
-"""
-In-memory session memory package.
-"""
+"""Workflow memory package."""
 

@@ -107,8 +107,8 @@
 │                  AI引擎层 (AI Service)                        │
 │   FastAPI + Python 3.9+ + 通义千问                           │
 │   ┌──────────────────────────────────────────────┐          │
-│   │           ReAct 推理引擎                       │          │
-│   │  Planner → ToolRouter → Executor → Memory    │          │
+│   │        AgentOS Workflow Runtime              │          │
+│   │  WorkflowRuntime → Orchestrator → Pack Agent │          │
 │   └──────────┬───────────────────────────────────┘          │
 │              │ Skill调用                                     │
 │   ┌─────────┴──────────────────────────────────┐           │
@@ -205,13 +205,11 @@ kinlin_-ai/
 │   └── Dockerfile
 │
 ├── agent/                             # AI服务 (FastAPI + Python)
-│   ├── app/
-│   │   ├── main.py                    # FastAPI应用入口
-│   │   ├── config.py                  # 配置管理（Settings单例）
-│   │   ├── api/                       # API路由
-│   │   │   ├── agent_lawyer.py        # 律师Agent入口
-│   │   │   ├── agent_teacher.py       # 教师Agent入口
-│   │   │   ├── chat.py                # 通用对话
+   │   ├── app/
+   │   │   ├── main.py                    # FastAPI应用入口
+   │   │   ├── config.py                  # 配置管理（Settings单例）
+   │   │   ├── api/                       # API路由
+   │   │   │   ├── chat.py                # 通用对话
 │   │   │   ├── rag.py                 # RAG检索
 │   │   │   ├── tts.py                 # 语音合成
 │   │   │   └── ...
@@ -227,15 +225,14 @@ kinlin_-ai/
 │   │       ├── legal/                 # 法条/判例数据
 │   │       ├── education/             # 教育知识数据
 │   │       └── rag/                   # RAG知识库
-│   ├── agentos/                       # AgentOS运行时与专业能力包
-│   │   ├── core/                      # WorkflowRuntime、Orchestrator、状态、Trace、Checkpoint、Review
-│   │   ├── agents/                    # BaseAgent与AgentRegistry
-│   │   ├── packs/                     # 行业Pack（legal/education/programmer/writer）
-│   │   ├── skills/                    # Skill基类、注册表与内置Skill
-│   │   ├── react/                     # 兼容专业体聊天链路的Planner/Executor/ToolRouter
-│   │   ├── memory/                    # 会话记忆与Workflow上下文
-│   │   ├── stores/                    # WorkflowStore接口与内存实现
-│   │   └── adapters/                  # 模型、检索、联邦适配器
+   │   ├── agentos/                       # AgentOS运行时与专业能力包
+   │   │   ├── core/                      # WorkflowRuntime、Orchestrator、状态、Trace、Checkpoint、Review
+   │   │   ├── agents/                    # BaseAgent与AgentRegistry
+   │   │   ├── packs/                     # 行业Pack（legal/education/programmer/writer）
+│   │   ├── skills/                    # Skill基类与内置Skill
+   │   │   ├── memory/                    # 会话记忆与Workflow上下文
+   │   │   ├── stores/                    # WorkflowStore接口与内存实现
+   │   │   └── adapters/                  # 模型、检索、联邦适配器
 │   ├── tests/                         # AgentOS与专业Skill测试
 │   ├── requirements.txt
 │   └── Dockerfile
@@ -259,14 +256,11 @@ kinlin_-ai/
 
 ### Agent架构
 
-当前 Agent 系统以 `agent/agentos` 为核心：AgentOS Core 负责 Workflow 生命周期，Pack 提供行业能力，ReAct 模块继续兼容现有专业体聊天入口。
+当前 Agent 系统以 `agent/agentos` 为核心：AgentOS Core 负责 Workflow 生命周期，Pack 提供行业能力，旧专业体聊天入口已经移除。
 
 ```
 AgentOS Core:
 用户请求 → WorkflowRuntime → Orchestrator → Pack Agent → Trace / Checkpoint / Review
-
-兼容聊天:
-用户请求 → ReAct Planner → Tool Router → Executor → Skill → Model / Retrieval / Federated Adapter
 ```
 
 ### 四种Agent角色
@@ -282,10 +276,6 @@ AgentOS Core:
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
-| `/ai/agent/lawyer/chat` | POST | 律师Agent对话 |
-| `/ai/agent/teacher/chat` | POST | 教师Agent对话 |
-| `/ai/agent/programmer/chat` | POST | 程序员Agent对话 |
-| `/ai/agent/writer/chat` | POST | 作家Agent对话 |
 | `/ai/core/tasks` | POST | 创建AgentOS任务 |
 | `/ai/core/workflows/runs` | POST | 启动AgentOS工作流 |
 | `/ai/core/workflows/runs/{runId}` | GET | 查询工作流状态 |
@@ -431,8 +421,6 @@ ai.service.url: http://localhost:8000
 # Agent配置
 agent.enabled: true
 agent.timeout-ms: 120000
-agent.python.lawyer-chat-url: http://localhost:8000/ai/agent/lawyer/chat
-agent.python.teacher-chat-url: http://localhost:8000/ai/agent/teacher/chat
 agent.federated.enabled: false
 
 # JWT
@@ -484,7 +472,7 @@ AGENT_FEDERATED_TIMEOUT_MS: int = 1500
 1. 继承 `agent/agentos/skills/base.py` 中的Skill基类
 2. 实现 `execute()` 方法
 3. 可复用Skill放入 `agent/agentos/skills/builtin/`，Pack专属Skill放入 `agent/agentos/packs/{pack_id}/skills/`
-4. 在 `agent/agentos/skills/registry.py` 或对应 Pack 注册入口中注册
+4. 在 Pack 的 `register_pack()` 或默认运行时注册入口中注册
 5. 为 Skill 输入输出和关键降级逻辑补充测试
 
 ### 代码规范

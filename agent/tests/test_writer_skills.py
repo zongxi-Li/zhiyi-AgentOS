@@ -3,15 +3,13 @@ import importlib
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from agentos.react.planner import ReactPlanner
-from agentos.core.types import AgentWriterRequest, SkillRequest
+from agentos.core.types import SkillRequest
 from agentos.skills.builtin.writer import (
     CharacterRelationSkill,
     ContentWriteSkill,
     InspirationExpandSkill,
     OutlineGenerateSkill,
 )
-from app.api import agent_writer
 
 
 class FakeAIService:
@@ -132,44 +130,6 @@ async def test_character_relation_skill():
     await _assert_timeout_fallback(skill, request)
 
 
-async def test_writer_planner():
-    planner = ReactPlanner()
-    plan = planner.plan("帮我写一个时间旅行故事并给人物关系图", history=[], role="writer")
-    actions = [item.action for item in plan]
-    assert "inspiration_expand" in actions
-    assert "outline_generate" in actions
-    assert "content_write" in actions
-    assert "character_relation_map" in actions
-
-
-async def test_writer_route():
-    fake_ai = FakeAIService()
-
-    original_writer_skills = dict(agent_writer.tool_router.skills_by_role.get("writer", {}))
-    original_ai_service = agent_writer.ai_service
-    try:
-        agent_writer.tool_router.register_skills_for_role(
-            "writer",
-            {
-                "inspiration_expand": InspirationExpandSkill(ai_service=fake_ai),
-                "outline_generate": OutlineGenerateSkill(ai_service=fake_ai),
-                "content_write": ContentWriteSkill(ai_service=fake_ai),
-                "character_relation_map": CharacterRelationSkill(ai_service=fake_ai),
-            },
-        )
-        agent_writer.ai_service = fake_ai
-
-        response = await agent_writer.writer_agent_chat(
-            AgentWriterRequest(text="我想写一个时间旅行者拯救世界的故事")
-        )
-        assert response.success is True
-        assert len(response.skills_used) > 0
-        assert response.inspiration_expand is not None
-    finally:
-        agent_writer.tool_router.register_skills_for_role("writer", original_writer_skills)
-        agent_writer.ai_service = original_ai_service
-
-
 async def _main():
     await test_inspiration_expand_skill()
     print("[PASS] inspiration_expand")
@@ -179,10 +139,6 @@ async def _main():
     print("[PASS] content_write")
     await test_character_relation_skill()
     print("[PASS] character_relation_map")
-    await test_writer_planner()
-    print("[PASS] writer_planner")
-    await test_writer_route()
-    print("[PASS] writer_route")
 
 
 if __name__ == "__main__":

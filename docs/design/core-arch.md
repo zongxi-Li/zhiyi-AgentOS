@@ -44,7 +44,7 @@ Python 是第一层 Core 的运行时核心。
 agent/
 	app/
 		main.py
-			FastAPI 应用入口，注册普通聊天、RAG、旧专业体兼容入口，以及新的 AgentOS Core API。
+			FastAPI 应用入口，注册普通聊天、RAG，以及新的 AgentOS Core API。
 
 		config.py
 			统一读取环境变量和运行配置，提供模型、跨域、服务名、超时等基础配置。
@@ -58,18 +58,6 @@ agent/
 
 			rag.py
 				RAG 查询入口，负责文档检索、知识库查询和向量检索能力暴露。
-
-			agent_lawyer.py
-				旧律师专业体兼容入口；后续不作为 Core 主入口，只作为法律行业包迁移前的兼容层。
-
-			agent_teacher.py
-				旧教师专业体兼容入口；后续由行业 Agent 注册机制接管。
-
-			agent_programmer.py
-				旧程序员专业体兼容入口；后续由行业 Agent 注册机制接管。
-
-			agent_writer.py
-				旧作家专业体兼容入口；后续由行业 Agent 注册机制接管。
 
 		agentos/
 			orchestration/
@@ -138,9 +126,6 @@ agent/
 			memory/
 				__init__.py
 					记忆层包入口。
-
-				session_memory.py
-					现有短期会话记忆，保存单次会话的最近消息。
 
 				workflow_memory.py
 					保存 WorkflowRun 的步骤输入、步骤输出、中间产物和上下文传递记录。
@@ -585,11 +570,9 @@ Legal Demo Pack
 
 | 现有文件 | 在 Core 中的角色 |
 |---|---|
-| `agent/agentos/react/planner.py` | 可作为 Agent 内部步骤规划器 |
-| `agent/agentos/react/executor.py` | 可作为 Agent 内部 skill 执行器 |
-| `agent/agentos/react/tool_router.py` | 可作为 Agent 内部 tool router |
-| `agent/agentos/core/types.py` | 可迁移出 `AgentTraceStep`、`SkillRequest`、`SkillResult` 概念 |
-| `agent/agentos/memory/session_memory.py` | 保留为 Session Memory |
+| `agent/agentos/core/types.py` | 保留 `WorkflowRun`、`TraceEvent`、`Checkpoint`、`ReviewDecision`、`SkillRequest`、`SkillResult` |
+| `agent/agentos/memory/workflow_memory.py` | 保存 WorkflowRun 步骤上下文 |
+| `agent/agentos/skills/builtin/*` | 作为 Pack Agent 可复用原子能力 |
 | `agent/agentos/adapters/federated_adapter.py` | 后续接入 Federated Memory / Experience |
 | `frontend/src/components/agent/TraceTimeline.vue` | 可升级为 `TraceEventTimeline.vue` |
 | `frontend/src/views/FederatedAgentWorkbenchView.vue` | 可迁移为 AgentOS Console 雏形 |

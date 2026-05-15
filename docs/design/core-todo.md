@@ -19,9 +19,9 @@
 - `agent/agentos/core/orchestrator.py`、`state_machine.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py`：已形成核心运行闭环。
 - `agent/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
 - `agent/agentos/packs/legal/*`：法律 demo pack 已接入工作流注册。
-- `agent/agentos/skills/*` 和 `agent/agentos/react/*`：已支撑现有专业体聊天链路。
+- `agent/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
 - `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘。
-- `agent/app/api/agent_lawyer.py`、`agent_teacher.py`、`agent_programmer.py`、`agent_writer.py`：已支持可选 Workflow Adapter，旧专业体入口可进入统一 `WorkflowRun` 生命周期。
+- 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
 - `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、审核、恢复和取消接口。
 - 文档已同步到 `agent/agentos` 作为 canonical 路径。
 
@@ -451,7 +451,7 @@ TODO：
 TODO：
 
 - [x] 定义统一 `TraceEvent`。
-- [x] 将现有 `AgentTraceStep` 升级为更通用事件。
+- [x] 将旧链路 trace 记录升级为更通用的 `TraceEvent`。
 - [x] 支持事件类型：`task_created`、`step_started`、`agent_called`、`tool_called`、`checkpoint_created`、`review_required`、`step_failed`、`run_completed`。
 - [ ] 前端复用 `TraceTimeline` 展示。
 - [ ] 后续支持导出审计报告。
@@ -541,7 +541,6 @@ agent/agentos/
     registry.py
 
   memory/
-    session_memory.py
     workflow_memory.py
     profile_memory.py
     federated_memory.py
@@ -913,7 +912,7 @@ Federated Experience for Sensitive-domain Agents
 
 建议按顺序执行：
 
-- [x] 1. 把 `/ai/agent/{role}/chat` 包装成可选 Workflow Adapter，减少重复执行链。
+- [x] 1. 移除 `/ai/agent/{role}/chat` 旧入口和兼容执行链，统一保留 `/ai/core/*`。
 - [ ] 2. 给 `WorkflowStore` 补 `list_tasks()` / `list_runs()` 的查询入口或分页查询。
 - [ ] 3. 让 Pack `manifest.yaml` 驱动默认注册流程。
 - [ ] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。

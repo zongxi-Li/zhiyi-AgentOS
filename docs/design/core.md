@@ -149,7 +149,6 @@ Java 后端仍然是系统的业务中枢，负责：
 ├─────────────────────────────────────┤
 │ 核心 API                            │
 │  • /ai/chat/*        (聊天接口)     │
-│  • /ai/agent/*/chat  (专业体入口)   │
 │  • /rag/*            (RAG 接口)     │
 │  • /ai/tts           (语音合成)     │
 ├─────────────────────────────────────┤
@@ -176,35 +175,33 @@ Java 后端仍然是系统的业务中枢，负责：
 ┌─────────────────────────────────────┐
 │            编排核心层               │
 ├─────────────────────────────────────┤
-│ Schema 层 (agentos/core/)      │
-│  • PlannedAction                    │
+│ Schema 层 (agentos/core/)          │
+│  • AgentTask                        │
+│  • WorkflowDefinition               │
+│  • WorkflowRun                      │
+│  • WorkflowStep                     │
+│  • TraceEvent / Checkpoint          │
+│  • ReviewDecision                   │
 │  • SkillRequest / SkillResult       │
-│  • AgentTraceStep                   │
-│  • Agent*Request / Agent*Response   │
 ├─────────────────────────────────────┤
-│ 规划执行层 (agentos/react/)      │
-│  • ReactPlanner     (意图拆解/规划) │
-│  • ReactExecutor    (逐步执行/汇总) │
-│  • ToolRouter       (动作到技能映射) │
-├─────────────────────────────────────┤
-│ 任务状态层                          │
-│  • session_id                       │
-│  • history                          │
-│  • observations                     │
-│  • trace / skills_used              │
-│  • risk_level / federated           │
+│ 运行时层                            │
+│  • WorkflowRuntime                  │
+│  • WorkflowRegistry                 │
+│  • Orchestrator                     │
+│  • StateMachine                     │
+│  • Trace / Checkpoint / Review      │
 └─────────────────────────────────────┘
 
 这层的核心运行方式是：
 
-`request -> plan -> execute -> observe -> summarize -> respond`
+`request -> create task -> start workflow -> dispatch agent -> observe -> checkpoint -> review -> complete`
 
 其中：
 
-- `ReactPlanner` 负责把意图转成 `PlannedAction` 序列。
-- `ReactExecutor` 负责逐步调用技能，并把观测结果写回 memory。
-- `ToolRouter` 负责把动作名映射到具体 skill。
-- `AgentTraceStep` 负责记录每一步的 thought / action / observation。
+- `WorkflowRuntime` 负责管理任务和运行状态。
+- `Orchestrator` 负责选择下一步并调度 Agent。
+- `TraceEvent`、`Checkpoint` 和 `ReviewDecision` 负责记录、恢复和审核。
+- `SkillRequest` 和 `SkillResult` 仍然保留为技能层的统一输入输出模型。
 
 3.4 任务流与状态
 
@@ -349,49 +346,17 @@ Java 持久化 AI 回复
 
 这条链路仍以“单轮生成”为主，驾驭工程属性较弱，主要由 Java 侧负责会话和业务状态。
 
-4.2 专业体智能体链路
+### 4.2 专业体智能体链路
 
-前端 / Workbench
-  │ HTTP POST /api/agent/{role}/chat
-  ▼
-Java AgentController
-  │ AgentGatewayService.callAgent()
-  ▼
-Python 专业体 API
-  │ /ai/agent/{role}/chat
-  ├── session_memory_store(会话历史)
-  ├── ReactPlanner.plan()     (任务拆解)
-  ├── ReactExecutor.execute() (逐步执行)
-  └── ToolRouter -> 具体 Skill
-        │
-        ▼
-能力执行层
-  ├── 领域知识检索
-  ├── 联邦增强调用(可选)
-  ├── LLM 综合生成
-  └── trace / skills_used / observations 收集
-        │
-        ▼
-返回结构化结果 ←──┐
-  • answer        │
-  • skillsUsed    │
-  • trace         │
-  • federated     │
-  • riskLevel     │
-  • 专业体字段    │
-                  │
-Java 持久化会话与消息 ←──┘
-                  │
-前端控制台 / 工作台渲染 ←─┘
+旧的 `/ai/agent/{role}/chat` 专业体入口已经移除。当前系统只保留 `WorkflowRuntime` 驱动的统一链路，前端和 Java 后端都应转向 `/ai/core/*`。
 
-这条链路是当前系统最接近“驾驭工程”的部分，因为它已经具备：
+这意味着：
 
-- 规划
-- 步骤执行
-- 结构化返回
-- trace 可视化基础
+- 任务进入统一的 `WorkflowRun` 生命周期。
+- Pack 内部的能力编排要么由 `WorkflowRuntime` 负责，要么由 `BaseAgent` 自己完成。
+- 观测、Checkpoint、Review 和恢复都只围绕 Core 语义展开。
 
-4.3 控制台观测链路
+### 4.3 控制台观测链路
 
 前端控制台 / Workbench
   │ 展示 trace、skillsUsed、riskLevel、federated
@@ -404,7 +369,7 @@ Python 返回结构化结果与步骤日志
 
 这里的关键点是：控制台不是“再做一个页面”，而是把现有结构化结果真正作为运维和协作界面使用起来。
 
-4.4 数据持久化层次
+### 4.4 数据持久化层次
 
 Java 实体层
   │ User → Role → Conversation → Message
@@ -932,16 +897,9 @@ review_required: false
 
 **关键优化点**
 
-你现在不要让目录变成：
+你现在不要再回到：
 
-```text
-agent_lawyer.py
-agent_teacher.py
-agent_programmer.py
-agent_writer.py
-```
-
-这种方式会把职业写死。
+这些旧入口已经删除，后续只通过 `packs/`、`agents/` 和 `workflow.yaml` 来表达行业差异。
 
 更好的方向是：
 

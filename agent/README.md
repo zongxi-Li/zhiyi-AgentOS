@@ -20,7 +20,6 @@ agent/
     agents/
     packs/
     skills/
-    react/
     memory/
     stores/
     adapters/
@@ -28,7 +27,7 @@ agent/
   tests/
 ```
 
-`app/` 负责应用启动、HTTP 路由、配置和传统服务；`agentos/` 是 Agent 运行时核心，负责 Workflow、Pack、Skill、ReAct、Memory、Store 和 Adapter。
+`app/` 负责应用启动、HTTP 路由、配置和传统服务；`agentos/` 是 Agent 运行时核心，负责 Workflow、Pack、Skill、Memory、Store 和 Adapter。
 
 ## AgentOS 入口
 
@@ -38,16 +37,7 @@ agent/
 - `POST /ai/core/workflows/runs/{runId}/reviews`：提交人工审核结果。
 - `POST /ai/core/workflows/runs/{runId}/resume`：从 Checkpoint 恢复。
 
-旧专业体聊天接口仍保留：
-
-- `POST /ai/agent/lawyer/chat`
-- `POST /ai/agent/teacher/chat`
-- `POST /ai/agent/programmer/chat`
-- `POST /ai/agent/writer/chat`
-
-这些接口继续使用 `agentos.react` 和 `agentos.skills`，后续可逐步包装到 `WorkflowRuntime` 生命周期中。
-
-当设置 `AGENTOS_COMPAT_WORKFLOW_CHAT=1` 时，这些旧入口会先进入一个单步 `WorkflowRun`，然后再返回原有响应形状，并额外带上 `workflowRunId`、`workflowStatus`、`workflowStepId`。
+旧的 `/ai/agent/{role}/chat` 专业体入口已移除，统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
 
 ## 安装依赖
 

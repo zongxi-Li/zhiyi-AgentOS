@@ -3,9 +3,7 @@ import importlib
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from app.api import agent_programmer
-from agentos.react.planner import ReactPlanner
-from agentos.core.types import AgentProgrammerRequest, SkillRequest
+from agentos.core.types import SkillRequest
 from agentos.skills.builtin.programmer import (
     CodeGenerationSkill,
     CodebaseSemanticSearchSkill,
@@ -166,69 +164,6 @@ async def test_diagram_generation_skill():
     await _assert_timeout_fallback(skill, request)
 
 
-async def test_programmer_planner():
-    planner = ReactPlanner()
-    plan = planner.plan("分析这个项目并生成微服务架构图", history=[], role="programmer")
-    actions = [item.action for item in plan]
-    assert "requirement_analysis" in actions or "codebase_semantic_search" in actions
-    assert "diagram_generation" in actions
-
-
-async def test_programmer_route():
-    fake_ai = FakeAIService()
-
-    original_programmer_skills = dict(agent_programmer.tool_router.skills_by_role.get("programmer", {}))
-    original_ai_service = agent_programmer.ai_service
-
-    search_skill_module = importlib.import_module(
-        "agentos.skills.builtin.programmer.codebase_semantic_search_skill"
-    )
-    try:
-        agent_programmer.tool_router.register_skills_for_role(
-            "programmer",
-            {
-                "requirement_analysis": RequirementAnalysisSkill(ai_service=fake_ai),
-                "codebase_semantic_search": CodebaseSemanticSearchSkill(),
-                "code_generation": CodeGenerationSkill(ai_service=fake_ai),
-                "diagram_generation": DiagramGenerationSkill(ai_service=fake_ai),
-            },
-        )
-        agent_programmer.ai_service = fake_ai
-
-        with patch.object(
-            search_skill_module,
-            "build_code_index",
-            return_value={"success": True, "indexed_files": 1, "indexed_docs": 1},
-        ), patch.object(
-            search_skill_module,
-            "search_code",
-            return_value=[
-                {
-                    "id": "backend/src/auth.py:login:12",
-                    "content": "def login(username, password): ...",
-                    "score": 0.88,
-                    "metadata": {
-                        "file_path": "backend/src/auth.py",
-                        "function_name": "login",
-                        "class_name": None,
-                        "language": "python",
-                        "line": 12,
-                    },
-                }
-            ],
-        ):
-            response = await agent_programmer.programmer_agent_chat(
-                AgentProgrammerRequest(text="帮我生成一个用户登录流程图")
-            )
-
-        assert response.success is True
-        assert len(response.skills_used) > 0
-        assert response.diagram_generation is not None
-    finally:
-        agent_programmer.tool_router.register_skills_for_role("programmer", original_programmer_skills)
-        agent_programmer.ai_service = original_ai_service
-
-
 async def _main():
     await test_requirement_analysis_skill()
     print("[PASS] requirement_analysis")
@@ -238,10 +173,6 @@ async def _main():
     print("[PASS] code_generation")
     await test_diagram_generation_skill()
     print("[PASS] diagram_generation")
-    await test_programmer_planner()
-    print("[PASS] programmer_planner")
-    await test_programmer_route()
-    print("[PASS] programmer_route")
 
 
 if __name__ == "__main__":
