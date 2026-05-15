@@ -4,9 +4,9 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 from app.api import agent_programmer
-from app.agent_core.react.planner import ReactPlanner
-from app.agent_core.schema.agent_types import AgentProgrammerRequest, SkillRequest
-from app.agent_core.skills.programmer import (
+from core.react.planner import ReactPlanner
+from core.types import AgentProgrammerRequest, SkillRequest
+from core.skills.builtin.programmer import (
     CodeGenerationSkill,
     CodebaseSemanticSearchSkill,
     DiagramGenerationSkill,
@@ -176,7 +176,7 @@ async def test_programmer_route():
     original_ai_service = agent_programmer.ai_service
 
     search_skill_module = importlib.import_module(
-        "app.agent_core.skills.programmer.codebase_semantic_search_skill"
+        "core.skills.builtin.programmer.codebase_semantic_search_skill"
     )
     try:
         agent_programmer.tool_router.register_skills_for_role(

@@ -8,11 +8,11 @@ from uuid import uuid4
 from fastapi import APIRouter
 
 from app.api.language_guard import ensure_simplified_chinese
-from app.agent_core.memory.session_memory import session_memory_store
-from app.agent_core.react.executor import ReactExecutor
-from app.agent_core.react.planner import ReactPlanner
-from app.agent_core.react.tool_router import ToolRouter
-from app.agent_core.schema.agent_types import AgentTeacherRequest, AgentTeacherResponse
+from core.memory.session_memory import session_memory_store
+from core.react.executor import ReactExecutor
+from core.react.planner import ReactPlanner
+from core.react.tool_router import ToolRouter
+from core.types import AgentTeacherRequest, AgentTeacherResponse
 from app.services.aiservice import AIService
 
 logger = logging.getLogger(__name__)

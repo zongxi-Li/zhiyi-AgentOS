@@ -13,6 +13,7 @@ import logging
 
 from fastapi.exceptions import RequestValidationError
 from app.api import chat, tts, agent_lawyer, agent_teacher, agent_programmer, agent_writer, agentos_core
+from app.paths import APP_DATA_DIR
 from app.services.aiservice import AIService
 from app.config import settings
 from app.utils.logger import setup_logger
@@ -67,8 +68,7 @@ app.include_router(agent_writer.router, prefix="/ai", tags=["AgentWriter"])
 app.include_router(agentos_core.router, prefix="/ai", tags=["AgentOSCore"])
 
 # 注册静态文件服务（用于访问数字人图像和其他数据文件）
-_project_root = Path(__file__).resolve().parent.parent.parent
-_data_dir = _project_root / "agent" / "data"
+_data_dir = APP_DATA_DIR
 
 # 确保目录存在
 _data_dir.mkdir(parents=True, exist_ok=True)

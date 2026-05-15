@@ -2,11 +2,11 @@ import asyncio
 
 import pytest
 
-from app.agent_core.agents.base import AgentOutput, AgentProfile, BaseAgent
-from app.agent_core.agents.registry import AgentRegistry
-from app.agent_core.agents.packs.legal import register_pack as register_legal_pack
-from app.agent_core.orchestration.state_machine import InvalidStateTransition, StateMachine
-from app.agent_core.orchestration.types import (
+from core.agents.base import AgentOutput, AgentProfile, BaseAgent
+from core.agents.registry import AgentRegistry
+from core.packs.legal import register_pack as register_legal_pack
+from core.state_machine import InvalidStateTransition, StateMachine
+from core.types import (
     ReviewDecision,
     ReviewDecisionType,
     StepStatus,
@@ -15,8 +15,8 @@ from app.agent_core.orchestration.types import (
     WorkflowStatus,
     WorkflowStepDefinition,
 )
-from app.agent_core.orchestration.workflow_registry import WorkflowRegistry
-from app.agent_core.orchestration.workflow_runtime import WorkflowRuntime
+from core.workflow_registry import WorkflowRegistry
+from core.workflow_runtime import WorkflowRuntime
 
 
 class RecordingAgent(BaseAgent):

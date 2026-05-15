@@ -12,6 +12,8 @@ import os
 import uuid
 from datetime import datetime
 
+from app.paths import DIGITAL_HUMAN_IMAGE_DIR, DIGITAL_HUMAN_METADATA_DIR
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,10 +26,7 @@ class DigitalHumanGenerator:
     def __init__(self):
         self.avatar_cache = {}  # 数字人形象缓存
         self._ai_client = None  # AI客户端（延迟初始化）
-        # 数字人图像保存目录（使用项目根目录下的agent/data）
-        # 获取项目根目录（agent/app的父目录的父目录）
-        _project_root = Path(__file__).resolve().parent.parent.parent
-        self.avatar_image_dir = _project_root / "agent" / "data" / "digital-human" / "images" / "realistic"
+        self.avatar_image_dir = DIGITAL_HUMAN_IMAGE_DIR
         self.avatar_image_dir.mkdir(parents=True, exist_ok=True)
         
         # 只在第一次初始化时记录日志
@@ -493,9 +492,7 @@ class DigitalHumanGenerator:
             avatar_data: 数字人数据
         """
         try:
-            # 保存到 metadata 目录（使用项目根目录下的agent/data）
-            _project_root = Path(__file__).resolve().parent.parent.parent
-            data_dir = _project_root / "agent" / "data" / "digital-human" / "metadata"
+            data_dir = DIGITAL_HUMAN_METADATA_DIR
             data_dir.mkdir(parents=True, exist_ok=True)
             
             # 使用avatar_id作为文件名
@@ -517,9 +514,7 @@ class DigitalHumanGenerator:
             数字人数据，如果不存在返回None
         """
         try:
-            # 从 metadata 目录加载（使用项目根目录下的agent/data）
-            _project_root = Path(__file__).resolve().parent.parent.parent
-            data_dir = _project_root / "agent" / "data" / "digital-human" / "metadata"
+            data_dir = DIGITAL_HUMAN_METADATA_DIR
             file_path = data_dir / f"{avatar_id}.json"
             
             if file_path.exists():
@@ -543,8 +538,7 @@ class DigitalHumanGenerator:
         """
         avatars = []
         try:
-            _project_root = Path(__file__).resolve().parent.parent.parent
-            data_dir = _project_root / "agent" / "data" / "digital-human" / "metadata"
+            data_dir = DIGITAL_HUMAN_METADATA_DIR
             
             if data_dir.exists():
                 # 遍历所有JSON文件，查找属于该角色的形象
@@ -858,6 +852,7 @@ class DigitalHumanService:
     
     def __init__(self):
         self.generator = DigitalHumanGenerator()
+        self.avatar_metadata_dir = DIGITAL_HUMAN_METADATA_DIR
         self.active_avatars = {}  # 当前激活的数字人
     
     def _update_local_image_path(self, avatar_data: Dict):
@@ -875,9 +870,7 @@ class DigitalHumanService:
             return
         
         try:
-            # 检查本地图像文件是否存在（使用项目根目录下的agent/data）
-            _project_root = Path(__file__).resolve().parent.parent.parent
-            image_dir = _project_root / "agent" / "data" / "digital-human" / "images" / "realistic"
+            image_dir = DIGITAL_HUMAN_IMAGE_DIR
             if image_dir.exists():
                 # 查找该形象的图像文件（使用avatar_id）
                 for image_file in image_dir.glob(f"{avatar_id}_*.png"):
@@ -1030,14 +1023,13 @@ class DigitalHumanService:
                 del self.active_avatars[key]
             
             # 删除本地文件
-            _project_root = Path(__file__).resolve().parent.parent.parent
-            data_dir = _project_root / "agent" / "data" / "digital-human" / "metadata"
+            data_dir = DIGITAL_HUMAN_METADATA_DIR
             json_file = data_dir / f"{avatar_id}.json"
             if json_file.exists():
                 json_file.unlink()
             
             # 删除图像文件
-            image_dir = _project_root / "agent" / "data" / "digital-human" / "images" / "realistic"
+            image_dir = DIGITAL_HUMAN_IMAGE_DIR
             for image_file in image_dir.glob(f"{avatar_id}_*.png"):
                 if image_file.exists():
                     image_file.unlink()

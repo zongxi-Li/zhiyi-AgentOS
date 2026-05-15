@@ -3,9 +3,9 @@ import importlib
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from app.agent_core.react.planner import ReactPlanner
-from app.agent_core.schema.agent_types import AgentWriterRequest, SkillRequest
-from app.agent_core.skills.writer import (
+from core.react.planner import ReactPlanner
+from core.types import AgentWriterRequest, SkillRequest
+from core.skills.builtin.writer import (
     CharacterRelationSkill,
     ContentWriteSkill,
     InspirationExpandSkill,

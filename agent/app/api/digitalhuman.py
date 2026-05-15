@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Dict, Optional
 import logging
+from app.paths import DIGITAL_HUMAN_IMAGE_DIR
 from app.services.digitalhumanservice import digital_human_service
 
 logger = logging.getLogger(__name__)
@@ -157,12 +158,10 @@ async def get_digital_human_image(filename: str):
     from pathlib import Path
     
     try:
-        # 构建文件路径
-        _project_root = Path(__file__).resolve().parent.parent.parent
-        image_path = _project_root / "agent" / "data" / "digital-human" / "images" / "realistic" / filename
+        image_path = DIGITAL_HUMAN_IMAGE_DIR / filename
         
         # 安全检查：确保文件在允许的目录内
-        allowed_dir = _project_root / "agent" / "data" / "digital-human" / "images" / "realistic"
+        allowed_dir = DIGITAL_HUMAN_IMAGE_DIR
         try:
             image_path.resolve().relative_to(allowed_dir.resolve())
         except ValueError:
