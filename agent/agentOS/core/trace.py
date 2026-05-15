@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from agentos.core.types import TraceEvent, TraceEventType, WorkflowRun
 
@@ -27,3 +27,48 @@ class TraceStore:
         )
         run.trace.append(event)
         return event
+
+    def export_json(self, run: WorkflowRun) -> Dict[str, Any]:
+        """Return a portable trace payload for APIs, audits, and reports."""
+
+        return {
+            "runId": run.run_id,
+            "taskId": run.task_id,
+            "workflowId": run.workflow_id,
+            "domain": run.domain,
+            "status": run.status.value,
+            "eventCount": len(run.trace),
+            "events": [event.model_dump(by_alias=True, mode="json") for event in self.events(run)],
+        }
+
+    def export_markdown(self, run: WorkflowRun) -> str:
+        """Render a compact human-readable trace report."""
+
+        lines: List[str] = [
+            f"# Workflow Trace: {run.run_id}",
+            "",
+            f"- Task: {run.task_id}",
+            f"- Workflow: {run.workflow_id}",
+            f"- Domain: {run.domain}",
+            f"- Status: {run.status.value}",
+            f"- Events: {len(run.trace)}",
+            "",
+            "## Events",
+            "",
+        ]
+        for index, event in enumerate(self.events(run), start=1):
+            created_at = event.created_at.isoformat()
+            title_parts = [f"{index}. `{event.event_type.value}`", created_at]
+            if event.step_id:
+                title_parts.append(f"step={event.step_id}")
+            if event.agent_name:
+                title_parts.append(f"agent={event.agent_name}")
+            lines.append(" - ".join(title_parts))
+            if event.observation:
+                lines.append(f"   - {event.observation}")
+            if event.duration_ms:
+                lines.append(f"   - durationMs: {event.duration_ms}")
+        return "\n".join(lines).rstrip() + "\n"
+
+    def events(self, run: WorkflowRun) -> List[TraceEvent]:
+        return sorted(run.trace, key=lambda event: (event.created_at, event.event_id))

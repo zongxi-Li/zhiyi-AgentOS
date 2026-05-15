@@ -1,6 +1,7 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.types import ReviewDecision, ReviewDecisionType
@@ -107,7 +108,7 @@ class ChatWorkflowUpgradeRequest(BaseModel):
         return data
 
 
-class ReviewDecisionRequest(BaseModel):
+class ReviewRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     step_id: str
@@ -286,6 +287,22 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             )
         )
 
+    @router.get("/core/workflows/metrics")
+    async def evaluate_workflows(
+        status: Optional[str] = None,
+        domain: Optional[str] = None,
+        workflow_id: Optional[str] = Query(None, alias="workflowId"),
+        source: Optional[str] = None,
+    ):
+        return _to_json(
+            runtime.evaluate_runs(
+                status=status,
+                domain=domain,
+                workflow_id=workflow_id,
+                source=source,
+            )
+        )
+
     @router.get("/core/workflows/runs/{run_id}")
     async def get_workflow_run(run_id: str):
         try:
@@ -293,8 +310,49 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @router.get("/core/workflows/runs/{run_id}/checkpoints")
+    async def list_checkpoints(run_id: str):
+        try:
+            checkpoints = runtime.list_checkpoints(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {
+            "items": [_to_json(checkpoint) for checkpoint in checkpoints],
+            "total": len(checkpoints),
+            "runId": run_id,
+        }
+
+    @router.get("/core/workflows/runs/{run_id}/trace")
+    async def export_workflow_trace(
+        run_id: str,
+        format: Literal["json", "markdown"] = "json",
+    ):
+        try:
+            run = runtime.get_status(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        if format == "markdown":
+            return PlainTextResponse(
+                runtime.trace_store.export_markdown(run),
+                media_type="text/markdown; charset=utf-8",
+            )
+        return runtime.trace_store.export_json(run)
+
+    @router.get("/core/workflows/runs/{run_id}/reviews")
+    async def list_reviews(run_id: str):
+        try:
+            reviews = runtime.list_reviews(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {
+            "items": [_to_json(review) for review in reviews],
+            "total": len(reviews),
+            "runId": run_id,
+        }
+
     @router.post("/core/workflows/runs/{run_id}/reviews")
-    async def apply_review(run_id: str, request: ReviewDecisionRequest):
+    async def apply_review(run_id: str, request: ReviewRequest):
         try:
             run = await runtime.apply_review(
                 ReviewDecision(

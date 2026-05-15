@@ -29,7 +29,7 @@ agent/agentos/
 | Workflow Runtime | `agent/agentos/core/workflow_runtime.py` | 已有任务创建、启动、审核、恢复、取消 |
 | Orchestrator | `agent/agentos/core/orchestrator.py` | 已按 Workflow 步骤分发 Agent |
 | State Machine | `agent/agentos/core/state_machine.py` | 已约束 Workflow 和 Step 状态迁移 |
-| Trace / Checkpoint / Review | `agent/agentos/core/trace.py`、`checkpoint.py`、`review.py` | 已支撑执行轨迹、恢复点和人工审核 |
+| Trace / Checkpoint / Review | `agent/agentos/core/trace.py`、`checkpoint.py`、`review.py` | 已支撑执行轨迹、恢复点列表、人工审核记录和 Trace 导出 |
 | Agent Interface | `agent/agentos/agents/base.py` | 已定义 `BaseAgent` 和运行上下文 |
 | Agent Registry | `agent/agentos/agents/registry.py` | 已支持按 domain / agent / capability 解析 |
 | Pack | `agent/agentos/packs/*` | 法律 Pack 已有 Agent、Workflow、Prompt、Data；教育、程序员、作家目录已预留 |

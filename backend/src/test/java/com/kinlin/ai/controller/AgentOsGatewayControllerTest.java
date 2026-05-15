@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -88,5 +89,78 @@ class AgentOsGatewayControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.source").value("chat"))
                 .andExpect(jsonPath("$.run.status").value("waiting_review"));
+    }
+
+    @Test
+    void exportWorkflowTrace_forwardsJsonExportToAgentOsCore() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("runId", "run_001");
+        response.put("eventCount", 2);
+
+        when(agentOsGatewayService.get("/ai/core/workflows/runs/run_001/trace?format=json"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/trace"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value("run_001"))
+                .andExpect(jsonPath("$.eventCount").value(2));
+    }
+
+    @Test
+    void exportWorkflowTrace_forwardsMarkdownExportToAgentOsCore() throws Exception {
+        when(agentOsGatewayService.getText("/ai/core/workflows/runs/run_001/trace?format=markdown"))
+                .thenReturn("# Workflow Trace: run_001\n");
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/trace")
+                        .param("format", "markdown"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("# Workflow Trace: run_001\n"));
+    }
+
+    @Test
+    void listCheckpoints_forwardsToAgentOsCore() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("runId", "run_001");
+        response.put("total", 1);
+
+        when(agentOsGatewayService.get("/ai/core/workflows/runs/run_001/checkpoints"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/checkpoints"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value("run_001"))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void listReviews_forwardsToAgentOsCore() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("runId", "run_001");
+        response.put("total", 1);
+
+        when(agentOsGatewayService.get("/ai/core/workflows/runs/run_001/reviews"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/reviews"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value("run_001"))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void evaluateWorkflows_forwardsFiltersToAgentOsCore() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("workflowId", "legal_contract_review_v1");
+        response.put("metrics", Map.of("totalRuns", 1));
+
+        when(agentOsGatewayService.get("/ai/core/workflows/metrics?domain=legal&workflowId=legal_contract_review_v1"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/metrics")
+                        .param("domain", "legal")
+                        .param("workflowId", "legal_contract_review_v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowId").value("legal_contract_review_v1"))
+                .andExpect(jsonPath("$.metrics.totalRuns").value(1));
     }
 }

@@ -6,6 +6,7 @@ from typing import Optional
 from agentos.agents import AgentRegistry
 from agentos.memory.workflow_memory import WorkflowMemory
 from agentos.core.checkpoint import CheckpointStore
+from agentos.core.evaluation import WorkflowEvaluator
 from agentos.core.orchestrator import Orchestrator
 from agentos.core.review import ReviewManager
 from agentos.core.state_machine import StateMachine
@@ -18,6 +19,9 @@ from agentos.core.types import (
     AgentTask,
     ReviewDecision,
     ReviewDecisionType,
+    Checkpoint,
+    EvaluationRun,
+    ReviewRecord,
     StepStatus,
     TraceEventType,
     WorkflowRun,
@@ -47,6 +51,7 @@ class WorkflowRuntime:
         self.checkpoint_store = checkpoint_store or CheckpointStore()
         self.workflow_store = workflow_store or MemoryWorkflowStore()
         self.review_manager = ReviewManager(self.trace_store)
+        self.evaluator = WorkflowEvaluator()
         self.orchestrator = Orchestrator(agent_registry=agent_registry)
 
     def create_task(
@@ -110,6 +115,35 @@ class WorkflowRuntime:
 
     def get_status(self, run_id: str) -> WorkflowRun:
         return self._get_run(run_id)
+
+    def list_checkpoints(self, run_id: str) -> list[Checkpoint]:
+        return self.checkpoint_store.list(self._get_run(run_id))
+
+    def list_reviews(self, run_id: str) -> list[ReviewRecord]:
+        return self.review_manager.list(self._get_run(run_id))
+
+    def evaluate_runs(
+        self,
+        *,
+        status: WorkflowStatus | str | None = None,
+        domain: str | None = None,
+        workflow_id: str | None = None,
+        source: str | None = None,
+    ) -> EvaluationRun:
+        runs = self.workflow_store.list_runs(
+            status=status,
+            domain=domain,
+            workflow_id=workflow_id,
+            source=source,
+            page=1,
+            page_size=10000,
+        )
+        return self.evaluator.evaluate(
+            runs.items,
+            domain=domain,
+            workflow_id=workflow_id,
+            source=source,
+        )
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
         run = self._get_run(decision.run_id)

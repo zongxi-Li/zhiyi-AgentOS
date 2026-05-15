@@ -281,7 +281,11 @@ AgentOS Core:
 | `/ai/core/workflows/runs` | POST | 启动AgentOS工作流 |
 | `/ai/core/workflows/runs` | GET | 查询AgentOS工作流列表 |
 | `/ai/core/workflows/start` | POST | Workbench直接创建并启动工作流 |
+| `/ai/core/workflows/metrics` | GET | 查询工作流治理指标 |
 | `/ai/core/workflows/runs/{runId}` | GET | 查询工作流状态 |
+| `/ai/core/workflows/runs/{runId}/checkpoints` | GET | 查询工作流恢复点 |
+| `/ai/core/workflows/runs/{runId}/trace` | GET | 导出工作流 Trace（JSON/Markdown） |
+| `/ai/core/workflows/runs/{runId}/reviews` | GET | 查询人工审核记录 |
 | `/ai/core/workflows/runs/{runId}/reviews` | POST | 提交人工审核决定 |
 | `/ai/core/workflows/runs/{runId}/resume` | POST | 从Checkpoint恢复 |
 | `/ai/chat/workflows/upgrade` | POST | 从Chat升级为AgentOS工作流 |
@@ -293,6 +297,8 @@ AgentOS Core:
 | `/ai/federated-models/list` | GET | 联邦模型列表 |
 
 Java 网关同时提供 `/api/agentos/*` 与 `/agentos/*` 入口，路径会转发到 Python AgentOS 的 `/ai/*`，例如 `/api/agentos/core/workflows/start` → `/ai/core/workflows/start`。
+
+前端已提供 `/agentos-console` 控制台，可查看 WorkflowRun 列表、步骤状态、Trace、Checkpoint、审核记录和治理指标，并支持提交审核与从 Checkpoint 恢复。
 
 ### Agent请求/响应格式
 

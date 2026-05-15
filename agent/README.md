@@ -34,7 +34,11 @@ agent/
 - `POST /ai/core/tasks`：创建任务并推荐 Workflow。
 - `POST /ai/core/workflows/runs`：启动 WorkflowRun。
 - `POST /ai/core/workflows/start`：Workbench 直接创建任务并启动 WorkflowRun。
+- `GET /ai/core/workflows/metrics`：查询 WorkflowRun 治理指标。
 - `GET /ai/core/workflows/runs/{runId}`：查询运行状态。
+- `GET /ai/core/workflows/runs/{runId}/checkpoints`：查询恢复点列表。
+- `GET /ai/core/workflows/runs/{runId}/trace`：导出 Trace，可选 `format=json` 或 `format=markdown`。
+- `GET /ai/core/workflows/runs/{runId}/reviews`：查询审核记录。
 - `POST /ai/core/workflows/runs/{runId}/reviews`：提交人工审核结果。
 - `POST /ai/core/workflows/runs/{runId}/resume`：从 Checkpoint 恢复。
 - `POST /ai/chat/workflows/upgrade`：将 Chat 输入和上下文升级为 WorkflowRun。

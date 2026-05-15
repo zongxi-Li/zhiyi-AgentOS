@@ -4,6 +4,7 @@ import com.kinlin.ai.config.AgentProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -14,6 +15,10 @@ import java.util.Map;
 @Slf4j
 @Service
 public class AgentOsGatewayService {
+
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_BODY =
+            new ParameterizedTypeReference<>() {
+            };
 
     private final WebClient webClient;
     private final AgentProperties agentProperties;
@@ -34,7 +39,7 @@ public class AgentOsGatewayService {
             return webClient.get()
                     .uri(path)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_BODY)
                     .timeout(Duration.ofMillis(timeoutMs))
                     .onErrorResume(e -> toErrorResponse(e, path))
                     .block();
@@ -52,7 +57,7 @@ public class AgentOsGatewayService {
                     .uri(path)
                     .bodyValue(body != null ? body : new HashMap<>())
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_BODY)
                     .timeout(Duration.ofMillis(timeoutMs))
                     .onErrorResume(e -> toErrorResponse(e, path))
                     .block();
@@ -61,7 +66,24 @@ public class AgentOsGatewayService {
         }
     }
 
-    private Mono<Map> toErrorResponse(Throwable throwable, String path) {
+    public String getText(String path) {
+        if (!agentProperties.isEnabled()) {
+            return "AgentOS gateway is disabled by configuration. path=" + path;
+        }
+        try {
+            return webClient.get()
+                    .uri(path)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofMillis(timeoutMs))
+                    .onErrorResume(e -> Mono.just(errorText(e, path)))
+                    .block();
+        } catch (Exception e) {
+            return errorText(e, path);
+        }
+    }
+
+    private Mono<Map<String, Object>> toErrorResponse(Throwable throwable, String path) {
         Exception ex = throwable instanceof Exception ? (Exception) throwable : new Exception(throwable.getMessage(), throwable);
         return Mono.just(errorResponse(ex, path));
     }
@@ -83,5 +105,11 @@ public class AgentOsGatewayService {
         response.put("error", e.getClass().getSimpleName());
         response.put("path", path);
         return response;
+    }
+
+    private String errorText(Throwable e, String path) {
+        log.error("AgentOS gateway text request failed. path={}", path, e);
+        String message = e.getMessage() == null ? "AgentOS gateway unavailable." : e.getMessage();
+        return "AgentOS gateway request failed: " + message + "\npath=" + path + "\n";
     }
 }

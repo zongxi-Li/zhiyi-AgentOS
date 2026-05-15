@@ -306,6 +306,48 @@ def test_agentos_core_api_task_run_review_flow():
     assert status_response.status_code == 200
     assert status_response.json()["output"]["final_answer"]
 
+    trace_response = client.get(f"/ai/core/workflows/runs/{run_payload['runId']}/trace")
+    assert trace_response.status_code == 200
+    trace_payload = trace_response.json()
+    assert trace_payload["runId"] == run_payload["runId"]
+    assert trace_payload["workflowId"] == "legal_contract_review_v1"
+    assert trace_payload["eventCount"] == len(trace_payload["events"])
+    assert any(event["eventType"] == "review_decided" for event in trace_payload["events"])
+
+    markdown_response = client.get(
+        f"/ai/core/workflows/runs/{run_payload['runId']}/trace",
+        params={"format": "markdown"},
+    )
+    assert markdown_response.status_code == 200
+    assert f"# Workflow Trace: {run_payload['runId']}" in markdown_response.text
+    assert "`review_decided`" in markdown_response.text
+
+    checkpoints_response = client.get(f"/ai/core/workflows/runs/{run_payload['runId']}/checkpoints")
+    assert checkpoints_response.status_code == 200
+    checkpoints_payload = checkpoints_response.json()
+    assert checkpoints_payload["runId"] == run_payload["runId"]
+    assert checkpoints_payload["total"] >= 1
+    assert checkpoints_payload["items"][0]["checkpointId"].startswith("ckpt_")
+
+    reviews_response = client.get(f"/ai/core/workflows/runs/{run_payload['runId']}/reviews")
+    assert reviews_response.status_code == 200
+    reviews_payload = reviews_response.json()
+    assert reviews_payload["runId"] == run_payload["runId"]
+    assert reviews_payload["total"] == 1
+    assert reviews_payload["items"][0]["decision"] == "approved"
+    assert reviews_payload["items"][0]["reviewer"] == "api_reviewer"
+
+    metrics_response = client.get(
+        "/ai/core/workflows/metrics",
+        params={"workflowId": "legal_contract_review_v1"},
+    )
+    assert metrics_response.status_code == 200
+    metrics_payload = metrics_response.json()
+    assert metrics_payload["workflowId"] == "legal_contract_review_v1"
+    assert metrics_payload["metrics"]["totalRuns"] == 1
+    assert metrics_payload["metrics"]["completionRate"] == 1.0
+    assert metrics_payload["metrics"]["reviewCount"] == 1
+
 
 def test_workbench_can_start_workflow_in_one_request():
     from fastapi import FastAPI

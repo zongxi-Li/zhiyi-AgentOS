@@ -121,6 +121,15 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/agentos-console',
+    name: 'AgentOsConsole',
+    component: () => import('@/views/AgentOsConsoleView.vue'),
+    meta: {
+      title: 'AgentOS 控制台',
+      requiresAuth: true
+    }
+  },
+  {
     path: '/contract-clause-planner',
     name: 'ContractClausePlanner',
     component: () => import('@/views/ContractClausePlannerView.vue'),

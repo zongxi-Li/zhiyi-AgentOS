@@ -3,6 +3,7 @@ package com.kinlin.ai.controller;
 import com.kinlin.ai.service.AgentOsGatewayService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,6 +77,22 @@ public class AgentOsGatewayController {
         return ResponseEntity.ok(agentOsGatewayService.post("/ai/core/workflows/start", body));
     }
 
+    @GetMapping("/core/workflows/metrics")
+    public ResponseEntity<Map<String, Object>> evaluateWorkflows(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String domain,
+            @RequestParam(required = false, name = "workflowId") String workflowId,
+            @RequestParam(required = false) String source
+    ) {
+        return ResponseEntity.ok(agentOsGatewayService.get(buildQuery("/ai/core/workflows/metrics",
+                mapOf(
+                        "status", status,
+                        "domain", domain,
+                        "workflowId", workflowId,
+                        "source", source
+                ))));
+    }
+
     @PostMapping("/chat/workflows/upgrade")
     public ResponseEntity<Map<String, Object>> upgradeChat(@RequestBody(required = false) Map<String, Object> body) {
         return ResponseEntity.ok(agentOsGatewayService.post("/ai/chat/workflows/upgrade", body));
@@ -83,6 +100,30 @@ public class AgentOsGatewayController {
 
     @GetMapping("/core/workflows/runs/{runId}")
     public ResponseEntity<Map<String, Object>> getWorkflowRun(HttpServletRequest request) {
+        return ResponseEntity.ok(agentOsGatewayService.get(toPythonPath(request)));
+    }
+
+    @GetMapping("/core/workflows/runs/{runId}/checkpoints")
+    public ResponseEntity<Map<String, Object>> listCheckpoints(HttpServletRequest request) {
+        return ResponseEntity.ok(agentOsGatewayService.get(toPythonPath(request)));
+    }
+
+    @GetMapping("/core/workflows/runs/{runId}/trace")
+    public ResponseEntity<?> exportWorkflowTrace(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "json") String format
+    ) {
+        String path = buildQuery(toPythonPath(request), mapOf("format", format));
+        if ("markdown".equalsIgnoreCase(format)) {
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("text/markdown;charset=UTF-8"))
+                    .body(agentOsGatewayService.getText(path));
+        }
+        return ResponseEntity.ok(agentOsGatewayService.get(path));
+    }
+
+    @GetMapping("/core/workflows/runs/{runId}/reviews")
+    public ResponseEntity<Map<String, Object>> listReviews(HttpServletRequest request) {
         return ResponseEntity.ok(agentOsGatewayService.get(toPythonPath(request)));
     }
 

@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from agentos.core.types import Checkpoint, WorkflowRun
 
@@ -34,3 +34,6 @@ class CheckpointStore:
             if checkpoint.checkpoint_id == checkpoint_id:
                 return checkpoint
         raise KeyError(f"checkpoint not found: {checkpoint_id}")
+
+    def list(self, run: WorkflowRun) -> List[Checkpoint]:
+        return sorted(run.checkpoints, key=lambda checkpoint: (checkpoint.created_at, checkpoint.checkpoint_id))

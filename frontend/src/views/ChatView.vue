@@ -43,6 +43,9 @@
           <el-icon><User /></el-icon>
           角色
         </el-button>
+        <el-button size="small" @click="goToAgentOsConsole">
+          AgentOS
+        </el-button>
         <el-button size="small" @click="goToSettings">
           <el-icon><MoreFilled /></el-icon>
           设置
@@ -943,6 +946,10 @@ const handleFederatedOptimize = async () => {
 
 const goToSettings = () => {
   router.push('/settings')
+}
+
+const goToAgentOsConsole = () => {
+  router.push('/agentos-console')
 }
 
 const toggleAssistTools = () => {

@@ -206,6 +206,42 @@ class ReviewDecision(CoreModel):
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
 
 
+class ReviewRecord(CoreModel):
+    review_id: str = Field(default_factory=lambda: new_id("review"), alias="reviewId")
+    run_id: str = Field(alias="runId")
+    step_id: str = Field(alias="stepId")
+    decision: ReviewDecisionType
+    reviewer: str = "system"
+    comment: str = ""
+    trace_event_id: Optional[str] = Field(default=None, alias="traceEventId")
+    created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
+
+
+class WorkflowMetric(CoreModel):
+    total_runs: int = Field(default=0, alias="totalRuns")
+    completed_runs: int = Field(default=0, alias="completedRuns")
+    failed_runs: int = Field(default=0, alias="failedRuns")
+    cancelled_runs: int = Field(default=0, alias="cancelledRuns")
+    waiting_review_runs: int = Field(default=0, alias="waitingReviewRuns")
+    retrying_runs: int = Field(default=0, alias="retryingRuns")
+    completion_rate: float = Field(default=0.0, alias="completionRate")
+    failure_rate: float = Field(default=0.0, alias="failureRate")
+    recovery_success_rate: float = Field(default=0.0, alias="recoverySuccessRate")
+    average_recovery_count: float = Field(default=0.0, alias="averageRecoveryCount")
+    average_trace_events: float = Field(default=0.0, alias="averageTraceEvents")
+    review_count: int = Field(default=0, alias="reviewCount")
+    status_breakdown: Dict[str, int] = Field(default_factory=dict, alias="statusBreakdown")
+
+
+class EvaluationRun(CoreModel):
+    evaluation_id: str = Field(default_factory=lambda: new_id("eval"), alias="evaluationId")
+    domain: Optional[str] = None
+    workflow_id: Optional[str] = Field(default=None, alias="workflowId")
+    source: Optional[str] = None
+    metrics: WorkflowMetric
+    created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
+
+
 class SkillRequest(CoreModel):
     session_id: str = Field(alias="sessionId")
     text: str

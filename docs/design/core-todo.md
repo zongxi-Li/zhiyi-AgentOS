@@ -25,18 +25,24 @@
 - 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
 - `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、`/ai/core/workflows/start`、`/ai/chat/workflows/upgrade`、审核、恢复、取消和列表查询接口。
 - `backend/src/main/java/com/kinlin/ai/controller/AgentOsGatewayController.java`：Java 网关已提供 `/api/agentos/*` 与 `/agentos/*` 统一入口，转发到 Python AgentOS `/ai/core/*` 生命周期接口。
+- Trace 已支持按 WorkflowRun 独立导出 JSON 与 Markdown，Python 入口为 `/ai/core/workflows/runs/{runId}/trace`，Java 网关入口为 `/api/agentos/core/workflows/runs/{runId}/trace`。
+- Review 已从单一 trace 事件升级为可查询的 `ReviewRecord` 列表，Python 入口为 `/ai/core/workflows/runs/{runId}/reviews`。
+- Checkpoint 已支持独立列表查询，Python 入口为 `/ai/core/workflows/runs/{runId}/checkpoints`。
+- Evaluation 已提供基础治理指标，Python 入口为 `/ai/core/workflows/metrics`。
+- 前端已新增 `/agentos-console`，接入运行列表、运行详情、步骤状态、Trace、Checkpoint、审核和治理指标。
 - Chat 已支持将当前输入和上下文升级为 `WorkflowRun`；Workbench API 模式已支持直接发起 `WorkflowRun`。
 - 文档已同步到 `agent/agentos` 作为 canonical 路径。
 
 ### 进行中
 
-- 前端 AgentOS Console 继续完善 `/ai/core/*` 查询、审核和恢复能力。
 - WorkflowStore 的备份、配置和索引治理能力。
+- 非 legal pack 仍停留在最小 smoke workflow，需要继续深化为多步骤专业工作流。
 
 ### 下一步
 
-- 补齐前端控制台的运行详情、审计面板、审核和恢复操作。
+- 继续补强 WorkflowStore 备份、索引和长期运行稳定性。
 - 继续把非 legal pack 从最小 smoke workflow 深化为多步骤专业工作流。
+- 继续定义 `AgentCapability`、`MemoryScope` 和联邦经验边界。
 
 ---
 
@@ -431,14 +437,14 @@ TODO：
 
 - [x] 定义 `Checkpoint`。
 - [x] 实现 `create_checkpoint()`。
-- [ ] 实现 `list_checkpoints()`。
+- [x] 实现 `list_checkpoints()`。
 - [x] 实现 `resume_from_checkpoint()`。
 - [x] 支持恢复后继续生成 trace。
 
 完成标准：
 
-- [ ] 人为制造某一步失败后，可以从上一 checkpoint 继续。
-- [ ] 前端可以展示恢复点。
+- [x] 人为制造某一步失败后，可以从上一 checkpoint 继续。
+- [x] 前端可以展示恢复点。
 
 ### 4.8 Trace & Observability
 
@@ -455,13 +461,14 @@ TODO：
 - [x] 定义统一 `TraceEvent`。
 - [x] 将旧链路 trace 记录升级为更通用的 `TraceEvent`。
 - [x] 支持事件类型：`task_created`、`step_started`、`agent_called`、`tool_called`、`checkpoint_created`、`review_required`、`step_failed`、`run_completed`。
-- [ ] 前端复用 `TraceTimeline` 展示。
-- [ ] 后续支持导出审计报告。
+- [x] 支持 WorkflowRun trace 独立导出，格式包括 JSON 和 Markdown。
+- [x] 前端新增 `TraceEventTimeline` 展示 WorkflowRun Trace。
+- [x] 后续支持导出审计报告。
 
 完成标准：
 
-- [ ] 不看后端日志，也能知道任务执行过程。
-- [ ] Trace 能解释失败来自任务、Agent、Skill、模型还是数据。
+- [x] 不看后端日志，也能知道任务执行过程。
+- [x] Trace 能解释失败来自任务、Agent、Skill、模型还是数据。
 
 ### 4.9 Human Review
 
@@ -475,14 +482,14 @@ TODO：
 
 - [x] 定义 `ReviewDecision`。
 - [x] 支持状态 `waiting_review`。
-- [ ] 定义 `ReviewRequest`。
-- [ ] 前端增加审核面板。
-- [ ] 后端或 Python 侧记录更完整的审核日志。
+- [x] 定义 `ReviewRequest`。
+- [x] 前端增加审核面板。
+- [x] 后端或 Python 侧记录更完整的审核日志。
 
 完成标准：
 
-- [ ] 敏感任务不会完全自动越过关键决策点。
-- [ ] 审核动作可追踪。
+- [x] 敏感任务不会完全自动越过关键决策点。
+- [x] 审核动作可追踪。
 
 ### 4.10 Evaluation & Governance
 
@@ -507,16 +514,16 @@ HRR: Human Revision Rate
 TODO：
 
 - [x] 定义基础 `evaluation.py`。
-- [ ] 定义 `WorkflowMetric`。
-- [ ] 定义 `EvaluationRun`。
-- [ ] 记录完成率、失败率、恢复率、循环率。
+- [x] 定义 `WorkflowMetric`。
+- [x] 定义 `EvaluationRun`。
+- [x] 记录完成率、失败率、恢复率和失败类型分布。
 - [ ] 支持按 Agent、Workflow、行业包聚合统计。
-- [ ] 形成基础评估报告。
+- [x] 形成基础评估报告。
 
 完成标准：
 
-- [ ] 能证明 Core 不只是能跑，而是更稳定、更可控。
-- [ ] 能为科研论文提供可量化数据。
+- [x] 能证明 Core 不只是能跑，而是更稳定、更可控。
+- [x] 能为科研论文提供可量化数据。
 
 ---
 
@@ -728,7 +735,62 @@ GET /ai/core/workflows/runs/{runId}
 }
 ```
 
-### 6.6 人工审核
+### 6.6 导出 Trace
+
+```text
+GET /ai/core/workflows/runs/{runId}/trace?format=json
+GET /ai/core/workflows/runs/{runId}/trace?format=markdown
+```
+
+JSON 响应：
+
+```json
+{
+  "runId": "run_001",
+  "taskId": "task_001",
+  "workflowId": "legal_contract_review_v1",
+  "domain": "legal",
+  "status": "completed",
+  "eventCount": 8,
+  "events": []
+}
+```
+
+Markdown 响应用于审计报告草稿和人工复盘。
+
+### 6.7 查询 Checkpoint
+
+```text
+GET /ai/core/workflows/runs/{runId}/checkpoints
+```
+
+响应：
+
+```json
+{
+  "runId": "run_001",
+  "total": 1,
+  "items": []
+}
+```
+
+### 6.8 查询审核记录
+
+```text
+GET /ai/core/workflows/runs/{runId}/reviews
+```
+
+响应：
+
+```json
+{
+  "runId": "run_001",
+  "total": 1,
+  "items": []
+}
+```
+
+### 6.9 人工审核
 
 ```text
 POST /ai/core/workflows/runs/{runId}/reviews
@@ -744,7 +806,7 @@ POST /ai/core/workflows/runs/{runId}/reviews
 }
 ```
 
-### 6.7 从 Checkpoint 恢复
+### 6.10 从 Checkpoint 恢复
 
 ```text
 POST /ai/core/workflows/runs/{runId}/resume
@@ -756,6 +818,28 @@ POST /ai/core/workflows/runs/{runId}/resume
 {
   "checkpointId": "ckpt_003",
   "mode": "retry_from_checkpoint"
+}
+```
+
+### 6.11 查询治理指标
+
+```text
+GET /ai/core/workflows/metrics?domain=legal&workflowId=legal_contract_review_v1&source=workbench
+```
+
+响应：
+
+```json
+{
+  "evaluationId": "eval_001",
+  "workflowId": "legal_contract_review_v1",
+  "metrics": {
+    "totalRuns": 1,
+    "completionRate": 1.0,
+    "failureRate": 0.0,
+    "recoverySuccessRate": 0.0,
+    "reviewCount": 1
+  }
 }
 ```
 
@@ -825,16 +909,17 @@ TODO：
 
 TODO：
 
-- [ ] 新建 `trace.py`。
-- [ ] 每次任务、步骤、Agent、工具调用都写入 `TraceEvent`。
-- [ ] 新建 `checkpoint.py`。
-- [ ] 每个步骤完成后创建 checkpoint。
-- [ ] 实现从 checkpoint 恢复。
+- [x] 新建 `trace.py`。
+- [x] 每次任务、步骤、Agent、工具调用都写入 `TraceEvent`。
+- [x] 新建 `checkpoint.py`。
+- [x] 每个步骤完成后创建 checkpoint。
+- [x] 实现从 checkpoint 恢复。
+- [x] 增加 Trace JSON / Markdown 导出接口。
 
 验收：
 
-- [ ] TraceTimeline 可以展示完整执行链。
-- [ ] 人为制造步骤失败后，可以从上一 checkpoint 恢复。
+- [x] TraceEventTimeline 可以展示完整执行链。
+- [x] 人为制造步骤失败后，可以从上一 checkpoint 恢复。
 
 ### Phase 5：Human Review
 
@@ -842,16 +927,16 @@ TODO：
 
 TODO：
 
-- [ ] 新建 `review.py`。
-- [ ] 支持 `waiting_review` 状态。
-- [ ] 定义审核决定：`approved`、`rejected`、`rerun`、`cancelled`。
-- [ ] 前端新增 `HumanReviewPanel`。
-- [ ] 审核决定写入 trace。
+- [x] 新建 `review.py`。
+- [x] 支持 `waiting_review` 状态。
+- [x] 定义审核决定：`approved`、`rejected`、`rerun`、`cancelled`。
+- [x] 前端新增 `HumanReviewPanel`。
+- [x] 审核决定写入 trace。
 
 验收：
 
-- [ ] 工作流能在指定步骤暂停等待人工审核。
-- [ ] 审核通过后继续执行。
+- [x] 工作流能在指定步骤暂停等待人工审核。
+- [x] 审核通过后继续执行。
 
 ### Phase 6：Java 网关与前端控制台
 
@@ -862,17 +947,17 @@ TODO：
 - [x] Java 新增 `AgentOsGatewayService`。
 - [x] Java 新增 `AgentOsController`。
 - [x] 前端新增 `agentos.ts`。
-- [ ] 前端新增 `workflow.ts`。
-- [ ] 前端新增 `AgentOsConsoleView.vue`。
-- [ ] 接入 `WorkflowRunPanel`、`WorkflowStepList`、`CheckpointPanel`、`TraceEventTimeline`。
+- [x] 前端新增 `workflow.ts`。
+- [x] 前端新增 `AgentOsConsoleView.vue`。
+- [x] 接入 `WorkflowRunPanel`、`WorkflowStepList`、`CheckpointPanel`、`TraceEventTimeline`。
 - [x] 支持从 Chat 升级为 Workflow。
 - [x] 支持从 Workbench 直接发起 Workflow。
 
 验收：
 
 - [x] 用户能从前端创建工作流。
-- [ ] 用户能查看步骤状态、trace、checkpoint。
-- [ ] 用户能执行审核和恢复。
+- [x] 用户能查看步骤状态、trace、checkpoint。
+- [x] 用户能执行审核和恢复。
 
 ### Phase 7：Evaluation & Governance
 
@@ -880,16 +965,16 @@ TODO：
 
 TODO：
 
-- [ ] 新建 `evaluation.py`。
-- [ ] 记录任务完成率。
-- [ ] 记录恢复成功率。
+- [x] 新建 `evaluation.py`。
+- [x] 记录任务完成率。
+- [x] 记录恢复成功率。
 - [ ] 记录循环率。
-- [ ] 记录失败类型分布。
-- [ ] 前端展示指标摘要。
+- [x] 记录失败类型分布。
+- [x] 前端展示指标摘要。
 
 验收：
 
-- [ ] 能输出基础运行报告。
+- [x] 能输出基础运行报告。
 - [ ] 能比较不同 workflow 或 agent 的稳定性。
 
 ---
@@ -902,16 +987,16 @@ TODO：
 
 - [ ] 任意行业包都能注册 Agent。
 - [ ] 任意行业包都能注册 WorkflowDefinition。
-- [ ] Core 能创建 WorkflowRun。
-- [ ] Core 能调度 Agent。
-- [ ] Core 能管理状态机。
-- [ ] Core 能保存 checkpoint。
-- [ ] Core 能从 checkpoint 恢复。
-- [ ] Core 能输出 trace。
-- [ ] Core 能等待人工审核。
-- [ ] Core 能生成运行评估指标。
+- [x] Core 能创建 WorkflowRun。
+- [x] Core 能调度 Agent。
+- [x] Core 能管理状态机。
+- [x] Core 能保存 checkpoint。
+- [x] Core 能从 checkpoint 恢复。
+- [x] Core 能输出 trace。
+- [x] Core 能等待人工审核。
+- [x] Core 能生成运行评估指标。
 - [x] Core 能通过 Java 网关服务前端。
-- [ ] 前端有可用的 AgentOS Console。
+- [x] 前端有可用的 AgentOS Console。
 
 不要求：
 
@@ -973,10 +1058,10 @@ Federated Experience for Sensitive-domain Agents
 - [x] 4. 给 `legal` 之外的 `education`、`programmer`、`writer` 补最小 Workflow。
 - [x] 5. 把前端工作台接入 `/ai/core/*`。
 - [x] 6. 给 Java 网关补 AgentOS 的统一入口。
-- [ ] 7. 给 Trace 增加导出能力。
-- [ ] 8. 给 Review 增加更完整的审计记录。
+- [x] 7. 给 Trace 增加导出能力。
+- [x] 8. 给 Review 增加更完整的审计记录。
 - [ ] 9. 让 `WorkflowStore` 支持更稳定的持久化配置与备份策略。
-- [ ] 10. 输出第一份可对外展示的 Core 运行评估报告。
+- [x] 10. 输出第一份可对外展示的 Core 运行评估报告。
 
 ---
 
