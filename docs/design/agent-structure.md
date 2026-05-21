@@ -1,113 +1,66 @@
-# 知弈 AgentOS 当前结构
+# 知弈 Agent 应用层结构
 
-日期：2026-05-14
+日期：2026-05-21
 
-本文以当前实现为准。`agent/agentos/` 是 Agent 运行时、Pack、Skill、Memory、Store 和 Adapter 的 canonical 包路径；`agent/app/` 只保留 FastAPI 入口、API Route、配置、服务和数据入口。
+本文以当前迁移后的结构为准：`agentOS/src/agentos/` 是 AgentOS Core 的 canonical 包路径；`agent/` 是 Python 应用服务层；`agent/packs/` 承载具体领域 Pack。
 
 ---
 
 ## 1. 顶层结构
 
 ```text
-agent/
-  app/
-    main.py
-    config.py
-    paths.py
-    api/
-      agentos_core.py
-      chat.py
-      rag.py
-      ...
-    ai_engine/
-    services/
-    middleware/
-    data/
+Kinlin_AI/
+  agentOS/
+    src/
+      agentos/
+        core/
+        agents/
+        packs/
+        skills/
+        memory/
+        stores/
+        adapters/
 
-  agentos/
-    __init__.py
-    core/
-    agents/
-    packs/
-    skills/
-    react/
-    memory/
-    stores/
-    adapters/
-
-  tests/
-```
-
----
-
-## 2. AgentOS 包结构
-
-```text
-agent/agentos/
-  core/
-    types.py
-    orchestrator.py
-    state_machine.py
-    workflow_registry.py
-    workflow_runtime.py
-    trace.py
-    checkpoint.py
-    review.py
-    evaluation.py
-
-  agents/
-    base.py
-    registry.py
-
-  packs/
-    legal/
-      manifest.yaml
-      workflows/
-      agents/
-      skills/
-      prompts/
+  agent/
+    app/
+      main.py
+      config.py
+      paths.py
+      api/
+      services/
+      ai_engine/
+      middleware/
       data/
-    education/
-    programmer/
-    writer/
 
-  skills/
-    base.py
-    builtin/
+    packs/
+      legal/
+      education/
+      programmer/
+      writer/
 
-  memory/
-    workflow_memory.py
-
-  stores/
-    workflow_store.py
-    memory_workflow_store.py
-
-  adapters/
-    model_adapter.py
-    retrieval_adapter.py
-    federated_adapter.py
-    retrieval/
+    tests/
+    agentos.py
 ```
 
 ---
 
-## 3. 模块职责
+## 2. Module 职责
 
-| 模块 | 职责 | 约束 |
+| Module | 职责 | 约束 |
 |---|---|---|
-| `core` | 管理 `AgentTask`、`WorkflowRun`、状态机、Trace、Checkpoint、审核和评估 | 不写行业逻辑，不直接依赖具体 Pack |
-| `agents` | 定义 `BaseAgent`、`AgentRunContext`、`AgentRegistry` | 只提供统一 Agent 接口和发现机制 |
-| `packs` | 承载行业能力包：Workflow、Agent、Prompt、数据、规则 | 行业能力从 Pack 注册进入系统 |
-| `skills` | 定义 Skill 接口与内置 Skill | Skill 是可复用原子能力，可被 Pack Agent 调用 |
-| `memory` | Workflow 中间上下文 | 与持久化 Store 分离 |
-| `stores` | Workflow 任务和运行记录的存储接口与内存实现 | 后续数据库持久化从这里接入 |
-| `adapters` | 模型、检索、联邦增强等外部能力适配 | 调用外部系统集中从 Adapter 进入 |
+| `agentOS/src/agentos/core` | 管理 `AgentTask`、`WorkflowRun`、状态机、Trace、Checkpoint、审核和评估 | 不写行业逻辑，不直接依赖具体 Pack |
+| `agentOS/src/agentos/agents` | 定义 `BaseAgent`、`AgentRunContext`、`AgentRegistry` | 只提供统一 Agent Interface 和注册机制 |
+| `agentOS/src/agentos/packs` | 发现、校验、注册应用层 Pack | 默认扫描 `agent/packs/` |
+| `agentOS/src/agentos/skills` | 定义 Skill Interface 与通用无领域 Skill | 法律、教育、程序员、作家等领域 Skill 放 Pack 内 |
+| `agentOS/src/agentos/memory` | Workflow 中间上下文 | 与持久化 Store 分离 |
+| `agentOS/src/agentos/stores` | Workflow 任务和运行记录的存储 Interface 与实现 | 当前保留内存与 SQLite 实现 |
+| `agentOS/src/agentos/adapters` | 模型、检索、联邦增强等外部能力 Adapter | Core 可独立导入，应用服务惰性桥接 |
+| `agent/app` | FastAPI、应用服务、传统 AI/RAG/语音/数字人能力 | 不承载 Core 生命周期逻辑 |
+| `agent/packs` | 法律、教育、程序员、作家等领域能力包 | 通过 manifest 和 `register_pack` 注入 Core |
 
 ---
 
-## 4. 当前运行链路
-
-### 4.1 AgentOS Core Workflow 链路
+## 3. 当前运行链路
 
 ```text
 POST /ai/core/tasks
@@ -118,25 +71,21 @@ POST /ai/core/workflows/runs
   -> WorkflowRuntime.start()
   -> Orchestrator.select_next_step()
   -> AgentRegistry.resolve()
-  -> Pack Agent.run()
+  -> Application Pack Agent.run()
   -> TraceStore / CheckpointStore / ReviewManager
 ```
 
 入口文件：`agent/app/api/agentos_core.py`
 
-默认运行时：`agent/agentos/core/workflow_runtime.py`
+默认运行时：`agentOS/src/agentos/core/workflow_runtime.py`
 
-当前已接入的演示 Pack：`agent/agentos/packs/legal/`
+Pack Registry：`agentOS/src/agentos/packs/registry.py`
 
-### 4.2 旧专业体聊天链路
-
-旧的 `/ai/agent/{role}/chat` 专业体入口已经移除，不再保留兼容路径。
-
-现在对外只保留 `agentos_core.py` 提供的 `/ai/core/*` 接口；如果某个 Pack 需要局部规划或技能编排，应直接在 Pack 的 `BaseAgent` 和 `WorkflowRuntime` 生命周期中完成。
+当前已接入 Pack：`agent/packs/legal/`、`agent/packs/education/`、`agent/packs/programmer/`、`agent/packs/writer/`
 
 ---
 
-## 5. 设计原则
+## 4. 设计原则
 
 ```text
 Core 管生命周期。
@@ -148,40 +97,21 @@ Adapter 连接外部模型、检索、联邦和存储。
 API Route 只做协议适配，不承载复杂执行逻辑。
 ```
 
+检查线：
+
+- 新增一个行业能力时，主要新增 `agent/packs/{pack_id}/`。
+- `agentOS/src/agentos/core` 不出现法律、教育、程序员、作家等行业导入。
+- Pack 可以依赖 Core Interface，Core 不反向依赖 Pack 实现。
+- `agent/app/api/*` 保持薄路由，只做请求/响应转换。
+
 ---
 
-## 6. 新增 Pack 的方式
+## 5. 新增 Pack 的方式
 
-1. 在 `agent/agentos/packs/{pack_id}/` 下创建 `manifest.yaml`。
+1. 在 `agent/packs/{pack_id}/` 下创建 `manifest.yaml`。
 2. 在 `workflows/` 中放置 Workflow YAML，声明步骤、Agent、审核节点和流转关系。
-3. 在 `agents/` 中实现 `BaseAgent` 子类。
-4. 如果 Pack 有专属工具，放入 Pack 内的 `skills/`；可复用工具放入 `agent/agentos/skills/builtin/`。
+3. 在 `agents/` 中实现 `agentos.agents.BaseAgent` 子类。
+4. 如果 Pack 有专属工具，放入 Pack 内的 `skills/`；跨 Pack 可复用能力先抽象为无领域接口，再放入 `agentOS/src/agentos/skills/`。
 5. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`。
-6. 在默认运行时或启动配置中注册 Pack。
+6. 默认运行时通过 `agentos.packs.registry.register_installed_packs()` 加载启用的 Pack。
 7. 为 Workflow、Agent 注册和关键执行路径补充测试。
-
----
-
-## 7. 当前应继续推进的工作
-
-| 优先级 | 工作 | 目标 |
-|---|---|---|
-| P0 | 保持所有 Python 导入统一为 `agentos.*` | 避免大小写包名和旧路径漂移 |
-| P0 | 文档统一以 `agent/agentos` 为 canonical | 后续检查实现时不再混用旧目录 |
-| P1 | 让四类 Pack 逐步接入统一 Workflow 生命周期 | 所有专业能力通过 `/ai/core/*` 进入同一链路 |
-| P1 | 为 `WorkflowStore` 增加数据库实现 | 解决进程重启后任务状态丢失 |
-| P1 | 让 Pack manifest 驱动注册 | 减少默认运行时里的硬编码注册 |
-| P2 | 教育、程序员、作家 Pack 补齐 Workflow 和 Pack Agent | 让四类专业体都能走 AgentOS Core |
-| P2 | 前端工作台接入 `/ai/core/*` | 展示真实 `WorkflowRun`、Trace、Checkpoint 和审核状态 |
-
----
-
-## 8. 判断标准
-
-后续调整以这几条作为检查线：
-
-- 业务能力是否通过 `packs/` 进入，而不是写进 `core/`。
-- 全局任务生命周期是否由 `WorkflowRuntime` 管理。
-- `core/` 是否仍然不知道法律、教育、程序员、作家等行业细节。
-- API Route 是否足够薄，只负责请求/响应和兼容协议。
-- 新增一个 Pack 是否主要改 Pack 目录，而不是同时改多个无关模块。

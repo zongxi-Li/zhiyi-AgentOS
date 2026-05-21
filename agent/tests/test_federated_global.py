@@ -4,6 +4,7 @@
 """
 import pytest
 import json
+import tempfile
 from pathlib import Path
 from app.services.globalmodelmanager import GlobalModelManager
 from app.services.localtrainingmanager import LocalTrainingManager
@@ -14,7 +15,14 @@ class TestGlobalModelManager:
     
     def setup_method(self):
         """测试前设置"""
-        self.manager = GlobalModelManager(model_storage_dir="data/test_global_models")
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.manager = GlobalModelManager(
+            model_storage_dir=str(Path(self._tmpdir.name) / "test_global_models")
+        )
+
+    def teardown_method(self):
+        """测试后清理临时目录"""
+        self._tmpdir.cleanup()
     
     def test_initialize_base_model(self):
         """测试初始化基础模型"""
@@ -127,8 +135,9 @@ class TestLocalTrainingManager:
     def setup_method(self):
         """测试前设置"""
         # 创建测试数据目录
-        test_data_dir = Path("data/test_local_training")
-        test_data_dir.mkdir(parents=True, exist_ok=True)
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.test_data_dir = Path(self._tmpdir.name) / "test_local_training"
+        self.test_data_dir.mkdir(parents=True, exist_ok=True)
         
         # 创建测试私有数据
         private_data = [
@@ -144,11 +153,15 @@ class TestLocalTrainingManager:
             }
         ]
         
-        data_file = test_data_dir / 'private_data.json'
+        data_file = self.test_data_dir / 'private_data.json'
         with open(data_file, 'w', encoding='utf-8') as f:
             json.dump(private_data, f, ensure_ascii=False, indent=2)
         
         self.data_file = str(data_file)
+
+    def teardown_method(self):
+        """测试后清理临时目录"""
+        self._tmpdir.cleanup()
     
     def test_load_private_data(self):
         """测试加载私有数据"""
@@ -158,7 +171,7 @@ class TestLocalTrainingManager:
         manager = LocalTrainingManager(
             client_id='test_client',
             server_url='http://localhost:8000',
-            local_data_dir='data/test_local_training'
+            local_data_dir=str(self.test_data_dir)
         )
         
         count = manager.load_private_data(self.data_file)
@@ -170,7 +183,8 @@ class TestLocalTrainingManager:
         """测试提取参数更新"""
         manager = LocalTrainingManager(
             client_id='test_client',
-            server_url='http://localhost:8000'
+            server_url='http://localhost:8000',
+            local_data_dir=str(self.test_data_dir)
         )
         
         old_model = {

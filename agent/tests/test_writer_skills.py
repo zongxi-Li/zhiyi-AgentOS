@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 from agentos.core.types import SkillRequest
-from agentos.skills.builtin.writer import (
+from packs.writer.skills import (
     CharacterRelationSkill,
     ContentWriteSkill,
     InspirationExpandSkill,

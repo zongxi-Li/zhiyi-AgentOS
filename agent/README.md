@@ -1,33 +1,43 @@
 # 知弈 AI Service
 
-Python AI 服务，提供 FastAPI 接口、模型调用、RAG、专业 Agent 和 AgentOS Workflow Runtime。
+`agent/` 是 Python 应用服务层，负责 FastAPI 入口、协议适配、传统 AI 服务、数据目录和领域 Pack 承载。AgentOS Core 已迁移到仓库根目录的 `agentOS/src/agentos/`。
 
 ## 当前结构
 
 ```text
 agent/
-  app/
+  app/                    # FastAPI 应用层
     main.py
     config.py
+    paths.py
     api/
     services/
     ai_engine/
     middleware/
     data/
 
-  agentos/
-    core/
-    agents/
-    packs/
-    skills/
-    memory/
-    stores/
-    adapters/
+  packs/                  # 领域能力包，由应用层选择加载
+    legal/
+    education/
+    programmer/
+    writer/
 
   tests/
+  agentos.py              # 兼容入口，转发到 ../agentOS/src/agentos
 ```
 
-`app/` 负责应用启动、HTTP 路由、配置和传统服务；`agentos/` 是 Agent 运行时核心，负责 Workflow、Pack、Skill、Memory、Store 和 Adapter。
+```text
+../agentOS/src/agentos/   # AgentOS Core
+  core/
+  agents/
+  packs/
+  skills/
+  memory/
+  stores/
+  adapters/
+```
+
+`app/` 负责 HTTP 路由、配置、传统服务和兼容协议；`packs/` 承载法律、教育、程序员、作家等领域能力；`agentOS/src/agentos/` 负责 Workflow Runtime、Agent/Skill Interface、Pack Registry、Memory、Store 和 Adapter。
 
 ## AgentOS 入口
 
@@ -43,42 +53,26 @@ agent/
 - `POST /ai/core/workflows/runs/{runId}/resume`：从 Checkpoint 恢复。
 - `POST /ai/chat/workflows/upgrade`：将 Chat 输入和上下文升级为 WorkflowRun。
 
-旧的 `/ai/agent/{role}/chat` 专业体入口已移除，统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
-
-## 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
 ## 配置
 
-`.env` 文件放在项目主目录，即与 `agent/`、`backend/`、`frontend/` 同级。
+`.env` 文件放在项目主目录，即与 `agent/`、`agentOS/`、`backend/`、`frontend/` 同级。
 
 ```text
 Kinlin_AI/
   .env
   agent/
+  agentOS/
   backend/
   frontend/
 ```
 
-常用配置：
+Pack 默认从 `agent/packs/` 自动发现；如需覆盖，可设置：
 
 ```env
-DASHSCOPE_API_KEY=sk-your_api_key_here
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-QWEN_MODEL_FAST=qwen-turbo
-QWEN_MODEL_BALANCED=qwen-plus
-QWEN_MODEL_ADVANCED=qwen-max
-QWEN_MODEL_LATEST=qwen3-max
-QWEN_ENABLED=true
-
-DEEPSEEK_API_KEY=sk-your_deepseek_key
-DEEPSEEK_MODEL=deepseek-chat
+AGENTOS_PACKS_DIR=E:/Project/Kinlin_AI/agent/packs
+AGENTOS_DATA_DIR=E:/Project/Kinlin_AI/agent/app/data
+AGENTOS_WORKFLOW_DB_PATH=E:/Project/Kinlin_AI/agent/agentos-workflow.db
 ```
-
-系统全局使用 `app/config.py` 中的 `settings` 作为配置来源。
 
 ## 启动服务
 
@@ -86,27 +80,21 @@ DEEPSEEK_MODEL=deepseek-chat
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-或：
-
-```bash
-python app/main.py
-```
-
 ## 测试
 
-在 `agent/` 目录下运行：
+在项目根目录运行：
 
 ```bash
-python -m pytest tests/test_agentos_core.py -q
-python -m pytest tests/test_programmer_skills.py tests/test_teacher_skills.py tests/test_writer_skills.py -q
-python -m compileall app agentos tests
+python -m pytest agent/tests/test_architecture_migration.py -q
+python -m pytest agent/tests/test_pack_registry.py agent/tests/test_agentos_core.py -q
+python -m pytest agent/tests/test_programmer_skills.py agent/tests/test_teacher_skills.py agent/tests/test_writer_skills.py -q
 ```
 
 ## 新增 Pack
 
-1. 在 `agentos/packs/{pack_id}/` 创建 `manifest.yaml`、`workflows/`、`agents/`、`prompts/`、`data/`。
-2. 实现 `BaseAgent` 子类。
+1. 在 `agent/packs/{pack_id}/` 创建 `manifest.yaml`、`workflows/`、`agents/`、`skills/`、`prompts/`、`data/`。
+2. 实现 `agentos.agents.BaseAgent` 子类。
 3. 在 Workflow YAML 中声明步骤、Agent、审核节点和流转关系。
-4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`，并在 `manifest.yaml` 中声明 pack 元数据。
-5. 默认运行时会按 manifest 自动发现并加载已安装 packs。
+4. 在 Pack 的 `__init__.py` 中提供 `register_pack(agent_registry, workflow_registry)`。
+5. 默认运行时会通过 `agentos.packs.registry` 自动发现并加载已启用 Pack。
 6. 为 Pack 注册和 Workflow 冒烟路径添加测试。

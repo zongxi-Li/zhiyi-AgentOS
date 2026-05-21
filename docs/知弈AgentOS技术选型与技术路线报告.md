@@ -191,28 +191,28 @@
 
 真实依据：
 
-- `agent/agentOS/core/types.py`
-- `agent/agentOS/core/workflow_runtime.py`
-- `agent/agentOS/core/orchestrator.py`
-- `agent/agentOS/core/workflow_registry.py`
-- `agent/agentOS/core/trace.py`
-- `agent/agentOS/core/checkpoint.py`
-- `agent/agentOS/core/review.py`
-- `agent/agentOS/core/evaluation.py`
-- `agent/agentOS/agents/base.py`
-- `agent/agentOS/agents/registry.py`
-- `agent/agentOS/packs/registry.py`
-- `agent/agentOS/packs/legal/__init__.py`
-- `agent/agentOS/packs/legal/workflows/contract_review.yaml`
-- `agent/agentOS/packs/legal/workflows/case_analysis.yaml`
+- `agentOS/src/agentos/core/types.py`
+- `agentOS/src/agentos/core/workflow_runtime.py`
+- `agentOS/src/agentos/core/orchestrator.py`
+- `agentOS/src/agentos/core/workflow_registry.py`
+- `agentOS/src/agentos/core/trace.py`
+- `agentOS/src/agentos/core/checkpoint.py`
+- `agentOS/src/agentos/core/review.py`
+- `agentOS/src/agentos/core/evaluation.py`
+- `agentOS/src/agentos/agents/base.py`
+- `agentOS/src/agentos/agents/registry.py`
+- `agent/packs/registry.py`
+- `agent/packs/legal/__init__.py`
+- `agent/packs/legal/workflows/contract_review.yaml`
+- `agent/packs/legal/workflows/case_analysis.yaml`
 
 当前可复用能力：
 
 - 已有轻量 Python `WorkflowRuntime`，可以创建 Task、启动 WorkflowRun、执行 Step、进入 Review、创建 Checkpoint、恢复运行、导出 Trace、计算 Evaluation 指标。
 - `AgentRegistry` 和 `WorkflowRegistry` 已经实现 Pack 注册机制。
-- `agent/agentOS/packs/legal/__init__.py` 已通过 `register_pack()` 注册 Legal Pack 的 Agent 和 workflows，方向上符合“Core 不依赖 Pack，Pack 依赖 Core”。
-- `agent/agentOS/packs/legal/workflows/contract_review.yaml` 已包含 `case_intake -> statute -> evidence -> risk -> draft -> final_review`，其中 `risk` 步骤设置 `reviewRequired: true`。
-- `agent/agentOS/packs/legal/workflows/case_analysis.yaml` 已包含案件分析最小流程。
+- `agent/packs/legal/__init__.py` 已通过 `register_pack()` 注册 Legal Pack 的 Agent 和 workflows，方向上符合“Core 不依赖 Pack，Pack 依赖 Core”。
+- `agent/packs/legal/workflows/contract_review.yaml` 已包含 `case_intake -> statute -> evidence -> risk -> draft -> final_review`，其中 `risk` 步骤设置 `reviewRequired: true`。
+- `agent/packs/legal/workflows/case_analysis.yaml` 已包含案件分析最小流程。
 - `agent/tests/test_agentos_core.py`、`agent/tests/test_pack_registry.py`、`agent/tests/test_sqlite_workflow_store.py` 已覆盖运行、审核、恢复、Pack 注册、SQLite 持久化的原型测试。
 
 当前缺失：
@@ -220,7 +220,7 @@
 - Python Core 当前仍是原型运行时，主要使用内存或 SQLite 存储，未落到 PostgreSQL 正式治理表。
 - Core 中还没有独立 `PolicyService`、`EvidenceService`、`PromptService`、`ReportService` 的正式实现。
 - Legal Pack 目前是 Demo Pack，规则、法条、判例、证据绑定仍偏静态和示例化。
-- `agent/agentOS/skills/builtin/` 有法律技能，但尚未形成统一 SkillRegistry 持久化和版本治理。
+- 法律 Skill 已收敛到 `agent/packs/legal/skills/`，但尚未形成统一 SkillRegistry 持久化和版本治理。
 
 ### 2.7 当前 RAG、文档解析、知识库情况
 
@@ -231,13 +231,13 @@
 - `agent/app/services/embeddingservice.py`
 - `agent/app/services/documentprocessoradvanced.py`
 - `agent/app/services/documentprocessorenhanced.py`
-- `agent/agentOS/adapters/retrieval/chroma_client.py`
-- `agent/agentOS/adapters/retrieval/legal_index_builder.py`
-- `agent/agentOS/packs/legal/data/statutes.json`
-- `agent/agentOS/packs/legal/data/cases.json`
-- `agent/agentOS/packs/legal/data/evidence_rules.json`
-- `agent/agentOS/packs/legal/data/jurisdiction_rules.json`
-- `agent/agentOS/packs/legal/data/limitation_rules.json`
+- `agentOS/src/agentos/adapters/retrieval/chroma_client.py`
+- `agentOS/src/agentos/adapters/retrieval/legal_index_builder.py`
+- `agent/packs/legal/data/statutes.json`
+- `agent/packs/legal/data/cases.json`
+- `agent/packs/legal/data/evidence_rules.json`
+- `agent/packs/legal/data/jurisdiction_rules.json`
+- `agent/packs/legal/data/limitation_rules.json`
 - `agent/app/data/rag/knowledge_base/律师-法律知识库.md`
 
 当前可复用能力：
@@ -366,7 +366,7 @@ flowchart TB
 | TaskService | Spring Boot Service + PostgreSQL | 必须自研 | Task 是系统治理入口，承载状态、优先级、来源、权限 | JPA / MyBatis 均可 |
 | WorkflowService | Workflow 定义、版本、运行实例管理 | 必须自研 | 需要控制职业任务流程，不是普通对话 | 可用 Jackson/YAML 解析配置 |
 | StepExecutor | 执行 Step、记录输入输出和耗时 | 必须自研 | 每一步都要保存输入、输出、错误、风险和审计 | 可后接 LangGraph / Temporal Adapter |
-| AgentRegistry | 注册 Core 可调度 Agent | 必须自研 | 保证 Core 只认识通用 Agent 元数据 | 可参考当前 `agent/agentOS/agents/registry.py` |
+| AgentRegistry | 注册 Core 可调度 Agent | 必须自研 | 保证 Core 只认识通用 Agent 元数据 | 可参考当前 `agentOS/src/agentos/agents/registry.py` |
 | SkillRegistry | 注册 Skill、版本、输入输出 Schema | 必须自研 | Skill 是可治理工具能力，不应散落在代码中 | JSON Schema / Bean Validation |
 | PromptService | Prompt 模板、变量、版本、灰度 | 必须自研 | 专业任务需要可回滚 Prompt | 可接 Monaco Editor |
 | RAGService | 检索编排、混合召回、重排 | 部分自研 | 检索策略要服务 Evidence | pgvector / Qdrant / OpenSearch |
@@ -378,7 +378,7 @@ flowchart TB
 | EvaluationService | 指标、样例集、Prompt/Skill/Workflow 评估 | 必须自研核心指标 | 评估要服务持续迭代 | 可接 Langfuse / Phoenix |
 | ReportService | Markdown、Word、PDF 报告 | 必须自研编排 | 报告要绑定 Evidence 和 Trace | docx4j / POI / LibreOffice |
 
-当前项目中，`agent/agentOS/core/workflow_runtime.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py` 已经给出可参考的原型。建议把这些领域概念固化到 Java 后端的正式服务和数据表中，Python 侧保留为运行适配器或实验场。
+当前项目中，`agentOS/src/agentos/core/workflow_runtime.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py` 已经给出可参考的原型。建议把这些领域概念固化到 Java 后端的正式服务和数据表中，Python 侧保留为运行适配器或实验场。
 
 ## 6. 工作流与 Agent 编排选型
 
@@ -391,7 +391,7 @@ flowchart TB
 
 结论：
 
-第一阶段建议自研轻量 Workflow Runtime。现有 `agent/agentOS/core/workflow_runtime.py` 已证明此路线可行，但正式版本应将状态、Trace、Review、Checkpoint 落到 PostgreSQL。LangGraph 不应作为系统唯一内核，可作为后期复杂 Agent 编排适配器。Temporal 可作为后期生产级长周期可靠任务执行引擎。不建议第一阶段引入重型 BPMN 工作流。
+第一阶段建议自研轻量 Workflow Runtime。现有 `agentOS/src/agentos/core/workflow_runtime.py` 已证明此路线可行，但正式版本应将状态、Trace、Review、Checkpoint 落到 PostgreSQL。LangGraph 不应作为系统唯一内核，可作为后期复杂 Agent 编排适配器。Temporal 可作为后期生产级长周期可靠任务执行引擎。不建议第一阶段引入重型 BPMN 工作流。
 
 ## 7. AI 接入层技术选型
 
@@ -686,7 +686,7 @@ MVP 建议先完成 DOCX 和可复制 PDF 的结构化解析。扫描 PDF 和复
 
 ### 13.1 TraceLog 是业务审计
 
-当前 `agent/agentOS/core/trace.py` 已支持 TraceEvent，并能导出 JSON / Markdown。正式系统应将 TraceLog 持久化到 PostgreSQL。
+当前 `agentOS/src/agentos/core/trace.py` 已支持 TraceEvent，并能导出 JSON / Markdown。正式系统应将 TraceLog 持久化到 PostgreSQL。
 
 TraceLog 记录：
 
@@ -718,7 +718,7 @@ OpenTelemetry 用于：
 
 ### 13.3 Checkpoint 如何支持失败恢复
 
-当前 `agent/agentOS/core/checkpoint.py` 已能保存 `stateSnapshot` 和 `outputSnapshot`。正式系统建议：
+当前 `agentOS/src/agentos/core/checkpoint.py` 已能保存 `stateSnapshot` 和 `outputSnapshot`。正式系统建议：
 
 - 每个 Step 完成后创建 Checkpoint。
 - 高风险 Step 进入审核前创建 Checkpoint。
@@ -728,7 +728,7 @@ OpenTelemetry 用于：
 
 ### 13.4 Evaluation 如何支持迭代
 
-当前 `agent/agentOS/core/evaluation.py` 已提供完成率、失败率、恢复成功率、审核数量等指标。后续应扩展：
+当前 `agentOS/src/agentos/core/evaluation.py` 已提供完成率、失败率、恢复成功率、审核数量等指标。后续应扩展：
 
 - Prompt 版本对比。
 - Skill 成功率和耗时。
@@ -746,17 +746,17 @@ Langfuse / Arize Phoenix 可作为后期 LLM 调试和观测工具，但不能�
 
 当前已有基础：
 
-- `agent/agentOS/packs/legal/manifest.yaml`
-- `agent/agentOS/packs/legal/workflows/contract_review.yaml`
-- `agent/agentOS/packs/legal/workflows/case_analysis.yaml`
-- `agent/agentOS/packs/legal/agents/case_intake.py`
-- `agent/agentOS/packs/legal/agents/statute.py`
-- `agent/agentOS/packs/legal/agents/evidence.py`
-- `agent/agentOS/packs/legal/agents/risk.py`
-- `agent/agentOS/packs/legal/agents/draft.py`
-- `agent/agentOS/packs/legal/agents/review.py`
-- `agent/agentOS/packs/legal/data/*.json`
-- `agent/agentOS/packs/legal/prompts/*.txt`
+- `agent/packs/legal/manifest.yaml`
+- `agent/packs/legal/workflows/contract_review.yaml`
+- `agent/packs/legal/workflows/case_analysis.yaml`
+- `agent/packs/legal/agents/case_intake.py`
+- `agent/packs/legal/agents/statute.py`
+- `agent/packs/legal/agents/evidence.py`
+- `agent/packs/legal/agents/risk.py`
+- `agent/packs/legal/agents/draft.py`
+- `agent/packs/legal/agents/review.py`
+- `agent/packs/legal/data/*.json`
+- `agent/packs/legal/prompts/*.txt`
 
 第一阶段 Lawyer Pack 包括：
 
@@ -783,11 +783,11 @@ Langfuse / Arize Phoenix 可作为后期 LLM 调试和观测工具，但不能�
 
 当前项目已有近似能力：
 
-- `agent/agentOS/skills/builtin/statute_retrieval_skill.py`
-- `agent/agentOS/skills/builtin/case_retrieval_skill.py`
-- `agent/agentOS/skills/builtin/evidence_analysis_skill.py`
-- `agent/agentOS/skills/builtin/risk_assessment_skill.py`
-- `agent/agentOS/skills/builtin/document_generation_skill.py`
+- `agent/packs/legal/skills/statute_retrieval_skill.py`
+- `agent/packs/legal/skills/case_retrieval_skill.py`
+- `agent/packs/legal/skills/evidence_analysis_skill.py`
+- `agent/packs/legal/skills/risk_assessment_skill.py`
+- `agent/packs/legal/skills/document_generation_skill.py`
 
 需要补齐：
 
@@ -858,7 +858,7 @@ agentos/
 当前 Python 侧可继续保留：
 
 ```text
-agent/agentOS/
+agentOS/src/agentos/
   core/
   agents/
   skills/

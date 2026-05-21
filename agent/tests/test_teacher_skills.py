@@ -4,16 +4,16 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 from agentos.core.types import SkillRequest
-from agentos.skills.builtin.teacher.classroom_interaction_design_skill import ClassroomInteractionDesignSkill
-from agentos.skills.builtin.teacher.error_analysis_question_push_skill import ErrorAnalysisQuestionPushSkill
-from agentos.skills.builtin.teacher.homework_grading_skill import HomeworkGradingSkill
-from agentos.skills.builtin.teacher.learning_path_planning_skill import LearningPathPlanningSkill
-from agentos.skills.builtin.teacher.lesson_plan_generation_skill import LessonPlanGenerationSkill
-from agentos.skills.builtin.teacher.parent_communication_suggestion_skill import ParentCommunicationSuggestionSkill
-from agentos.skills.builtin.teacher.progress_report_generation_skill import ProgressReportGenerationSkill
-from agentos.skills.builtin.teacher.student_diagnosis_skill import StudentDiagnosisSkill
-from agentos.skills.builtin.teacher.tutoring_qa_skill import TutoringQASkill
-from agentos.skills.builtin.teacher.common import TeacherSkillHelper
+from packs.education.skills.classroom_interaction_design_skill import ClassroomInteractionDesignSkill
+from packs.education.skills.error_analysis_question_push_skill import ErrorAnalysisQuestionPushSkill
+from packs.education.skills.homework_grading_skill import HomeworkGradingSkill
+from packs.education.skills.learning_path_planning_skill import LearningPathPlanningSkill
+from packs.education.skills.lesson_plan_generation_skill import LessonPlanGenerationSkill
+from packs.education.skills.parent_communication_suggestion_skill import ParentCommunicationSuggestionSkill
+from packs.education.skills.progress_report_generation_skill import ProgressReportGenerationSkill
+from packs.education.skills.student_diagnosis_skill import StudentDiagnosisSkill
+from packs.education.skills.tutoring_qa_skill import TutoringQASkill
+from packs.education.skills.common import TeacherSkillHelper
 
 
 class FakeAIService:

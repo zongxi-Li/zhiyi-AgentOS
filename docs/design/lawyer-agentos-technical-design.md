@@ -39,14 +39,14 @@ AgentOS Core 只管理运行时，不写死行业业务。
 
 代码位置：
 
-- `agent/agentos/core/types.py`
-- `agent/agentos/core/workflow_runtime.py`
-- `agent/agentos/core/orchestrator.py`
-- `agent/agentos/core/state_machine.py`
-- `agent/agentos/core/trace.py`
-- `agent/agentos/core/checkpoint.py`
-- `agent/agentos/core/review.py`
-- `agent/agentos/core/evaluation.py`
+- `agentOS/src/agentos/core/types.py`
+- `agentOS/src/agentos/core/workflow_runtime.py`
+- `agentOS/src/agentos/core/orchestrator.py`
+- `agentOS/src/agentos/core/state_machine.py`
+- `agentOS/src/agentos/core/trace.py`
+- `agentOS/src/agentos/core/checkpoint.py`
+- `agentOS/src/agentos/core/review.py`
+- `agentOS/src/agentos/core/evaluation.py`
 
 已具备能力：
 
@@ -108,10 +108,10 @@ Java 网关提供：
 当前已存在：
 
 ```text
-agent/agentos/packs/legal
-agent/agentos/packs/education
-agent/agentos/packs/programmer
-agent/agentos/packs/writer
+agent/packs/legal
+agent/packs/education
+agent/packs/programmer
+agent/packs/writer
 ```
 
 但成熟度不同：
@@ -429,10 +429,10 @@ API 只负责创建 WorkflowRun
 建议新增模块：
 
 ```text
-agent/agentos/core/scheduler.py
-agent/agentos/core/worker.py
-agent/agentos/core/resource_manager.py
-agent/agentos/stores/queued_workflow_store.py
+agentOS/src/agentos/core/scheduler.py
+agentOS/src/agentos/core/worker.py
+agentOS/src/agentos/core/resource_manager.py
+agentOS/src/agentos/stores/queued_workflow_store.py
 ```
 
 调度策略：
@@ -453,12 +453,12 @@ agent/agentos/stores/queued_workflow_store.py
 
 | 操作系统概念 | AgentOS 对应概念 | 当前/目标代码 |
 |---|---|---|
-| Kernel | AgentOS Core | `agent/agentos/core/*` |
+| Kernel | AgentOS Core | `agentOS/src/agentos/core/*` |
 | Process | WorkflowRun | `WorkflowRun` |
 | Thread / Task | WorkflowStep | `WorkflowStep` |
 | Scheduler | Orchestrator / Scheduler | `orchestrator.py`，后续 `scheduler.py` |
-| System Call | Skill / Tool 调用 | `agent/agentos/skills/*` |
-| Driver | ModelAdapter / RetrievalAdapter | `agent/agentos/adapters/*` |
+| System Call | Skill / Tool 调用 | `agentOS/src/agentos/skills/*` |
+| Driver | ModelAdapter / RetrievalAdapter | `agentOS/src/agentos/adapters/*` |
 | Memory | WorkflowMemory / Checkpoint | `memory/workflow_memory.py`、`checkpoint.py` |
 | File System | 知识库、模板库、运行产物 | `agent/app/data/*` |
 | Permission | Policy / Review / Risk | `review.py`，后续 `policy.py` |
@@ -638,7 +638,7 @@ MODEL_MAX_CONCURRENCY=1
 新增或改造：
 
 ```text
-agent/agentos/adapters/model_adapter.py
+agentOS/src/agentos/adapters/model_adapter.py
 agent/app/services/aiservice.py
 agent/app/services/embeddingservice.py
 ```
@@ -690,8 +690,8 @@ OpenAICompatibleModelProvider
 - `agent/app/services/ragservice.py`
 - `agent/app/services/ragenhanced.py`
 - `agent/app/services/embeddingservice.py`
-- `agent/agentos/adapters/retrieval/chroma_client.py`
-- `agent/agentos/adapters/retrieval/legal_index_builder.py`
+- `agentOS/src/agentos/adapters/retrieval/chroma_client.py`
+- `agentOS/src/agentos/adapters/retrieval/legal_index_builder.py`
 
 当前能力：
 

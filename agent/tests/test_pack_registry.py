@@ -16,7 +16,7 @@ def test_pack_registry_discovers_installed_manifests():
         "programmer",
         "writer",
     }
-    assert next(manifest for manifest in manifests if manifest.pack_id == "legal").module == "agentos.packs.legal"
+    assert next(manifest for manifest in manifests if manifest.pack_id == "legal").module == "packs.legal"
 
 
 def test_pack_registry_registers_enabled_packs_from_manifest():

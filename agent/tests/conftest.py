@@ -1,5 +1,17 @@
 import asyncio
 import inspect
+import sys
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+AGENTOS_SRC = PROJECT_ROOT / "agentOS" / "src"
+AGENT_APP_ROOT = PROJECT_ROOT / "agent"
+
+for path in (PROJECT_ROOT, AGENT_APP_ROOT, AGENTOS_SRC):
+    value = str(path)
+    if value not in sys.path:
+        sys.path.insert(0, value)
 
 
 def pytest_pyfunc_call(pyfuncitem):

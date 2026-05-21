@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
+from agentos.agents.base_agent import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents import AgentRegistry
-from agentos.packs.legal import register_pack as register_legal_pack
+from packs.legal import register_pack as register_legal_pack
 from agentos.core.state_machine import InvalidStateTransition, StateMachine
 from agentos.core.types import (
     ReviewDecision,
@@ -459,7 +459,7 @@ def test_legacy_programmer_agent_chat_endpoint_returns_full_deliverable():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from agentos.packs.programmer import register_pack as register_programmer_pack
+    from packs.programmer import register_pack as register_programmer_pack
     from app.api.agentos_core import create_router
 
     agent_registry = AgentRegistry()
@@ -498,7 +498,7 @@ def test_legacy_teacher_agent_chat_endpoint_returns_chinese_lesson_plan():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from agentos.packs.education import register_pack as register_education_pack
+    from packs.education import register_pack as register_education_pack
     from app.api.agentos_core import create_router
 
     agent_registry = AgentRegistry()
@@ -531,7 +531,7 @@ def test_legacy_writer_agent_chat_endpoint_detects_science_fiction_genre():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from agentos.packs.writer import register_pack as register_writer_pack
+    from packs.writer import register_pack as register_writer_pack
     from app.api.agentos_core import create_router
 
     agent_registry = AgentRegistry()

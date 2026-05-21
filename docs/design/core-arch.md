@@ -95,33 +95,30 @@ agent/
 				__init__.py
 					Agent 抽象层包入口。
 
-				base.py
+				base_agent.py
 					定义 BaseAgent、AgentProfile、AgentCapability，规定所有行业 Agent 的统一接口。
 
-				registry.py
+				agent_registry.py
 					注册和解析行业 Agent，供 Orchestrator 按 domain、capability、workflow step 查找 Agent。
 
-				legal/
-					__init__.py
-						法律 demo pack 的 Agent 包入口，只用于验证 Core，不代表 Core 绑定法律行业。
+			packs/
+				registry.py
+					发现、校验和注册应用层 Pack。Core 不承载 legal、education 等具体领域 Agent。
 
-					case_intake_agent.py
-						案情接收 Agent，负责事实抽取、案件摘要、争议焦点识别。
+	agent/
+		packs/
+			legal/
+				agents/
+					case_intake.py
+					statute.py
+					evidence.py
+					risk.py
+					draft.py
+					review.py
 
-					statute_agent.py
-						法条 Agent，负责法条检索、法律依据整理和引用检查。
-
-					evidence_agent.py
-						证据 Agent，负责证据链分析、证明力判断和缺口提示。
-
-					risk_agent.py
-						风险 Agent，负责诉讼风险、时效风险、管辖风险和关键不确定性提示。
-
-					draft_agent.py
-						文书 Agent，负责把上游结构化结果转成文书草稿或交付物草案。
-
-					review_agent.py
-						审查 Agent，负责一致性检查、遗漏检查、格式审查和最终质量把关。
+			education/
+			programmer/
+			writer/
 
 			memory/
 				__init__.py
@@ -570,10 +567,10 @@ Legal Demo Pack
 
 | 现有文件 | 在 Core 中的角色 |
 |---|---|
-| `agent/agentos/core/types.py` | 保留 `WorkflowRun`、`TraceEvent`、`Checkpoint`、`ReviewDecision`、`SkillRequest`、`SkillResult` |
-| `agent/agentos/memory/workflow_memory.py` | 保存 WorkflowRun 步骤上下文 |
-| `agent/agentos/skills/builtin/*` | 作为 Pack Agent 可复用原子能力 |
-| `agent/agentos/adapters/federated_adapter.py` | 后续接入 Federated Memory / Experience |
+| `agentOS/src/agentos/core/types.py` | 保留 `WorkflowRun`、`TraceEvent`、`Checkpoint`、`ReviewDecision`、`SkillRequest`、`SkillResult` |
+| `agentOS/src/agentos/memory/workflow_memory.py` | 保存 WorkflowRun 步骤上下文 |
+| `agent/packs/<pack_id>/skills/*` | 作为 Pack Agent 的领域原子能力 |
+| `agentOS/src/agentos/adapters/federated_adapter.py` | 后续接入 Federated Memory / Experience |
 | `frontend/src/components/agent/TraceTimeline.vue` | 可升级为 `TraceEventTimeline.vue` |
 | `frontend/src/views/FederatedAgentWorkbenchView.vue` | 可迁移为 AgentOS Console 雏形 |
 | `backend/src/main/java/com/kinlin/ai/service/AgentGatewayService.java` | 可参考实现 `AgentOsGatewayService` |

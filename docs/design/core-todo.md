@@ -14,14 +14,14 @@
 
 ### 已完成
 
-- `agent/agentos/core/types.py`：已定义 `AgentTask`、`WorkflowDefinition`、`WorkflowRun`、`WorkflowStep`、`TraceEvent`、`Checkpoint`、`ReviewDecision`。
-- `agent/agentos/core/workflow_runtime.py`：已跑通任务创建、工作流启动、状态查询、人工审核、恢复和取消。
-- `agent/agentos/core/orchestrator.py`、`state_machine.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py`：已形成核心运行闭环。
-- `agent/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
-- `agent/agentos/packs/*/manifest.yaml`：已建立 pack manifest 发现与注册机制，默认运行时按 manifest 自动加载已安装 packs。
-- `agent/agentos/packs/education`、`programmer`、`writer`：已补最小 Workflow 与轻量 Agent，可完成 lesson plan、requirement analysis、story outline 的 WorkflowRun 冒烟路径。
-- `agent/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
-- `agent/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘，并支持 `WorkflowStore` 任务/运行分页查询。
+- `agentOS/src/agentos/core/types.py`：已定义 `AgentTask`、`WorkflowDefinition`、`WorkflowRun`、`WorkflowStep`、`TraceEvent`、`Checkpoint`、`ReviewDecision`。
+- `agentOS/src/agentos/core/workflow_runtime.py`：已跑通任务创建、工作流启动、状态查询、人工审核、恢复和取消。
+- `agentOS/src/agentos/core/orchestrator.py`、`state_machine.py`、`trace.py`、`checkpoint.py`、`review.py`、`evaluation.py`：已形成核心运行闭环。
+- `agentOS/src/agentos/agents/*`：已提供 `BaseAgent`、`AgentRegistry` 和统一运行上下文。
+- `agent/packs/*/manifest.yaml`：已建立 pack manifest 发现与注册机制，默认运行时按 manifest 自动加载已安装 packs。
+- `agent/packs/education`、`programmer`、`writer`：已补最小 Workflow 与轻量 Agent，可完成 lesson plan、requirement analysis、story outline 的 WorkflowRun 冒烟路径。
+- `agentOS/src/agentos/skills/*`：已保留为 Pack Agent 可复用的原子能力层。
+- `agentOS/src/agentos/stores/*`：已完成内存 store 和 SQLite store，默认运行时可通过 `AGENTOS_WORKFLOW_DB_PATH` 选择落盘，并支持 `WorkflowStore` 任务/运行分页查询。
 - 旧的 `/ai/agent/{role}/chat` 入口、ReAct 兼容链路和旧请求/响应类型已移除，当前统一以 `/ai/core/*` 的 `WorkflowRun` 生命周期为准。
 - `agent/app/api/agentos_core.py`：已开放 `/ai/core/tasks`、`/ai/core/workflows/runs`、`/ai/core/workflows/start`、`/ai/chat/workflows/upgrade`、审核、恢复、取消和列表查询接口。
 - `backend/src/main/java/com/kinlin/ai/controller/AgentOsGatewayController.java`：Java 网关已提供 `/api/agentos/*` 与 `/agentos/*` 统一入口，转发到 Python AgentOS `/ai/core/*` 生命周期接口。
@@ -31,7 +31,7 @@
 - Evaluation 已提供基础治理指标，Python 入口为 `/ai/core/workflows/metrics`。
 - 前端已新增 `/agentos-console`，接入运行列表、运行详情、步骤状态、Trace、Checkpoint、审核和治理指标。
 - Chat 已支持将当前输入和上下文升级为 `WorkflowRun`；Workbench API 模式已支持直接发起 `WorkflowRun`。
-- 文档已同步到 `agent/agentos` 作为 canonical 路径。
+- 文档已同步到 `agentOS/src/agentos` 作为 AgentOS Core canonical 路径；领域 Pack 以 `agent/packs` 为 canonical 路径。
 
 ### 进行中
 
@@ -313,7 +313,7 @@ TODO：
 
 TODO：
 
-- [x] 新建 `agent/agentos/core/orchestrator.py`。
+- [x] 新建 `agentOS/src/agentos/core/orchestrator.py`。
 - [x] 实现 `select_next_step()`。
 - [x] 实现 `dispatch_agent()`。
 - [ ] 实现更显式的 `handle_step_result()` / `handle_failure()` 对外封装。
@@ -370,7 +370,7 @@ cancelled
 
 TODO：
 
-- [x] 新建 `agent/agentos/core/state_machine.py`。
+- [x] 新建 `agentOS/src/agentos/core/state_machine.py`。
 - [x] 定义合法状态迁移。
 - [x] 阻止非法状态跳转。
 - [x] 每次状态变化写入 trace。
@@ -532,7 +532,7 @@ TODO：
 ### 5.1 Python AgentOS Core
 
 ```text
-agent/agentos/
+agentOS/src/agentos/
   core/
     __init__.py
     types.py

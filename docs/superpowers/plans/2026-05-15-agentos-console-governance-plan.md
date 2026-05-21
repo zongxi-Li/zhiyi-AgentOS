@@ -13,9 +13,9 @@
 ### Task 1: Extend the Python governance model
 
 **Files:**
-- Modify: `agent/agentos/core/types.py`
-- Modify: `agent/agentos/core/checkpoint.py`
-- Modify: `agent/agentos/core/evaluation.py`
+- Modify: `agentOS/src/agentos/core/types.py`
+- Modify: `agentOS/src/agentos/core/checkpoint.py`
+- Modify: `agentOS/src/agentos/core/evaluation.py`
 - Modify: `agent/app/api/agentos_core.py`
 - Test: `agent/tests/test_agentos_core.py`
 - Test: `agent/tests/test_sqlite_workflow_store.py`
@@ -62,7 +62,7 @@ Expected: pass with checkpoint/review/metrics payloads returning JSON.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add agent/agentos/core/types.py agent/agentos/core/checkpoint.py agent/agentos/core/evaluation.py agent/app/api/agentos_core.py agent/tests/test_agentos_core.py agent/tests/test_sqlite_workflow_store.py
+git add agentOS/src/agentos/core/types.py agentOS/src/agentos/core/checkpoint.py agentOS/src/agentos/core/evaluation.py agent/app/api/agentos_core.py agent/tests/test_agentos_core.py agent/tests/test_sqlite_workflow_store.py
 git commit -m "feat: add AgentOS governance APIs"
 ```
 
@@ -70,8 +70,8 @@ git commit -m "feat: add AgentOS governance APIs"
 
 **Files:**
 - Modify: `agent/app/api/agentos_core.py`
-- Modify: `agent/agentos/core/workflow_runtime.py`
-- Modify: `agent/agentos/core/trace.py`
+- Modify: `agentOS/src/agentos/core/workflow_runtime.py`
+- Modify: `agentOS/src/agentos/core/trace.py`
 - Test: `agent/tests/test_agentos_core.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -112,7 +112,7 @@ Expected: pass with the detail, trace, and checkpoints endpoints aligned.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add agent/app/api/agentos_core.py agent/agentos/core/workflow_runtime.py agent/agentos/core/trace.py agent/tests/test_agentos_core.py
+git add agent/app/api/agentos_core.py agentOS/src/agentos/core/workflow_runtime.py agentOS/src/agentos/core/trace.py agent/tests/test_agentos_core.py
 git commit -m "feat: extend AgentOS console payloads"
 ```
 
@@ -218,7 +218,7 @@ git commit -m "feat: wire AgentOS review and checkpoint actions"
 ### Task 5: Turn evaluation into a first-class console metric
 
 **Files:**
-- Modify: `agent/agentos/core/evaluation.py`
+- Modify: `agentOS/src/agentos/core/evaluation.py`
 - Modify: `agent/app/api/agentos_core.py`
 - Modify: `frontend/src/services/api/agentos.ts`
 - Modify: `frontend/src/views/AgentOsConsoleView.vue`
@@ -256,7 +256,7 @@ Expected: pass and return the metric summary from workflow runs.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add agent/agentos/core/evaluation.py agent/app/api/agentos_core.py frontend/src/services/api/agentos.ts frontend/src/views/AgentOsConsoleView.vue
+git add agentOS/src/agentos/core/evaluation.py agent/app/api/agentos_core.py frontend/src/services/api/agentos.ts frontend/src/views/AgentOsConsoleView.vue
 git commit -m "feat: add AgentOS governance metrics"
 ```
 
