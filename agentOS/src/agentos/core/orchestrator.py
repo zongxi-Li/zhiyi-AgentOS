@@ -1,7 +1,7 @@
 from time import perf_counter
 from typing import Optional, Tuple
 
-from agentOS.src.agentos.agents.base import AgentOutput, AgentRunContext
+from agentos.agents.base import AgentOutput, AgentRunContext
 from agentos.agents import AgentRegistry
 from agentos.memory.workflow_memory import WorkflowMemory
 from agentos.core.types import (

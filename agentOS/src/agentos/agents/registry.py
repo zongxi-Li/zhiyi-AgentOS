@@ -1,6 +1,6 @@
 from typing import Dict, Iterable, Optional, Tuple
 
-from agentOS.src.agentos.agents.base import BaseAgent
+from agentos.agents.base import BaseAgent
 
 
 class AgentNotFound(KeyError):
