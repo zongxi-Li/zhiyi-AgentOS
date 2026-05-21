@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -202,6 +203,26 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("邮箱已被使用"));
+    }
+    @Test
+    void testVerifyToken_Success() throws Exception {
+        when(jwtUtil.getUsernameFromToken(token)).thenReturn(username);
+        when(jwtUtil.getUserIdFromToken(token)).thenReturn(userId);
+        when(jwtUtil.validateToken(token, username)).thenReturn(true);
+
+        mockMvc.perform(get("/auth/verify")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.username").value(username));
+    }
+
+    @Test
+    void testVerifyToken_MissingAuthorization() throws Exception {
+        mockMvc.perform(get("/auth/verify"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false));
     }
 }
 

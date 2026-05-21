@@ -1,6 +1,16 @@
 from pathlib import Path
 
 from packs.legal.agents.case_intake import CaseIntakeAgent
+from packs.legal.agents.contract_review_migration import (
+    ClauseClassifyAgent,
+    ContractFinalReviewAgent,
+    ContractParseAgent,
+    HumanReviewGateAgent,
+    LegalEvidenceMatchAgent,
+    ReportGenerateAgent,
+    RevisionSuggestAgent,
+    RiskDetectAgent,
+)
 from packs.legal.agents.draft import DraftAgent
 from packs.legal.agents.evidence import EvidenceAgent
 from packs.legal.agents.review import ReviewAgent
@@ -18,6 +28,14 @@ def register_pack(agent_registry, workflow_registry) -> None:
         RiskAgent(),
         DraftAgent(),
         ReviewAgent(),
+        ContractParseAgent(),
+        ClauseClassifyAgent(),
+        RiskDetectAgent(),
+        LegalEvidenceMatchAgent(),
+        RevisionSuggestAgent(),
+        HumanReviewGateAgent(),
+        ReportGenerateAgent(),
+        ContractFinalReviewAgent(),
     ]:
         agent_registry.register(agent)
 
