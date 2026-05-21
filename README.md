@@ -205,11 +205,11 @@ kinlin_-ai/
 │   └── Dockerfile
 │
 ├── agent/                             # AI服务 (FastAPI + Python)
-   │   ├── app/
-   │   │   ├── main.py                    # FastAPI应用入口
-   │   │   ├── config.py                  # 配置管理（Settings单例）
-   │   │   ├── api/                       # API路由
-   │   │   │   ├── chat.py                # 通用对话
+│   ├── app/
+│   │   ├── main.py                    # FastAPI应用入口
+│   │   ├── config.py                  # 配置管理（Settings单例）
+│   │   ├── api/                       # API路由
+│   │   │   ├── chat.py                # 通用对话
 │   │   │   ├── rag.py                 # RAG检索
 │   │   │   ├── tts.py                 # 语音合成
 │   │   │   └── ...
@@ -225,14 +225,14 @@ kinlin_-ai/
 │   │       ├── legal/                 # 法条/判例数据
 │   │       ├── education/             # 教育知识数据
 │   │       └── rag/                   # RAG知识库
-   │   ├── agentos/                       # AgentOS运行时与专业能力包
-   │   │   ├── core/                      # WorkflowRuntime、Orchestrator、状态、Trace、Checkpoint、Review
-   │   │   ├── agents/                    # BaseAgent与AgentRegistry
-   │   │   ├── packs/                     # 行业Pack（legal/education/programmer/writer）
+│   ├── agentos/                       # AgentOS运行时与专业能力包
+│   │   ├── core/                      # WorkflowRuntime、Orchestrator、状态、Trace、Checkpoint、Review
+│   │   ├── agents/                    # BaseAgent与AgentRegistry
+│   │   ├── packs/                     # 行业Pack（legal/education/programmer/writer）
 │   │   ├── skills/                    # Skill基类与内置Skill
-   │   │   ├── memory/                    # 会话记忆与Workflow上下文
-   │   │   ├── stores/                    # WorkflowStore接口与内存实现
-   │   │   └── adapters/                  # 模型、检索、联邦适配器
+│   │   ├── memory/                    # 会话记忆与Workflow上下文
+│   │   ├── stores/                    # WorkflowStore接口与内存实现
+│   │   └── adapters/                  # 模型、检索、联邦适配器
 │   ├── tests/                         # AgentOS与专业Skill测试
 │   ├── requirements.txt
 │   └── Dockerfile
