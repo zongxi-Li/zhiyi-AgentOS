@@ -104,6 +104,9 @@ tmp_*.png
 *.h5
 Recommend/agent/models/
 
+# Claude
+.claude/
+
 # Runtime/temp files
 tmp/
 temp/
