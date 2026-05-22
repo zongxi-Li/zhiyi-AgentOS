@@ -1,3 +1,6 @@
+"""AgentOS Core 的检索适配 code_index_builder 模块，封装向量索引和检索辅助能力。"""
+
+
 import ast
 import hashlib
 import json

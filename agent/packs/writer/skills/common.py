@@ -1,3 +1,6 @@
+"""写作 Pack 的技能实现，提供灵感扩展、大纲、人物关系和正文写作能力。"""
+
+
 import json
 import re
 from typing import Any, Dict, List, Optional

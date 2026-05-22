@@ -1,12 +1,15 @@
+"""AgentOS Core 的记忆 workflow_memory 模块，管理工作流步骤之间的上下文传递。"""
+
+
 from dataclasses import dataclass, field
 from typing import Any, Dict
 
-from agentos.core.types import WorkflowRun, StepStatus
+from agentos.core.models.types import WorkflowRun, StepStatus
 
 
 @dataclass
 class WorkflowMemory:
-    """Workflow-scoped context passed from one Agent step to the next."""
+    """在 Agent 步骤之间传递的工作流级上下文。"""
 
     run_id: str
     task_input: Dict[str, Any] = field(default_factory=dict)

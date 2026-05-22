@@ -1,11 +1,12 @@
+"""AgentOS Core 的智能体基础接口，定义 AgentProfile、AgentOutput、运行上下文和 BaseAgent。"""
+
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-
 from pydantic import BaseModel, ConfigDict, Field
-
-from agentos.core.types import AgentTask, WorkflowDefinition, WorkflowRun, WorkflowStep
+from agentos.core.models.types import AgentTask, WorkflowDefinition, WorkflowRun, WorkflowStep
 
 
 class AgentProfile(BaseModel):
@@ -38,7 +39,7 @@ class AgentRunContext(BaseModel):
 
 
 class BaseAgent(ABC):
-    """Unified Interface for all application-layer Pack agents."""
+    """所有应用层 Pack 智能体的统一接口。"""
 
     def __init__(self, profile: AgentProfile):
         self.profile = profile

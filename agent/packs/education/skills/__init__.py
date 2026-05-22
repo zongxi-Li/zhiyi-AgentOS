@@ -1,3 +1,6 @@
+"""教育 Pack 的技能实现，提供备课、诊断、作业、路径规划和家校沟通能力。"""
+
+
 from packs.education.skills.classroom_interaction_design_skill import ClassroomInteractionDesignSkill
 from packs.education.skills.error_analysis_question_push_skill import ErrorAnalysisQuestionPushSkill
 from packs.education.skills.homework_grading_skill import HomeworkGradingSkill

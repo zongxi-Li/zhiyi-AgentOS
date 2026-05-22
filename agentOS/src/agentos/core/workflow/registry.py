@@ -1,12 +1,15 @@
+"""工作流注册表，负责保存、加载和推荐行业 Pack 提供的工作流定义。"""
+
+
 import json
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
-from agentos.core.types import WorkflowDefinition
+from agentos.core.models.types import WorkflowDefinition
 
 
 class WorkflowRegistry:
-    """Registry for workflow definitions supplied by industry packs."""
+    """保存并推荐行业 Pack 提供的工作流定义。"""
 
     def __init__(self):
         self._workflows: Dict[str, WorkflowDefinition] = {}

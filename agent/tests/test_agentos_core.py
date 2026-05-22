@@ -1,13 +1,16 @@
+"""AgentOS Core 运行时、API 路由和 Pack 执行闭环的回归测试。"""
+
+
 import asyncio
 from pathlib import Path
 
 import pytest
 
-from agentos.agents.base_agent import AgentOutput, AgentProfile, BaseAgent
+from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents import AgentRegistry
 from packs.legal import register_pack as register_legal_pack
-from agentos.core.state_machine import InvalidStateTransition, StateMachine
-from agentos.core.types import (
+from agentos.core.workflow.state_machine import InvalidStateTransition, StateMachine
+from agentos.core.models.types import (
     ReviewDecision,
     ReviewDecisionType,
     StepStatus,
@@ -16,8 +19,8 @@ from agentos.core.types import (
     WorkflowStatus,
     WorkflowStepDefinition,
 )
-from agentos.core.workflow_registry import WorkflowRegistry
-from agentos.core.workflow_runtime import WorkflowRuntime
+from agentos.core.workflow.registry import WorkflowRegistry
+from agentos.core.runtime import WorkflowRuntime
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
@@ -640,7 +643,7 @@ def test_default_runtime_uses_memory_store_when_env_is_missing(monkeypatch):
 
 
 def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
-    from agentos.core import workflow_runtime
+    from agentos.core import runtime as core_runtime
 
     calls = []
 
@@ -648,9 +651,9 @@ def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
         calls.append((agent_registry, workflow_registry))
         return []
 
-    monkeypatch.setattr(workflow_runtime, "register_installed_packs", fake_register_installed_packs)
+    monkeypatch.setattr(core_runtime, "register_installed_packs", fake_register_installed_packs)
     monkeypatch.delenv("AGENTOS_WORKFLOW_DB_PATH", raising=False)
 
-    runtime = workflow_runtime.build_default_runtime()
+    runtime = core_runtime.build_default_runtime()
 
     assert calls == [(runtime.agent_registry, runtime.workflow_registry)]

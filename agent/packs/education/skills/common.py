@@ -1,3 +1,6 @@
+"""教育 Pack 的技能实现，提供备课、诊断、作业、路径规划和家校沟通能力。"""
+
+
 import json
 import logging
 import os

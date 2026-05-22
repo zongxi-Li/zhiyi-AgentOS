@@ -1,9 +1,12 @@
+"""应用层 Pack 发现、注册和最小工作流执行路径的回归测试。"""
+
+
 import asyncio
 
 from agentos.agents import AgentRegistry
-from agentos.core.workflow_runtime import WorkflowRuntime
-from agentos.core.workflow_registry import WorkflowRegistry
-from agentos.core.types import WorkflowStatus
+from agentos.core.runtime import WorkflowRuntime
+from agentos.core.workflow.registry import WorkflowRegistry
+from agentos.core.models.types import WorkflowStatus
 from agentos.packs.registry import discover_pack_manifests, register_installed_packs
 
 

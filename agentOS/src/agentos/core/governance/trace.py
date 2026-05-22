@@ -1,10 +1,13 @@
+"""AgentOS Core 的 trace 模块，提供运行时控制、状态、Trace、审核或治理能力。"""
+
+
 from typing import Any, Dict, List, Optional
 
-from agentos.core.types import TraceEvent, TraceEventType, WorkflowRun
+from agentos.core.models.types import TraceEvent, TraceEventType, WorkflowRun
 
 
 class TraceStore:
-    """In-memory trace writer bound to WorkflowRun objects."""
+    """绑定 WorkflowRun 对象的内存 Trace 写入器。"""
 
     def append(
         self,
@@ -29,7 +32,7 @@ class TraceStore:
         return event
 
     def export_json(self, run: WorkflowRun) -> Dict[str, Any]:
-        """Return a portable trace payload for APIs, audits, and reports."""
+        """返回可供 API、审计和报告使用的可移植 Trace 数据。"""
 
         return {
             "runId": run.run_id,
@@ -42,7 +45,7 @@ class TraceStore:
         }
 
     def export_markdown(self, run: WorkflowRun) -> str:
-        """Render a compact human-readable trace report."""
+        """渲染紧凑的人类可读 Trace 报告。"""
 
         lines: List[str] = [
             f"# Workflow Trace: {run.run_id}",

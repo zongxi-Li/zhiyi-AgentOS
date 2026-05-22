@@ -1,4 +1,6 @@
-"""Public retrieval adapter facade for legal, education, and code search."""
+"""AgentOS Core 的适配器 retrieval_adapter 模块，连接模型、检索和联邦增强等外部能力。"""
+
+
 
 from agentos.adapters.retrieval.chroma_client import chroma_client, chroma_legal_client
 from agentos.adapters.retrieval.code_index_builder import build_code_index, code_index_builder, search_code

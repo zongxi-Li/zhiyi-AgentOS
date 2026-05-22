@@ -1,8 +1,11 @@
+"""法律 Pack 的技能实现，提供案情、法条、证据、风险和文书相关原子能力。"""
+
+
 from typing import Any, Dict, List
 
 from agentos.adapters.federated_adapter import FederatedAdapter
-from agentos.core.types import SkillRequest, SkillResult
-from agentos.skills.base_skill import BaseSkill
+from agentos.core.models.types import SkillRequest, SkillResult
+from agentos.skills.base import BaseSkill
 
 
 class RiskAssessmentSkill(BaseSkill):

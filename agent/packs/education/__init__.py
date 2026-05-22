@@ -1,4 +1,6 @@
-"""Education workflow pack."""
+"""教育 Pack 的注册入口与包级配置。"""
+
+
 
 from pathlib import Path
 
@@ -6,7 +8,7 @@ from packs.education.agents import LessonPlanAgent
 
 
 def register_pack(agent_registry, workflow_registry) -> None:
-    """Register the education workflow pack."""
+    """注册教育工作流 Pack。"""
 
     agent_registry.register(LessonPlanAgent())
     workflow_registry.load_directory(Path(__file__).resolve().parent / "workflows")

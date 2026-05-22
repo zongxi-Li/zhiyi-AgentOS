@@ -1,4 +1,6 @@
-"""Programmer workflow pack."""
+"""程序员 Pack 的注册入口与包级配置。"""
+
+
 
 from pathlib import Path
 
@@ -11,7 +13,7 @@ from packs.programmer.agents import (
 
 
 def register_pack(agent_registry, workflow_registry) -> None:
-    """Register the programmer workflow pack."""
+    """注册程序员工作流 Pack。"""
 
     agent_registry.register(RequirementAnalysisAgent())
     agent_registry.register(CodebaseSearchAgent())

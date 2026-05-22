@@ -1,10 +1,13 @@
+"""AgentOS Core 的 orchestrator 模块，提供运行时控制、状态、Trace、审核或治理能力。"""
+
+
 from time import perf_counter
 from typing import Optional, Tuple
 
 from agentos.agents.base import AgentOutput, AgentRunContext
 from agentos.agents import AgentRegistry
 from agentos.memory.workflow_memory import WorkflowMemory
-from agentos.core.types import (
+from agentos.core.models.types import (
     AgentTask,
     StepStatus,
     WorkflowDefinition,
@@ -14,7 +17,7 @@ from agentos.core.types import (
 
 
 class Orchestrator:
-    """Core dispatcher that knows workflow structure, not industry details."""
+    """只理解工作流结构、不绑定行业细节的核心调度器。"""
 
     def __init__(self, agent_registry: AgentRegistry):
         self.agent_registry = agent_registry

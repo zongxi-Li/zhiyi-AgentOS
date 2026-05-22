@@ -1,17 +1,20 @@
+"""AgentOS Core 的 state_machine 模块，提供运行时控制、状态、Trace、审核或治理能力。"""
+
+
 from enum import Enum
 from typing import TypeVar
 
-from agentos.core.types import StepStatus, WorkflowStatus
+from agentos.core.models.types import StepStatus, WorkflowStatus
 
 StatusT = TypeVar("StatusT", WorkflowStatus, StepStatus)
 
 
 class InvalidStateTransition(ValueError):
-    """Raised when a workflow or step attempts an illegal status transition."""
+    """工作流或步骤尝试非法状态流转时抛出。"""
 
 
 class StateMachine:
-    """Shared state machine for workflow runs and steps."""
+    """工作流运行和步骤共享的状态机。"""
 
     _transitions = {
         "pending": {"planning", "running", "cancelled"},

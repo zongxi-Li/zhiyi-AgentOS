@@ -1,3 +1,6 @@
+"""AgentOS 迁移后目录边界、Pack 位置和兼容入口存在性的架构测试。"""
+
+
 from pathlib import Path
 
 
@@ -6,12 +9,42 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def test_agentos_core_imports_from_runtime_package():
     import agentos
-    from agentos.core.workflow_runtime import build_default_runtime
+    from agentos.core.runtime import build_default_runtime
 
     package_path = Path(agentos.__file__).resolve()
 
     assert package_path.is_relative_to(PROJECT_ROOT / "agentOS" / "src")
     assert callable(build_default_runtime)
+
+
+def test_core_runtime_is_split_into_workflow_models_and_governance_layers():
+    core_dir = PROJECT_ROOT / "agentOS" / "src" / "agentos" / "core"
+
+    assert (core_dir / "runtime.py").is_file()
+    for layer in ("models", "workflow", "governance"):
+        assert (core_dir / layer / "__init__.py").is_file()
+
+    assert not (core_dir / "workflow_runtime.py").exists()
+    assert not (core_dir / "workflow_registry.py").exists()
+    assert not (core_dir / "types.py").exists()
+    assert not (core_dir / "registry.py").exists()
+    assert not (core_dir / "orchestrator.py").exists()
+    assert not (core_dir / "state_machine.py").exists()
+    assert not (core_dir / "task_manager.py").exists()
+    assert not (core_dir / "trace.py").exists()
+    assert not (core_dir / "checkpoint.py").exists()
+    assert not (core_dir / "review.py").exists()
+    assert not (core_dir / "evaluation.py").exists()
+    assert not (core_dir / "planner.py").exists()
+    assert not (core_dir / "scheduler.py").exists()
+
+    from agentos.core.models.types import WorkflowDefinition
+    from agentos.core.workflow.registry import WorkflowRegistry
+    from agentos.core.governance.trace import TraceStore
+
+    assert WorkflowDefinition.__name__ == "WorkflowDefinition"
+    assert WorkflowRegistry.__name__ == "WorkflowRegistry"
+    assert TraceStore.__name__ == "TraceStore"
 
 
 def test_core_agents_do_not_contain_domain_implementations():
@@ -57,12 +90,12 @@ def test_pack_path_resolves_application_layer_pack_resources():
     )
 
 
-def test_core_agent_and_skill_interfaces_use_architecture_file_names():
+def test_core_agent_and_skill_interfaces_use_single_canonical_file_names():
     core_dir = PROJECT_ROOT / "agentOS" / "src" / "agentos"
 
-    assert (core_dir / "agents" / "base_agent.py").is_file()
-    assert (core_dir / "agents" / "agent_registry.py").is_file()
-    assert (core_dir / "skills" / "base_skill.py").is_file()
-    assert (core_dir / "agents" / "base_agent.py").stat().st_size > 0
-    assert (core_dir / "agents" / "agent_registry.py").stat().st_size > 0
-    assert (core_dir / "skills" / "base_skill.py").stat().st_size > 0
+    assert (core_dir / "agents" / "base.py").is_file()
+    assert (core_dir / "agents" / "registry.py").is_file()
+    assert (core_dir / "skills" / "base.py").is_file()
+    assert not (core_dir / "agents" / "base_agent.py").exists()
+    assert not (core_dir / "agents" / "agent_registry.py").exists()
+    assert not (core_dir / "skills" / "base_skill.py").exists()
