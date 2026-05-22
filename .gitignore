@@ -107,6 +107,10 @@ Recommend/agent/models/
 # Claude
 .claude/
 
+# Docker
+.dockerignore
+**/.dockerignore
+
 # Runtime/temp files
 tmp/
 temp/
