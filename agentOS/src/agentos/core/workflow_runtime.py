@@ -32,6 +32,15 @@ from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 from agentos.stores.workflow_store import WorkflowStore
 
+try:
+    from app.graphs.legal_contract_review_stategraph import (
+        LegalContractReviewStateGraphRuntime,
+        WORKFLOW_ID as LEGAL_CONTRACT_REVIEW_STATEGRAPH_WORKFLOW_ID,
+    )
+except Exception:  # pragma: no cover - LangGraph is optional outside the Python agent service.
+    LegalContractReviewStateGraphRuntime = None  # type: ignore
+    LEGAL_CONTRACT_REVIEW_STATEGRAPH_WORKFLOW_ID = "legal_contract_review_stategraph_v1"
+
 
 class WorkflowRuntime:
     """AgentOS Core runtime for task, workflow, trace, review, and recovery flows."""
@@ -56,6 +65,16 @@ class WorkflowRuntime:
         self.evaluator = evaluator or WorkflowEvaluator()
         self.state_machine = StateMachine()
         self.orchestrator = Orchestrator(self.agent_registry)
+        self.stategraph_contract_runtime = (
+            LegalContractReviewStateGraphRuntime(
+                workflow_store=self.workflow_store,
+                trace_store=self.trace_store,
+                checkpoint_store=self.checkpoint_store,
+                review_manager=self.review_manager,
+            )
+            if LegalContractReviewStateGraphRuntime is not None
+            else None
+        )
 
     def create_task(
         self,
@@ -87,6 +106,21 @@ class WorkflowRuntime:
     ) -> WorkflowRun:
         task = self.workflow_store.get_task(task_id)
         workflow = self._resolve_workflow(task, workflow_id)
+        if workflow.workflow_id == LEGAL_CONTRACT_REVIEW_STATEGRAPH_WORKFLOW_ID:
+            if self.stategraph_contract_runtime is None:
+                raise RuntimeError("LangGraph runtime is not available")
+            run = WorkflowRun(
+                taskId=task.task_id,
+                workflowId=workflow.workflow_id,
+                domain=workflow.domain,
+                status=WorkflowStatus.RUNNING,
+                currentStepId=workflow.first_step_id(),
+                reviewMode=review_mode,
+                input=dict(task.input),
+                steps=[WorkflowStep.from_definition(step) for step in workflow.steps],
+            )
+            return await self.stategraph_contract_runtime.start(task=task, run=run, workflow=workflow)
+
         task.recommended_workflow = workflow.workflow_id
         task.status = WorkflowStatus.RUNNING
         task.updated_at = utc_now()
@@ -151,6 +185,11 @@ class WorkflowRuntime:
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
         run = self.workflow_store.get_run(decision.run_id)
+        if run.workflow_id == LEGAL_CONTRACT_REVIEW_STATEGRAPH_WORKFLOW_ID:
+            if self.stategraph_contract_runtime is None:
+                raise RuntimeError("LangGraph runtime is not available")
+            return await self.stategraph_contract_runtime.apply_review(decision)
+
         task = self.workflow_store.get_task(run.task_id)
         workflow = self.workflow_registry.get(run.workflow_id)
         step = run.get_step(decision.step_id)
@@ -176,6 +215,18 @@ class WorkflowRuntime:
 
         if decision.decision == ReviewDecisionType.CANCELLED:
             return self.cancel(run.run_id)
+
+        if decision.decision == ReviewDecisionType.NEED_MORE_INFO:
+            step.status = StepStatus.WAITING_REVIEW
+            run.status = WorkflowStatus.WAITING_REVIEW
+            run.current_step_id = step.step_id
+            run.error = decision.comment or "Human reviewer requested more information."
+            run.updated_at = utc_now()
+            task.status = WorkflowStatus.WAITING_REVIEW
+            task.updated_at = utc_now()
+            self.workflow_store.save_task(task)
+            self.workflow_store.save_run(run)
+            return run
 
         step.status = StepStatus.FAILED
         run.status = WorkflowStatus.FAILED
