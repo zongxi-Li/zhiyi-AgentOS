@@ -2,6 +2,8 @@ import asyncio
 
 from app.llm.config import LLMConfig
 from app.llm.gateway import LLMGateway, set_llm_gateway_for_tests
+from app.rag import LegalDocumentLoader, LegalTextSplitter
+from app.rag.providers.keyword_retriever import KeywordLegalEvidenceRetriever
 from agentos.agents import AgentRegistry
 from agentos.core.types import ReviewDecision, ReviewDecisionType, StepStatus, WorkflowStatus
 from agentos.core.workflow_registry import WorkflowRegistry
@@ -50,8 +52,13 @@ async def _test_stategraph_contract_review_starts_and_waits_for_human_review():
     artifacts = run.output["artifacts"]
     assert artifacts["parse_contract"]["contract_type"]
     assert len(artifacts["risk_detect"]["risks"]) == 3
-    assert len(artifacts["legal_evidence_match"]["evidences"]) == 3
-    assert all(item["sourceType"] == "mock" for item in artifacts["legal_evidence_match"]["evidences"])
+    evidences = artifacts["legal_evidence_match"]["evidences"]
+    assert len(evidences) >= 3
+    assert all(item["riskId"] for item in evidences)
+    assert all(item["sourceType"] for item in evidences)
+    assert all(item["sourceName"] for item in evidences)
+    assert all(item["citationText"] for item in evidences)
+    assert all("retrievalScore" in item for item in evidences)
     assert "report_generate" not in artifacts
     assert runtime.list_checkpoints(run.run_id)
     assert runtime.trace_store.export_json(run)["eventCount"] >= 1
@@ -85,9 +92,15 @@ async def _test_stategraph_contract_review_approved_resumes_and_generates_report
 
     artifacts = completed.output["artifacts"]
     assert len(artifacts["risk_detect"]["risks"]) == 3
-    assert len(artifacts["legal_evidence_match"]["evidences"]) == 3
+    assert len(artifacts["legal_evidence_match"]["evidences"]) >= 3
     assert "软件开发服务合同审查报告" in artifacts["report_generate"]["report_markdown"]
     assert "未接入正式法律法规 RAG" in artifacts["report_generate"]["report_markdown"]
+    assert "Evidence 依据链" in artifacts["report_generate"]["report_markdown"]
+    assert artifacts["legal_evidence_match"]["evidences"][0]["citationText"] in artifacts["report_generate"]["report_markdown"]
+    assert all(
+        not item.get("metadata", {}).get("articleNo")
+        for item in artifacts["legal_evidence_match"]["evidences"]
+    )
     assert any(
         event.payload.get("node_name") == "report_generate" and event.payload.get("source") == "mock"
         for event in completed.trace
@@ -139,6 +152,30 @@ async def _test_stategraph_contract_review_need_more_info_does_not_generate_repo
     assert waiting.current_step_id == "human_review"
     assert waiting.get_step("report_generate").status == StepStatus.PENDING
     assert "report_generate" not in waiting.output["artifacts"]
+
+
+def test_stategraph_contract_review_unsupported_review_decision_is_explicit():
+    asyncio.run(_test_stategraph_contract_review_unsupported_review_decision_is_explicit())
+
+
+async def _test_stategraph_contract_review_unsupported_review_decision_is_explicit():
+    runtime = _runtime()
+    run = await _start_stategraph_run(runtime)
+
+    try:
+        await runtime.apply_review(
+            ReviewDecision(
+                runId=run.run_id,
+                stepId="human_review",
+                decision=ReviewDecisionType.CANCELLED,
+                reviewer="legal_reviewer",
+                comment="取消。",
+            )
+        )
+    except ValueError as exc:
+        assert "Unsupported review decision" in str(exc)
+    else:
+        raise AssertionError("cancelled should be explicit unsupported for stategraph contract review")
 
 
 def test_stategraph_contract_review_artifact_paths():
@@ -219,6 +256,68 @@ def test_llm_gateway_missing_openai_compatible_config_falls_back_to_mock():
         )
     )
     assert gateway.provider_name == "mock"
+
+
+def test_legal_document_loader_and_splitter_load_local_knowledge():
+    documents = LegalDocumentLoader().load()
+    assert documents
+    assert any("演示资料" in document.content for document in documents)
+
+    chunks = LegalTextSplitter().split(documents)
+    assert chunks
+    assert all(chunk.content for chunk in chunks)
+
+
+def test_keyword_retriever_returns_evidence():
+    chunks = LegalTextSplitter().split(LegalDocumentLoader().load())
+    retriever = KeywordLegalEvidenceRetriever(chunks=chunks)
+    results = retriever.retrieve(
+        risk={
+            "id": "risk-payment-01",
+            "title": "尾款支付条件过于单一",
+            "clause": "系统上线后支付 70%。",
+            "reason": "缺少验收、缺陷修复和发票条件。",
+        },
+        contract_type="软件开发服务合同",
+        top_k=2,
+    )
+
+    assert results
+    assert all(item["riskId"] == "risk-payment-01" for item in results)
+    assert all(item["sourceType"] in {"law", "template", "internal_rule"} for item in results)
+    assert all(item["sourceName"] for item in results)
+    assert all(item["citationText"] for item in results)
+    assert all(item["retrievalScore"] > 0 for item in results)
+
+
+def test_legal_evidence_match_falls_back_when_retriever_has_no_results(monkeypatch):
+    from app.graphs import legal_contract_review_stategraph as graph_module
+
+    class _EmptyRetriever:
+        def retrieve(self, *, risk, contract_type="", top_k=2):
+            return []
+
+    monkeypatch.setattr(graph_module, "LegalEvidenceRetriever", lambda: _EmptyRetriever())
+    state = {
+        "run_id": "run-test",
+        "workflow_id": "legal_contract_review_stategraph_v1",
+        "contract_text": "",
+        "steps": {},
+        "risks": [{"id": "risk-empty-01", "title": "完全无匹配风险", "reason": "无关键词"}],
+        "evidences": [],
+        "traces": [],
+        "review": {},
+        "artifacts": {"parse_contract": {"contract_type": "unknown"}},
+    }
+
+    result = graph_module.legal_evidence_match_node(state)
+    evidences = result["artifacts"]["legal_evidence_match"]["evidences"]
+    assert evidences
+    assert evidences[0]["riskId"] == "risk-empty-01"
+    assert evidences[0]["sourceType"] == "mock"
+    assert result["traces"][-1]["payload"]["retriever_type"] == "keyword"
+    assert result["traces"][-1]["payload"]["fallback"] is True
+    assert result["traces"][-1]["payload"]["result_count"] == len(evidences)
 
 
 def test_stategraph_contract_review_api_start_review_resume_flow():

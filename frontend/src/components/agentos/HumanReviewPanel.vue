@@ -27,8 +27,6 @@
             <option value="approved">通过</option>
             <option value="rejected">驳回</option>
             <option value="need_more_info">补充信息</option>
-            <option value="rerun">重跑</option>
-            <option value="cancelled">取消</option>
           </select>
         </label>
 

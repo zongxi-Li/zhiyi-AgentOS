@@ -4,13 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kinlin.ai.dto.LoginRequest;
 import com.kinlin.ai.dto.LoginResponse;
 import com.kinlin.ai.entity.User;
+import com.kinlin.ai.interceptor.RateLimitInterceptor;
+import com.kinlin.ai.interceptor.UserContextInterceptor;
 import com.kinlin.ai.service.UserService;
 import com.kinlin.ai.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AuthController单元测试
  */
 @WebMvcTest(AuthController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
 
     @Autowired
@@ -39,6 +44,15 @@ class AuthControllerTest {
     @MockBean
     private JwtUtil jwtUtil;
 
+    @MockBean
+    private RateLimitInterceptor rateLimitInterceptor;
+
+    @MockBean
+    private UserContextInterceptor userContextInterceptor;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -49,7 +63,7 @@ class AuthControllerTest {
     private String token;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         userId = UUID.randomUUID();
         username = "testuser";
         password = "testpassword123";
@@ -58,6 +72,9 @@ class AuthControllerTest {
         testUser = new User();
         testUser.setId(userId);
         testUser.setUsername(username);
+
+        when(rateLimitInterceptor.preHandle(any(), any(), any())).thenReturn(true);
+        when(userContextInterceptor.preHandle(any(), any(), any())).thenReturn(true);
     }
 
     @Test

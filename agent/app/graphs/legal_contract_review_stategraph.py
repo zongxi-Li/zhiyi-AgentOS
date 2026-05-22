@@ -15,6 +15,8 @@ from app.llm.prompts import (
     render_risk_detect_prompt,
 )
 from app.llm.schemas import PARSE_CONTRACT_SCHEMA, REPORT_GENERATE_SCHEMA, RISK_DETECT_SCHEMA
+from app.rag import LegalEvidenceRetriever
+from app.rag.legal_evidence_schema import normalize_evidence
 from agentos.core.checkpoint import CheckpointStore
 from agentos.core.review import ReviewManager
 from agentos.core.trace import TraceStore
@@ -279,38 +281,101 @@ def _risk_items() -> List[Dict[str, Any]]:
 
 
 def _evidence_items() -> List[Dict[str, Any]]:
-    return [
+    items = [
         {
             "id": "ev-payment-01",
             "stepId": "legal_evidence_match",
             "riskId": "risk-payment-01",
             "sourceType": "mock",
-            "sourceName": "软件开发合同审查模板库",
+            "sourceName": "演示依据，待 RAG 接入",
+            "title": "软件开发合同审查模板库",
             "content": "付款节点通常应与里程碑、阶段验收和缺陷修复期绑定。",
             "citationText": "付款条款应明确付款比例、触发条件、发票条件与逾期处理。",
+            "chunkId": "",
             "confidence": 0.92,
+            "retrievalScore": 0.0,
+            "metadata": {"lawName": "", "articleNo": "", "sourcePath": "", "demo": True},
         },
         {
             "id": "ev-acceptance-01",
             "stepId": "legal_evidence_match",
             "riskId": "risk-acceptance-01",
             "sourceType": "mock",
-            "sourceName": "技术服务项目验收审查要点",
+            "sourceName": "演示依据，待 RAG 接入",
+            "title": "技术服务项目验收审查要点",
             "content": "仅以无重大问题作为验收标准，容易造成缺陷范围和整改期限争议。",
             "citationText": "验收条款宜列明验收材料、测试标准、反馈期限和最终确认方式。",
+            "chunkId": "",
             "confidence": 0.89,
+            "retrievalScore": 0.0,
+            "metadata": {"lawName": "", "articleNo": "", "sourcePath": "", "demo": True},
         },
         {
             "id": "ev-ip-01",
             "stepId": "legal_evidence_match",
             "riskId": "risk-ip-01",
             "sourceType": "mock",
-            "sourceName": "民法典合同编与著作权相关规则",
+            "sourceName": "演示依据，待 RAG 接入",
+            "title": "民法典合同编与著作权相关规则",
             "content": "定制开发成果权属应结合委托目的、费用结构和源码交付明确约定。",
             "citationText": "知识产权归属、使用范围、源码交付和开源组件合规应分别约定。",
+            "chunkId": "",
             "confidence": 0.9,
+            "retrievalScore": 0.0,
+            "metadata": {"lawName": "", "articleNo": "", "sourcePath": "", "demo": True},
         },
     ]
+    return [normalize_evidence(item, risk_id=str(item.get("riskId") or "")) for item in items]
+
+
+def _fallback_evidence_for_risk(risk: Dict[str, Any], index: int) -> Dict[str, Any]:
+    fallback_items = _evidence_items()
+    risk_id = str(risk.get("id") or f"risk-{index:02d}")
+    matched = next((item for item in fallback_items if item.get("riskId") == risk_id), None)
+    if matched is None:
+        matched = fallback_items[(index - 1) % len(fallback_items)]
+    item = dict(matched)
+    item["id"] = str(item.get("id") or f"ev-mock-{index:02d}")
+    item["riskId"] = risk_id
+    item["sourceType"] = "mock"
+    item["sourceName"] = "演示依据，待正式法律知识库校验"
+    item["metadata"] = {"lawName": "", "articleNo": "", "sourcePath": "", "demo": True}
+    return normalize_evidence(item, risk_id=risk_id)
+
+
+def _evidence_trace_payload(
+    *,
+    result_count: int,
+    fallback: bool,
+    error: Optional[str] = None,
+    top_k: int = 2,
+) -> Dict[str, Any]:
+    payload = {
+        "retriever_type": "keyword",
+        "top_k": top_k,
+        "result_count": result_count,
+        "fallback": fallback,
+    }
+    if error:
+        payload["error"] = str(error)[:240]
+    return payload
+
+
+def _append_evidence_appendix(report: str, evidences: List[Dict[str, Any]]) -> str:
+    if not evidences:
+        return report
+    if "Evidence 依据链" in report and any(str(item.get("citationText") or "") in report for item in evidences):
+        return report
+    lines = ["", "## Evidence 依据链"]
+    for index, item in enumerate(evidences, start=1):
+        marker = ""
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        if item.get("sourceType") == "mock" or metadata.get("demo"):
+            marker = "（演示依据 / 待正式法律知识库校验）"
+        lines.append(
+            f"{index}. [{item.get('sourceType')}] {item.get('sourceName')} {marker}：{item.get('citationText')}"
+        )
+    return f"{report.rstrip()}\n" + "\n".join(lines) + "\n"
 
 
 def parse_contract_node(state: ContractReviewState) -> ContractReviewState:
@@ -398,10 +463,30 @@ def risk_detect_node(state: ContractReviewState) -> ContractReviewState:
 
 def legal_evidence_match_node(state: ContractReviewState) -> ContractReviewState:
     state = _copy_state(state)
-    evidences = _evidence_items()
-    for item in evidences:
-        item["sourceType"] = "mock"
-        item["sourceName"] = "演示依据，待 RAG 接入"
+    risks = state.get("risks", [])
+    contract_type = str(_artifacts(state).get("parse_contract", {}).get("contract_type") or "")
+    top_k = 2
+    fallback = False
+    error = None
+    evidences: List[Dict[str, Any]] = []
+    try:
+        retriever = LegalEvidenceRetriever()
+        for index, risk in enumerate(risks, start=1):
+            results = retriever.retrieve(risk=risk, contract_type=contract_type, top_k=top_k)
+            if results:
+                evidences.extend(results)
+            else:
+                fallback = True
+                evidences.append(_fallback_evidence_for_risk(risk, index))
+        if not evidences:
+            fallback = True
+            evidences = _evidence_items()
+    except Exception as exc:
+        fallback = True
+        error = str(exc)
+        evidences = [_fallback_evidence_for_risk(risk, index) for index, risk in enumerate(risks, start=1)] or _evidence_items()
+
+    evidences = [normalize_evidence(item, risk_id=str(item.get("riskId") or "")) for item in evidences]
     output = {
         "evidences": evidences,
         "citations": [item["citationText"] for item in evidences],
@@ -409,7 +494,13 @@ def legal_evidence_match_node(state: ContractReviewState) -> ContractReviewState
     state["evidences"] = evidences
     _artifacts(state)["legal_evidence_match"] = output
     _set_step(state, "legal_evidence_match", StepStatus.COMPLETED.value, output)
-    _append_trace(state, step_id="legal_evidence_match", event_type=TraceEventType.AGENT_CALLED.value, observation="Matched legal evidence to risks.", payload=output)
+    _append_trace(
+        state,
+        step_id="legal_evidence_match",
+        event_type=TraceEventType.AGENT_CALLED.value,
+        observation="Matched legal evidence to risks.",
+        payload=_evidence_trace_payload(result_count=len(evidences), fallback=fallback, error=error, top_k=top_k),
+    )
     return state
 
 
@@ -479,7 +570,7 @@ def report_generate_node(state: ContractReviewState) -> ContractReviewState:
         for index, risk in enumerate(risks, start=1)
     )
     evidence_lines = "\n".join(
-        f"{index}. {item.get('sourceName')}：{item.get('citationText')}"
+        f"{index}. {item.get('sourceName')}：{item.get('citationText')}（演示依据 / 待正式法律知识库校验）"
         for index, item in enumerate(evidences, start=1)
     )
     report_markdown = f"""# 软件开发服务合同审查报告
@@ -512,6 +603,7 @@ def report_generate_node(state: ContractReviewState) -> ContractReviewState:
         validator=_validate_report_generate_output,
     )
     report_markdown = report_result["report_markdown"]
+    report_markdown = _append_evidence_appendix(report_markdown, evidences)
     output = {
         "report_markdown": report_markdown,
         "report": {
@@ -624,6 +716,11 @@ class LegalContractReviewStateGraphRuntime:
             self.workflow_store.save_task(task)
             self.workflow_store.save_run(run)
             return run
+
+        if decision.decision != ReviewDecisionType.REJECTED:
+            raise ValueError(
+                f"Unsupported review decision for {WORKFLOW_ID}: {decision.decision.value}"
+            )
 
         step.status = StepStatus.FAILED
         run.status = WorkflowStatus.FAILED

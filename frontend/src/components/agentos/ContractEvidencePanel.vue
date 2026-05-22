@@ -20,8 +20,10 @@
         <p v-if="item.content">{{ item.content }}</p>
         <div class="evidence-meta">
           <span v-if="item.id">id={{ item.id }}</span>
+          <span v-if="item.riskId">risk={{ item.riskId }}</span>
           <span v-if="item.stepId">step={{ item.stepId }}</span>
           <span v-if="typeof item.confidence === 'number'">confidence={{ Math.round(item.confidence * 100) }}%</span>
+          <span v-if="typeof item.retrievalScore === 'number'">score={{ item.retrievalScore.toFixed(1) }}</span>
         </div>
       </article>
     </div>

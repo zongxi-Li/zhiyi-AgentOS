@@ -16,12 +16,17 @@ export interface ContractRiskItem {
 
 export interface ContractEvidenceItem {
   id?: string
+  riskId?: string
   stepId?: string
   sourceType?: string
   sourceName?: string
+  title?: string
   content?: string
   citationText?: string
+  chunkId?: string
   confidence?: number
+  retrievalScore?: number
+  metadata?: Record<string, any>
   [key: string]: any
 }
 
@@ -73,7 +78,9 @@ export const extractContractReviewArtifacts = (run: WorkflowRun | null): Contrac
   }
   const revisionSuggest = {
     ...stepOutput(run?.steps, 'revision_suggest'),
-    ...asRecord(artifacts.revision_suggest)
+    ...stepOutput(run?.steps, 'suggestion_generate'),
+    ...asRecord(artifacts.revision_suggest),
+    ...asRecord(artifacts.suggestion_generate)
   }
   const humanReview = {
     ...stepOutput(run?.steps, 'human_review'),

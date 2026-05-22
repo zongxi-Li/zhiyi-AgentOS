@@ -59,6 +59,7 @@ TASK: report_generate
 - 风险条款列表
 - 修改建议
 - 人工审核状态
+- Evidence 依据链，引用当前 state.evidences 中的 sourceName、citationText，并标注演示依据 / 待正式法律知识库校验
 - 免责声明：当前报告未接入正式法律法规 RAG，法律依据部分仅为演示或待补充
 
 当前 state：

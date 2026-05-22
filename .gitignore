@@ -51,6 +51,10 @@ logs/
 Thumbs.db
 
 # Python caches and local runtime data (safe to ignore)
+__pycache__/
+.pytest_cache/
+**/__pycache__/
+**/.pytest_cache/
 agent/**/__pycache__/
 agent/**/*.pyc
 agent/data/rag/chroma_db/
