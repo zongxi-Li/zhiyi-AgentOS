@@ -1,5 +1,5 @@
 """工作流注册表，负责保存、加载和推荐行业 Pack 提供的工作流定义。"""
-
+# TODO 后期需要拓展为加载动态生成的拓扑图和工作流
 
 import json
 from pathlib import Path
@@ -11,6 +11,7 @@ from agentos.core.models.types import WorkflowDefinition
 class WorkflowRegistry:
     """保存并推荐行业 Pack 提供的工作流定义。"""
 
+    """初始化类的设计"""
     def __init__(self):
         self._workflows: Dict[str, WorkflowDefinition] = {}
 
@@ -27,7 +28,7 @@ class WorkflowRegistry:
         except KeyError as exc:
             raise KeyError(f"workflow not registered: {workflow_id}") from exc
 
-    def all(self) -> Iterable[WorkflowDefinition]:
+    def all(self) -> tuple[str, ...]:
         return tuple(self._workflows.values())
 
     def recommend(self, domain: str, intent: str) -> Optional[WorkflowDefinition]:

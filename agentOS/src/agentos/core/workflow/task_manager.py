@@ -38,8 +38,8 @@ class TaskManager:
         task_type: Optional[str] = None,
         workflow_id: Optional[str] = None,
     ) -> AgentTask:
-        task_domain = self._normalize(role_type or domain, default="general")
-        task_intent = self._normalize(task_type or intent, default="general")
+        task_domain = self._first_nonblank(role_type, domain, default="general")
+        task_intent = self._first_nonblank(task_type, intent, default="general")
         workflow = self._select_workflow(task_domain, task_intent, workflow_id)
 
         task = AgentTask(
@@ -133,9 +133,12 @@ class TaskManager:
         return self.workflow_registry.recommend(domain=domain, intent=intent)
 
     @staticmethod
-    def _normalize(value: Optional[str], *, default: str) -> str:
-        normalized = (value or "").strip()
-        return normalized or default
+    def _first_nonblank(preferred: Optional[str], fallback: Optional[str], *, default: str) -> str:
+        for value in (preferred, fallback):
+            normalized = (value or "").strip()
+            if normalized:
+                return normalized
+        return default
 
 
 __all__ = ["TaskManager"]
