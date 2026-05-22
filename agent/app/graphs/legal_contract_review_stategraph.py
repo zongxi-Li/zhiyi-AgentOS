@@ -17,10 +17,10 @@ from app.llm.prompts import (
 from app.llm.schemas import PARSE_CONTRACT_SCHEMA, REPORT_GENERATE_SCHEMA, RISK_DETECT_SCHEMA
 from app.rag import LegalEvidenceRetriever
 from app.rag.legal_evidence_schema import normalize_evidence
-from agentos.core.checkpoint import CheckpointStore
-from agentos.core.review import ReviewManager
-from agentos.core.trace import TraceStore
-from agentos.core.types import (
+from agentos.core.governance.checkpoint import CheckpointStore
+from agentos.core.governance.review import ReviewManager
+from agentos.core.governance.trace import TraceStore
+from agentos.core.models.types import (
     AgentTask,
     ReviewDecision,
     ReviewDecisionType,

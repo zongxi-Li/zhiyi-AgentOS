@@ -3,11 +3,14 @@
 
 from typing import Any, Dict, List, Optional
 
-from agentos.core.models.types import TraceEvent, TraceEventType, WorkflowRun
+from agentos.core.models.types import AgentTask, TraceEvent, TraceEventType, WorkflowRun
 
 
 class TraceStore:
     """绑定 WorkflowRun 对象的内存 Trace 写入器。"""
+
+    def __init__(self):
+        self._task_events: dict[str, list[TraceEvent]] = {}
 
     def append(
         self,
@@ -30,6 +33,25 @@ class TraceStore:
         )
         run.trace.append(event)
         return event
+
+    def append_task(
+        self,
+        task: AgentTask,
+        event_type: TraceEventType,
+        observation: str = "",
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> TraceEvent:
+        event = TraceEvent(
+            runId=None,
+            eventType=event_type,
+            observation=observation,
+            payload=payload or {},
+        )
+        self._task_events.setdefault(task.task_id, []).append(event)
+        return event
+
+    def task_events(self, task_id: str) -> List[TraceEvent]:
+        return list(self._task_events.get(task_id, []))
 
     def export_json(self, run: WorkflowRun) -> Dict[str, Any]:
         """返回可供 API、审计和报告使用的可移植 Trace 数据。"""

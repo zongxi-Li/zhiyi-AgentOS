@@ -46,6 +46,8 @@ class StepStatus(str, Enum):
 
 class TraceEventType(str, Enum):
     TASK_CREATED = "task_created"
+    TASK_STATUS_CHANGED = "task_status_changed"
+    TASK_ERROR = "task_error"
     RUN_STARTED = "run_started"
     STEP_STARTED = "step_started"
     AGENT_CALLED = "agent_called"
@@ -156,7 +158,7 @@ class WorkflowStep(CoreModel):
 
 class TraceEvent(CoreModel):
     event_id: str = Field(default_factory=lambda: new_id("trace"), alias="eventId")
-    run_id: str = Field(alias="runId")
+    run_id: Optional[str] = Field(default=None, alias="runId")
     step_id: Optional[str] = Field(default=None, alias="stepId")
     agent_name: Optional[str] = Field(default=None, alias="agentName")
     event_type: TraceEventType = Field(alias="eventType")

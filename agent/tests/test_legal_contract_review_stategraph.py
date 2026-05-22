@@ -5,7 +5,7 @@ from app.llm.gateway import LLMGateway, set_llm_gateway_for_tests
 from app.rag import LegalDocumentLoader, LegalTextSplitter
 from app.rag.providers.keyword_retriever import KeywordLegalEvidenceRetriever
 from agentos.agents import AgentRegistry
-from agentos.core.types import ReviewDecision, ReviewDecisionType, StepStatus, WorkflowStatus
+from agentos.core.models.types import ReviewDecision, ReviewDecisionType, StepStatus, WorkflowStatus
 from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
 from packs.legal import register_pack as register_legal_pack

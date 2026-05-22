@@ -65,6 +65,7 @@ class WorkflowRuntime:
             workflow_store=self.workflow_store,
             workflow_registry=self.workflow_registry,
             state_machine=self.state_machine,
+            trace_store=self.trace_store,
         )
 
     def create_task(
@@ -106,12 +107,12 @@ class WorkflowRuntime:
             taskId=task.task_id,
             workflowId=workflow.workflow_id,
             domain=workflow.domain,
-            status=WorkflowStatus.RUNNING,
             currentStepId=workflow.first_step_id(),
             reviewMode=review_mode,
             input=dict(task.input),
             steps=[WorkflowStep.from_definition(step) for step in workflow.steps],
         )
+        self._transition_run(run, WorkflowStatus.RUNNING)
         self.trace_store.append(
             run=run,
             event_type=TraceEventType.TASK_CREATED,
@@ -167,21 +168,23 @@ class WorkflowRuntime:
 
         self.review_manager.record(run, decision)
         if decision.decision == ReviewDecisionType.APPROVED:
-            step.status = StepStatus.COMPLETED
-            step.completed_at = step.completed_at or utc_now()
-            run.status = WorkflowStatus.RUNNING
+            self._transition_step(step, StepStatus.COMPLETED)
             run.current_step_id = workflow.next_step_id(step.step_id)
-            run.updated_at = utc_now()
+            if run.current_step_id is None:
+                self._complete_run(task, run)
+                self.workflow_store.save_run(run)
+                return run
+
+            self._transition_run(run, WorkflowStatus.RUNNING)
             self.task_manager.mark_running(task)
             self.workflow_store.save_run(run)
             return await self._run_until_blocked(task, run, workflow)
 
         if decision.decision == ReviewDecisionType.RERUN:
-            step.status = StepStatus.RETRYING
             step.retry_count += 1
-            run.status = WorkflowStatus.RETRYING
+            self._transition_step(step, StepStatus.RETRYING)
+            self._transition_run(run, WorkflowStatus.RETRYING)
             run.current_step_id = step.step_id
-            run.updated_at = utc_now()
             self.task_manager.mark_retrying(task)
             self.workflow_store.save_run(run)
             return await self._run_until_blocked(task, run, workflow)
@@ -189,10 +192,9 @@ class WorkflowRuntime:
         if decision.decision == ReviewDecisionType.CANCELLED:
             return self.cancel(run.run_id)
 
-        step.status = StepStatus.FAILED
-        run.status = WorkflowStatus.FAILED
+        self._transition_step(step, StepStatus.FAILED)
+        self._transition_run(run, WorkflowStatus.FAILED)
         run.error = decision.comment or "Review rejected workflow step."
-        run.updated_at = utc_now()
         self.task_manager.mark_failed(task)
         self.trace_store.append(
             run=run,
@@ -214,11 +216,10 @@ class WorkflowRuntime:
         if isinstance(snapshot_steps, list):
             run.steps = [WorkflowStep.model_validate(step) for step in snapshot_steps]
 
-        run.status = WorkflowStatus.RETRYING
+        self._transition_run(run, WorkflowStatus.RETRYING)
         run.current_step_id = self._next_pending_step_id(run)
         run.error = None
         run.recovery_count += 1
-        run.updated_at = utc_now()
         self.task_manager.mark_retrying(task)
         self.trace_store.append(
             run=run,
@@ -232,7 +233,7 @@ class WorkflowRuntime:
 
     def cancel(self, run_id: str) -> WorkflowRun:
         run = self.workflow_store.get_run(run_id)
-        run.status = WorkflowStatus.CANCELLED
+        self._transition_run(run, WorkflowStatus.CANCELLED)
         for step in run.steps:
             if step.status in {
                 StepStatus.PENDING,
@@ -240,8 +241,7 @@ class WorkflowRuntime:
                 StepStatus.RETRYING,
                 StepStatus.WAITING_REVIEW,
             }:
-                step.status = StepStatus.CANCELLED
-        run.updated_at = utc_now()
+                self._transition_step(step, StepStatus.CANCELLED)
         self.task_manager.mark_cancelled(run.task_id)
         self.trace_store.append(
             run=run,
@@ -260,29 +260,18 @@ class WorkflowRuntime:
         run: WorkflowRun,
         workflow: WorkflowDefinition,
     ) -> WorkflowRun:
-        run.status = WorkflowStatus.RUNNING
+        self._transition_run(run, WorkflowStatus.RUNNING)
         self.task_manager.mark_running(task)
 
         while True:
             step = self.orchestrator.select_next_step(run)
             if step is None:
-                run.status = WorkflowStatus.COMPLETED
-                run.current_step_id = None
-                run.output = self.orchestrator.compose_final_output(run)
-                run.updated_at = utc_now()
-                self.task_manager.mark_completed(task)
-                self.trace_store.append(
-                    run=run,
-                    event_type=TraceEventType.RUN_COMPLETED,
-                    observation="Workflow completed.",
-                    payload=run.output,
-                )
+                self._complete_run(task, run)
                 self.workflow_store.save_run(run)
                 return run
 
             run.current_step_id = step.step_id
-            step.status = StepStatus.RUNNING
-            step.started_at = step.started_at or utc_now()
+            self._transition_step(step, StepStatus.RUNNING)
             run.updated_at = utc_now()
             self.trace_store.append(
                 run=run,
@@ -307,8 +296,6 @@ class WorkflowRuntime:
                 return run
 
             step.output = dict(result.output)
-            step.status = StepStatus.COMPLETED
-            step.completed_at = utc_now()
             memory.record(step.step_id, step.output)
             self.trace_store.append(
                 run=run,
@@ -319,21 +306,13 @@ class WorkflowRuntime:
                 payload=step.output,
                 duration_ms=duration_ms,
             )
-            checkpoint = self.checkpoint_store.create(run, step.step_id)
-            self.trace_store.append(
-                run=run,
-                event_type=TraceEventType.CHECKPOINT_CREATED,
-                step_id=step.step_id,
-                observation=f"Checkpoint created: {checkpoint.checkpoint_id}",
-                payload=checkpoint.model_dump(by_alias=True, mode="json"),
-            )
 
             if step.requires_review and run.review_mode != "auto":
-                step.status = StepStatus.WAITING_REVIEW
-                run.status = WorkflowStatus.WAITING_REVIEW
+                self._transition_step(step, StepStatus.WAITING_REVIEW)
+                self._transition_run(run, WorkflowStatus.WAITING_REVIEW)
                 run.current_step_id = step.step_id
-                run.updated_at = utc_now()
                 self.task_manager.mark_waiting_review(task)
+                self._create_checkpoint(run, step)
                 self.trace_store.append(
                     run=run,
                     event_type=TraceEventType.REVIEW_REQUIRED,
@@ -345,6 +324,8 @@ class WorkflowRuntime:
                 self.workflow_store.save_run(run)
                 return run
 
+            self._transition_step(step, StepStatus.COMPLETED)
+            self._create_checkpoint(run, step)
             run.current_step_id = workflow.next_step_id(step.step_id)
             run.updated_at = utc_now()
             self.workflow_store.save_run(run)
@@ -359,12 +340,12 @@ class WorkflowRuntime:
         step.error = str(exc)
         if step.retry_count < step.max_retries:
             step.retry_count += 1
-            step.status = StepStatus.RETRYING
-            run.status = WorkflowStatus.RETRYING
+            self._transition_step(step, StepStatus.RETRYING)
+            self._transition_run(run, WorkflowStatus.RETRYING)
             self.task_manager.mark_retrying(task)
         else:
-            step.status = StepStatus.FAILED
-            run.status = WorkflowStatus.FAILED
+            self._transition_step(step, StepStatus.FAILED)
+            self._transition_run(run, WorkflowStatus.FAILED)
             self.task_manager.mark_failed(task)
         run.current_step_id = step.step_id
         run.error = str(exc)
@@ -388,9 +369,43 @@ class WorkflowRuntime:
         for step in run.steps:
             if step.status in {StepStatus.PENDING, StepStatus.RETRYING, StepStatus.FAILED}:
                 if step.status == StepStatus.FAILED:
-                    step.status = StepStatus.RETRYING
+                    self._transition_step(step, StepStatus.RETRYING)
                 return step.step_id
         return None
+
+    def _transition_run(self, run: WorkflowRun, status: WorkflowStatus) -> None:
+        run.status = self.state_machine.transition(run.status, status)
+        run.updated_at = utc_now()
+
+    def _transition_step(self, step: WorkflowStep, status: StepStatus) -> None:
+        step.status = self.state_machine.transition(step.status, status)
+        if status == StepStatus.RUNNING:
+            step.started_at = step.started_at or utc_now()
+        if status == StepStatus.COMPLETED:
+            step.completed_at = step.completed_at or utc_now()
+
+    def _complete_run(self, task: AgentTask, run: WorkflowRun) -> None:
+        self._transition_run(run, WorkflowStatus.COMPLETED)
+        run.current_step_id = None
+        run.output = self.orchestrator.compose_final_output(run)
+        self.task_manager.mark_completed(task)
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_COMPLETED,
+            observation="Workflow completed.",
+            payload=run.output,
+        )
+
+    def _create_checkpoint(self, run: WorkflowRun, step: WorkflowStep) -> Checkpoint:
+        checkpoint = self.checkpoint_store.create(run, step.step_id)
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.CHECKPOINT_CREATED,
+            step_id=step.step_id,
+            observation=f"Checkpoint created: {checkpoint.checkpoint_id}",
+            payload=checkpoint.model_dump(by_alias=True, mode="json"),
+        )
+        return checkpoint
 
 
 def build_default_runtime() -> WorkflowRuntime:

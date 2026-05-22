@@ -1,7 +1,7 @@
 import asyncio
 
 from agentos.agents import AgentRegistry
-from agentos.core.types import ReviewDecision, ReviewDecisionType, StepStatus, WorkflowStatus
+from agentos.core.models.types import ReviewDecision, ReviewDecisionType, StepStatus, WorkflowStatus
 from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
 from packs.legal import register_pack as register_legal_pack

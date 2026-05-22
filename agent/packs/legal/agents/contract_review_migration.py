@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from agentos.agents.base_agent import AgentOutput, AgentProfile, BaseAgent
+from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from packs.legal.agents.common import case_text
 
 

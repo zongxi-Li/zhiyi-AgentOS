@@ -5,9 +5,18 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from agentos.core.governance.trace import TraceStore
 from agentos.core.workflow.registry import WorkflowRegistry
+from agentos.core.workflow.progress import ProgressCalculator, WorkflowProgress
 from agentos.core.workflow.state_machine import StateMachine
-from agentos.core.models.types import AgentTask, WorkflowDefinition, WorkflowStatus, utc_now
+from agentos.core.models.types import (
+    AgentTask,
+    TraceEventType,
+    WorkflowDefinition,
+    WorkflowRun,
+    WorkflowStatus,
+    utc_now,
+)
 from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage
 
 
@@ -20,10 +29,14 @@ class TaskManager:
         workflow_store: WorkflowStore,
         workflow_registry: WorkflowRegistry,
         state_machine: Optional[StateMachine] = None,
+        trace_store: Optional[TraceStore] = None,
+        progress_calculator: Optional[ProgressCalculator] = None,
     ):
         self.workflow_store = workflow_store
         self.workflow_registry = workflow_registry
         self.state_machine = state_machine or StateMachine()
+        self.trace_store = trace_store
+        self.progress_calculator = progress_calculator or ProgressCalculator()
 
     def create_task(
         self,
@@ -52,6 +65,12 @@ class TaskManager:
             recommendedWorkflow=workflow.workflow_id if workflow else None,
         )
         self.workflow_store.save_task(task)
+        self._record_task_event(
+            task,
+            TraceEventType.TASK_CREATED,
+            observation=f"Task created: {task.title}",
+            payload=task.model_dump(by_alias=True, mode="json"),
+        )
         return task
 
     def get_task(self, task_id: str) -> AgentTask:
@@ -111,11 +130,47 @@ class TaskManager:
 
     def transition(self, task: AgentTask | str, status: WorkflowStatus | str) -> AgentTask:
         resolved_task = self._task(task)
-        target = status if isinstance(status, WorkflowStatus) else WorkflowStatus(status)
-        resolved_task.status = self.state_machine.transition(resolved_task.status, target)
+        old_status = resolved_task.status
+        target_value = status.value if isinstance(status, WorkflowStatus) else str(status)
+        try:
+            target = status if isinstance(status, WorkflowStatus) else WorkflowStatus(status)
+            resolved_task.status = self.state_machine.transition(old_status, target)
+        except Exception as exc:
+            self._record_task_error(
+                resolved_task,
+                from_status=old_status.value,
+                to_status=target_value,
+                error=str(exc),
+            )
+            raise
         resolved_task.updated_at = utc_now()
         self.workflow_store.save_task(resolved_task)
+        if old_status != resolved_task.status:
+            self._record_task_event(
+                resolved_task,
+                TraceEventType.TASK_STATUS_CHANGED,
+                observation=f"Task status changed: {old_status.value} -> {resolved_task.status.value}",
+                payload={
+                    "fromStatus": old_status.value,
+                    "toStatus": resolved_task.status.value,
+                },
+            )
         return resolved_task
+
+    def calculate_progress(
+        self,
+        task: AgentTask | str,
+        *,
+        run: WorkflowRun | None = None,
+        workflow: Optional[WorkflowDefinition] = None,
+    ) -> WorkflowProgress:
+        resolved_task = self._task(task)
+        resolved_workflow = workflow or self._resolve_progress_workflow(resolved_task, run=run)
+        return self.progress_calculator.calculate(
+            task=resolved_task,
+            run=run,
+            workflow=resolved_workflow,
+        )
 
     def _task(self, task: AgentTask | str) -> AgentTask:
         if isinstance(task, AgentTask):
@@ -139,6 +194,56 @@ class TaskManager:
             if normalized:
                 return normalized
         return default
+
+    def _resolve_progress_workflow(
+        self,
+        task: AgentTask,
+        *,
+        run: WorkflowRun | None = None,
+    ) -> Optional[WorkflowDefinition]:
+        workflow_id = getattr(run, "workflow_id", None) or task.recommended_workflow
+        if not workflow_id:
+            return None
+        try:
+            return self.workflow_registry.get(workflow_id)
+        except KeyError:
+            return None
+
+    def _record_task_event(
+        self,
+        task: AgentTask,
+        event_type: TraceEventType,
+        *,
+        observation: str = "",
+        payload: Optional[dict[str, Any]] = None,
+    ) -> None:
+        if self.trace_store is None:
+            return
+        self.trace_store.append_task(
+            task=task,
+            event_type=event_type,
+            observation=observation,
+            payload=payload,
+        )
+
+    def _record_task_error(
+        self,
+        task: AgentTask,
+        *,
+        from_status: str,
+        to_status: str,
+        error: str,
+    ) -> None:
+        self._record_task_event(
+            task,
+            TraceEventType.TASK_ERROR,
+            observation=error,
+            payload={
+                "fromStatus": from_status,
+                "toStatus": to_status,
+                "error": error,
+            },
+        )
 
 
 __all__ = ["TaskManager"]
