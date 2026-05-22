@@ -1,3 +1,6 @@
+"""AgentOS Core 的适配器 federated_adapter 模块，连接模型、检索和联邦增强等外部能力。"""
+
+
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -8,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class FederatedAdapter:
-    """Fail-open adapter for optional federated enhancement calls."""
+    """可选联邦增强调用的失败开放适配器。"""
 
     def __init__(self) -> None:
         self.enabled = os.getenv("AGENT_FEDERATED_ENABLED", "false").strip().lower() == "true"

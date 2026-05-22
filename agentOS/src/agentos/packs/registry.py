@@ -1,3 +1,6 @@
+"""AgentOS Core 的 Pack registry 模块，负责应用层 Pack 的发现、注册和资源定位。"""
+
+
 from __future__ import annotations
 
 import importlib
@@ -11,7 +14,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class PackManifest:
-    """Metadata and registration entrypoint for an AgentOS workflow pack."""
+    """AgentOS 工作流 Pack 的元数据和注册入口。"""
 
     pack_id: str
     name: str
@@ -74,11 +77,7 @@ def register_installed_packs(
 
 
 def default_packs_dir() -> Path:
-    """Return the application-layer Pack directory.
-
-    Core owns the registry Interface, while concrete Pack payloads live outside
-    the runtime package. This keeps domain Agent implementations out of Core.
-    """
+    """返回应用层 Pack 目录。优先使用迁移后的 agent/packs 路径，旧路径仅作兜底。"""
 
     configured = os.getenv("AGENTOS_PACKS_DIR", "").strip()
     if configured:
@@ -88,7 +87,7 @@ def default_packs_dir() -> Path:
 
 
 def pack_path(pack_id: str, *parts: str) -> Path:
-    """Resolve a path inside an application-layer Pack."""
+    """解析应用层 Pack 内部资源路径。"""
 
     return default_packs_dir().joinpath(pack_id, *parts)
 

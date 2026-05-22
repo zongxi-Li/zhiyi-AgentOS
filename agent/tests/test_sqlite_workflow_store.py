@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from agentos.core.types import AgentTask, WorkflowRun, WorkflowStatus, WorkflowStep
+from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus, WorkflowStep
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 

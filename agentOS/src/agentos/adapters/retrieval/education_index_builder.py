@@ -1,3 +1,6 @@
+"""AgentOS Core 的检索适配 education_index_builder 模块，封装向量索引和检索辅助能力。"""
+
+
 import json
 import logging
 import os
@@ -9,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class EducationIndexBuilder:
-    """Build education vector indices for teacher agent workflows."""
+    """为教师智能体工作流构建教育向量索引。"""
 
     KNOWLEDGE_POINTS_COLLECTION = "edu_knowledge_points"
     QUESTION_BANK_COLLECTION = "edu_question_bank"

@@ -1,11 +1,14 @@
+"""AgentOS Core 的 review 模块，提供运行时控制、状态、Trace、审核或治理能力。"""
+
+
 from typing import List
 
-from agentos.core.types import ReviewDecision, ReviewDecisionType, ReviewRecord, TraceEventType, WorkflowRun
-from agentos.core.trace import TraceStore
+from agentos.core.models.types import ReviewDecision, ReviewDecisionType, ReviewRecord, TraceEventType, WorkflowRun
+from agentos.core.governance.trace import TraceStore
 
 
 class ReviewManager:
-    """Records human review decisions as auditable trace events."""
+    """把人工审核决策记录为可审计的 Trace 事件。"""
 
     def __init__(self, trace_store: TraceStore):
         self.trace_store = trace_store

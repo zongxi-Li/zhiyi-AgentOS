@@ -1,14 +1,12 @@
-"""Model adapter seam used by Core and built-in skills."""
+"""AgentOS Core 的适配器 model_adapter 模块，连接模型、检索和联邦增强等外部能力。"""
+
+
 
 from typing import Any, Dict, List, Optional
 
 
 class AIService:
-    """Lazy bridge to the application AI service.
-
-    AgentOS Core must be importable without importing the FastAPI app layer.
-    The concrete app service is loaded only when text generation is invoked.
-    """
+    """延迟桥接应用层 AIService，避免 Core 在导入阶段绑定应用服务。"""
 
     def __init__(self, delegate: Optional[Any] = None):
         self._delegate = delegate
@@ -30,7 +28,7 @@ class AIService:
 
 
 class ModelAdapter:
-    """Thin wrapper around the current AIService implementation."""
+    """当前 AIService 实现的轻量包装。"""
 
     def __init__(self, ai_service: Optional[AIService] = None):
         self.ai_service = ai_service or AIService()

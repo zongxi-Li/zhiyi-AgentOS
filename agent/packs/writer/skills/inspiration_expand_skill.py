@@ -1,9 +1,12 @@
+"""写作 Pack 的技能实现，提供灵感扩展、大纲、人物关系和正文写作能力。"""
+
+
 import asyncio
 import logging
 from typing import Any, Dict
 
-from agentos.core.types import SkillRequest, SkillResult
-from agentos.skills.base_skill import BaseSkill
+from agentos.core.models.types import SkillRequest, SkillResult
+from agentos.skills.base import BaseSkill
 from packs.writer.skills.common import WriterSkillHelper
 from agentos.adapters.model_adapter import AIService
 

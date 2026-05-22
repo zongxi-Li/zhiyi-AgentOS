@@ -1,3 +1,6 @@
+"""AgentOS Core 的 FastAPI 路由层，负责任务创建、工作流启动、状态查询、审核、恢复和兼容聊天入口。"""
+
+
 import json
 from typing import Any, Dict, Literal, Optional
 
@@ -5,8 +8,8 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from agentos.core.types import ReviewDecision, ReviewDecisionType
-from agentos.core.workflow_runtime import WorkflowRuntime, build_default_runtime
+from agentos.core.models.types import ReviewDecision, ReviewDecisionType
+from agentos.core.runtime import WorkflowRuntime, build_default_runtime
 
 
 class AgentTaskCreateRequest(BaseModel):
@@ -15,6 +18,8 @@ class AgentTaskCreateRequest(BaseModel):
     title: str
     domain: str = "general"
     intent: str = "general"
+    role_type: Optional[str] = None
+    task_type: Optional[str] = None
     input: Dict[str, Any] = Field(default_factory=dict)
     security_level: str = "internal"
     priority: str = "normal"
@@ -22,9 +27,14 @@ class AgentTaskCreateRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def accept_camel_case(cls, data):
-        if isinstance(data, dict) and "securityLevel" in data and "security_level" not in data:
+        if isinstance(data, dict):
             data = dict(data)
-            data["security_level"] = data["securityLevel"]
+            if "securityLevel" in data and "security_level" not in data:
+                data["security_level"] = data["securityLevel"]
+            if "roleType" in data and "role_type" not in data:
+                data["role_type"] = data["roleType"]
+            if "taskType" in data and "task_type" not in data:
+                data["task_type"] = data["taskType"]
         return data
 
 
@@ -55,6 +65,8 @@ class WorkflowStartRequest(BaseModel):
     title: str
     domain: str = "general"
     intent: str = "general"
+    role_type: Optional[str] = None
+    task_type: Optional[str] = None
     input: Dict[str, Any] = Field(default_factory=dict)
     security_level: str = "internal"
     priority: str = "normal"
@@ -72,6 +84,10 @@ class WorkflowStartRequest(BaseModel):
                 data["workflow_id"] = data["workflowId"]
             if "reviewMode" in data and "review_mode" not in data:
                 data["review_mode"] = data["reviewMode"]
+            if "roleType" in data and "role_type" not in data:
+                data["role_type"] = data["roleType"]
+            if "taskType" in data and "task_type" not in data:
+                data["task_type"] = data["taskType"]
         return data
 
 
@@ -97,6 +113,8 @@ class ChatWorkflowUpgradeRequest(BaseModel):
     title: Optional[str] = None
     domain: str = "legal"
     intent: str = "case_analysis"
+    role_type: Optional[str] = None
+    task_type: Optional[str] = None
     workflow_id: Optional[str] = None
     review_mode: str = "human_in_loop"
     role_id: Optional[str] = None
@@ -121,6 +139,10 @@ class ChatWorkflowUpgradeRequest(BaseModel):
                 data["context_id"] = data["contextId"]
             if "securityLevel" in data and "security_level" not in data:
                 data["security_level"] = data["securityLevel"]
+            if "roleType" in data and "role_type" not in data:
+                data["role_type"] = data["roleType"]
+            if "taskType" in data and "task_type" not in data:
+                data["task_type"] = data["taskType"]
         return data
 
 
@@ -179,6 +201,9 @@ async def _create_task_and_start(
         input=request.input,
         security_level=request.security_level,
         priority=request.priority,
+        role_type=request.role_type,
+        task_type=request.task_type,
+        workflow_id=request.workflow_id,
     )
     run = await runtime.start(
         task_id=task.task_id,
@@ -851,6 +876,8 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
                 input=request.input,
                 security_level=request.security_level,
                 priority=request.priority,
+                role_type=request.role_type,
+                task_type=request.task_type,
             )
             return _to_json(task)
         except Exception as exc:
@@ -923,6 +950,8 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             priority=request.priority,
             workflowId=request.workflow_id,
             reviewMode=request.review_mode,
+            roleType=request.role_type,
+            taskType=request.task_type,
         )
         try:
             payload = await _create_task_and_start(runtime, start_request)

@@ -1,12 +1,15 @@
+"""AgentOS Core 的技能基础接口，定义 BaseSkill 和 NoOpSkill。"""
+
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from agentos.core.types import SkillRequest, SkillResult
+from agentos.core.models.types import SkillRequest, SkillResult
 
 
 class BaseSkill(ABC):
-    """Unified Interface for reusable skills."""
+    """可复用技能的统一接口。"""
 
     def __init__(self, name: str):
         self.name = name
@@ -17,7 +20,7 @@ class BaseSkill(ABC):
 
 
 class NoOpSkill(BaseSkill):
-    """Fallback Skill used by tests and empty registries."""
+    """测试和空注册表使用的兜底技能。"""
 
     def __init__(self, name: str = "noop"):
         super().__init__(name)

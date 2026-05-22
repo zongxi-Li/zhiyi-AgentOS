@@ -1,3 +1,6 @@
+"""程序员 Pack 的技能实现，提供需求分析、语义检索、代码生成和图表生成能力。"""
+
+
 import json
 import re
 from typing import Any, Dict, List, Optional

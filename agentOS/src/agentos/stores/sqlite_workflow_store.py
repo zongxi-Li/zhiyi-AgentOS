@@ -1,15 +1,18 @@
+"""AgentOS Core 的存储 sqlite_workflow_store 模块，管理任务和运行记录的持久化边界。"""
+
+
 from __future__ import annotations
 
 import json
 import sqlite3
 from pathlib import Path
 
-from agentos.core.types import AgentTask, WorkflowRun, WorkflowStatus
+from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
 from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value
 
 
 class SQLiteWorkflowStore(WorkflowStore):
-    """SQLite-backed WorkflowStore for durable local persistence."""
+    """基于 SQLite 的本地持久化 WorkflowStore。"""
 
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)

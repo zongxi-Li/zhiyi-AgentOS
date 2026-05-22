@@ -1,10 +1,13 @@
+"""AgentOS Core 的存储 workflow_store 模块，管理任务和运行记录的持久化边界。"""
+
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Generic, Sequence, TypeVar
 
-from agentos.core.types import AgentTask, WorkflowRun, WorkflowStatus
+from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
 
 
 T = TypeVar("T")
@@ -12,7 +15,7 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class WorkflowStorePage(Generic[T]):
-    """Paginated WorkflowStore query result."""
+    """WorkflowStore 的分页查询结果。"""
 
     items: tuple[T, ...]
     total: int
@@ -46,7 +49,7 @@ def status_value(status: WorkflowStatus | str | None) -> str | None:
 
 
 class WorkflowStore(ABC):
-    """Persistence seam for AgentTask and WorkflowRun state."""
+    """AgentTask 和 WorkflowRun 状态的持久化边界。"""
 
     @abstractmethod
     def save_task(self, task: AgentTask) -> None:

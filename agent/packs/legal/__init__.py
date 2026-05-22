@@ -1,3 +1,6 @@
+"""法律 Pack 的注册入口与包级配置。"""
+
+
 from pathlib import Path
 
 from packs.legal.agents.case_intake import CaseIntakeAgent
@@ -9,7 +12,7 @@ from packs.legal.agents.statute import StatuteAgent
 
 
 def register_pack(agent_registry, workflow_registry) -> None:
-    """Register the legal demo pack without coupling Core to legal logic."""
+    """注册法律示例 Pack，并保持 Core 与法律业务逻辑解耦。"""
 
     for agent in [
         CaseIntakeAgent(),

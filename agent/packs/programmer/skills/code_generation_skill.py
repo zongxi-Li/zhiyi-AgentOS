@@ -1,10 +1,13 @@
+"""程序员 Pack 的技能实现，提供需求分析、语义检索、代码生成和图表生成能力。"""
+
+
 import asyncio
 import json
 import logging
 from typing import Any, Dict, List
 
-from agentos.core.types import SkillRequest, SkillResult
-from agentos.skills.base_skill import BaseSkill
+from agentos.core.models.types import SkillRequest, SkillResult
+from agentos.skills.base import BaseSkill
 from packs.programmer.skills.common import ProgrammerSkillHelper
 from agentos.adapters.model_adapter import AIService
 

@@ -1,13 +1,16 @@
+"""AgentOS Core 的存储 memory_workflow_store 模块，管理任务和运行记录的持久化边界。"""
+
+
 from __future__ import annotations
 
 from typing import Dict
 
-from agentos.core.types import AgentTask, WorkflowRun, WorkflowStatus
+from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
 from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value
 
 
 class MemoryWorkflowStore(WorkflowStore):
-    """In-memory WorkflowStore adapter for local development and tests."""
+    """面向本地开发和测试的内存 WorkflowStore 适配器。"""
 
     def __init__(self):
         self._tasks: Dict[str, AgentTask] = {}

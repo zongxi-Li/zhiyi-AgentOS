@@ -1,10 +1,12 @@
-from typing import Any, Dict, List
+"""AgentOS Core 的 checkpoint 模块，提供运行时控制、状态、Trace、审核或治理能力。"""
 
-from agentos.core.types import Checkpoint, WorkflowRun
+
+from typing import Any, Dict, List
+from agentos.core.models.types import Checkpoint, WorkflowRun
 
 
 class CheckpointStore:
-    """Creates and restores in-memory workflow checkpoints."""
+    """创建并查询内存中的工作流检查点。"""
 
     def create(self, run: WorkflowRun, step_id: str) -> Checkpoint:
         state_snapshot: Dict[str, Any] = {

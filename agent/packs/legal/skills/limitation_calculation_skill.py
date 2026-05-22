@@ -1,3 +1,6 @@
+"""法律 Pack 的技能实现，提供案情、法条、证据、风险和文书相关原子能力。"""
+
+
 import asyncio
 import datetime as dt
 import logging
@@ -5,8 +8,8 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from agentos.adapters.retrieval_adapter import legal_index_builder
-from agentos.core.types import SkillRequest, SkillResult
-from agentos.skills.base_skill import BaseSkill
+from agentos.core.models.types import SkillRequest, SkillResult
+from agentos.skills.base import BaseSkill
 
 logger = logging.getLogger(__name__)
 

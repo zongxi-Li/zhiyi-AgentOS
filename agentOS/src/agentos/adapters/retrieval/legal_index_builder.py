@@ -1,3 +1,6 @@
+"""AgentOS Core 的检索适配 legal_index_builder 模块，封装向量索引和检索辅助能力。"""
+
+
 import json
 import logging
 import os
@@ -11,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class LegalIndexBuilder:
-    """Build and query legal vector indices with keyword fallback."""
+    """构建并查询法律向量索引，并提供关键词兜底检索。"""
 
     STATUTE_COLLECTION = "law_statutes"
     CASE_COLLECTION = "law_cases"

@@ -1,10 +1,13 @@
+"""法律 Pack 的技能实现，提供案情、法条、证据、风险和文书相关原子能力。"""
+
+
 import asyncio
 import json
 import logging
 from typing import Any, Dict, List
 
-from agentos.core.types import SkillRequest, SkillResult
-from agentos.skills.base_skill import BaseSkill
+from agentos.core.models.types import SkillRequest, SkillResult
+from agentos.skills.base import BaseSkill
 from agentos.adapters.model_adapter import AIService
 from agentos.packs.registry import pack_path
 

@@ -3,7 +3,7 @@ import importlib
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from agentos.core.types import SkillRequest
+from agentos.core.models.types import SkillRequest
 from packs.education.skills.classroom_interaction_design_skill import ClassroomInteractionDesignSkill
 from packs.education.skills.error_analysis_question_push_skill import ErrorAnalysisQuestionPushSkill
 from packs.education.skills.homework_grading_skill import HomeworkGradingSkill

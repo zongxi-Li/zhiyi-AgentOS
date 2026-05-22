@@ -1,11 +1,14 @@
+"""AgentOS Core 的 evaluation 模块，提供运行时控制、状态、Trace、审核或治理能力。"""
+
+
 from collections import Counter
 from typing import Iterable, Optional
 
-from agentos.core.types import EvaluationRun, TraceEventType, WorkflowMetric, WorkflowRun, WorkflowStatus
+from agentos.core.models.types import EvaluationRun, TraceEventType, WorkflowMetric, WorkflowRun, WorkflowStatus
 
 
 class WorkflowEvaluator:
-    """Calculates simple workflow-level governance metrics."""
+    """计算工作流级治理指标。"""
 
     def evaluate(
         self,

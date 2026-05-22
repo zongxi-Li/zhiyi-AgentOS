@@ -1,3 +1,6 @@
+"""AgentOS Core 的检索适配 chroma_client 模块，封装向量索引和检索辅助能力。"""
+
+
 import logging
 import os
 from pathlib import Path
@@ -20,7 +23,7 @@ def _default_app_data_dir() -> Path:
 
 
 class ChromaLegalClient:
-    """Lightweight Chroma wrapper for legal retrieval."""
+    """面向法律检索的轻量 Chroma 包装器。"""
 
     def __init__(self, persist_directory: Optional[str] = None, embedding_model: Optional[str] = None):
         default_dir = _default_app_data_dir() / "legal_chroma"
@@ -110,7 +113,7 @@ class ChromaLegalClient:
         collection.upsert(ids=ids, documents=texts, metadatas=metadatas)
 
     def add_documents(self, collection_name: str, documents: List[Dict[str, str]]) -> None:
-        """Compatibility helper used by index builders."""
+        """索引构建器使用的兼容辅助方法。"""
         self.upsert_documents(collection_name=collection_name, documents=documents)
 
     def query(self, collection_name: str, query_text: str, top_k: int = 5) -> List[Dict[str, object]]:

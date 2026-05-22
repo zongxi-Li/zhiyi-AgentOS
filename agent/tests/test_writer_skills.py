@@ -3,7 +3,7 @@ import importlib
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from agentos.core.types import SkillRequest
+from agentos.core.models.types import SkillRequest
 from packs.writer.skills import (
     CharacterRelationSkill,
     ContentWriteSkill,

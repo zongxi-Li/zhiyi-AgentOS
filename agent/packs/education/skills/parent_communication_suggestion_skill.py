@@ -1,10 +1,13 @@
+"""教育 Pack 的技能实现，提供备课、诊断、作业、路径规划和家校沟通能力。"""
+
+
 import asyncio
 import json
 import logging
 from typing import Any, Dict
 
-from agentos.core.types import SkillRequest, SkillResult
-from agentos.skills.base_skill import BaseSkill
+from agentos.core.models.types import SkillRequest, SkillResult
+from agentos.skills.base import BaseSkill
 from packs.education.skills.common import TeacherSkillHelper
 from agentos.adapters.model_adapter import AIService
 

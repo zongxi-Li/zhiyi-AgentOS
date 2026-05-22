@@ -1,14 +1,17 @@
+"""AgentOS Core 的智能体注册表，负责按领域、名称和能力解析应用层 Pack 智能体。"""
+
+
 from typing import Dict, Iterable, Optional, Tuple
 
 from agentos.agents.base import BaseAgent
 
 
 class AgentNotFound(KeyError):
-    """Raised when no agent matches a workflow step."""
+    """工作流步骤找不到匹配智能体时抛出。"""
 
 
 class AgentRegistry:
-    """Registry used by Core to resolve application-layer Pack agents."""
+    """供 Core 解析应用层 Pack 智能体的注册表。"""
 
     def __init__(self):
         self._agents: Dict[Tuple[str, str], BaseAgent] = {}
