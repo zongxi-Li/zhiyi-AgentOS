@@ -400,16 +400,14 @@ watch(isSimpleChatMode, active => {
 .app-layout {
   height: 100%;
   width: 100%;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(246, 247, 244, 0.98)),
-    var(--bg-app);
+  background: var(--app-layout-bg);
   overflow: hidden;
   display: flex;
 }
 
 /* Sidebar Styles */
 .app-sidebar {
-  background-color: rgba(251, 251, 248, 0.92);
+  background-color: var(--sidebar-bg);
   border-right: 1px solid var(--border-light);
   backdrop-filter: blur(18px);
   display: flex;
@@ -424,7 +422,7 @@ watch(isSimpleChatMode, active => {
   padding: 0 22px;
   cursor: pointer;
   gap: 10px;
-  border-bottom: 1px solid rgba(227, 230, 223, 0.72);
+  border-bottom: 1px solid var(--sidebar-border);
 }
 
 .logo-icon {
@@ -469,12 +467,12 @@ watch(isSimpleChatMode, active => {
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(63, 107, 99, 0.16);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(63, 107, 99, 0.24);
+  background: var(--scrollbar-thumb-hover);
 }
 
 .menu-group-title {
@@ -524,7 +522,7 @@ watch(isSimpleChatMode, active => {
 .sidebar-footer {
   padding: 14px;
   margin-top: auto;
-  border-top: 1px solid rgba(227, 230, 223, 0.72);
+  border-top: 1px solid var(--sidebar-border);
 }
 
 .user-profile {
@@ -611,7 +609,7 @@ watch(isSimpleChatMode, active => {
   gap: 6px;
   height: 36px;
   padding: 0 12px;
-  border: 1px solid rgba(47, 143, 131, 0.22);
+  border: 1px solid var(--primary-line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--primary-color);
@@ -625,7 +623,7 @@ watch(isSimpleChatMode, active => {
 }
 
 .simple-nav-toggle:hover {
-  border-color: rgba(47, 143, 131, 0.42);
+  border-color: var(--border-focus);
   background: #fff;
   transform: translateY(-1px);
 }
@@ -633,16 +631,14 @@ watch(isSimpleChatMode, active => {
 .simple-nav-drawer :deep(.el-drawer__body),
 :global(.simple-nav-drawer .el-drawer__body) {
   padding: 0;
-  background: rgba(251, 251, 248, 0.96);
+  background: var(--drawer-bg);
 }
 
 .drawer-sidebar {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 247, 244, 0.96)),
-    var(--bg-app);
+  background: var(--app-layout-bg);
 }
 
 .drawer-header {
@@ -665,7 +661,7 @@ watch(isSimpleChatMode, active => {
 }
 
 .drawer-menu::-webkit-scrollbar-thumb {
-  background: rgba(63, 107, 99, 0.18);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 

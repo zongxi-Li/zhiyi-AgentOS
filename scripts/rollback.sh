@@ -12,6 +12,15 @@ VERSION=${2:-previous}
 
 PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker-compose)
+else
+    echo "错误: Docker Compose未安装，请先安装Docker Desktop 或 docker compose plugin"
+    exit 1
+fi
+
 echo "=========================================="
 echo "联邦智枢 回滚脚本"
 echo "环境: $ENVIRONMENT"
@@ -29,7 +38,7 @@ cd "$PROJECT_DIR"
 
 # 停止当前服务
 echo "停止当前服务..."
-docker-compose -f "$COMPOSE_FILE" down
+"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down
 
 # 如果有指定版本，切换到该版本
 if [ "$VERSION" != "previous" ]; then
@@ -39,8 +48,8 @@ fi
 
 # 重新构建并启动
 echo "重新构建并启动..."
-docker-compose -f "$COMPOSE_FILE" build
-docker-compose -f "$COMPOSE_FILE" up -d
+"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" build
+"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" up -d
 
 echo "回滚完成"
 

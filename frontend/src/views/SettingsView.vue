@@ -50,8 +50,19 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="主色">
-          <el-color-picker v-model="settings.primaryColor" @change="applyTheme" />
+        <el-form-item label="配色方案">
+          <div class="scheme-row">
+            <button
+              v-for="s in colorSchemes"
+              :key="s.id"
+              class="scheme-chip"
+              :class="{ active: settings.colorScheme === s.id }"
+              @click="settings.colorScheme = s.id; applyTheme()"
+            >
+              <span class="scheme-dot" :style="{ background: s.previewColor }"></span>
+              <span>{{ s.name }}</span>
+            </button>
+          </div>
         </el-form-item>
       </div>
 
@@ -152,11 +163,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Setting, Lock, ChatDotRound, Microphone, InfoFilled } from '@element-plus/icons-vue'
+import { useTheme } from '@/composables/useTheme'
+import { colorSchemes, type ColorSchemeId } from '@/themes/presets'
 
 type TabId = 'general' | 'privacy' | 'chat' | 'voice'
 
 interface AppSettings {
   theme: 'light' | 'dark' | 'auto'
+  colorScheme: ColorSchemeId
   language: 'zh-CN' | 'en'
   fontSize: number
   primaryColor: string
@@ -172,6 +186,7 @@ interface AppSettings {
 }
 
 const { locale } = useI18n()
+const { applyColorScheme } = useTheme()
 
 const tabs = [
   { id: 'general' as TabId, label: '通用', icon: Setting },
@@ -182,6 +197,7 @@ const tabs = [
 
 const defaultSettings = (): AppSettings => ({
   theme: 'light',
+  colorScheme: 'tea-green',
   language: 'zh-CN',
   fontSize: 14,
   primaryColor: '#4f46e5',
@@ -207,8 +223,8 @@ const lastSavedText = computed(() => {
 })
 
 function applyTheme(): void {
+  applyColorScheme(settings.value.colorScheme)
   const root = document.documentElement
-  root.style.setProperty('--primary-color', settings.value.primaryColor)
   root.style.setProperty('--font-size-base', `${settings.value.fontSize}px`)
 }
 
@@ -278,13 +294,13 @@ onMounted(() => {
 .ambient-glow.top-left {
   top: -120px;
   left: -120px;
-  background: #5b8ff9;
+  background: var(--primary-color);
 }
 
 .ambient-glow.bottom-right {
   right: -120px;
   bottom: -140px;
-  background: #36cfc9;
+  background: var(--accent-color);
 }
 
 .glass-panel {
@@ -409,6 +425,46 @@ onMounted(() => {
 .actions {
   display: flex;
   gap: 8px;
+}
+
+.scheme-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scheme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-regular);
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.scheme-chip:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.scheme-chip.active {
+  border-color: var(--primary-line);
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-line);
+}
+
+.scheme-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
 }
 
 @media (max-width: 760px) {

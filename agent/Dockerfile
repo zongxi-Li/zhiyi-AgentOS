@@ -2,7 +2,7 @@ FROM python:3.9-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/agentOS/src \
+    PYTHONPATH=/app/agentOS/src:/app \
     AGENTOS_PACKS_DIR=/app/packs
 
 WORKDIR /app

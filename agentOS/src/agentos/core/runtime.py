@@ -67,6 +67,7 @@ class WorkflowRuntime:
             state_machine=self.state_machine,
             trace_store=self.trace_store,
         )
+        self._runtime_adapters: dict[str, object] = {}
 
     def create_task(
         self,
@@ -112,6 +113,12 @@ class WorkflowRuntime:
             input=dict(task.input),
             steps=[WorkflowStep.from_definition(step) for step in workflow.steps],
         )
+
+        adapter = self._workflow_adapter(workflow.workflow_id)
+        if adapter is not None:
+            self._transition_run(run, WorkflowStatus.RUNNING)
+            return await adapter.start(task=task, run=run, workflow=workflow)
+
         self._transition_run(run, WorkflowStatus.RUNNING)
         self.trace_store.append(
             run=run,
@@ -162,6 +169,10 @@ class WorkflowRuntime:
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
         run = self.workflow_store.get_run(decision.run_id)
+        adapter = self._workflow_adapter(run.workflow_id)
+        if adapter is not None:
+            return await adapter.apply_review(decision)
+
         task = self.task_manager.get_task(run.task_id)
         workflow = self.workflow_registry.get(run.workflow_id)
         step = run.get_step(decision.step_id)
@@ -253,6 +264,25 @@ class WorkflowRuntime:
 
     def _resolve_workflow(self, task: AgentTask, workflow_id: Optional[str]) -> WorkflowDefinition:
         return self.task_manager.bind_workflow(task, workflow_id=workflow_id)
+
+    def _workflow_adapter(self, workflow_id: str):
+        if workflow_id != "legal_contract_review_stategraph_v1":
+            return None
+
+        adapter = self._runtime_adapters.get(workflow_id)
+        if adapter is None:
+            from app.graphs.legal_contract_review_stategraph import (
+                LegalContractReviewStateGraphRuntime,
+            )
+
+            adapter = LegalContractReviewStateGraphRuntime(
+                workflow_store=self.workflow_store,
+                trace_store=self.trace_store,
+                checkpoint_store=self.checkpoint_store,
+                review_manager=self.review_manager,
+            )
+            self._runtime_adapters[workflow_id] = adapter
+        return adapter
 
     async def _run_until_blocked(
         self,

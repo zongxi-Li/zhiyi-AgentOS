@@ -24,6 +24,14 @@
   --bg-panel: #fbfcfa;
   --bg-input: #f1f3ef;
   --bg-glass: rgba(255, 255, 255, 0.72);
+  --app-layout-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(246, 247, 244, 0.98)),
+    var(--bg-app);
+  --sidebar-bg: rgba(251, 251, 248, 0.92);
+  --drawer-bg: rgba(251, 251, 248, 0.96);
+  --sidebar-border: rgba(227, 230, 223, 0.72);
+  --scrollbar-thumb: rgba(63, 107, 99, 0.16);
+  --scrollbar-thumb-hover: rgba(63, 107, 99, 0.24);
 
   /* Text Colors */
   --text-primary: #1d2422;
@@ -37,6 +45,10 @@
   --bg-color-secondary: var(--bg-input);
   --border-color-base: var(--border-light);
   --danger-color: var(--danger);
+  --accent: var(--accent-color);
+  --text: var(--text-primary);
+  --text-dim: var(--text-secondary);
+  --bg: var(--bg-app);
 
   /* Borders */
   --border-light: #e3e6df;

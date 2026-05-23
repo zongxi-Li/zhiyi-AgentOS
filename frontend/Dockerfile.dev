@@ -1,0 +1,15 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+ENV DEV_BACKEND_PROXY_TARGET=http://backend:8080
+ENV DEV_AI_SERVICE_PROXY_TARGET=http://ai-service:8000
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
