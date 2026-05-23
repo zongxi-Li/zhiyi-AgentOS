@@ -8,6 +8,7 @@ import pytest
 
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents import AgentRegistry
+from agentos.core.execution import LangGraphAdapter, NativeWorkflowAdapter
 from packs.legal import register_pack as register_legal_pack
 from agentos.core.workflow.state_machine import InvalidStateTransition, StateMachine
 from agentos.core.models.types import (
@@ -133,6 +134,7 @@ async def _test_runtime_runs_registered_workflow_with_trace_and_checkpoints():
     assert TraceEventType.AGENT_CALLED in event_types
     assert TraceEventType.CHECKPOINT_CREATED in event_types
     assert TraceEventType.RUN_COMPLETED in event_types
+    assert any(isinstance(adapter, NativeWorkflowAdapter) for adapter in runtime._runtime_adapters.values())
 
 
 def test_runtime_waits_for_review_and_continues_after_approval():
@@ -242,14 +244,17 @@ async def _test_legal_demo_pack_registers_agents_and_workflow():
 
     assert task.recommended_workflow == "legal_contract_review_v1"
     assert run.status == WorkflowStatus.WAITING_REVIEW
-    assert run.current_step_id == "risk"
-    assert run.get_step("case_intake").output["case_summary"]
-    assert run.get_step("statute").output["legal_basis"]
+    assert run.current_step_id == "human_review"
+    assert run.runtime_engine == "langgraph"
+    assert run.implementation_id == "legal_contract_review_stategraph_v1"
+    assert any(isinstance(adapter, LangGraphAdapter) for adapter in runtime._runtime_adapters.values())
+    assert run.get_step("parse_contract").output["contract_type"]
+    assert run.output["artifacts"]["risk_detect"]["risks"]
 
     completed = await runtime.apply_review(
         ReviewDecision(
             runId=run.run_id,
-            stepId="risk",
+            stepId="human_review",
             decision=ReviewDecisionType.APPROVED,
             reviewer="legal_reviewer",
         )
@@ -257,7 +262,7 @@ async def _test_legal_demo_pack_registers_agents_and_workflow():
 
     assert completed.status == WorkflowStatus.COMPLETED
     assert completed.output["final_answer"]
-    assert completed.output["artifacts"]["draft"]
+    assert completed.output["artifacts"]["report_generate"]["report_markdown"]
 
 
 def test_agentos_core_api_task_run_review_flow():
@@ -296,11 +301,13 @@ def test_agentos_core_api_task_run_review_flow():
     assert run_response.status_code == 200
     run_payload = run_response.json()
     assert run_payload["status"] == "waiting_review"
-    assert run_payload["currentStepId"] == "risk"
+    assert run_payload["currentStepId"] == "human_review"
+    assert run_payload["runtimeEngine"] == "langgraph"
+    assert run_payload["implementationId"] == "legal_contract_review_stategraph_v1"
 
     review_response = client.post(
         f"/ai/core/workflows/runs/{run_payload['runId']}/reviews",
-        json={"stepId": "risk", "decision": "approved", "reviewer": "api_reviewer"},
+        json={"stepId": "human_review", "decision": "approved", "reviewer": "api_reviewer"},
     )
     assert review_response.status_code == 200
     assert review_response.json()["status"] == "completed"
@@ -382,7 +389,8 @@ def test_workbench_can_start_workflow_in_one_request():
     payload = response.json()
     assert payload["task"]["recommendedWorkflow"] == "legal_contract_review_v1"
     assert payload["run"]["status"] == "waiting_review"
-    assert payload["run"]["currentStepId"] == "risk"
+    assert payload["run"]["currentStepId"] == "human_review"
+    assert payload["run"]["runtimeEngine"] == "langgraph"
     assert payload["run"]["input"]["caseText"] == "供应商逾期交付，合同约定违约金。"
 
 

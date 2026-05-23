@@ -14,17 +14,25 @@ class WorkflowRegistry:
     """初始化类的设计"""
     def __init__(self):
         self._workflows: Dict[str, WorkflowDefinition] = {}
+        self._aliases: Dict[str, str] = {}
 
     def register(self, workflow: WorkflowDefinition) -> None:
         if not workflow.workflow_id:
             raise ValueError("workflow_id is required")
         if not workflow.steps:
             raise ValueError(f"workflow {workflow.workflow_id} must define at least one step")
+        if workflow.workflow_id in self._aliases:
+            return
         self._workflows[workflow.workflow_id] = workflow
+        for alias in workflow.aliases:
+            alias = (alias or "").strip()
+            if alias and alias != workflow.workflow_id:
+                self._aliases[alias] = workflow.workflow_id
 
     def get(self, workflow_id: str) -> WorkflowDefinition:
+        canonical_id = self._aliases.get(workflow_id, workflow_id)
         try:
-            return self._workflows[workflow_id]
+            return self._workflows[canonical_id]
         except KeyError as exc:
             raise KeyError(f"workflow not registered: {workflow_id}") from exc
 

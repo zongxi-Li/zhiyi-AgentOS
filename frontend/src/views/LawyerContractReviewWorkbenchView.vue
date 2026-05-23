@@ -134,8 +134,7 @@ import { workflowApi, type Checkpoint, type EvaluationRun, type ReviewRecord, ty
 import { extractContractReviewArtifacts } from '@/utils/agentos/contractReviewArtifactExtractor'
 
 const workflowOptions = [
-  { label: 'StateGraph Runtime', value: 'legal_contract_review_stategraph_v1' },
-  { label: 'AgentOS Native Migration', value: 'legal_contract_review_langgraph_v1' }
+  { label: '合同审查标准流程', value: 'legal_contract_review_v1' }
 ]
 
 const defaultContractText = `甲方委托乙方开发 CRM 系统，合同约定签署后支付 30%，系统上线后支付 70%。
@@ -191,9 +190,7 @@ const startContractReview = async () => {
     const response = await workflowApi.startWorkflow({
       title: '律师合同审查',
       domain: 'legal',
-      intent: selectedWorkflowId.value === 'legal_contract_review_stategraph_v1'
-        ? 'contract_review_stategraph'
-        : 'contract_review_langgraph',
+      intent: 'contract_review',
       workflowId: selectedWorkflowId.value,
       reviewMode: 'human_in_loop',
       input: {

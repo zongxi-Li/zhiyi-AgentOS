@@ -39,11 +39,38 @@ def test_stategraph_contract_review_starts_and_waits_for_human_review():
     asyncio.run(_test_stategraph_contract_review_starts_and_waits_for_human_review())
 
 
+def test_canonical_contract_review_workflow_id_starts_langgraph_adapter():
+    asyncio.run(_test_canonical_contract_review_workflow_id_starts_langgraph_adapter())
+
+
+async def _test_canonical_contract_review_workflow_id_starts_langgraph_adapter():
+    runtime = _runtime()
+    task = runtime.create_task(
+        title="软件开发服务合同审查",
+        domain="legal",
+        intent="contract_review",
+        input={"source": "workbench", "contractText": "甲方委托乙方开发 CRM 系统。"},
+    )
+    run = await runtime.start(
+        task_id=task.task_id,
+        workflow_id="legal_contract_review_v1",
+        review_mode="human_in_loop",
+    )
+
+    assert run.workflow_id == "legal_contract_review_v1"
+    assert run.runtime_engine == "langgraph"
+    assert run.implementation_id == "legal_contract_review_stategraph_v1"
+    assert run.status == WorkflowStatus.WAITING_REVIEW
+    assert run.current_step_id == "human_review"
+
+
 async def _test_stategraph_contract_review_starts_and_waits_for_human_review():
     runtime = _runtime()
     run = await _start_stategraph_run(runtime)
 
-    assert run.workflow_id == "legal_contract_review_stategraph_v1"
+    assert run.workflow_id == "legal_contract_review_v1"
+    assert run.runtime_engine == "langgraph"
+    assert run.implementation_id == "legal_contract_review_stategraph_v1"
     assert run.status == WorkflowStatus.WAITING_REVIEW
     assert run.current_step_id == "human_review"
     assert run.get_step("human_review").status == StepStatus.WAITING_REVIEW
@@ -363,7 +390,7 @@ def test_stategraph_contract_review_api_start_review_resume_flow():
 
     trace_response = client.get(f"/ai/core/workflows/runs/{run_payload['runId']}/trace")
     assert trace_response.status_code == 200
-    assert trace_response.json()["workflowId"] == "legal_contract_review_stategraph_v1"
+    assert trace_response.json()["workflowId"] == "legal_contract_review_v1"
 
     checkpoints_response = client.get(f"/ai/core/workflows/runs/{run_payload['runId']}/checkpoints")
     assert checkpoints_response.status_code == 200
@@ -374,4 +401,4 @@ def test_stategraph_contract_review_api_start_review_resume_flow():
         params={"workflowId": "legal_contract_review_stategraph_v1"},
     )
     assert metrics_response.status_code == 200
-    assert metrics_response.json()["workflowId"] == "legal_contract_review_stategraph_v1"
+    assert metrics_response.json()["workflowId"] == "legal_contract_review_v1"

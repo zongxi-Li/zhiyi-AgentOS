@@ -36,6 +36,14 @@
           <strong>{{ run.taskId }}</strong>
         </div>
         <div>
+          <small>Engine</small>
+          <strong>{{ run.runtimeEngine || 'native' }}</strong>
+        </div>
+        <div>
+          <small>Implementation</small>
+          <strong>{{ run.implementationId || run.workflowId }}</strong>
+        </div>
+        <div>
           <small>审核模式</small>
           <strong>{{ run.reviewMode }}</strong>
         </div>
@@ -198,7 +206,7 @@ button:disabled {
 .meta-grid,
 .metric-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
 }
 

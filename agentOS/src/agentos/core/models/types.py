@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def utc_now() -> datetime:
@@ -97,12 +97,38 @@ class WorkflowStepDefinition(CoreModel):
 
 class WorkflowDefinition(CoreModel):
     workflow_id: str = Field(alias="workflowId")
+    id: Optional[str] = None
     name: str
     domain: str
     intent: str = "general"
     version: str = "1.0.0"
     description: str = ""
+    runtime_engine: str = Field(default="native", alias="runtimeEngine")
+    executor_type: Optional[str] = Field(default=None, alias="executorType")
+    implementation_id: Optional[str] = Field(default=None, alias="implementationId")
+    aliases: List[str] = Field(default_factory=list)
+    artifacts: Dict[str, str] = Field(default_factory=dict)
     steps: List[WorkflowStepDefinition] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_identifier_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "workflowId" not in data and "workflow_id" not in data and "id" in data:
+                data["workflowId"] = data["id"]
+            if "id" not in data and ("workflowId" in data or "workflow_id" in data):
+                data["id"] = data.get("workflowId") or data.get("workflow_id")
+            if "runtimeEngine" not in data and "runtime_engine" not in data and "executorType" in data:
+                data["runtimeEngine"] = data["executorType"]
+        return data
+
+    @property
+    def effective_runtime_engine(self) -> str:
+        return (self.executor_type or self.runtime_engine or "native").strip().lower()
+
+    @property
+    def effective_implementation_id(self) -> str:
+        return (self.implementation_id or self.workflow_id).strip()
 
     def first_step_id(self) -> Optional[str]:
         return self.steps[0].step_id if self.steps else None
@@ -183,6 +209,8 @@ class WorkflowRun(CoreModel):
     task_id: str = Field(alias="taskId")
     workflow_id: str = Field(alias="workflowId")
     domain: str
+    runtime_engine: str = Field(default="native", alias="runtimeEngine")
+    implementation_id: Optional[str] = Field(default=None, alias="implementationId")
     status: WorkflowStatus = WorkflowStatus.PENDING
     current_step_id: Optional[str] = Field(default=None, alias="currentStepId")
     review_mode: str = Field(default="auto", alias="reviewMode")

@@ -104,6 +104,8 @@ export interface WorkflowRun {
   taskId: string
   workflowId: string
   domain: string
+  runtimeEngine?: string
+  implementationId?: string
   status: WorkflowStatus
   currentStepId?: string
   reviewMode: string

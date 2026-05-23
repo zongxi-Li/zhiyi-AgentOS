@@ -7,6 +7,7 @@ import os
 from typing import Optional
 
 from agentos.agents import AgentRegistry
+from agentos.core.execution import LangGraphAdapter, NativeWorkflowAdapter
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.evaluation import WorkflowEvaluator
 from agentos.core.workflow.orchestrator import Orchestrator
@@ -108,17 +109,19 @@ class WorkflowRuntime:
             taskId=task.task_id,
             workflowId=workflow.workflow_id,
             domain=workflow.domain,
+            runtimeEngine=workflow.effective_runtime_engine,
+            implementationId=workflow.effective_implementation_id,
             currentStepId=workflow.first_step_id(),
             reviewMode=review_mode,
             input=dict(task.input),
             steps=[WorkflowStep.from_definition(step) for step in workflow.steps],
         )
 
-        adapter = self._workflow_adapter(workflow.workflow_id)
-        if adapter is not None:
-            self._transition_run(run, WorkflowStatus.RUNNING)
-            return await adapter.start(task=task, run=run, workflow=workflow)
+        adapter = self._workflow_adapter(workflow)
+        self._transition_run(run, WorkflowStatus.RUNNING)
+        return await adapter.start(task=task, run=run, workflow=workflow)
 
+    async def _start_native(self, *, task: AgentTask, run: WorkflowRun, workflow: WorkflowDefinition) -> WorkflowRun:
         self._transition_run(run, WorkflowStatus.RUNNING)
         self.trace_store.append(
             run=run,
@@ -130,13 +133,18 @@ class WorkflowRuntime:
             run=run,
             event_type=TraceEventType.RUN_STARTED,
             observation=f"Workflow started: {workflow.workflow_id}",
-            payload={"workflowId": workflow.workflow_id, "reviewMode": review_mode},
+            payload={"workflowId": workflow.workflow_id, "reviewMode": run.review_mode},
         )
         self.workflow_store.save_run(run)
         return await self._run_until_blocked(task, run, workflow)
 
     def get_status(self, run_id: str) -> WorkflowRun:
         return self.workflow_store.get_run(run_id)
+
+    def resolve_workflow_id(self, workflow_id: str | None) -> str | None:
+        if not workflow_id:
+            return workflow_id
+        return self.workflow_registry.get(workflow_id).workflow_id
 
     def list_checkpoints(self, run_id: str) -> list[Checkpoint]:
         return self.checkpoint_store.list(self.workflow_store.get_run(run_id))
@@ -152,6 +160,7 @@ class WorkflowRuntime:
         workflow_id: str | None = None,
         source: str | None = None,
     ) -> EvaluationRun:
+        workflow_id = self.resolve_workflow_id(workflow_id)
         page = self.workflow_store.list_runs(
             status=status,
             domain=domain,
@@ -169,10 +178,12 @@ class WorkflowRuntime:
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
         run = self.workflow_store.get_run(decision.run_id)
-        adapter = self._workflow_adapter(run.workflow_id)
-        if adapter is not None:
-            return await adapter.apply_review(decision)
+        workflow = self.workflow_registry.get(run.workflow_id)
+        adapter = self._workflow_adapter(workflow)
+        return await adapter.apply_review(decision)
 
+    async def _apply_native_review(self, decision: ReviewDecision) -> WorkflowRun:
+        run = self.workflow_store.get_run(decision.run_id)
         task = self.task_manager.get_task(run.task_id)
         workflow = self.workflow_registry.get(run.workflow_id)
         step = run.get_step(decision.step_id)
@@ -265,23 +276,19 @@ class WorkflowRuntime:
     def _resolve_workflow(self, task: AgentTask, workflow_id: Optional[str]) -> WorkflowDefinition:
         return self.task_manager.bind_workflow(task, workflow_id=workflow_id)
 
-    def _workflow_adapter(self, workflow_id: str):
-        if workflow_id != "legal_contract_review_stategraph_v1":
-            return None
-
-        adapter = self._runtime_adapters.get(workflow_id)
+    def _workflow_adapter(self, workflow: WorkflowDefinition):
+        runtime_engine = workflow.effective_runtime_engine
+        implementation_id = workflow.effective_implementation_id
+        adapter_key = f"{runtime_engine}:{implementation_id}"
+        adapter = self._runtime_adapters.get(adapter_key)
         if adapter is None:
-            from app.graphs.legal_contract_review_stategraph import (
-                LegalContractReviewStateGraphRuntime,
-            )
-
-            adapter = LegalContractReviewStateGraphRuntime(
-                workflow_store=self.workflow_store,
-                trace_store=self.trace_store,
-                checkpoint_store=self.checkpoint_store,
-                review_manager=self.review_manager,
-            )
-            self._runtime_adapters[workflow_id] = adapter
+            if runtime_engine == "native":
+                adapter = NativeWorkflowAdapter(self)
+            elif runtime_engine == "langgraph":
+                adapter = LangGraphAdapter(runtime=self, implementation_id=implementation_id)
+            else:
+                raise ValueError(f"Unsupported workflow runtime engine: {runtime_engine}")
+            self._runtime_adapters[adapter_key] = adapter
         return adapter
 
     async def _run_until_blocked(

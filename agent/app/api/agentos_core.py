@@ -1004,6 +1004,8 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
         page: int = Query(1, ge=1),
         page_size: int = Query(20, ge=1, alias="pageSize"),
     ):
+        if workflow_id:
+            workflow_id = runtime.resolve_workflow_id(workflow_id)
         return _page_to_json(
             runtime.workflow_store.list_runs(
                 status=status,
