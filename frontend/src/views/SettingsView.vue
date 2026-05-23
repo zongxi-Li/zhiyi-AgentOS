@@ -272,6 +272,7 @@ onMounted(() => {
 <style scoped>
 .settings-view {
   position: relative;
+  width: 100%;
   min-height: 100%;
   padding: 20px;
   display: flex;
@@ -307,9 +308,9 @@ onMounted(() => {
   position: relative;
   z-index: 1;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 14px;
-  box-shadow: 0 10px 28px rgba(15, 35, 95, 0.06);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
 }
 
 .page-header {
@@ -333,8 +334,8 @@ onMounted(() => {
 
 .status-chip {
   border-radius: 999px;
-  background: rgba(91, 143, 249, 0.12);
-  color: var(--text-secondary);
+  background: var(--primary-fade);
+  color: var(--primary-color);
   padding: 6px 12px;
   font-size: 12px;
   white-space: nowrap;
@@ -360,9 +361,9 @@ onMounted(() => {
 }
 
 .tab-btn.active {
-  background: rgba(91, 143, 249, 0.12);
-  border-color: rgba(91, 143, 249, 0.28);
-  color: var(--text-primary);
+  background: var(--primary-fade);
+  border-color: var(--primary-line);
+  color: var(--primary-color);
 }
 
 .content-panel {

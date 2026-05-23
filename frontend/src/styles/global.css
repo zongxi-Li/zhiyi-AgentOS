@@ -891,10 +891,24 @@ html, body, #app {
 
 .user-view .user-container,
 .create-role-view .content-container,
-.settings-view,
 .info-view {
   max-width: 1280px !important;
   margin: 0 auto !important;
+}
+
+.settings-view {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.settings-view .page-header,
+.settings-view .tabs-bar,
+.settings-view .content-panel,
+.settings-view .footer-bar {
+  width: min(100%, 1280px) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .user-view .profile-header-card,
