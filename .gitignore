@@ -39,7 +39,12 @@ logs/
 .env
 .env.local
 .env.*.local
-!.env.example
+
+# Local-only bootstrap/deployment files
+.env.example
+dev.ps1
+dev.sh
+docker-compose.yml
 
 # 数据库
 *.db
