@@ -15,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from app.api import chat, tts, agentos_core
 from app.paths import APP_DATA_DIR
 from app.services.aiservice import AIService
+from app.integrations.model_adapter import configure_model_adapter
 from app.config import settings
 from app.utils.logger import setup_logger
 from app.middleware.errorhandler import (
@@ -24,6 +25,7 @@ from app.middleware.errorhandler import (
 
 # 设置日志 - 统一使用INFO级别
 logger = setup_logger(level=logging.INFO)
+configure_model_adapter()
 
 # 生命周期事件处理器
 @asynccontextmanager

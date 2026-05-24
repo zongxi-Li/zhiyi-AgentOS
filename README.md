@@ -190,8 +190,15 @@ kinlin_ai/
 │   │   │   ├── legal_document_loader.py  # 法律文档加载器
 │   │   │   ├── legal_evidence_schema.py  # 证据数据结构
 │   │   │   └── providers/             # 检索 Provider
+│   │   ├── execution/                 # 应用层执行适配器（LangGraphAdapter + implementation registry）
 │   │   ├── graphs/                    # LangGraph 状态图
-│   │   │   └── legal_contract_review_stategraph.py  # 合同审查状态图
+│   │   │   ├── contract_review/       # 合同审查 StateGraph 拆分实现
+│   │   │   │   ├── graph.py           # 图拓扑
+│   │   │   │   ├── state.py           # 状态定义
+│   │   │   │   ├── nodes/             # 节点逻辑
+│   │   │   │   ├── projector.py       # State -> WorkflowRun 投影
+│   │   │   │   └── artifacts.py       # artifact 路径契约
+│   │   │   └── legal_contract_review_stategraph.py  # 兼容 shim
 │   │   ├── ai_engine/                 # AI 引擎适配器
 │   │   └── data/                      # 数据文件（知识库、数字人素材等）
 │   ├── agentos.py                     # AgentOS 入口
@@ -294,6 +301,18 @@ LLM Gateway 提供统一的 AI 引擎访问层，支持：
 - **状态节点**: 合同解析 → 法条匹配 → 风险评估 → 证据关联 → 报告生成
 - **前端工作台**: 证据面板 + 风险面板 + 审查报告预览 + 人工审核
 - **Artifact 提取**: 自动从工作流输出中提取结构化审查结果
+
+### V1.0.6 Core 边界
+
+- AgentOS Core 不直接 import `app.*`、`app.graphs.*` 或 `langgraph`
+- `LangGraphAdapter` 位于应用层 `agent/app/execution/`
+- `LangGraphImplementationRegistry` 负责 `implementationId` 到具体 StateGraph Runtime 的映射
+- 合同审查 StateGraph 主体位于 `agent/app/graphs/contract_review/`
+- `graph.py` 只负责图拓扑，`nodes/*` 负责节点逻辑
+- `projector.py` 负责 LangGraph State 到 AgentOS `WorkflowRun` 的投影
+- `artifacts.py` 负责稳定 artifact 路径契约
+- `legal_contract_review_stategraph.py` 仅保留兼容 shim
+- Core 侧 `model_adapter.py` 只保留模型协议和注册入口，应用层通过 `agent/app/integrations/model_adapter.py` 注册具体 AIService
 
 ## 快速开始
 

@@ -107,3 +107,19 @@ LLM Gateway 与 Evidence Retriever 是能力组件，不是系统主干。
 ```
 
 这条链路的展示重点是治理、可追踪、可审核和可交接，不是模型自由聊天。
+
+## V1.0.6 Core 纯净化补充
+
+V1.0.6 后，AgentOS Core 与应用层边界按以下规则冻结：
+
+- `agentOS/src/agentos/core`、`domain`、`stores`、`workflow`、`execution` 不 import `app.*`、`app.graphs.*` 或 `langgraph`。
+- `LangGraphAdapter` 位于 `agent/app/execution/`，不属于 Core。
+- `LangGraphImplementationRegistry` 位于应用层，负责 `implementationId -> StateGraph Runtime` 映射。
+- `legal_contract_review_stategraph_v1` 当前映射到 `agent/app/graphs/contract_review/runtime.py` 中的 `LegalContractReviewStateGraphRuntime`。
+- `agent/app/graphs/legal_contract_review_stategraph.py` 只作为兼容 shim 保留。
+- 合同审查 StateGraph 主体已经拆分到 `agent/app/graphs/contract_review/`。
+- `contract_review/graph.py` 只负责图拓扑。
+- `contract_review/nodes/*` 负责节点业务逻辑。
+- `contract_review/projector.py` 负责 LangGraph State 到 AgentOS `WorkflowRun` 的投影。
+- `contract_review/artifacts.py` 负责 artifact key 与稳定路径契约。
+- Core 侧 `agentos.adapters.model_adapter` 只保留模型服务协议和注册入口；具体 `app.services.aiservice.AIService` 由 `agent/app/integrations/model_adapter.py` 在应用层注册。
