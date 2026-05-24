@@ -8,7 +8,9 @@ import pytest
 
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents import AgentRegistry
-from agentos.core.execution import LangGraphAdapter, NativeWorkflowAdapter
+from agentos.core.execution import NativeWorkflowAdapter
+from app.execution.langgraph_adapter import LangGraphAdapter
+from app.execution.runtime import configure_execution_adapters
 from packs.legal import register_pack as register_legal_pack
 from agentos.core.workflow.state_machine import InvalidStateTransition, StateMachine
 from agentos.core.models.types import (
@@ -80,6 +82,15 @@ def _runtime_with_workflow(steps, agents):
     return WorkflowRuntime(
         agent_registry=agent_registry,
         workflow_registry=workflow_registry,
+    )
+
+
+def _runtime_with_legal_pack():
+    agent_registry = AgentRegistry()
+    workflow_registry = WorkflowRegistry()
+    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    return configure_execution_adapters(
+        WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
     )
 
 
@@ -229,10 +240,7 @@ def test_legal_demo_pack_registers_agents_and_workflow():
 
 
 async def _test_legal_demo_pack_registers_agents_and_workflow():
-    agent_registry = AgentRegistry()
-    workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = _runtime_with_legal_pack()
 
     task = runtime.create_task(
         title="合同审查",
@@ -271,10 +279,7 @@ def test_agentos_core_api_task_run_review_flow():
 
     from app.api.agentos_core import create_router
 
-    agent_registry = AgentRegistry()
-    workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = _runtime_with_legal_pack()
 
     app = FastAPI()
     app.include_router(create_router(runtime), prefix="/ai")
@@ -365,10 +370,7 @@ def test_workbench_can_start_workflow_in_one_request():
 
     from app.api.agentos_core import create_router
 
-    agent_registry = AgentRegistry()
-    workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = _runtime_with_legal_pack()
 
     app = FastAPI()
     app.include_router(create_router(runtime), prefix="/ai")
@@ -400,10 +402,7 @@ def test_chat_can_upgrade_message_to_workflow_run():
 
     from app.api.agentos_core import create_router
 
-    agent_registry = AgentRegistry()
-    workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = _runtime_with_legal_pack()
 
     app = FastAPI()
     app.include_router(create_router(runtime), prefix="/ai")
@@ -439,10 +438,7 @@ def test_legacy_lawyer_agent_chat_endpoint_returns_status_payload():
 
     from app.api.agentos_core import create_router
 
-    agent_registry = AgentRegistry()
-    workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = _runtime_with_legal_pack()
 
     app = FastAPI()
     app.include_router(create_router(runtime), prefix="/ai")
@@ -574,10 +570,7 @@ def test_agentos_core_api_lists_tasks_and_runs_with_filters():
 
     from app.api.agentos_core import create_router
 
-    agent_registry = AgentRegistry()
-    workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    runtime = WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = _runtime_with_legal_pack()
 
     app = FastAPI()
     app.include_router(create_router(runtime), prefix="/ai")

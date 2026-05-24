@@ -4,6 +4,7 @@ from agentos.agents import AgentRegistry
 from agentos.core.models.types import ReviewDecision, ReviewDecisionType, WorkflowStatus
 from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
+from app.execution.runtime import configure_execution_adapters
 from packs.legal import register_pack as register_legal_pack
 
 
@@ -11,7 +12,9 @@ def _runtime() -> WorkflowRuntime:
     agent_registry = AgentRegistry()
     workflow_registry = WorkflowRegistry()
     register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    return WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    return configure_execution_adapters(
+        WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    )
 
 
 def test_langgraph_contract_review_legacy_id_is_alias_to_canonical_workflow():

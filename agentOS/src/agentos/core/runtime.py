@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Mapping, Optional
 
 from agentos.agents import AgentRegistry
-from agentos.core.execution import LangGraphAdapter, NativeWorkflowAdapter
+from agentos.core.execution import ExecutionAdapterFactory, NativeWorkflowAdapter
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.evaluation import WorkflowEvaluator
 from agentos.core.workflow.orchestrator import Orchestrator
@@ -52,6 +52,7 @@ class WorkflowRuntime:
         review_manager: Optional[ReviewManager] = None,
         evaluator: Optional[WorkflowEvaluator] = None,
         task_manager: Optional[TaskManager] = None,
+        execution_adapter_factories: Optional[Mapping[str, ExecutionAdapterFactory]] = None,
     ):
         self.agent_registry = agent_registry or AgentRegistry()
         self.workflow_registry = workflow_registry or WorkflowRegistry()
@@ -69,6 +70,16 @@ class WorkflowRuntime:
             trace_store=self.trace_store,
         )
         self._runtime_adapters: dict[str, object] = {}
+        self.execution_adapter_factories: dict[str, ExecutionAdapterFactory] = {
+            self._normalize_runtime_engine(engine): factory
+            for engine, factory in (execution_adapter_factories or {}).items()
+        }
+
+    def register_execution_adapter(self, runtime_engine: str, factory: ExecutionAdapterFactory) -> None:
+        engine = self._normalize_runtime_engine(runtime_engine)
+        if engine == "native":
+            raise ValueError("native runtime engine is built into AgentOS Core")
+        self.execution_adapter_factories[engine] = factory
 
     def create_task(
         self,
@@ -284,12 +295,21 @@ class WorkflowRuntime:
         if adapter is None:
             if runtime_engine == "native":
                 adapter = NativeWorkflowAdapter(self)
-            elif runtime_engine == "langgraph":
-                adapter = LangGraphAdapter(runtime=self, implementation_id=implementation_id)
             else:
-                raise ValueError(f"Unsupported workflow runtime engine: {runtime_engine}")
+                factory = self.execution_adapter_factories.get(runtime_engine)
+                if factory is None:
+                    raise ValueError(f"Unsupported workflow runtime engine: {runtime_engine}")
+                adapter = factory(
+                    runtime=self,
+                    workflow=workflow,
+                    implementation_id=implementation_id,
+                )
             self._runtime_adapters[adapter_key] = adapter
         return adapter
+
+    @staticmethod
+    def _normalize_runtime_engine(runtime_engine: str) -> str:
+        return (runtime_engine or "").strip().lower()
 
     async def _run_until_blocked(
         self,

@@ -9,7 +9,8 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.models.types import ReviewDecision, ReviewDecisionType
-from agentos.core.runtime import WorkflowRuntime, build_default_runtime
+from agentos.core.runtime import WorkflowRuntime
+from app.execution.runtime import build_default_runtime
 
 
 class AgentTaskCreateRequest(BaseModel):
