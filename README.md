@@ -240,10 +240,13 @@ kinlin_ai/
 ├── docker/                            # Docker 生产部署配置
 │   └── nginx/
 │
-├── docs/                              # 设计文档与方案
-│   ├── design/                        # 架构设计与技术方案
-│   ├── superpowers/plans/             # 开发计划
-│   └── open-source-reference-survey.md  # 开源参考调研
+├── docs/                              # 项目文档与交付材料
+│   ├── README.md                      # 文档目录索引
+│   ├── 01-项目架构/                    # 架构设计、技术方案、系统说明
+│   ├── 02-项目开发日志/                # 开发计划、能力记录、TODO
+│   ├── 03-赛题要求/                    # 比赛方案、技术路线、赛题对接
+│   ├── 04-演示与交付/                  # 演示指南、交付图表
+│   └── 99-归档/                        # 历史设计与本地生成物说明
 │
 ├── docker-compose.yml                 # 开发环境 Docker Compose
 ├── dev.sh                             # Linux/macOS 开发启动脚本
