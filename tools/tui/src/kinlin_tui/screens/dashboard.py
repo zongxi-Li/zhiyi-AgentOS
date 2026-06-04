@@ -13,6 +13,21 @@ from kinlin_tui.widgets.status_tag import StatusTag
 from kinlin_tui.widgets.step_list import StepList
 
 
+def _first_text(mapping: dict, *keys: str, default: str = "") -> str:
+    """Return the first non-empty value for *keys* as text."""
+    for key in keys:
+        value = mapping.get(key)
+        if value is not None and str(value):
+            return str(value)
+    return default
+
+
+def _row_key_text(row_key: object) -> str:
+    """Extract a string value from Textual's RowKey wrapper."""
+    value = getattr(row_key, "value", row_key)
+    return str(value)
+
+
 class TraceScreen(Screen):
     """Simple full-screen trace viewer."""
 
@@ -131,13 +146,26 @@ class DashboardScreen(Screen):
             return
 
         for i, run in enumerate(items, start=1):
-            run_id = run.get("id", run.get("run_id", ""))
-            title = run.get("title", run.get("task_title", "Untitled"))
-            status = run.get("status", "unknown")
-            domain = run.get(
-                "domain",
-                run.get("role_type", run.get("role", "-")),
+            run_id = _first_text(run, "runId", "run_id", "id")
+            title = _first_text(
+                run,
+                "title",
+                "taskTitle",
+                "task_title",
+                "workflowId",
+                "workflow_id",
+                default="Untitled",
             )
+            status = _first_text(run, "status", default="unknown")
+            domain = _first_text(
+                run,
+                "domain",
+                "roleType",
+                "role_type",
+                "role",
+                default="-",
+            )
+            row_key = run_id or _first_text(run, "taskId", "task_id", default=f"row-{i}")
 
             steps = run.get("steps", [])
             total = len(steps)
@@ -150,12 +178,12 @@ class DashboardScreen(Screen):
 
             table.add_row(
                 str(i),
-                run_id[:12],
+                (run_id or row_key)[:12],
                 title[:50],
                 status_cell,
                 progress,
                 domain,
-                key=run_id,
+                key=row_key,
             )
 
     async def on_data_table_row_selected(
@@ -164,7 +192,7 @@ class DashboardScreen(Screen):
         """Handle row selection: fetch run details and show steps."""
         if event.row_key is None:
             return
-        run_id = event.row_key
+        run_id = _row_key_text(event.row_key)
         self._selected_run_id = run_id
 
         result = await self.app.api_client.get_workflow_run(run_id)
@@ -172,8 +200,16 @@ class DashboardScreen(Screen):
             self.notify(f"Error: {result['error']}", severity="error")
             return
 
-        title = result.get("title", result.get("task_title", "Untitled"))
-        status = result.get("status", "unknown")
+        title = _first_text(
+            result,
+            "title",
+            "taskTitle",
+            "task_title",
+            "workflowId",
+            "workflow_id",
+            default="Untitled",
+        )
+        status = _first_text(result, "status", default="unknown")
         status_color = StatusTag.get_color(status)
 
         self.query_one("#detail-title", Static).update(

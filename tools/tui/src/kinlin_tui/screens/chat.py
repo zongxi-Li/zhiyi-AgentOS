@@ -64,6 +64,7 @@ class ChatScreen(Screen):
         # Rendered markup lines kept so we can clear + rewrite the log
         # when replacing the "thinking" placeholder with a real answer.
         self._rendered: list[str] = []
+        self._session_ids: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Composition
@@ -172,13 +173,22 @@ class ChatScreen(Screen):
             pass
 
         result: dict = {}
+        session_id = self._session_ids.get(role_str)
         try:
-            result = await self.app.api_client.agent_chat(role_str, text)  # type: ignore[attr-defined]
+            result = await self.app.api_client.agent_chat(  # type: ignore[attr-defined]
+                role_str,
+                text,
+                session_id=session_id,
+            )
         except Exception as exc:
             result = {"error": str(exc)}
 
         # -- replace thinking with answer ---------------------------------
         self._rendered.pop()  # remove thinking placeholder
+
+        returned_session_id = result.get("sessionId") or result.get("session_id")
+        if returned_session_id:
+            self._session_ids[role_str] = str(returned_session_id)
 
         if "error" in result:
             answer_line = f"[bold red]Error:[/] {result['error']}"
