@@ -2,6 +2,7 @@
 
 
 import json
+import uuid
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -257,6 +258,197 @@ LEGACY_AGENT_CONFIG: Dict[str, Dict[str, Any]] = {
         "skills": {"outline_generate": "outline_generate"},
     },
 }
+
+
+def _compact_chat_text(text: str) -> str:
+    return "".join(str(text or "").strip().lower().split())
+
+
+def _contains_any(text: str, markers: list[str]) -> bool:
+    normalized = _compact_chat_text(text)
+    return any(marker.lower() in normalized for marker in markers)
+
+
+def _is_smalltalk(text: str) -> bool:
+    normalized = _compact_chat_text(text).strip(".,!?;:，。！？；：")
+    return normalized in {
+        "",
+        "hi",
+        "hello",
+        "hey",
+        "你好",
+        "您好",
+        "你好啊",
+        "您好啊",
+        "你好呀",
+        "在吗",
+        "谢谢",
+        "感谢",
+        "你是谁",
+        "介绍一下",
+        "你能做什么",
+    }
+
+
+def _should_use_legal_case_workflow(text: str) -> bool:
+    return _contains_any(
+        text,
+        [
+            "合同",
+            "违约",
+            "赔偿",
+            "证据",
+            "起诉",
+            "仲裁",
+            "诉讼",
+            "纠纷",
+            "案情",
+            "审查",
+            "条款",
+            "借款",
+            "欠款",
+            "劳动",
+            "工伤",
+            "离婚",
+            "侵权",
+            "被告",
+            "原告",
+            "法院",
+            "律师函",
+            "协议",
+            "租赁",
+            "买卖",
+            "交付",
+            "付款",
+            "定金",
+            "工资",
+            "加班",
+            "辞退",
+            "交通事故",
+        ],
+    )
+
+
+def _is_general_legal_question(text: str) -> bool:
+    return _contains_any(
+        text,
+        [
+            "违法吗",
+            "合法吗",
+            "犯法吗",
+            "犯罪吗",
+            "是否违法",
+            "是否犯罪",
+            "会坐牢",
+            "怎么判",
+            "什么罪",
+            "vpn",
+            "翻墙",
+            "代理",
+        ],
+    )
+
+
+def _direct_smalltalk_answer(role: str) -> str:
+    if role == "lawyer":
+        return (
+            "你好，我是知弈 AgentOS 的律师智能体。"
+            "可以帮你做法律咨询、合同审查、风险识别和诉讼思路梳理。"
+            "你可以直接说具体问题。"
+        )
+    if role == "teacher":
+        return "你好，我是教师智能体。可以帮你设计课程、拆解知识点、生成练习和教学反馈。"
+    if role == "programmer":
+        return "你好，我是程序员智能体。可以帮你分析需求、阅读代码、生成实现方案和调试问题。"
+    if role == "writer":
+        return "你好，我是写作智能体。可以帮你做选题、提纲、人物设定、章节规划和文本润色。"
+    return "你好，请直接告诉我你想处理的问题。"
+
+
+def _direct_lawyer_general_answer(text: str) -> str:
+    if _contains_any(text, ["vpn", "翻墙", "代理"]):
+        return "\n".join(
+            [
+                "一般不能简单回答“使用 VPN 一定违法”或“一定不违法”。要看所在地、工具来源、用途、是否经营提供给他人，以及是否通过合规审批。",
+                "",
+                "在中国大陆，未经批准建立或租用专线、VPN 等跨境信道，可能涉及行政监管风险；如果用于诈骗、传播违法信息、侵犯数据安全、危害国家安全等，还可能叠加行政或刑事责任。",
+                "",
+                "建议你补充几个事实：你所在地区、VPN 的具体用途、是否是单位合规专线、是否向他人提供或收费、是否涉及违法内容。补充后我可以继续按风险点帮你分析。",
+            ]
+        )
+
+    return "\n".join(
+        [
+            "这是一个一般法律咨询问题，不能只按“案件分析”模板处理。",
+            "",
+            "初步判断要看具体事实、所在地规则、行为目的、是否造成后果，以及是否存在经营、传播、牟利或帮助他人违法等情节。",
+            "",
+            "你可以补充：发生地、具体行为、时间、涉及金额或对象、目前是否收到通知/处罚/起诉材料。我再帮你进一步判断风险等级和处理思路。",
+        ]
+    )
+
+
+def _direct_agent_response(
+    role: str,
+    role_config: Dict[str, Any],
+    request: LegacyAgentChatRequest,
+    answer: str,
+    observation: str,
+    risk_level: Optional[str] = None,
+) -> Dict[str, Any]:
+    response: Dict[str, Any] = {
+        "success": True,
+        "answer": answer,
+        "sessionId": request.session_id or f"session_{role}_{uuid.uuid4().hex[:12]}",
+        "skillsUsed": [],
+        "trace": [
+            {
+                "step": 1,
+                "thought": f"Handle {role_config['title']} directly because the message does not require a workflow run.",
+                "action": "direct_response",
+                "observation": observation,
+            }
+        ],
+        "federated": {
+            "enabled": True,
+            "applied": False,
+            "risk_adjustment": 0,
+            "confidence": 0.85,
+            "federated_nodes_count": 0,
+        },
+    }
+    if role == "lawyer":
+        response["riskLevel"] = risk_level or "low"
+    return response
+
+
+def _direct_agent_chat_response(
+    role: str,
+    role_config: Dict[str, Any],
+    request: LegacyAgentChatRequest,
+) -> Optional[Dict[str, Any]]:
+    text = request.text.strip()
+    if _is_smalltalk(text):
+        return _direct_agent_response(
+            role=role,
+            role_config=role_config,
+            request=request,
+            answer=_direct_smalltalk_answer(role),
+            observation="smalltalk_or_capability_intro",
+            risk_level="low",
+        )
+
+    if role == "lawyer" and _is_general_legal_question(text) and not _should_use_legal_case_workflow(text):
+        return _direct_agent_response(
+            role=role,
+            role_config=role_config,
+            request=request,
+            answer=_direct_lawyer_general_answer(text),
+            observation="general_legal_question",
+            risk_level="medium",
+        )
+
+    return None
 
 
 def _step_artifacts(run) -> Dict[str, Any]:
@@ -971,6 +1163,10 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"unsupported agent role: {role}")
 
         text = request.text.strip()
+        direct_response = _direct_agent_chat_response(role_key, role_config, request)
+        if direct_response is not None:
+            return direct_response
+
         workflow_input = {
             "source": "legacy_agent_chat",
             "chatText": text,

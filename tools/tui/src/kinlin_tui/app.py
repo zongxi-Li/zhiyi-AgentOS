@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import socket
-import subprocess
 import sys
 import time
 import urllib.error
@@ -48,15 +46,13 @@ class AgentOSTuiApp(App):
 
     current_role: RoleTheme = reactive(RoleTheme.LAWYER)
     api_client: AgentOSClient
-    _managed_backend: subprocess.Popen[bytes] | None
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def __init__(self, managed_backend: subprocess.Popen[bytes] | None = None) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._managed_backend = managed_backend
         api_url = os.environ.get("AGENTOS_API_URL", "http://127.0.0.1:8000/ai")
         self.api_client = AgentOSClient(base_url=api_url)
 
@@ -118,12 +114,14 @@ class AgentOSTuiApp(App):
     async def on_unmount(self) -> None:
         """Close the API client when the app exits."""
         await self.api_client.close()
-        _stop_managed_backend(self._managed_backend)
 
 
 # ============================================================================
 # CLI entry point
 # ============================================================================
+
+
+DEFAULT_DOCKER_API_URL = "http://127.0.0.1:8000/ai"
 
 
 def _service_root_from_api_url(api_url: str) -> str:
@@ -145,30 +143,6 @@ def _api_health_ok(api_url: str, timeout: float = 2.0) -> bool:
         return False
 
 
-def _port_available(port: int) -> bool:
-    """Return True when localhost can bind to *port*."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(("127.0.0.1", port))
-        except OSError:
-            return False
-    return True
-
-
-def _find_available_port(preferred: int) -> int:
-    """Find an available local backend port near *preferred*."""
-    candidates = list(range(preferred, preferred + 50)) + list(range(8765, 8790))
-    seen: set[int] = set()
-    for port in candidates:
-        if port in seen:
-            continue
-        seen.add(port)
-        if _port_available(port):
-            return port
-    raise RuntimeError("No free local port found for the AgentOS backend.")
-
-
 def _repo_root() -> Path | None:
     """Locate the repository root that contains the Python AI service."""
     candidates = [Path.cwd(), *Path(__file__).resolve().parents]
@@ -178,80 +152,19 @@ def _repo_root() -> Path | None:
     return None
 
 
-def _start_local_backend(port: int) -> subprocess.Popen[bytes]:
-    """Start the local FastAPI backend on *port*."""
-    root = _repo_root()
-    if root is None:
-        raise RuntimeError("Cannot locate repository root with agent/app/main.py.")
-
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    return subprocess.Popen(
-        [
-            sys.executable,
-            "-X",
-            "utf8",
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ],
-        cwd=root / "agent",
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=creationflags,
-    )
-
-
-def _stop_managed_backend(process: subprocess.Popen[bytes] | None) -> None:
-    """Stop a backend process started by this CLI."""
-    if process is None or process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-
-
-def _ensure_default_local_api() -> subprocess.Popen[bytes] | None:
-    """Ensure a usable local backend when no explicit API URL was provided."""
-    default_api_url = "http://127.0.0.1:8000/ai"
-    if _api_health_ok(default_api_url):
-        return None
-
-    port = _find_available_port(8000)
-    api_url = f"http://127.0.0.1:{port}/ai"
-    print(f"Starting local AgentOS backend on {api_url} ...", flush=True)
-    process = _start_local_backend(port)
-
-    for _ in range(240):
-        if process.poll() is not None:
-            raise RuntimeError("Local AgentOS backend exited before becoming healthy.")
-        if _api_health_ok(api_url):
-            os.environ["AGENTOS_API_URL"] = api_url
-            print("AgentOS backend is ready.", flush=True)
-            return process
-        time.sleep(0.5)
-
-    _stop_managed_backend(process)
-    raise RuntimeError("Timed out waiting for local AgentOS backend health check.")
-
-
 def _run_os(args: argparse.Namespace) -> None:
     """Launch the AgentOS TUI."""
-    managed_backend: subprocess.Popen[bytes] | None = None
     if args.api_url:
         os.environ["AGENTOS_API_URL"] = args.api_url
     elif "AGENTOS_API_URL" not in os.environ:
-        managed_backend = _ensure_default_local_api()
+        os.environ["AGENTOS_API_URL"] = DEFAULT_DOCKER_API_URL
+        if not _api_health_ok(DEFAULT_DOCKER_API_URL):
+            print(
+                "Docker AgentOS backend is not healthy at "
+                f"{DEFAULT_DOCKER_API_URL}. Start Docker services with `zhiyi start` "
+                "or pass --api-url explicitly.",
+                flush=True,
+            )
 
     role_map: dict[str, RoleTheme] = {
         "lawyer": RoleTheme.LAWYER,
@@ -260,7 +173,7 @@ def _run_os(args: argparse.Namespace) -> None:
         "writer": RoleTheme.WRITER,
     }
 
-    app = AgentOSTuiApp(managed_backend=managed_backend)
+    app = AgentOSTuiApp()
     app.current_role = role_map.get(args.role, RoleTheme.LAWYER)
     app.run()
 
@@ -271,7 +184,13 @@ def _run_start(args: argparse.Namespace) -> None:
     import time
 
     print("Starting Docker services...")
-    subprocess.run(["docker", "compose", "up", "-d", "ai-service"], check=True)
+    root = _repo_root()
+    prod_compose = root / "docker" / "docker-compose.prod.yml" if root else None
+    compose_command = ["docker", "compose"]
+    if prod_compose and prod_compose.exists():
+        compose_command.extend(["-f", str(prod_compose)])
+    compose_command.extend(["up", "-d", "ai-service"])
+    subprocess.run(compose_command, check=True)
 
     url = f"http://127.0.0.1:8000/health"
     print("Waiting for ai-service...", end="", flush=True)
@@ -288,7 +207,7 @@ def _run_start(args: argparse.Namespace) -> None:
         print(" TIMEOUT")
         sys.exit(1)
 
-    os.environ["AGENTOS_API_URL"] = args.api_url or "http://127.0.0.1:8000/ai"
+    os.environ["AGENTOS_API_URL"] = args.api_url or DEFAULT_DOCKER_API_URL
     role_map = {
         "lawyer": RoleTheme.LAWYER,
         "teacher": RoleTheme.TEACHER,

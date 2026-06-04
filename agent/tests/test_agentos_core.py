@@ -462,6 +462,65 @@ def test_legacy_lawyer_agent_chat_endpoint_returns_status_payload():
     assert payload["trace"][0]["action"] == "case_understanding"
 
 
+def test_legacy_lawyer_agent_chat_greeting_returns_direct_intro():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    runtime = _runtime_with_legal_pack()
+
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ai/agent/lawyer/chat",
+        json={"text": "你好", "sessionId": "session_hi"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["sessionId"] == "session_hi"
+    assert "律师智能体" in payload["answer"]
+    assert "法律咨询" in payload["answer"]
+    assert "法律初步分析" not in payload["answer"]
+    assert "民商事争议" not in payload["answer"]
+    assert payload["skillsUsed"] == []
+    assert payload["trace"][0]["action"] == "direct_response"
+
+
+def test_legacy_lawyer_agent_chat_vpn_question_is_not_contract_template():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    runtime = _runtime_with_legal_pack()
+
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ai/agent/lawyer/chat",
+        json={"text": "使用vpn违法吗", "sessionId": "session_vpn"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["sessionId"] == "session_vpn"
+    assert "VPN" in payload["answer"]
+    assert "行政" in payload["answer"] or "监管" in payload["answer"]
+    assert "合同履行原则" not in payload["answer"]
+    assert "违约责任" not in payload["answer"]
+    assert "民商事争议" not in payload["answer"]
+    assert payload["skillsUsed"] == []
+    assert payload["trace"][0]["action"] == "direct_response"
+
+
 def test_legacy_programmer_agent_chat_endpoint_returns_full_deliverable():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
