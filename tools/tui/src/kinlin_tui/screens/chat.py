@@ -8,13 +8,15 @@ from typing import Optional
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Input, RichLog
 
+from kinlin_tui.mascot import MascotMood
 from kinlin_tui.theme import RoleTheme, ROLE_NAMES, ROLE_ICONS
 from kinlin_tui.widgets.command_bar import CommandBar as CommandBarWidget
 from kinlin_tui.widgets.header import HeaderWidget
+from kinlin_tui.widgets.mascot_widget import MascotWidget
 
 
 class ChatScreen(Screen):
@@ -34,7 +36,12 @@ class ChatScreen(Screen):
         dock: bottom;
     }
 
+    #main-row {
+        height: 1fr;
+    }
+
     #center-col {
+        width: 1fr;
         height: 1fr;
     }
 
@@ -49,6 +56,21 @@ class ChatScreen(Screen):
         dock: bottom;
         margin: 0 0 1 0;
         border: solid #30363d;
+    }
+
+    #mascot-panel {
+        width: 20;
+        height: 1fr;
+        padding: 1 1;
+        border: solid #30363d;
+        background: #0d1117;
+    }
+
+    #mascot {
+        width: 100%;
+        height: 8;
+        content-align: center middle;
+        background: #0d1117;
     }
     """
 
@@ -73,9 +95,12 @@ class ChatScreen(Screen):
     def compose(self) -> ComposeResult:
         yield HeaderWidget(id="header")
 
-        with Vertical(id="center-col"):
-            yield RichLog(id="message-log", highlight=True, markup=True)
-            yield Input(id="chat-input", placeholder="Type a message...")
+        with Horizontal(id="main-row"):
+            with Vertical(id="center-col"):
+                yield RichLog(id="message-log", highlight=True, markup=True)
+                yield Input(id="chat-input", placeholder="Type a message...")
+            with Vertical(id="mascot-panel"):
+                yield MascotWidget(id="mascot")
 
         yield CommandBarWidget(id="command-bar")
 
@@ -91,6 +116,7 @@ class ChatScreen(Screen):
             role = self.app.current_role  # type: ignore[attr-defined]
             header = self.query_one("#header", HeaderWidget)
             header.role = role
+            self._set_mascot(role=role, mood=MascotMood.IDLE)
         except Exception:
             pass
 
@@ -118,6 +144,7 @@ class ChatScreen(Screen):
         self.app.current_role = next_role  # type: ignore[attr-defined]
         header = self.query_one("#header", HeaderWidget)
         header.role = next_role
+        self._set_mascot(role=next_role, mood=MascotMood.IDLE)
         self.notify(
             f"Switched to {ROLE_ICONS[next_role]} {ROLE_NAMES[next_role]}",
             timeout=2,
@@ -164,6 +191,7 @@ class ChatScreen(Screen):
         thinking_line = "[dim italic]ZhiYi is thinking...[/]"
         self._rendered.append(thinking_line)
         self._render_log(log)
+        self._set_mascot(mood=MascotMood.THINKING)
 
         # -- API call -----------------------------------------------------
         role_str: str = "lawyer"
@@ -192,10 +220,13 @@ class ChatScreen(Screen):
 
         if "error" in result:
             answer_line = f"[bold red]Error:[/] {result['error']}"
+            self._set_mascot(mood=MascotMood.ERROR)
         elif result.get("answer"):
             answer_line = f"[bold #409EFF]ZhiYi:[/]\n{result['answer']}"
+            self._set_mascot(mood=MascotMood.HAPPY)
         elif not result.get("success", True):
             answer_line = f"[bold red]API failed:[/] {str(result)[:500]}"
+            self._set_mascot(mood=MascotMood.ERROR)
         else:
             reply: str = (
                 result.get("response")
@@ -204,6 +235,7 @@ class ChatScreen(Screen):
                 or str(result)[:500]
             )
             answer_line = f"[bold #409EFF]ZhiYi:[/]\n{reply}"
+            self._set_mascot(mood=MascotMood.HAPPY)
 
         self._rendered.append(answer_line)
         self._render_log(log)
@@ -218,3 +250,19 @@ class ChatScreen(Screen):
         for line in self._rendered:
             log.write(line)
         log.scroll_end(animate=False)
+
+    def _set_mascot(
+        self,
+        *,
+        mood: MascotMood | None = None,
+        role: RoleTheme | None = None,
+    ) -> None:
+        """Update the mascot when the widget is present on the screen."""
+        try:
+            mascot = self.query_one("#mascot", MascotWidget)
+        except Exception:
+            return
+        if role is not None:
+            mascot.role = role
+        if mood is not None:
+            mascot.mood = mood

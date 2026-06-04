@@ -7,6 +7,9 @@ import asyncio
 from textual.widgets import DataTable, Input, RichLog
 
 from kinlin_tui.app import AgentOSTuiApp, _parse_args
+from kinlin_tui.mascot import MascotMood, WELCOME_BANNER, get_mascot
+from kinlin_tui.theme import RoleTheme
+from kinlin_tui.widgets.mascot_widget import MascotWidget
 
 
 class FakeClient:
@@ -106,6 +109,46 @@ def test_chat_reuses_returned_session_id() -> None:
         ]
 
     asyncio.run(scenario())
+
+
+def test_chat_mascot_mounts_and_tracks_role_and_reply_state() -> None:
+    async def scenario() -> None:
+        app = AgentOSTuiApp()
+        await app.api_client.close()
+
+        fake_client = FakeClient()
+        app.api_client = fake_client  # type: ignore[assignment]
+
+        async with app.run_test(size=(100, 30)) as pilot:
+            mascot = app.screen.query_one("#mascot", MascotWidget)
+            assert mascot.mood == MascotMood.IDLE
+            assert mascot.role == RoleTheme.LAWYER
+
+            await pilot.press("f2")
+            await pilot.pause(0.1)
+            assert mascot.role == RoleTheme.TEACHER
+            assert mascot.mood == MascotMood.IDLE
+
+            input_widget = app.screen.query_one("#chat-input", Input)
+            input_widget.value = "hello"
+            await pilot.press("enter")
+            await pilot.pause(0.1)
+
+            assert fake_client.calls == [("teacher", "hello", None)]
+            assert mascot.role == RoleTheme.TEACHER
+            assert mascot.mood == MascotMood.HAPPY
+
+    asyncio.run(scenario())
+
+
+def test_mascot_frames_are_clean_ascii_and_consistent() -> None:
+    for mood in MascotMood:
+        frame = get_mascot(mood)
+        assert len(frame) == 8
+        assert all(line.isascii() for line in frame)
+
+    assert all(line.isascii() for line in WELCOME_BANNER)
+    assert "o     o" in "\n".join(get_mascot(MascotMood.IDLE))
 
 
 def test_dashboard_accepts_camel_case_run_ids() -> None:

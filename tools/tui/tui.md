@@ -219,6 +219,14 @@ http://127.0.0.1:8000/ai
 lawyer -> teacher -> programmer -> writer
 ```
 
+吉祥物由 `MascotWidget` 挂载在聊天页右侧。形象是纯 ASCII 的圆润小助手，避免 emoji 或宽字符在不同终端里错位：
+
+- 初始状态：`MascotMood.IDLE`
+- 发送消息后：`MascotMood.THINKING`
+- 收到正常回复后：`MascotMood.HAPPY`
+- API 返回错误或异常后：`MascotMood.ERROR`
+- 切换角色时同步 `MascotWidget.role`，用于更新主题色
+
 新增角色时至少要同步修改：
 
 - `theme.py` 中的 `RoleTheme`、`ROLE_NAMES`、`ROLE_ICONS`

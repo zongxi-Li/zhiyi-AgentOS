@@ -12,6 +12,15 @@ class MascotWidget(Static):
     mood: MascotMood = reactive(MascotMood.IDLE)
     role: RoleTheme = reactive(RoleTheme.LAWYER)
 
+    def on_mount(self) -> None:
+        self.update(self.render())
+
+    def watch_mood(self, _old: MascotMood, _new: MascotMood) -> None:
+        self.update(self.render())
+
+    def watch_role(self, _old: RoleTheme, _new: RoleTheme) -> None:
+        self.update(self.render())
+
     def render(self) -> str:
         color = ROLE_COLORS.get(self.role, "#409EFF")
         return get_mascot_text(self.mood, color=color)

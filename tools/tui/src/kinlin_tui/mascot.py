@@ -1,8 +1,8 @@
 """
-AgentOS TUI mascot: "Yi Zai" (Go-stone sprite) rendered as ASCII art.
+AgentOS TUI mascot: "Yi Zai", a soft terminal companion rendered as ASCII art.
 
-Moods control eyes and mouth: IDLE, THINKING, WORKING, HAPPY, ERROR, WAITING.
-Each frame is 5 lines tall and 9 characters wide.
+The frames are intentionally plain ASCII so they render reliably in Windows
+Terminal, cmd, PowerShell, and SSH sessions with different font settings.
 """
 
 from enum import Enum
@@ -19,70 +19,87 @@ class MascotMood(str, Enum):
 
 MASCOT_FRAMES: dict[MascotMood, list[str]] = {
     MascotMood.IDLE: [
-        "  .---.",
-        " /     \\",
-        "|  o o  |",
-        " \\  w  /",
-        "  '---'",
+        "    .-~~~-.    ",
+        "  .'       '.  ",
+        " /  o     o  \\ ",
+        "|      v      |",
+        "|   \\_____/   |",
+        " \\           / ",
+        "  '._     _.'  ",
+        "     '---'     ",
     ],
     MascotMood.THINKING: [
-        "  .---.",
-        " /     \\",
-        "|  u u  |",
-        " \\  ~  /",
-        "  '---'",
+        "    .-~~~-.    ",
+        "  .'       '.  ",
+        " /  u     u  \\ ",
+        "|      ~      |",
+        "|    . . .    |",
+        " \\           / ",
+        "  '._     _.'  ",
+        "     '---'     ",
     ],
     MascotMood.WORKING: [
-        "  .---.",
-        " /     \\",
-        "|  * *  |",
-        " \\  O  /",
-        "  '---'",
+        "    .-~~~-.    ",
+        "  .'       '.  ",
+        " /  *     *  \\ ",
+        "|      o      |",
+        "|   /-----\\   |",
+        " \\           / ",
+        "  '._     _.'  ",
+        "     '---'     ",
     ],
     MascotMood.HAPPY: [
-        "  .---.",
-        " /     \\",
-        "|  ^ ^  |",
-        " \\  V  /",
-        "  '---'",
+        "    .-~~~-.    ",
+        "  .'       '.  ",
+        " /  ^     ^  \\ ",
+        "|      v      |",
+        "|   \\_____/   |",
+        " \\           / ",
+        "  '._     _.'  ",
+        "     '---'     ",
     ],
     MascotMood.ERROR: [
-        "  .---.",
-        " /     \\",
-        "|  x x  |",
-        " \\  n  /",
-        "  '---'",
+        "    .-~~~-.    ",
+        "  .'       '.  ",
+        " /  >     <  \\ ",
+        "|      _      |",
+        "|    -----    |",
+        " \\           / ",
+        "  '._     _.'  ",
+        "     '---'     ",
     ],
     MascotMood.WAITING: [
-        "  .---.",
-        " /     \\",
-        "|  . .  |",
-        " \\  ?  /",
-        "  '---'",
+        "    .-~~~-.    ",
+        "  .'       '.  ",
+        " /  .     .  \\ ",
+        "|      ?      |",
+        "|    _____    |",
+        " \\           / ",
+        "  '._     _.'  ",
+        "     '---'     ",
     ],
 }
 
 WELCOME_BANNER: list[str] = [
-    "  .---.        ╔══════════════════════════╗",
-    " /     \\       ║     Welcome to AgentOS    ║",
-    "|  ^ ^  |      ║   Your AI Coding Agent    ║",
-    " \\  V  /       ║   powered by Yi Zai [stone]║",
-    "  '---'        ╚══════════════════════════╝",
-    "",
-    "    Ready to assist.  Type /help for commands.",
+    "    .-~~~-.       +----------------------+",
+    "  .'       '.     |  Welcome to AgentOS  |",
+    " /  ^     ^  \\    |  Terminal Workbench  |",
+    "|      v      |   |  Yi Zai is ready     |",
+    "|   \\_____/   |   +----------------------+",
+    " \\           / ",
+    "  '._     _.'  ",
+    "     '---'     ",
 ]
 
 
 def get_mascot(mood: MascotMood) -> list[str]:
-    """Return the 5-line ASCII frame for the given mood."""
+    """Return the ASCII frame for the given mood."""
     return MASCOT_FRAMES.get(mood, MASCOT_FRAMES[MascotMood.IDLE])
 
 
 def get_mascot_text(mood: MascotMood, color: str = "white") -> str:
-    """Return the 5-line ASCII frame joined by newlines, annotated with a
-    Textual BBCode color tag when *color* is not the default ``"white"``."""
-    frame = get_mascot(mood)
-    text = "\n".join(frame)
+    """Return the frame joined by newlines, optionally wrapped in a color tag."""
+    text = "\n".join(get_mascot(mood))
     if color != "white":
         text = f"[{color}]{text}[/{color}]"
     return text
