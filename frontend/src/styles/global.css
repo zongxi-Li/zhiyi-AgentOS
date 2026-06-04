@@ -572,10 +572,16 @@ html, body, #app {
 
 .skill-panel .panel-tabs {
   background: #fff !important;
+  align-items: stretch !important;
 }
 
 .skill-panel .tab-btn {
+  min-height: 44px !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
   transition: var(--transition) !important;
+  align-self: stretch !important;
+  flex-wrap: nowrap !important;
 }
 
 .skill-panel .tab-btn:hover,
@@ -588,6 +594,22 @@ html, body, #app {
 .skill-panel .tab-btn.active .tab-badge {
   background: var(--agent-tone) !important;
   color: #fff !important;
+}
+
+.skill-panel .tab-label,
+.skill-panel .tab-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  line-height: 1 !important;
+}
+
+.skill-panel .tab-icon {
+  flex: 0 0 auto !important;
+  line-height: 1 !important;
+}
+
+.skill-panel .tab-badge {
+  flex-shrink: 0 !important;
 }
 
 .skill-panel .federated-btn {

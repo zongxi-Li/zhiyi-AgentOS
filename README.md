@@ -51,7 +51,7 @@
 
 | 技术 | 用途 |
 |------|------|
-| Python 3.9+ | 编程语言 |
+| Python 3.14+ | 编程语言 |
 | FastAPI + Uvicorn | Web 框架与 ASGI 服务器 |
 | LangGraph | 合同审查状态图编排 |
 | OpenAI SDK | DeepSeek + 通义千问兼容调用 |
@@ -322,7 +322,7 @@ LLM Gateway 提供统一的 AI 引擎访问层，支持：
 ### 环境要求
 
 - Docker Desktop / Docker Engine with Docker Compose
-- （可选）本地开发需 JDK 17、Node.js 18+、Python 3.9+
+- （可选）本地开发需 JDK 17、Node.js 18+、Python 3.14+
 
 ### 1. 配置 API 密钥
 
@@ -431,8 +431,8 @@ Java 网关提供 `/api/agentos/*` 入口，转发到 Python AgentOS `/ai/*`。
 
 - 前端: TypeScript 严格模式，Vue 3 Composition API
 - 后端: Java 17，Spring Boot 标准分层架构
-- AI 服务: Python 3.9+，FastAPI 异步模式
-- AgentOS: Python 3.9+，类型标注，领域驱动设计
+- AI 服务: Python 3.14+，FastAPI 异步模式
+- AgentOS: Python 3.14+，类型标注，领域驱动设计
 - 所有配置通过环境变量 / `.env` 文件管理，不硬编码
 
 ## 常见问题
