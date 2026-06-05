@@ -14,6 +14,55 @@ class MockLLMProvider:
 
     def generate_json(self, prompt: str, schema: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         task = compact_schema_name(schema)
+        if task == "chat_route_decision":
+            user_text = prompt
+            if "用户输入：" in prompt:
+                user_text = prompt.split("用户输入：", 1)[1].splitlines()[0]
+            prompt_lower = user_text.lower()
+            if any(marker in prompt_lower for marker in ["你是什么模型", "你用什么模型", "什么大模型", "底层模型", "模型是什么"]):
+                return {
+                    "decision": "direct",
+                    "workflow_id": "none",
+                    "use_langgraph": False,
+                    "reason": "用户询问底层模型或系统身份，不需要启动工作流。",
+                    "confidence": 0.96,
+                    "direct_answer_type": "model_intro",
+                }
+            if any(marker in prompt_lower for marker in ["你好", "您好", "你是什么角色", "你是谁", "what are you"]):
+                return {
+                    "decision": "direct",
+                    "workflow_id": "none",
+                    "use_langgraph": False,
+                    "reason": "用户是在问候或询问智能体角色，不需要启动工作流。",
+                    "confidence": 0.96,
+                    "direct_answer_type": "role_intro",
+                }
+            if any(marker in prompt_lower for marker in ["使用vpn违法吗", "vpn违法吗", "翻墙违法吗"]):
+                return {
+                    "decision": "direct",
+                    "workflow_id": "none",
+                    "use_langgraph": False,
+                    "reason": "用户提出一般法律咨询，不需要合同审查图流程。",
+                    "confidence": 0.9,
+                    "direct_answer_type": "general_question",
+                }
+            if any(marker in prompt_lower for marker in ["审查这份", "合同审查", "审查合同", "软件开发合同", "软件开发服务合同"]):
+                return {
+                    "decision": "workflow",
+                    "workflow_id": "legal_contract_review_v1",
+                    "use_langgraph": True,
+                    "reason": "用户明确要求审查合同，需要进入 LangGraph 合同审查流程。",
+                    "confidence": 0.92,
+                    "direct_answer_type": "none",
+                }
+            return {
+                "decision": "workflow",
+                "workflow_id": "legacy_default",
+                "use_langgraph": False,
+                "reason": "用户提出需要专业 Agent 处理的任务。",
+                "confidence": 0.72,
+                "direct_answer_type": "none",
+            }
         if task == "parse_contract":
             return {
                 "contract_title": "软件开发服务合同",

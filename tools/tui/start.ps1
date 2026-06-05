@@ -3,7 +3,8 @@ param(
     [ValidateSet("lawyer", "teacher", "programmer", "writer")]
     [string]$Role = "lawyer",
     [int]$Port = 8000,
-    [switch]$Docker
+    [switch]$Docker,
+    [switch]$NoBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,16 +47,26 @@ function Test-HttpHealth {
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host " ZhiYi AgentOS TUI Launcher" -ForegroundColor Cyan
 Write-Host " Role: $Role  |  API: http://127.0.0.1:$($Port)/ai" -ForegroundColor Cyan
-Write-Host " Mode: Docker shared backend" -ForegroundColor Magenta
+if ($NoBuild) {
+    Write-Host " Mode: Docker shared backend (reuse existing image)" -ForegroundColor Magenta
+} else {
+    Write-Host " Mode: Docker shared backend (rebuild ai-service)" -ForegroundColor Magenta
+}
 Write-Host "============================================" -ForegroundColor Cyan
 
 Write-Host ""
-Write-Host "[1/2] Starting Docker ai-service..." -ForegroundColor Yellow
+$buildLabel = if ($NoBuild) { "Starting" } else { "Building/restarting" }
+Write-Host "[1/2] $buildLabel Docker ai-service..." -ForegroundColor Yellow
+$composeArgs = @()
 if (Test-Path $COMPOSE_FILE) {
-    docker compose -f $COMPOSE_FILE up -d ai-service 2>&1
-} else {
-    docker compose up -d ai-service 2>&1
+    $composeArgs += @("-f", $COMPOSE_FILE)
 }
+$upArgs = @("up", "-d")
+if (-not $NoBuild) {
+    $upArgs += "--build"
+}
+$upArgs += "ai-service"
+docker compose @composeArgs @upArgs 2>&1
 
 Write-Host "       Waiting for ai-service..." -NoNewline
 $ok = $false

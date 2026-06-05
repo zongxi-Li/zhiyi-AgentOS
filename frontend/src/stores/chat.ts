@@ -4,6 +4,7 @@ import { agentosApi, type WorkflowStartResponse } from '@/services/api/agentos'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import {
   agentLawyerApi,
+  type AgentRoutingInfo,
   type AgentTraceStep,
   type FederatedInfo
 } from '@/services/api/agentLawyer'
@@ -117,9 +118,12 @@ export interface Message {
   contentWrite?: ContentWriteResult
   characterRelationMap?: CharacterRelationResult
   agentMode?: 'default' | 'lawyer' | 'teacher' | 'programmer' | 'writer'
+  routing?: AgentRoutingInfo
   workflowRunId?: string
   workflowId?: string
   workflowStatus?: string
+  runtimeEngine?: string
+  implementationId?: string
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -215,6 +219,12 @@ export const useChatStore = defineStore('chat', () => {
         modelInfo: 'Lawyer Agent',
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
+        routing: response.routing,
+        workflowRunId: response.workflowRunId,
+        workflowId: response.workflowId,
+        workflowStatus: response.workflowStatus,
+        runtimeEngine: response.runtimeEngine,
+        implementationId: response.implementationId,
         federated: response.federated || {},
         riskLevel: response.riskLevel,
         evidenceAnalysis: response.evidenceAnalysis || response.evidence_analysis || traceEvidence,
@@ -395,6 +405,12 @@ export const useChatStore = defineStore('chat', () => {
         modelInfo: 'Teacher Agent',
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
+        routing: response.routing,
+        workflowRunId: response.workflowRunId,
+        workflowId: response.workflowId,
+        workflowStatus: response.workflowStatus,
+        runtimeEngine: response.runtimeEngine,
+        implementationId: response.implementationId,
         federated: response.federated || {},
         riskLevel: response.riskLevel,
         studentDiagnosis: response.studentDiagnosis || response.student_diagnosis || traceDiagnosis,
@@ -438,6 +454,12 @@ export const useChatStore = defineStore('chat', () => {
         modelInfo: 'Programmer Agent',
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
+        routing: response.routing,
+        workflowRunId: response.workflowRunId,
+        workflowId: response.workflowId,
+        workflowStatus: response.workflowStatus,
+        runtimeEngine: response.runtimeEngine,
+        implementationId: response.implementationId,
         federated: response.federated || {},
         riskLevel: response.riskLevel,
         requirementAnalysis: response.requirementAnalysis || response.requirement_analysis || traceRequirement,
@@ -481,6 +503,12 @@ export const useChatStore = defineStore('chat', () => {
         modelInfo: 'Writer Agent',
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
+        routing: response.routing,
+        workflowRunId: response.workflowRunId,
+        workflowId: response.workflowId,
+        workflowStatus: response.workflowStatus,
+        runtimeEngine: response.runtimeEngine,
+        implementationId: response.implementationId,
         federated: response.federated || {},
         riskLevel: response.riskLevel,
         inspirationExpand: response.inspirationExpand || response.inspiration_expand || traceInspiration,

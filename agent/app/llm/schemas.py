@@ -59,6 +59,22 @@ REPORT_GENERATE_SCHEMA: Dict[str, Any] = {
     },
 }
 
+CHAT_ROUTE_DECISION_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "required": ["decision", "workflow_id", "use_langgraph", "reason", "confidence", "direct_answer_type"],
+    "properties": {
+        "decision": {"type": "string", "enum": ["direct", "workflow"]},
+        "workflow_id": {"type": "string"},
+        "use_langgraph": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "confidence": {"type": "number"},
+        "direct_answer_type": {
+            "type": "string",
+            "enum": ["smalltalk", "role_intro", "model_intro", "general_question", "none"],
+        },
+    },
+}
+
 
 def compact_schema_name(schema: Dict[str, Any]) -> str:
     if schema is PARSE_CONTRACT_SCHEMA:
@@ -67,6 +83,8 @@ def compact_schema_name(schema: Dict[str, Any]) -> str:
         return "risk_detect"
     if schema is REPORT_GENERATE_SCHEMA:
         return "report_generate"
+    if schema is CHAT_ROUTE_DECISION_SCHEMA:
+        return "chat_route_decision"
     return "unknown"
 
 
@@ -74,5 +92,6 @@ __all__ = [
     "PARSE_CONTRACT_SCHEMA",
     "RISK_DETECT_SCHEMA",
     "REPORT_GENERATE_SCHEMA",
+    "CHAT_ROUTE_DECISION_SCHEMA",
     "compact_schema_name",
 ]

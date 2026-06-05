@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agentos.core.models.types import ReviewDecision, ReviewDecisionType
 from agentos.core.runtime import WorkflowRuntime
 from app.execution.runtime import build_default_runtime
+from app.llm.gateway import get_llm_gateway
+from app.llm.schemas import CHAT_ROUTE_DECISION_SCHEMA
 
 
 class AgentTaskCreateRequest(BaseModel):
@@ -285,9 +287,35 @@ def _is_smalltalk(text: str) -> bool:
         "谢谢",
         "感谢",
         "你是谁",
+        "你是什么角色",
+        "你的角色是什么",
+        "你是什么智能体",
+        "你是什么模型",
+        "你用什么模型",
+        "你是哪个模型",
+        "你基于什么模型",
+        "底层模型是什么",
+        "模型是什么",
         "介绍一下",
         "你能做什么",
     }
+
+
+def _is_model_identity_question(text: str) -> bool:
+    return _contains_any(
+        text,
+        [
+            "你是什么模型",
+            "你用什么模型",
+            "你是哪个模型",
+            "你基于什么模型",
+            "底层模型",
+            "模型是什么",
+            "什么大模型",
+            "llm",
+            "大语言模型",
+        ],
+    )
 
 
 def _should_use_legal_case_workflow(text: str) -> bool:
@@ -329,6 +357,37 @@ def _should_use_legal_case_workflow(text: str) -> bool:
     )
 
 
+def _should_use_legal_contract_review_langgraph(text: str) -> bool:
+    normalized = _compact_chat_text(text)
+    explicit_markers = [
+        "合同审查",
+        "审查合同",
+        "合同条款",
+        "条款审查",
+        "帮我看合同",
+        "看看合同",
+        "修改合同",
+        "合同风险",
+        "软件开发服务合同",
+        "租赁合同",
+        "买卖合同",
+    ]
+    contract_context_markers = [
+        "甲方",
+        "乙方",
+        "条款",
+        "验收",
+        "违约金",
+        "知识产权",
+        "保密",
+        "修改建议",
+        "风险点",
+    ]
+    return _contains_any(text, explicit_markers) or (
+        "合同" in normalized and _contains_any(text, contract_context_markers)
+    )
+
+
 def _is_general_legal_question(text: str) -> bool:
     return _contains_any(
         text,
@@ -365,6 +424,21 @@ def _direct_smalltalk_answer(role: str) -> str:
     return "你好，请直接告诉我你想处理的问题。"
 
 
+def _direct_model_answer(role: str) -> str:
+    role_name = {
+        "lawyer": "律师智能体",
+        "teacher": "教师智能体",
+        "programmer": "程序员智能体",
+        "writer": "写作智能体",
+    }.get(role, "智能体")
+    return (
+        f"我是知弈 AgentOS 中的{role_name}。"
+        "我会通过 AgentOS 的模型网关调用当前配置的底层大模型；"
+        "具体模型由部署环境决定，可能是 DeepSeek、通义千问或兼容 OpenAI 协议的模型。"
+        "这类身份/模型介绍不需要进入工作流，所以不会返回执行轨迹。"
+    )
+
+
 def _direct_lawyer_general_answer(text: str) -> str:
     if _contains_any(text, ["vpn", "翻墙", "代理"]):
         return "\n".join(
@@ -395,20 +469,27 @@ def _direct_agent_response(
     answer: str,
     observation: str,
     risk_level: Optional[str] = None,
+    route_decision: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    routing = {
+        "decision": "direct",
+        "workflowRequired": False,
+        "useLangGraph": False,
+        "reason": observation,
+    }
+    if route_decision:
+        routing.update(route_decision)
+        routing["decision"] = "direct"
+        routing["workflowRequired"] = False
+        routing["useLangGraph"] = False
+
     response: Dict[str, Any] = {
         "success": True,
         "answer": answer,
         "sessionId": request.session_id or f"session_{role}_{uuid.uuid4().hex[:12]}",
         "skillsUsed": [],
-        "trace": [
-            {
-                "step": 1,
-                "thought": f"Handle {role_config['title']} directly because the message does not require a workflow run.",
-                "action": "direct_response",
-                "observation": observation,
-            }
-        ],
+        "trace": [],
+        "routing": routing,
         "federated": {
             "enabled": True,
             "applied": False,
@@ -422,18 +503,261 @@ def _direct_agent_response(
     return response
 
 
+def _workflow_uses_langgraph(workflow_id: str) -> bool:
+    return workflow_id == "legal_contract_review_v1"
+
+
+def _allowed_legacy_workflow_ids(role: str, role_config: Dict[str, Any]) -> set[str]:
+    workflow_ids = {str(role_config["workflow_id"])}
+    if role == "lawyer":
+        workflow_ids.add("legal_contract_review_v1")
+    return workflow_ids
+
+
+def _fallback_route_decision(role: str, role_config: Dict[str, Any], text: str) -> Dict[str, Any]:
+    if _is_smalltalk(text):
+        direct_answer_type = "model_intro" if _is_model_identity_question(text) else "role_intro"
+        return {
+            "decision": "direct",
+            "workflowRequired": False,
+            "useLangGraph": False,
+            "reason": "smalltalk_or_capability_intro",
+            "directAnswerType": direct_answer_type,
+            "source": "rules",
+            "confidence": 0.9,
+        }
+
+    if role == "lawyer" and _is_general_legal_question(text) and not _should_use_legal_contract_review_langgraph(text):
+        return {
+            "decision": "direct",
+            "workflowRequired": False,
+            "useLangGraph": False,
+            "reason": "general_legal_question",
+            "directAnswerType": "general_question",
+            "source": "rules",
+            "confidence": 0.82,
+        }
+
+    workflow_id = _legacy_workflow_id_for_chat(role, role_config, text)
+    return {
+        "decision": "workflow",
+        "workflowRequired": True,
+        "workflowId": workflow_id,
+        "useLangGraph": _workflow_uses_langgraph(workflow_id),
+        "reason": "professional_task",
+        "directAnswerType": "none",
+        "source": "rules",
+        "confidence": 0.65,
+    }
+
+
+def _route_prompt(role: str, role_config: Dict[str, Any], text: str) -> str:
+    workflow_options = [
+        {
+            "workflow_id": role_config["workflow_id"],
+            "engine": "native",
+            "when_to_use": "专业任务需要该角色的常规多步骤技能链处理。",
+        }
+    ]
+    if role == "lawyer":
+        workflow_options.append(
+            {
+                "workflow_id": "legal_contract_review_v1",
+                "engine": "langgraph",
+                "when_to_use": "用户明确要求审查、修改、评估合同条款，或提供了合同文本需要条款风险识别。",
+            }
+        )
+
+    return "\n".join(
+        [
+            "你是 AgentOS 的路由判定器，只负责判断用户输入是否需要进入工作流。",
+            "请返回严格 JSON，不要输出解释文字。",
+            "判定原则：",
+            "1. 问候、身份/能力/底层模型介绍、寒暄，decision=direct。",
+            "2. 普通问答若不需要多步骤工具/工作流，decision=direct。",
+            "3. 明确需要专业产物、检索、分析链、合同审查、课程设计、需求分析、提纲生成等，decision=workflow。",
+            "4. 只有明确合同审查/条款修改/合同文本风险识别时，才选择 legal_contract_review_v1 并 use_langgraph=true。",
+            "5. 不要因为出现“合同”“交付”“付款”等单个词就选择合同审查图；诉讼风险、违约咨询通常走律师常规案件分析。",
+            "",
+            f"当前角色：{role}",
+            f"可选工作流：{json.dumps(workflow_options, ensure_ascii=False)}",
+            f"用户输入：{text}",
+            "",
+            "JSON 字段：decision, workflow_id, use_langgraph, reason, confidence, direct_answer_type。",
+            "direct_answer_type 可选 smalltalk、role_intro、model_intro、general_question、none。",
+            "direct 时 workflow_id 填 none；常规角色工作流可填 legacy_default 或具体 workflow_id。",
+        ]
+    )
+
+
+def _normalise_route_decision(
+    *,
+    raw: Dict[str, Any],
+    role: str,
+    role_config: Dict[str, Any],
+    source: str,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    decision = str(raw.get("decision") or "").strip().lower()
+    if decision not in {"direct", "workflow"}:
+        return None
+
+    try:
+        confidence = float(raw.get("confidence", 0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < 0.5:
+        return None
+
+    direct_answer_type = str(raw.get("direct_answer_type") or raw.get("directAnswerType") or "none").strip().lower()
+    reason = str(raw.get("reason") or "").strip() or "llm_route_decision"
+    route: Dict[str, Any] = {
+        "decision": decision,
+        "workflowRequired": decision == "workflow",
+        "reason": reason,
+        "confidence": confidence,
+        "directAnswerType": direct_answer_type,
+        "source": source,
+    }
+    if provider:
+        route["provider"] = provider
+    if model:
+        route["model"] = model
+
+    if decision == "direct":
+        route["useLangGraph"] = False
+        return route
+
+    workflow_id = str(raw.get("workflow_id") or raw.get("workflowId") or "").strip()
+    if workflow_id in {"", "none", "null", "legacy_default"}:
+        workflow_id = str(role_config["workflow_id"])
+
+    if workflow_id not in _allowed_legacy_workflow_ids(role, role_config):
+        return None
+
+    use_langgraph = _workflow_uses_langgraph(workflow_id)
+    route.update(
+        {
+            "workflowId": workflow_id,
+            "useLangGraph": use_langgraph,
+        }
+    )
+    return route
+
+
+def _llm_route_decision(role: str, role_config: Dict[str, Any], text: str) -> Optional[Dict[str, Any]]:
+    try:
+        gateway = get_llm_gateway()
+        response = gateway.generate_json(
+            _route_prompt(role, role_config, text),
+            CHAT_ROUTE_DECISION_SCHEMA,
+            temperature=0,
+        )
+        data = response.get("data")
+        if not isinstance(data, dict):
+            return None
+        return _normalise_route_decision(
+            raw=data,
+            role=role,
+            role_config=role_config,
+            source="llm",
+            provider=str(response.get("provider") or gateway.provider_name),
+            model=str(response.get("model") or gateway.model),
+        )
+    except Exception:
+        return None
+
+
+def _classify_legacy_chat_route(role: str, role_config: Dict[str, Any], text: str) -> Dict[str, Any]:
+    llm_decision = _llm_route_decision(role, role_config, text)
+    if llm_decision is not None:
+        return llm_decision
+    return _fallback_route_decision(role, role_config, text)
+
+
+def _legacy_workflow_id_for_chat(role: str, role_config: Dict[str, Any], text: str) -> str:
+    if role == "lawyer" and _should_use_legal_contract_review_langgraph(text):
+        return "legal_contract_review_v1"
+    return str(role_config["workflow_id"])
+
+
+def _legacy_workflow_intent(role_config: Dict[str, Any], workflow_id: str) -> str:
+    if workflow_id == "legal_contract_review_v1":
+        return "contract_review"
+    return str(role_config["intent"])
+
+
+def _legacy_workflow_input(role_config: Dict[str, Any], workflow_id: str, text: str) -> Dict[str, Any]:
+    workflow_input = {
+        "source": "legacy_agent_chat",
+        "chatText": text,
+        "text": text,
+    }
+    if workflow_id == "legal_contract_review_v1":
+        workflow_input.update(
+            {
+                "contractText": text,
+                "caseText": text,
+            }
+        )
+        return workflow_input
+
+    workflow_input[role_config["input_key"]] = text
+    return workflow_input
+
+
 def _direct_agent_chat_response(
     role: str,
     role_config: Dict[str, Any],
     request: LegacyAgentChatRequest,
+    route_decision: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     text = request.text.strip()
-    if _is_smalltalk(text):
+    if route_decision and route_decision.get("decision") == "direct":
+        direct_answer_type = str(route_decision.get("directAnswerType") or "").lower()
+        if direct_answer_type == "model_intro" or _is_model_identity_question(text):
+            return _direct_agent_response(
+                role=role,
+                role_config=role_config,
+                request=request,
+                answer=_direct_model_answer(role),
+                observation=str(route_decision.get("reason") or "model_identity_intro"),
+                risk_level="low",
+                route_decision=route_decision,
+            )
+
+        if role == "lawyer" and (
+            direct_answer_type == "general_question"
+            or (_is_general_legal_question(text) and not _should_use_legal_contract_review_langgraph(text))
+        ):
+            return _direct_agent_response(
+                role=role,
+                role_config=role_config,
+                request=request,
+                answer=_direct_lawyer_general_answer(text),
+                observation=str(route_decision.get("reason") or "general_legal_question"),
+                risk_level="medium",
+                route_decision=route_decision,
+            )
+
         return _direct_agent_response(
             role=role,
             role_config=role_config,
             request=request,
             answer=_direct_smalltalk_answer(role),
+            observation=str(route_decision.get("reason") or "smalltalk_or_capability_intro"),
+            risk_level="low",
+            route_decision=route_decision,
+        )
+
+    if _is_smalltalk(text):
+        answer = _direct_model_answer(role) if _is_model_identity_question(text) else _direct_smalltalk_answer(role)
+        return _direct_agent_response(
+            role=role,
+            role_config=role_config,
+            request=request,
+            answer=answer,
             observation="smalltalk_or_capability_intro",
             risk_level="low",
         )
@@ -544,7 +868,86 @@ def _risk_level_label(level: Any) -> str:
     }.get(normalized, str(level or "待评估"))
 
 
+def _contract_review_risk_level(artifacts: Dict[str, Any]) -> str:
+    risk_output = artifacts.get("risk_detect", {}) if isinstance(artifacts.get("risk_detect"), dict) else {}
+    risks = risk_output.get("risks", [])
+    levels = [str(item.get("level", "")).lower() for item in risks if isinstance(item, dict)]
+    if "high" in levels:
+        return "high"
+    if "medium" in levels:
+        return "medium"
+    if "low" in levels:
+        return "low"
+    return "unknown"
+
+
+def _legacy_contract_review_answer(artifacts: Dict[str, Any]) -> str:
+    parse_output = artifacts.get("parse_contract", {}) if isinstance(artifacts.get("parse_contract"), dict) else {}
+    risk_output = artifacts.get("risk_detect", {}) if isinstance(artifacts.get("risk_detect"), dict) else {}
+    evidence_output = (
+        artifacts.get("legal_evidence_match", {})
+        if isinstance(artifacts.get("legal_evidence_match"), dict)
+        else {}
+    )
+    suggestion_output = (
+        artifacts.get("suggestion_generate", {})
+        if isinstance(artifacts.get("suggestion_generate"), dict)
+        else {}
+    )
+
+    contract_type = parse_output.get("contract_type") or "合同"
+    risks = risk_output.get("risks", [])
+    evidences = evidence_output.get("evidences", [])
+    suggestions = suggestion_output.get("revision_suggestions", [])
+
+    lines = [
+        f"## 合同审查摘要：{contract_type}",
+        "",
+        "已进入 LangGraph 合同审查流程，并完成合同解析、条款分类、风险识别、依据匹配和修改建议生成。",
+        "",
+        "### 1. 主要风险",
+    ]
+    if risks:
+        for item in risks[:5]:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title") or item.get("id") or "未命名风险"
+            level = _risk_level_label(item.get("level"))
+            reason = item.get("reason") or "需结合完整合同文本进一步确认。"
+            lines.append(f"- {title}（风险：{level}）：{reason}")
+    else:
+        lines.append("- 暂未识别到明确风险，但仍建议补充完整合同文本复核。")
+
+    lines.extend(["", "### 2. 依据匹配"])
+    if evidences:
+        for item in evidences[:5]:
+            if not isinstance(item, dict):
+                continue
+            source = item.get("sourceName") or item.get("source_type") or "相关依据"
+            citation = item.get("citationText") or item.get("summary") or ""
+            lines.append(f"- {source}：{citation}")
+    else:
+        lines.append("- 暂无可展示的依据匹配结果。")
+
+    lines.extend(["", "### 3. 修改建议"])
+    if suggestions:
+        for item in suggestions[:5]:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title") or item.get("riskId") or "相关条款"
+            suggestion = item.get("suggestion") or "建议补充更明确的权利义务和违约责任。"
+            lines.append(f"- {title}：{suggestion}")
+    else:
+        lines.append("- 建议补充付款节点、验收标准、违约责任、知识产权归属和争议解决条款。")
+
+    lines.extend(["", "> 当前流程停在人工审核节点；确认风险和建议后，可继续生成正式审查报告。"])
+    return "\n".join(lines)
+
+
 def _legacy_lawyer_answer(artifacts: Dict[str, Any]) -> str:
+    if any(key in artifacts for key in ("parse_contract", "risk_detect", "legal_evidence_match", "suggestion_generate")):
+        return _legacy_contract_review_answer(artifacts)
+
     intake = artifacts.get("case_intake", {}) if isinstance(artifacts.get("case_intake"), dict) else {}
     statute = artifacts.get("statute", {}) if isinstance(artifacts.get("statute"), dict) else {}
     risk = artifacts.get("risk", {}) if isinstance(artifacts.get("risk"), dict) else {}
@@ -1019,7 +1422,14 @@ def _legacy_response(role: str, role_config: Dict[str, Any], request: LegacyAgen
 
     if role == "lawyer":
         risk = artifacts.get("risk", {})
-        response["riskLevel"] = risk.get("risk_level") or risk.get("riskLevel")
+        response["riskLevel"] = risk.get("risk_level") or risk.get("riskLevel") or _contract_review_risk_level(artifacts)
+        if isinstance(artifacts.get("risk_detect"), dict):
+            response["contractReview"] = {
+                "parseContract": artifacts.get("parse_contract", {}),
+                "riskDetect": artifacts.get("risk_detect", {}),
+                "legalEvidenceMatch": artifacts.get("legal_evidence_match", {}),
+                "suggestionGenerate": artifacts.get("suggestion_generate", {}),
+            }
     elif role == "teacher":
         lesson_output = artifacts.get("lesson_plan", {})
         lesson_plan = lesson_output.get("lesson_plan") or lesson_output
@@ -1053,6 +1463,19 @@ def _legacy_response(role: str, role_config: Dict[str, Any], request: LegacyAgen
 
     if run.error:
         response["error"] = run.error
+    response["workflowRunId"] = run.run_id
+    response["workflowId"] = run.workflow_id
+    response["workflowStatus"] = run.status.value
+    response["runtimeEngine"] = getattr(run, "runtime_engine", None)
+    response["implementationId"] = getattr(run, "implementation_id", None)
+    response["routing"] = {
+        "decision": "workflow",
+        "workflowRequired": True,
+        "workflowId": run.workflow_id,
+        "useLangGraph": _workflow_uses_langgraph(run.workflow_id),
+        "runtimeEngine": getattr(run, "runtime_engine", None),
+        "implementationId": getattr(run, "implementation_id", None),
+    }
     return response
 
 
@@ -1163,30 +1586,32 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"unsupported agent role: {role}")
 
         text = request.text.strip()
-        direct_response = _direct_agent_chat_response(role_key, role_config, request)
-        if direct_response is not None:
-            return direct_response
+        route_decision = _classify_legacy_chat_route(role_key, role_config, text)
+        if route_decision.get("decision") == "direct":
+            direct_response = _direct_agent_chat_response(role_key, role_config, request, route_decision)
+            if direct_response is not None:
+                return direct_response
 
-        workflow_input = {
-            "source": "legacy_agent_chat",
-            "chatText": text,
-            "text": text,
-            role_config["input_key"]: text,
-        }
+        workflow_id = str(route_decision.get("workflowId") or _legacy_workflow_id_for_chat(role_key, role_config, text))
+        workflow_input = _legacy_workflow_input(role_config, workflow_id, text)
         start_request = WorkflowStartRequest(
             title=f"{role_config['title']}: {text[:40]}",
             domain=role_config["domain"],
-            intent=role_config["intent"],
+            intent=_legacy_workflow_intent(role_config, workflow_id),
             input=workflow_input,
             securityLevel="internal",
             priority="normal",
-            workflowId=role_config["workflow_id"],
-            reviewMode="auto",
+            workflowId=workflow_id,
+            reviewMode="human_in_loop" if workflow_id == "legal_contract_review_v1" else "auto",
         )
         try:
             payload = await _create_task_and_start(runtime, start_request)
             run = runtime.get_status(payload["run"]["runId"])
-            return _legacy_response(role_key, role_config, request, run)
+            response = _legacy_response(role_key, role_config, request, run)
+            response["routing"].update(route_decision)
+            response["routing"]["workflowId"] = run.workflow_id
+            response["routing"]["useLangGraph"] = _workflow_uses_langgraph(run.workflow_id)
+            return response
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:

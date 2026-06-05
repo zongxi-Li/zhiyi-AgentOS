@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from textual import on
 from textual.app import ComposeResult
@@ -222,7 +222,7 @@ class ChatScreen(Screen):
             answer_line = f"[bold red]Error:[/] {result['error']}"
             self._set_mascot(mood=MascotMood.ERROR)
         elif result.get("answer"):
-            answer_line = f"[bold #409EFF]ZhiYi:[/]\n{result['answer']}"
+            answer_line = self._format_agent_reply(result)
             self._set_mascot(mood=MascotMood.HAPPY)
         elif not result.get("success", True):
             answer_line = f"[bold red]API failed:[/] {str(result)[:500]}"
@@ -250,6 +250,96 @@ class ChatScreen(Screen):
         for line in self._rendered:
             log.write(line)
         log.scroll_end(animate=False)
+
+    def _format_agent_reply(self, result: dict[str, Any]) -> str:
+        """Render the agent answer plus routing/trace metadata when present."""
+        lines = [f"[bold #409EFF]ZhiYi:[/]\n{result.get('answer', '')}"]
+
+        route_lines = self._routing_lines(result)
+        if route_lines:
+            lines.extend(["", *route_lines])
+
+        trace_line = self._trace_line(result)
+        if trace_line:
+            lines.append(trace_line)
+
+        return "\n".join(lines)
+
+    def _routing_lines(self, result: dict[str, Any]) -> list[str]:
+        routing = result.get("routing")
+        if not isinstance(routing, dict):
+            trace = result.get("trace")
+            if self._is_legacy_direct_trace(trace):
+                routing = {
+                    "decision": "direct",
+                    "source": "legacy",
+                    "reason": "legacy backend response; rebuild or restart ai-service",
+                    "useLangGraph": False,
+                }
+            else:
+                return []
+
+        decision = str(routing.get("decision") or "unknown")
+        source = routing.get("source")
+        confidence = routing.get("confidence")
+        reason = routing.get("reason")
+        workflow_id = routing.get("workflowId") or result.get("workflowId")
+        run_id = result.get("workflowRunId") or result.get("runId")
+        engine = (
+            routing.get("runtimeEngine")
+            or result.get("runtimeEngine")
+            or ("langgraph" if routing.get("useLangGraph") else None)
+        )
+
+        parts = [f"[dim]Route:[/] [bold]{decision}[/]"]
+        if source:
+            parts.append(f"via {source}")
+        if confidence is not None:
+            try:
+                parts.append(f"conf={float(confidence):.2f}")
+            except (TypeError, ValueError):
+                pass
+        if engine:
+            parts.append(f"engine={engine}")
+        if workflow_id:
+            parts.append(f"workflow={workflow_id}")
+        if run_id:
+            parts.append(f"run={run_id}")
+
+        lines = ["  " + "  ".join(parts)]
+        if reason:
+            lines.append(f"  [dim]Reason:[/] {str(reason)[:180]}")
+        return lines
+
+    def _trace_line(self, result: dict[str, Any]) -> str:
+        trace = result.get("trace")
+        if not isinstance(trace, list):
+            return ""
+        if self._is_legacy_direct_trace(trace):
+            return "  [dim]Trace:[/] none"
+        if not trace:
+            return "  [dim]Trace:[/] none"
+
+        actions: list[str] = []
+        for item in trace[:5]:
+            if isinstance(item, dict):
+                action = item.get("action") or item.get("step")
+                if action:
+                    actions.append(str(action))
+        if not actions:
+            return f"  [dim]Trace:[/] {len(trace)} step(s)"
+
+        suffix = "" if len(trace) <= len(actions) else f" +{len(trace) - len(actions)}"
+        return f"  [dim]Trace:[/] {' -> '.join(actions)}{suffix}"
+
+    @staticmethod
+    def _is_legacy_direct_trace(trace: Any) -> bool:
+        return (
+            isinstance(trace, list)
+            and len(trace) == 1
+            and isinstance(trace[0], dict)
+            and trace[0].get("action") == "direct_response"
+        )
 
     def _set_mascot(
         self,

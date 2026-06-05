@@ -6,6 +6,7 @@ on first mount and mood-driven lines thereafter.
 
 from textual.widgets import Static
 from textual.reactive import reactive
+from rich.text import Text
 
 from kinlin_tui.mascot import (
     CHARACTER_NAMES,
@@ -57,7 +58,7 @@ class MascotWidget(Static):
     def watch_role(self, _old: RoleTheme, _new: RoleTheme) -> None:
         self.refresh(layout=True)
 
-    def render(self) -> str:
+    def render(self) -> Text:
         character = _ROLE_TO_CHARACTER.get(self.role, MascotCharacter.LAWYER)
         mascot = get_mascot_text(mood=self.mood, character=character)
         accent = ROLE_COLORS.get(self.role, "#409EFF")
@@ -75,4 +76,4 @@ class MascotWidget(Static):
             dialogue_block = f"[bold {accent}]{name}:[/] [italic]{dialogue_text}[/]"
 
         sep = f"[dim]{_DIALOG_SEP}[/]"
-        return f"{mascot}\n{sep}\n{dialogue_block}"
+        return Text.from_markup(f"{mascot}\n{sep}\n{dialogue_block}")

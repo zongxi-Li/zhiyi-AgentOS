@@ -462,7 +462,8 @@ def test_legacy_lawyer_agent_chat_endpoint_returns_status_payload():
     assert payload["trace"][0]["action"] == "case_understanding"
 
 
-def test_legacy_lawyer_agent_chat_greeting_returns_direct_intro():
+@pytest.mark.parametrize("text", ["你好", "你是什么角色", "你是什么模型"])
+def test_legacy_lawyer_agent_chat_smalltalk_returns_direct_intro_without_trace(text):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
@@ -476,19 +477,25 @@ def test_legacy_lawyer_agent_chat_greeting_returns_direct_intro():
 
     response = client.post(
         "/ai/agent/lawyer/chat",
-        json={"text": "你好", "sessionId": "session_hi"},
+        json={"text": text, "sessionId": "session_hi"},
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
     assert payload["sessionId"] == "session_hi"
-    assert "律师智能体" in payload["answer"]
-    assert "法律咨询" in payload["answer"]
+    if "模型" in text:
+        assert "模型网关" in payload["answer"]
+        assert "不需要进入工作流" in payload["answer"]
+    else:
+        assert "律师智能体" in payload["answer"]
+        assert "法律咨询" in payload["answer"]
     assert "法律初步分析" not in payload["answer"]
     assert "民商事争议" not in payload["answer"]
     assert payload["skillsUsed"] == []
-    assert payload["trace"][0]["action"] == "direct_response"
+    assert payload["trace"] == []
+    assert payload["routing"]["decision"] == "direct"
+    assert payload["routing"]["workflowRequired"] is False
 
 
 def test_legacy_lawyer_agent_chat_vpn_question_is_not_contract_template():
@@ -518,7 +525,95 @@ def test_legacy_lawyer_agent_chat_vpn_question_is_not_contract_template():
     assert "违约责任" not in payload["answer"]
     assert "民商事争议" not in payload["answer"]
     assert payload["skillsUsed"] == []
-    assert payload["trace"][0]["action"] == "direct_response"
+    assert payload["trace"] == []
+    assert payload["routing"]["decision"] == "direct"
+
+
+def test_legacy_lawyer_agent_chat_contract_review_routes_to_langgraph_trace():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    runtime = _runtime_with_legal_pack()
+
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ai/agent/lawyer/chat",
+        json={
+            "text": "请审查这份软件开发合同：甲方委托乙方开发 CRM 系统，签署后支付 30%，上线后支付 70%。",
+            "sessionId": "session_contract_review",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["sessionId"] == "session_contract_review"
+    assert payload["workflowId"] == "legal_contract_review_v1"
+    assert payload["runtimeEngine"] == "langgraph"
+    assert payload["routing"]["decision"] == "workflow"
+    assert payload["routing"]["workflowRequired"] is True
+    assert payload["routing"]["runtimeEngine"] == "langgraph"
+    assert "合同审查摘要" in payload["answer"]
+    assert "LangGraph 合同审查流程" in payload["answer"]
+    assert "risk_detect" in payload["skillsUsed"]
+    actions = {step["action"] for step in payload["trace"]}
+    assert {"parse_contract", "risk_detect", "legal_evidence_match", "suggestion_generate"}.issubset(actions)
+
+
+def test_legacy_lawyer_agent_chat_respects_llm_route_before_graph_fallback():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+    from app.llm.gateway import LLMGateway, set_llm_gateway_for_tests
+
+    class _CaseAnalysisRoutingProvider:
+        provider_name = "route-test-provider"
+        model = "route-test-model"
+
+        def generate_text(self, prompt: str, **kwargs):
+            return ""
+
+        def generate_json(self, prompt: str, schema: dict, **kwargs):
+            return {
+                "decision": "workflow",
+                "workflow_id": "legal_case_analysis_v1",
+                "use_langgraph": False,
+                "reason": "这是围绕违约和诉讼风险的案件分析，不是合同条款审查。",
+                "confidence": 0.94,
+                "direct_answer_type": "none",
+            }
+
+    set_llm_gateway_for_tests(LLMGateway(provider=_CaseAnalysisRoutingProvider()))
+    try:
+        runtime = _runtime_with_legal_pack()
+
+        app = FastAPI()
+        app.include_router(create_router(runtime), prefix="/ai")
+        client = TestClient(app)
+
+        response = client.post(
+            "/ai/agent/lawyer/chat",
+            json={"text": "供应商合同逾期交付，想评估诉讼风险。", "sessionId": "session_case_route"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["workflowId"] == "legal_case_analysis_v1"
+        assert payload["runtimeEngine"] != "langgraph"
+        assert payload["routing"]["source"] == "llm"
+        assert payload["routing"]["provider"] == "route-test-provider"
+        assert payload["routing"]["useLangGraph"] is False
+        assert "合同审查摘要" not in payload["answer"]
+        assert payload["trace"][0]["action"] == "case_understanding"
+    finally:
+        set_llm_gateway_for_tests(None)
 
 
 def test_legacy_programmer_agent_chat_endpoint_returns_full_deliverable():

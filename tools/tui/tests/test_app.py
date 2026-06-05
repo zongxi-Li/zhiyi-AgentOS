@@ -37,6 +37,51 @@ class FakeClient:
         pass
 
 
+class RoutingClient(FakeClient):
+    async def agent_chat(
+        self,
+        role: str,
+        text: str,
+        session_id: str | None = None,
+    ) -> dict:
+        self.calls.append((role, text, session_id))
+        return {
+            "answer": "contract review summary",
+            "sessionId": "session-route",
+            "workflowId": "legal_contract_review_v1",
+            "workflowRunId": "run-route-1",
+            "runtimeEngine": "langgraph",
+            "routing": {
+                "decision": "workflow",
+                "source": "llm",
+                "confidence": 0.92,
+                "workflowId": "legal_contract_review_v1",
+                "useLangGraph": True,
+                "reason": "用户明确要求审查合同。",
+            },
+            "trace": [
+                {"action": "parse_contract"},
+                {"action": "risk_detect"},
+                {"action": "legal_evidence_match"},
+            ],
+        }
+
+
+class LegacyDirectTraceClient(FakeClient):
+    async def agent_chat(
+        self,
+        role: str,
+        text: str,
+        session_id: str | None = None,
+    ) -> dict:
+        self.calls.append((role, text, session_id))
+        return {
+            "answer": "hello direct answer",
+            "sessionId": "session-direct",
+            "trace": [{"action": "direct_response"}],
+        }
+
+
 class DashboardClient(FakeClient):
     async def list_workflow_runs(self) -> dict:
         return {
@@ -115,6 +160,63 @@ def test_chat_reuses_returned_session_id() -> None:
             ("lawyer", "first", None),
             ("lawyer", "second", "session-1"),
         ]
+
+    asyncio.run(scenario())
+
+
+def test_chat_renders_routing_and_trace_metadata() -> None:
+    async def scenario() -> None:
+        app = AgentOSTuiApp()
+        await app.api_client.close()
+
+        app.api_client = RoutingClient()  # type: ignore[assignment]
+
+        async with app.run_test(size=(120, 34)) as pilot:
+            input_widget = app.screen.query_one("#chat-input", Input)
+            input_widget.value = "审查这份软件开发合同"
+
+            await pilot.press("enter")
+            await pilot.pause(0.1)
+
+            log = app.screen.query_one("#message-log", RichLog)
+            rendered_text = "\n".join(line.text for line in log.lines)
+
+        assert "contract review summary" in rendered_text
+        assert "Route:" in rendered_text
+        assert "workflow" in rendered_text
+        assert "via llm" in rendered_text
+        assert "engine=langgraph" in rendered_text
+        assert "workflow=legal_contract_review_v1" in rendered_text
+        assert "run=run-route-1" in rendered_text
+        assert "Trace:" in rendered_text
+        assert "parse_contract -> risk_detect -> legal_evidence_match" in rendered_text
+
+    asyncio.run(scenario())
+
+
+def test_chat_treats_legacy_direct_response_trace_as_no_workflow_trace() -> None:
+    async def scenario() -> None:
+        app = AgentOSTuiApp()
+        await app.api_client.close()
+
+        app.api_client = LegacyDirectTraceClient()  # type: ignore[assignment]
+
+        async with app.run_test(size=(120, 34)) as pilot:
+            input_widget = app.screen.query_one("#chat-input", Input)
+            input_widget.value = "你好"
+
+            await pilot.press("enter")
+            await pilot.pause(0.1)
+
+            log = app.screen.query_one("#message-log", RichLog)
+            rendered_text = "\n".join(line.text for line in log.lines)
+
+        assert "hello direct answer" in rendered_text
+        assert "Route:" in rendered_text
+        assert "direct" in rendered_text
+        assert "via legacy" in rendered_text
+        assert "Trace: none" in rendered_text
+        assert "direct_response" not in rendered_text
 
     asyncio.run(scenario())
 

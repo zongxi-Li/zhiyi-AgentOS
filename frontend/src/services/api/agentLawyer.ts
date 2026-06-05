@@ -17,6 +17,21 @@ export interface FederatedInfo {
   federated_nodes_count?: number
 }
 
+export interface AgentRoutingInfo {
+  decision?: 'direct' | 'workflow' | string
+  workflowRequired?: boolean
+  useLangGraph?: boolean
+  reason?: string
+  confidence?: number
+  source?: string
+  provider?: string
+  model?: string
+  directAnswerType?: string
+  workflowId?: string
+  runtimeEngine?: string
+  implementationId?: string
+}
+
 export interface EvidenceAnalysisResult {
   evidence_items: Array<{ name: string; type: string; strength: string; notes: string }>
   missing_evidence: string[]
@@ -64,6 +79,12 @@ export interface LawyerAgentResponse {
   sessionId: string
   skillsUsed: string[]
   trace: AgentTraceStep[]
+  routing?: AgentRoutingInfo
+  workflowRunId?: string
+  workflowId?: string
+  workflowStatus?: string
+  runtimeEngine?: string
+  implementationId?: string
   riskLevel?: string
   federated?: FederatedInfo
   evidenceAnalysis?: EvidenceAnalysisResult
