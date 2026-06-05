@@ -59,7 +59,7 @@ class ChatScreen(Screen):
     }
 
     #mascot-panel {
-        width: 20;
+        width: 28;
         height: 1fr;
         padding: 1 1;
         border: solid #30363d;
@@ -68,8 +68,8 @@ class ChatScreen(Screen):
 
     #mascot {
         width: 100%;
-        height: 8;
-        content-align: center middle;
+        height: 14;
+        content-align: center top;
         background: #0d1117;
     }
     """

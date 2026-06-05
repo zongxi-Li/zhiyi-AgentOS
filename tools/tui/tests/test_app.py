@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import asyncio
 
+from rich.text import Text
 from textual.widgets import DataTable, Input, RichLog
 
 from kinlin_tui.app import AgentOSTuiApp, _parse_args
-from kinlin_tui.mascot import MascotMood, WELCOME_BANNER, get_mascot
+from kinlin_tui.mascot import (
+    MASCOT_FRAME_HEIGHT,
+    MASCOT_FRAME_WIDTH,
+    MascotCharacter,
+    MascotMood,
+    WELCOME_BANNER,
+    get_mascot,
+)
 from kinlin_tui.theme import RoleTheme
 from kinlin_tui.widgets.mascot_widget import MascotWidget
 
@@ -142,12 +150,22 @@ def test_chat_mascot_mounts_and_tracks_role_and_reply_state() -> None:
 
 
 def test_mascot_frames_are_clean_ascii_and_consistent() -> None:
-    for mood in MascotMood:
-        frame = get_mascot(mood)
-        assert len(frame) == 8
-        assert all(line.isascii() for line in frame)
+    for character in MascotCharacter:
+        for mood in MascotMood:
+            frame = get_mascot(mood, character)
+            rendered = [Text.from_markup(line).plain for line in frame]
 
-    assert all(line.isascii() for line in WELCOME_BANNER)
+            assert len(frame) == MASCOT_FRAME_HEIGHT
+            assert all(line.isascii() for line in frame)
+            assert all(line.isascii() for line in rendered)
+            assert all(len(line) == MASCOT_FRAME_WIDTH for line in rendered)
+            assert not any("[/" in line or "[bold" in line for line in rendered)
+
+    # Welcome banners contain Chinese text and emoji — verify structure.
+    for character in MascotCharacter:
+        banner = WELCOME_BANNER.get(character, [])
+        assert isinstance(banner, list)
+        assert all(isinstance(line, str) and len(line) > 0 for line in banner)
     assert "o     o" in "\n".join(get_mascot(MascotMood.IDLE))
 
 
