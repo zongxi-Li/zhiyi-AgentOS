@@ -301,7 +301,7 @@ onMounted(loadRuns)
 
 <style scoped>
 .agentos-console {
-  min-height: 100%;
+  height: 100%;
   color: var(--text-primary);
   overflow: auto;
 }
@@ -350,7 +350,7 @@ p {
   display: grid;
   grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(310px, 380px);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .run-sidebar,

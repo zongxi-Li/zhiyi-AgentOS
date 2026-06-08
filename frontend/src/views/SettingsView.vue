@@ -273,13 +273,13 @@ onMounted(() => {
 .settings-view {
   position: relative;
   width: 100%;
-  min-height: 100%;
-  padding: 20px;
+  height: 100%;
+  padding: var(--page-padding-y) var(--page-padding-x);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--page-gap);
   color: var(--text-primary);
-  overflow: auto;
+  overflow-y: auto;
 }
 
 .ambient-glow {
@@ -470,7 +470,8 @@ onMounted(() => {
 
 @media (max-width: 760px) {
   .settings-view {
-    padding: 12px;
+    padding: var(--space-md);
+    gap: var(--space-md);
   }
 
   .page-header {

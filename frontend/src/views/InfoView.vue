@@ -53,9 +53,10 @@ import { Document, User, Setting } from '@element-plus/icons-vue'
 
 <style scoped lang="scss">
 .info-view {
-  padding: var(--spacing-xl);
-  background: var(--bg-color-page);
-  min-height: calc(100vh - 64px);
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  background: var(--bg-app);
 }
 
 .info-card {

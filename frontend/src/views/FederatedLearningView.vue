@@ -701,9 +701,10 @@ onMounted(async () => {
   --gap-lg: 24px;
   --gap-xl: 32px;
 
-  min-height: 100vh;
+  height: 100%;
   background: transparent;
   position: relative;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 

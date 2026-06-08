@@ -416,6 +416,7 @@ watch(isSimpleChatMode, active => {
 }
 
 .sidebar-header {
+  flex-shrink: 0;
   height: 72px;
   display: flex;
   align-items: center;
@@ -450,11 +451,11 @@ watch(isSimpleChatMode, active => {
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
   padding: 18px 8px 12px;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  max-height: calc(100vh - 196px);
 }
 
 /* Sidebar menu scrolling */
@@ -520,6 +521,7 @@ watch(isSimpleChatMode, active => {
 }
 
 .sidebar-footer {
+  flex-shrink: 0;
   padding: 14px;
   margin-top: auto;
   border-top: 1px solid var(--sidebar-border);
@@ -674,16 +676,20 @@ watch(isSimpleChatMode, active => {
 
 /* Main Content Styles */
 .main-container {
+  flex: 1;
+  min-width: 0;
   background-color: transparent;
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .app-main {
+  flex: 1;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
-  height: 100%;
   width: 100%;
   position: relative;
 }

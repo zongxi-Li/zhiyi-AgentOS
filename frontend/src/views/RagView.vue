@@ -294,29 +294,24 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: transparent;
 }
 
 /* 页面头部 */
 .page-header {
+  flex-shrink: 0;
   background: #ffffff;
   border-bottom: 1px solid var(--border-light);
-  padding: 32px 40px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  padding: var(--page-header-padding-y) var(--page-padding-x);
 }
 
 .header-inner {
-  max-width: 1400px;
+  max-width: var(--page-content-max-width);
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 32px;
+  gap: var(--space-2xl);
 }
 
 .header-left {
@@ -396,12 +391,13 @@ onMounted(() => {
 /* 主要内容区域 */
 .page-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 32px 40px;
+  padding: var(--page-padding-y) var(--page-padding-x);
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: var(--page-content-max-width);
   margin: 0 auto;
 }
 
@@ -409,27 +405,26 @@ onMounted(() => {
 .tabs-nav {
   display: flex;
   gap: 8px;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-xl);
   border-bottom: 1px solid var(--border-light);
-  padding-bottom: 0;
 }
 
 .tab-button {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 24px;
+  padding: var(--space-md) var(--space-xl);
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
   font-family: inherit;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  transition: color 0.18s ease, border-color 0.18s ease;
 }
 
 .tab-button:hover {
@@ -443,21 +438,21 @@ onMounted(() => {
 }
 
 .tab-button .el-icon {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .layout-grid {
   display: grid;
   grid-template-columns: 1fr 400px;
-  gap: 32px;
+  gap: var(--section-gap);
 }
 
 .graph-section {
-  min-height: 600px;
+  min-height: 400px;
 }
 
 .docs-only-section {
-  max-width: 1400px;
+  max-width: var(--page-content-max-width);
   margin: 0 auto;
   width: 100%;
 }
@@ -468,9 +463,9 @@ onMounted(() => {
 
 .docs-section {
   position: sticky;
-  top: 100px;
+  top: var(--space-xl);
   height: fit-content;
-  max-height: calc(100vh - 200px);
+  max-height: calc(100vh - 120px);
 }
 
 .docs-card {
@@ -546,7 +541,7 @@ onMounted(() => {
 }
 
 .empty-docs {
-  padding: 60px 20px;
+  padding: var(--space-3xl) var(--space-xl);
   text-align: center;
 }
 
@@ -732,7 +727,7 @@ onMounted(() => {
   .layout-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .docs-section {
     position: static;
     max-height: none;
@@ -741,38 +736,38 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .page-header {
-    padding: 24px 20px;
+    padding: var(--space-lg) var(--space-lg);
   }
-  
+
   .header-inner {
     flex-direction: column;
     align-items: stretch;
-    gap: 20px;
+    gap: var(--space-lg);
   }
-  
+
   .header-left {
-    gap: 16px;
+    gap: var(--space-md);
   }
-  
+
   .header-icon-wrapper {
     width: 48px;
     height: 48px;
   }
-  
+
   .header-icon {
     font-size: 24px;
   }
-  
+
   .page-title {
     font-size: 24px;
   }
-  
+
   .page-content {
-    padding: 24px 20px;
+    padding: var(--space-xl) var(--space-lg);
   }
-  
+
   .layout-grid {
-    gap: 24px;
+    gap: var(--space-lg);
   }
 }
 </style>

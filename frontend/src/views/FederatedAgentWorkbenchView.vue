@@ -646,8 +646,9 @@ onMounted(() => {
 
 <style scoped>
 .agent-workbench {
-  min-height: 100%;
-  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--page-padding-y) var(--page-padding-x);
   background: #f4f8fd;
   color: #17233c;
   font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -792,7 +793,7 @@ button {
   display: grid;
   grid-template-columns: minmax(240px, 272px) minmax(0, 1fr) minmax(260px, 296px);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .left-rail,

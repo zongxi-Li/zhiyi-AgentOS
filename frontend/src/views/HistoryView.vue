@@ -139,29 +139,24 @@ const clearAll = async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: transparent;
 }
 
 /* 页面头部 */
 .page-header {
+  flex-shrink: 0;
   background: #ffffff;
   border-bottom: 1px solid var(--border-light);
-  padding: 32px 40px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  padding: var(--page-header-padding-y) var(--page-padding-x);
 }
 
 .header-inner {
-  max-width: 1400px;
+  max-width: var(--page-content-max-width);
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 32px;
+  gap: var(--space-2xl);
   flex-wrap: wrap;
 }
 
@@ -288,12 +283,13 @@ const clearAll = async () => {
 /* 主要内容区域 */
 .page-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 32px 40px;
+  padding: var(--page-padding-y) var(--page-padding-x);
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: var(--page-content-max-width);
   margin: 0 auto;
 }
 
@@ -301,27 +297,26 @@ const clearAll = async () => {
 .tabs-nav {
   display: flex;
   gap: 8px;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-xl);
   border-bottom: 1px solid var(--border-light);
-  padding-bottom: 0;
 }
 
 .tab-button {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 24px;
+  padding: var(--space-md) var(--space-xl);
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
   font-family: inherit;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  transition: color 0.18s ease, border-color 0.18s ease;
 }
 
 .tab-button:hover {
@@ -340,106 +335,67 @@ const clearAll = async () => {
 
 /* 内容区域 */
 .content-section {
-  min-height: 400px;
+  min-height: 0;
 }
 
 .files-content {
-  padding: 80px 0;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.empty-icon-wrapper {
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  background: var(--primary-fade);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.empty-icon {
-  font-size: 40px;
-  color: var(--primary-color);
-}
-
-.empty-title {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.empty-desc {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary);
-  font-weight: 400;
+  padding: var(--space-2xl) 0;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .page-header {
-    padding: 24px 20px;
+    padding: var(--space-lg) var(--space-lg);
   }
-  
+
   .header-inner {
     flex-direction: column;
     align-items: stretch;
-    gap: 20px;
+    gap: var(--space-lg);
   }
-  
+
   .header-left {
-    gap: 16px;
+    gap: var(--space-md);
   }
-  
+
   .header-icon-wrapper {
     width: 48px;
     height: 48px;
   }
-  
+
   .header-icon {
     font-size: 24px;
   }
-  
+
   .page-title {
     font-size: 24px;
   }
-  
+
   .search-box {
     width: 100%;
   }
-  
+
   .action-button {
     width: 100%;
     justify-content: center;
   }
-  
+
   .page-content {
-    padding: 24px 20px;
+    padding: var(--space-xl) var(--space-lg);
   }
-  
+
   .tabs-nav {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    
+
     &::-webkit-scrollbar {
       display: none;
     }
   }
-  
+
   .tab-button {
     white-space: nowrap;
-    padding: 12px 20px;
+    padding: 10px 16px;
   }
 }
 </style>

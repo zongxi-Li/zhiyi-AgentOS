@@ -66,9 +66,28 @@
   --font-serif: 'Songti SC', 'STSong', 'Noto Serif SC', serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 
-  /* Spacing & Layout */
-  --header-height: 0px; 
+  /* Spacing & Layout — unified spacing system */
+  --header-height: 0px;
   --sidebar-width: 248px;
+
+  /* Spacing scale (4px base) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 40px;
+
+  /* Page layout tokens */
+  --page-padding-x: 24px;
+  --page-padding-y: 20px;
+  --page-gap: 16px;
+  --page-header-padding-y: 20px;
+  --page-content-max-width: 1400px;
+  --section-gap: 20px;
+
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 8px;
@@ -347,8 +366,173 @@ html, body, #app {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px 28px;
+  gap: var(--page-gap);
+  padding: var(--page-padding-y) var(--page-padding-x);
+}
+
+/* ===== Unified Page Layout Classes ===== */
+/* PageContainer: every page root should use this */
+.page-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+  font-family: var(--font-sans);
+}
+
+/* Page header: standard hero/header area */
+.page-header {
+  flex-shrink: 0;
+  padding: var(--page-header-padding-y) var(--page-padding-x);
+  border-bottom: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: var(--backdrop-blur);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Page content: fills remaining space, scrolls internally */
+.page-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--page-padding-y) var(--page-padding-x);
+}
+
+/* Content inner: max-width constraint, centers content */
+.page-content-inner {
+  max-width: var(--page-content-max-width);
+  margin: 0 auto;
+}
+
+/* Tabs bar: standard tab navigation */
+.page-tabs {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+/* Section: standard vertical section grouping */
+.page-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+}
+
+.page-section + .page-section {
+  margin-top: var(--space-3xl);
+}
+
+/* Section header */
+.page-section__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.page-section__title {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text-primary);
+  padding-left: var(--space-md);
+  position: relative;
+}
+
+.page-section__title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--primary-color);
+  border-radius: 2px;
+}
+
+.page-section__count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  background: var(--bg-input);
+  border-radius: 12px;
+}
+
+/* Card grid: responsive card grid */
+.page-grid {
+  display: grid;
+  gap: var(--page-gap);
+}
+
+.page-grid--cards {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+/* Tab button */
+.page-tab-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--font-sans);
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.page-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.page-tab-btn.active {
+  color: var(--primary-color);
+  font-weight: 600;
+  border-bottom-color: var(--primary-color);
+}
+
+.page-tab-btn .el-icon {
+  font-size: 16px;
+}
+
+/* Action bar: fixed bottom toolbar */
+.page-action-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--page-padding-x);
+  border-top: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Empty state */
+.page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-4xl) var(--space-xl);
+  text-align: center;
+  min-height: 200px;
+  color: var(--text-secondary);
 }
 
 .ui-hero {
@@ -766,13 +950,15 @@ html, body, #app {
   background: transparent !important;
   color: var(--text-primary) !important;
   font-family: var(--font-sans) !important;
+  height: 100% !important;
+  overflow: hidden !important;
 }
 
 .history-view,
 .rag-view,
 .role-view {
-  padding: 20px 24px 28px !important;
-  gap: 16px !important;
+  padding: 0 !important;
+  gap: 0 !important;
 }
 
 .history-view .page-header,
@@ -780,7 +966,7 @@ html, body, #app {
 .role-view .page-header {
   position: relative !important;
   top: auto !important;
-  padding: 20px 24px !important;
+  padding: var(--page-header-padding-y) var(--page-padding-x) !important;
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
   background: rgba(255, 255, 255, 0.82) !important;
@@ -791,14 +977,14 @@ html, body, #app {
 .history-view .page-content,
 .rag-view .page-content,
 .role-view .page-content {
-  padding: 0 !important;
+  padding: var(--page-padding-y) var(--page-padding-x) !important;
   background: transparent !important;
 }
 
 .history-view .content-inner,
 .rag-view .content-inner,
 .role-view .content-inner {
-  max-width: 1440px !important;
+  max-width: var(--page-content-max-width) !important;
 }
 
 .history-view .header-icon-wrapper,
@@ -831,7 +1017,7 @@ html, body, #app {
 .history-view .tabs-nav,
 .rag-view .tabs-nav,
 .role-view .tabs-nav {
-  margin-bottom: 18px !important;
+  margin-bottom: var(--space-lg) !important;
   border-bottom: 1px solid var(--border-light) !important;
   gap: 6px !important;
 }
@@ -893,7 +1079,7 @@ html, body, #app {
 }
 
 .role-view .role-section {
-  margin-bottom: 24px !important;
+  margin-bottom: var(--space-3xl) !important;
 }
 
 .role-view .section-title,
@@ -907,14 +1093,14 @@ html, body, #app {
 .settings-view,
 .create-role-view,
 .info-view {
-  padding: 20px 24px 28px !important;
+  padding: 0 !important;
   overflow: auto !important;
 }
 
 .user-view .user-container,
 .create-role-view .content-container,
 .info-view {
-  max-width: 1280px !important;
+  max-width: var(--page-content-max-width) !important;
   margin: 0 auto !important;
 }
 
@@ -972,7 +1158,9 @@ html, body, #app {
 }
 
 .contract-planner {
-  padding: 20px 24px 28px !important;
+  padding: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
 }
 
 .contract-planner .planner-header,

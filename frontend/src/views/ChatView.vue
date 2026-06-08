@@ -3156,8 +3156,9 @@ onUnmounted(() => {
   }
 
   .landing-hero {
-    min-height: calc(100vh - 136px);
-    padding: 0 16px;
+    justify-content: flex-start;
+    min-height: auto;
+    padding: 42px 14px 24px;
   }
 
   .simple-session-topbar {
@@ -3209,25 +3210,35 @@ onUnmounted(() => {
   }
 
   .landing-hero h2 {
-    bottom: calc(50% + 178px);
-    width: calc(100vw - 32px);
-    font-size: 32px;
+    position: static;
+    width: 100%;
+    font-size: 30px;
+    line-height: 1.28;
+    transform: none;
   }
 
   .landing-hero p {
-    bottom: calc(50% + 126px);
-    width: calc(100vw - 32px);
+    position: static;
+    width: 100%;
+    margin: 14px 0 0;
     font-size: 16px;
+    transform: none;
   }
 
   .landing-composer {
+    position: relative;
+    top: auto;
+    left: auto;
     width: calc(100vw - 28px);
+    min-height: 0;
+    margin-top: 24px;
     border-radius: 14px;
+    transform: none;
   }
 
   .landing-message-input {
-    height: 104px;
-    padding: 23px 18px 0;
+    height: 76px;
+    padding: 18px 18px 0;
   }
 
   .landing-chip {

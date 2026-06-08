@@ -461,21 +461,24 @@ const handleSubmit = async () => {
 
 <style scoped lang="scss">
 .create-role-view {
-  height: 100vh;
+  height: 100%;
   width: 100%;
-  background: #fafafa;
+  background: var(--bg-app);
   overflow: hidden;
 }
 
 .view-layout {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
 .header {
+  flex-shrink: 0;
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
-  height: 80px !important;
+  height: 64px !important;
   display: flex;
   align-items: center;
   padding: 0;
@@ -552,6 +555,8 @@ const handleSubmit = async () => {
 
 /* Main Content */
 .main-content {
+  flex: 1;
+  min-height: 0;
   padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -560,7 +565,7 @@ const handleSubmit = async () => {
 .content-container {
   max-width: 900px;
   margin: 0 auto;
-  padding: 40px 32px 60px;
+  padding: var(--space-3xl) var(--space-2xl) var(--space-3xl);
 }
 
 /* Progress Indicator */
@@ -568,8 +573,8 @@ const handleSubmit = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 48px;
-  padding: 32px;
+  margin-bottom: var(--space-3xl);
+  padding: var(--space-xl);
   background: white;
   border-radius: 16px;
   border: 1px solid #e5e7eb;
@@ -640,7 +645,7 @@ const handleSubmit = async () => {
   background: white;
   border-radius: 16px;
   border: 1px solid #e5e7eb;
-  padding: 40px;
+  padding: var(--space-3xl);
 }
 
 .step-content {

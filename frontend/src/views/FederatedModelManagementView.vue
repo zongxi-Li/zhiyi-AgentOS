@@ -859,11 +859,11 @@ onMounted(() => {
   --gap-xl: 32px;
 
   position: relative;
-  min-height: 100vh;
-  padding: 20px 24px 28px;
+  height: 100%;
+  padding: var(--page-padding-y) var(--page-padding-x);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--page-gap);
   color: var(--text-primary);
   overflow-y: auto;
   overflow-x: hidden;

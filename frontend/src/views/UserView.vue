@@ -285,18 +285,18 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .user-view {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   background: var(--bg-app);
-  padding: 32px 24px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: var(--page-padding-y) var(--page-padding-x);
 }
 
 .user-container {
-  max-width: 1200px;
+  max-width: var(--page-content-max-width);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-xl);
 }
 
 /* 用户信息头部卡片 */
@@ -419,7 +419,7 @@ onMounted(async () => {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  gap: var(--page-gap);
 }
 
 .stat-card {
@@ -487,7 +487,7 @@ onMounted(async () => {
 .content-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 24px;
+  gap: var(--page-gap);
 }
 
 .content-card {
@@ -503,28 +503,28 @@ onMounted(async () => {
 }
 
 .card-header {
-  padding: 24px 24px 0;
+  padding: var(--space-xl) var(--space-xl) 0;
   border-bottom: 1px solid var(--border-light);
-  margin-bottom: 24px;
+  margin-bottom: var(--space-xl);
 }
 
 .card-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   letter-spacing: -0.01em;
 }
 
 .card-subtitle {
   font-size: 13px;
   color: var(--text-secondary);
-  margin: 0 0 20px 0;
+  margin: 0 0 var(--space-lg) 0;
   font-weight: 400;
 }
 
 .card-body {
-  padding: 0 24px 24px;
+  padding: 0 var(--space-xl) var(--space-xl);
 }
 
 /* 表单样式 */
@@ -613,23 +613,23 @@ onMounted(async () => {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .user-view {
-    padding: 20px 16px;
+    padding: var(--space-lg) var(--space-md);
   }
-  
+
   .profile-content {
-    padding: 24px;
+    padding: var(--space-xl);
   }
-  
+
   .avatar-section {
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
-  
+
   .content-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .stats-grid {
     grid-template-columns: 1fr;
   }

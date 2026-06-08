@@ -309,7 +309,7 @@ const exportTrace = async () => {
 
 <style scoped>
 .contract-review-workbench {
-  min-height: 100%;
+  height: 100%;
   color: var(--text-primary);
   overflow: auto;
 }
@@ -367,7 +367,7 @@ dd {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .workbench-main,

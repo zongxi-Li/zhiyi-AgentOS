@@ -853,9 +853,10 @@ setInterval(() => { lastSaveTime.value = new Date().toLocaleTimeString('zh-CN', 
 
 <style scoped>
 .contract-planner {
-  min-height: 100%;
-  padding: 20px;
+  height: 100%;
+  padding: var(--page-padding-y) var(--page-padding-x);
   box-sizing: border-box;
+  overflow-y: auto;
   color: #17233c;
   background: linear-gradient(165deg, #f0f5ff 0%, #f8fafc 40%, #faf9fb 100%);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -988,7 +989,7 @@ button {
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr) 288px;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .left-column,
