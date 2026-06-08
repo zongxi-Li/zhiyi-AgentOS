@@ -14,7 +14,7 @@
     <div v-if="loading" class="empty">正在加载 Trace...</div>
     <div v-else-if="!events.length" class="empty">暂无 Trace 事件</div>
 
-    <div v-else class="events">
+    <div v-else class="events" :class="{ 'is-managed': shouldManageScroll }">
       <article v-for="event in events" :key="event.eventId" class="event-item">
         <div class="event-dot" :class="event.eventType"></div>
         <div class="event-content">
@@ -35,10 +35,11 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Connection, Download } from '@element-plus/icons-vue'
 import type { TraceEvent } from '@/services/api/workflow'
 
-defineProps<{
+const props = defineProps<{
   events: TraceEvent[]
   loading?: boolean
 }>()
@@ -70,6 +71,10 @@ const formatTime = (value?: string) => {
   if (!value) return ''
   return new Date(value).toLocaleString()
 }
+
+const shouldManageScroll = computed(() => {
+  return props.events.length > 6 || props.events.some(event => (event.observation || '').length > 360)
+})
 </script>
 
 <style scoped>
@@ -140,8 +145,27 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 460px;
-  overflow: auto;
+}
+
+.events.is-managed {
+  max-height: clamp(320px, 46vh, 560px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.events.is-managed::-webkit-scrollbar {
+  width: 5px;
+}
+
+.events.is-managed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.events.is-managed::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
 }
 
 .event-item {

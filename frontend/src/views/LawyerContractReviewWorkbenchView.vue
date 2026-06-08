@@ -17,7 +17,7 @@
       </button>
     </header>
 
-    <section class="workbench-layout">
+    <section class="workbench-layout" :class="{ 'is-pre-review': !selectedRun }">
       <section class="workbench-main">
         <section class="contract-input-panel ui-surface ui-surface--pad">
           <div class="section-head">
@@ -52,22 +52,59 @@
 
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
-        <WorkflowRunPanel
-          :run="selectedRun"
-          :metrics="metrics"
-          :loading="loading.detail"
-          @refresh="refreshSelectedRun"
-          @export-trace="exportTrace"
-        />
+        <template v-if="selectedRun">
+          <WorkflowRunPanel
+            :run="selectedRun"
+            :metrics="metrics"
+            :loading="loading.detail"
+            @refresh="refreshSelectedRun"
+            @export-trace="exportTrace"
+          />
 
-        <WorkflowStepList
-          :steps="selectedRun?.steps || []"
-          :current-step-id="selectedRun?.currentStepId"
-        />
+          <WorkflowStepList
+            :steps="selectedRun?.steps || []"
+            :current-step-id="selectedRun?.currentStepId"
+          />
 
-        <ContractRiskPanel :risks="contractArtifacts.risks" />
-        <ContractEvidencePanel :evidences="contractArtifacts.evidences" />
-        <ContractReportPreview :report-markdown="contractArtifacts.reportMarkdown" />
+          <ContractRiskPanel :risks="contractArtifacts.risks" />
+          <ContractEvidencePanel :evidences="contractArtifacts.evidences" />
+          <ContractReportPreview :report-markdown="contractArtifacts.reportMarkdown" />
+        </template>
+
+        <template v-else>
+          <section class="preflight-flow-panel ui-surface ui-surface--pad">
+            <div class="section-head">
+              <div class="section-title">
+                <el-icon><DocumentChecked /></el-icon>
+                <h3>审查流程</h3>
+              </div>
+              <span>待启动</span>
+            </div>
+            <div class="preflight-steps">
+              <article v-for="step in preflightSteps" :key="step.id" class="preflight-step">
+                <strong>{{ step.title }}</strong>
+                <p>{{ step.agent }}</p>
+                <span>{{ step.status }}</span>
+              </article>
+            </div>
+          </section>
+
+          <section class="preflight-output-panel ui-surface ui-surface--pad">
+            <div class="section-head">
+              <div class="section-title">
+                <el-icon><DocumentChecked /></el-icon>
+                <h3>结果区域</h3>
+              </div>
+              <span>等待生成</span>
+            </div>
+            <div class="preflight-output-grid">
+              <article v-for="item in preflightOutputs" :key="item.id" class="preflight-output-item">
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.path }}</p>
+              </article>
+            </div>
+          </section>
+        </template>
       </section>
 
       <aside class="workbench-side">
@@ -94,25 +131,75 @@
           </dl>
         </section>
 
-        <HumanReviewPanel
-          :run="selectedRun"
-          :reviews="reviews"
-          :loading="loading.reviews"
-          :submitting="loading.reviewSubmit"
-          @submit="submitReview"
-        />
+        <template v-if="selectedRun">
+          <HumanReviewPanel
+            :run="selectedRun"
+            :reviews="reviews"
+            :loading="loading.reviews"
+            :submitting="loading.reviewSubmit"
+            @submit="submitReview"
+          />
 
-        <CheckpointPanel
-          :checkpoints="checkpoints"
-          :loading="loading.checkpoints"
-          @resume="resumeFromCheckpoint"
-        />
+          <CheckpointPanel
+            :checkpoints="checkpoints"
+            :loading="loading.checkpoints"
+            @resume="resumeFromCheckpoint"
+          />
 
-        <TraceEventTimeline
-          :events="traceEvents"
-          :loading="loading.trace"
-          @export-markdown="exportTrace"
-        />
+          <TraceEventTimeline
+            :events="traceEvents"
+            :loading="loading.trace"
+            @export-markdown="exportTrace"
+          />
+
+          <CallResultPanel
+            :run="selectedRun"
+            :events="traceEvents"
+            :loading="loading.detail || loading.trace"
+          />
+        </template>
+
+        <template v-else>
+          <section class="preflight-config-panel ui-surface ui-surface--pad">
+            <div class="section-head">
+              <div class="section-title">
+                <el-icon><DocumentChecked /></el-icon>
+                <h3>审查配置</h3>
+              </div>
+              <span>human_in_loop</span>
+            </div>
+            <dl>
+              <div>
+                <dt>workflow</dt>
+                <dd>{{ selectedWorkflowId }}</dd>
+              </div>
+              <div>
+                <dt>domain</dt>
+                <dd>legal</dd>
+              </div>
+              <div>
+                <dt>source</dt>
+                <dd>workbench</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="preflight-monitor-panel ui-surface ui-surface--pad">
+            <div class="section-head">
+              <div class="section-title">
+                <el-icon><Refresh /></el-icon>
+                <h3>运行监控</h3>
+              </div>
+              <span>standby</span>
+            </div>
+            <div class="monitor-slots">
+              <article v-for="item in preflightMonitors" :key="item.id">
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.value }}</p>
+              </article>
+            </div>
+          </section>
+        </template>
       </aside>
     </section>
   </main>
@@ -122,6 +209,7 @@
 import { computed, reactive, ref } from 'vue'
 import { Check, DocumentChecked, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import CallResultPanel from '@/components/agentos/CallResultPanel.vue'
 import CheckpointPanel from '@/components/agentos/CheckpointPanel.vue'
 import ContractEvidencePanel from '@/components/agentos/ContractEvidencePanel.vue'
 import ContractReportPreview from '@/components/agentos/ContractReportPreview.vue'
@@ -135,6 +223,25 @@ import { extractContractReviewArtifacts } from '@/utils/agentos/contractReviewAr
 
 const workflowOptions = [
   { label: '合同审查标准流程', value: 'legal_contract_review_v1' }
+]
+
+const preflightSteps = [
+  { id: 'risk', title: '风险识别', agent: 'legal_risk_detect', status: '待执行' },
+  { id: 'evidence', title: '依据匹配', agent: 'legal_evidence_match', status: '待执行' },
+  { id: 'review', title: '人工审核', agent: 'human_review', status: '审核门控' },
+  { id: 'report', title: '报告生成', agent: 'report_generate', status: '待执行' }
+]
+
+const preflightOutputs = [
+  { id: 'risks', title: '风险点', path: 'output.artifacts.risk_detect.risks' },
+  { id: 'evidences', title: 'Evidence 依据链', path: 'output.artifacts.legal_evidence_match.evidences' },
+  { id: 'report', title: '报告预览', path: 'output.artifacts.report_generate.report_markdown' }
+]
+
+const preflightMonitors = [
+  { id: 'trace', title: 'Trace 事件', value: '0 条' },
+  { id: 'checkpoint', title: '恢复点', value: '0 个' },
+  { id: 'call-result', title: '调用结果', value: '0 条' }
 ]
 
 const defaultContractText = `甲方委托乙方开发 CRM 系统，合同约定签署后支付 30%，系统上线后支付 70%。
@@ -309,9 +416,9 @@ const exportTrace = async () => {
 
 <style scoped>
 .contract-review-workbench {
-  height: 100%;
+  min-height: 100%;
   color: var(--text-primary);
-  overflow: auto;
+  overflow: visible;
 }
 
 .workbench-header {
@@ -370,17 +477,29 @@ dd {
   align-items: stretch;
 }
 
+.workbench-layout.is-pre-review {
+  min-height: min(720px, calc(100vh - 188px));
+}
+
+.workbench-layout.is-pre-review .preflight-output-panel,
+.workbench-layout.is-pre-review .preflight-monitor-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
 .workbench-main,
 .workbench-side {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  height: 100%;
 }
 
-.workbench-side {
-  position: sticky;
-  top: 16px;
+.workbench-main :deep(.contract-report-preview),
+.workbench-side :deep(.call-result-panel) {
+  flex: 1 1 auto;
 }
 
 .section-head {
@@ -472,17 +591,37 @@ select:focus {
 }
 
 .primary-action {
-  min-height: 36px;
-  padding: 0 14px;
-  border: 0;
-  background: var(--primary-color);
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
   color: #fff;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0;
+  box-shadow: 0 10px 22px rgba(63, 107, 99, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.primary-action :deep(.el-icon) {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
 }
 
 .primary-action:hover:not(:disabled) {
-  background: var(--primary-hover);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, var(--primary-hover), #2f5a52);
+  box-shadow: 0 14px 28px rgba(63, 107, 99, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.primary-action:active:not(:disabled) {
+  box-shadow: 0 6px 14px rgba(63, 107, 99, 0.18), inset 0 1px 2px rgba(24, 39, 35, 0.16);
+  transform: translateY(0);
+}
+
+.primary-action:focus-visible {
+  outline: 3px solid var(--primary-fade);
+  outline-offset: 2px;
 }
 
 .error-message {
@@ -499,13 +638,112 @@ select:focus {
   gap: 8px;
 }
 
-.artifact-path-panel div {
+.artifact-path-panel div,
+.preflight-config-panel dl > div {
   display: grid;
   gap: 4px;
   padding: 9px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
   background: var(--bg-panel);
+}
+
+.preflight-flow-panel,
+.preflight-output-panel,
+.preflight-config-panel,
+.preflight-monitor-panel {
+  min-width: 0;
+}
+
+.preflight-output-panel,
+.preflight-monitor-panel {
+  min-height: 220px;
+}
+
+.preflight-steps,
+.preflight-output-grid,
+.monitor-slots,
+.preflight-config-panel dl {
+  display: grid;
+  gap: 10px;
+}
+
+.preflight-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.preflight-step,
+.preflight-output-item,
+.monitor-slots article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.preflight-step {
+  display: grid;
+  gap: 8px;
+}
+
+.preflight-output-item,
+.monitor-slots article {
+  display: grid;
+  gap: 6px;
+}
+
+.preflight-step strong,
+.preflight-output-item strong,
+.monitor-slots strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.preflight-step p,
+.preflight-output-item p,
+.monitor-slots p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.preflight-step span {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(73, 107, 143, 0.1);
+  color: var(--info);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.preflight-output-grid,
+.monitor-slots {
+  flex: 1 1 auto;
+  max-height: clamp(220px, 34vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.preflight-output-grid::-webkit-scrollbar,
+.monitor-slots::-webkit-scrollbar {
+  width: 5px;
+}
+
+.preflight-output-grid::-webkit-scrollbar-track,
+.monitor-slots::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.preflight-output-grid::-webkit-scrollbar-thumb,
+.monitor-slots::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
 }
 
 dt {
@@ -519,10 +757,24 @@ dd {
 @media (max-width: 1160px) {
   .workbench-layout {
     grid-template-columns: 1fr;
+    align-items: start;
+    min-height: 0;
   }
 
   .workbench-side {
-    position: static;
+    align-self: auto;
+    height: auto;
+  }
+
+  .workbench-main :deep(.contract-report-preview),
+  .workbench-side :deep(.call-result-panel),
+  .workbench-layout.is-pre-review .preflight-output-panel,
+  .workbench-layout.is-pre-review .preflight-monitor-panel {
+    flex: initial;
+  }
+
+  .preflight-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -534,6 +786,10 @@ dd {
   .workbench-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .preflight-steps {
+    grid-template-columns: 1fr;
   }
 }
 </style>

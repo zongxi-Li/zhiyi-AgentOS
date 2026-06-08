@@ -10,7 +10,7 @@
 
     <div v-if="!evidences.length" class="empty">暂无依据链</div>
 
-    <div v-else class="evidence-list">
+    <div v-else class="evidence-list" :class="{ 'is-managed': shouldManageScroll }">
       <article v-for="item in evidences" :key="item.id || item.sourceName" class="evidence-item">
         <div class="evidence-top">
           <strong>{{ item.sourceName || item.id || '未命名依据' }}</strong>
@@ -31,12 +31,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Link } from '@element-plus/icons-vue'
 import type { ContractEvidenceItem } from '@/utils/agentos/contractReviewArtifactExtractor'
 
-defineProps<{
+const props = defineProps<{
   evidences: ContractEvidenceItem[]
 }>()
+
+const shouldManageScroll = computed(() => {
+  return props.evidences.length > 4 || props.evidences.some(item => {
+    return `${item.citationText || ''}${item.content || ''}`.length > 420
+  })
+})
 </script>
 
 <style scoped>
@@ -83,6 +90,27 @@ p,
 .evidence-list {
   display: grid;
   gap: 10px;
+}
+
+.evidence-list.is-managed {
+  max-height: clamp(420px, 64vh, 640px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.evidence-list.is-managed::-webkit-scrollbar {
+  width: 5px;
+}
+
+.evidence-list.is-managed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.evidence-list.is-managed::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
 }
 
 .evidence-item {
