@@ -7,10 +7,10 @@
       'detail-interface': isDetailInterface
     }"
   >
-    <section v-if="shouldShowLanding" class="simple-chat-home" aria-label="知弈对话中心">
+    <section v-if="shouldShowLanding" class="simple-chat-home" aria-label="知弈OS">
       <header class="landing-topbar">
         <section class="landing-brand" aria-label="产品信息">
-          <h1>知弈对话中心</h1>
+          <h1>知弈OS</h1>
           <p>多角色协作 · ReAct Trace · RAG 引用</p>
         </section>
 
@@ -133,7 +133,7 @@
 
     <header v-else class="chat-header" :class="headerClass">
       <div class="left">
-        <span class="title">联邦智能体对话中心</span>
+        <span class="title">知弈OS</span>
         <div class="mode-switcher">
           <button
             class="mode-btn"

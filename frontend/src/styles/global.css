@@ -940,12 +940,10 @@ html, body, #app {
 
 /* Page-level gallery polish for existing views */
 .history-view,
-.rag-view,
 .role-view,
 .user-view,
 .settings-view,
 .create-role-view,
-.contract-planner,
 .info-view {
   background: transparent !important;
   color: var(--text-primary) !important;
@@ -959,6 +957,15 @@ html, body, #app {
 .role-view {
   padding: 0 !important;
   gap: 0 !important;
+}
+
+.rag-view {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-sans) !important;
+  min-height: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 .history-view .page-header,
@@ -1158,9 +1165,10 @@ html, body, #app {
 }
 
 .contract-planner {
-  padding: 0 !important;
-  height: 100% !important;
-  overflow: hidden !important;
+  padding: var(--page-padding-y) var(--page-padding-x) !important;
+  min-height: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 .contract-planner .planner-header,

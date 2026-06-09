@@ -149,6 +149,38 @@
               <small>{{ step.desc }}</small>
             </article>
           </div>
+
+          <div class="flow-insight-board">
+            <article class="flow-insight-card is-primary">
+              <span class="insight-label">{{ flowTabSummary.label }}</span>
+              <h3>{{ flowTabSummary.title }}</h3>
+              <p>{{ flowTabSummary.desc }}</p>
+              <div class="insight-meta-row">
+                <span>Step {{ selectedStepNo }}</span>
+                <strong>{{ selectedStepInfo.title }}</strong>
+              </div>
+            </article>
+
+            <article class="flow-insight-card">
+              <span class="insight-label">质量闸门</span>
+              <div class="gate-list">
+                <div v-for="gate in qualityGates" :key="gate.label" class="gate-item" :class="gate.tone">
+                  <span>{{ gate.label }}</span>
+                  <strong>{{ gate.value }}</strong>
+                </div>
+              </div>
+            </article>
+
+            <article class="flow-insight-card">
+              <span class="insight-label">交付清单</span>
+              <div class="delivery-list">
+                <div v-for="item in deliveryItems" :key="item.title">
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.desc }}</span>
+                </div>
+              </div>
+            </article>
+          </div>
         </section>
 
         <section class="detail-grid">
@@ -231,7 +263,7 @@
         </section>
       </main>
 
-      <aside class="right-rail">
+      <aside v-if="false" class="right-rail">
         <section class="panel assistant-panel">
           <div class="section-head compact">
             <h3>数字人助手</h3>
@@ -373,6 +405,45 @@ const selectedStepNo = ref('03')
 // ---- 思维链 ----
 type FlowTab = 'flow' | 'chain' | 'gantt' | 'compare'
 const activeFlowTab = ref<FlowTab>('flow')
+
+const flowTabSummary = computed(() => {
+  const map: Record<FlowTab, { label: string; title: string; desc: string }> = {
+    flow: {
+      label: '协同编排',
+      title: '法律顾问、需求分析师、文档专家并行推进',
+      desc: '当前流程聚焦条款骨架生成，正在把需求边界、法规依据和合同文本结构同步到同一份草案。'
+    },
+    chain: {
+      label: '思维链摘要',
+      title: '从交付物定义到风险校验逐层收敛',
+      desc: '系统先确认任务目标，再检索法规与模板，随后生成条款结构并进入风险审核，避免直接生成失控文本。'
+    },
+    gantt: {
+      label: '节奏规划',
+      title: '核心生成阶段已进入中后段',
+      desc: '资料检索已完成，条款结构生成正在执行；后续风险审核和正式草案输出会承接当前结果。'
+    },
+    compare: {
+      label: '对比视图',
+      title: '严谨版与客户友好版并行保留差异',
+      desc: '系统会保留法律严谨表述，同时准备客户可读版本，便于后续合并、解释和人工确认。'
+    }
+  }
+  return map[activeFlowTab.value]
+})
+
+const qualityGates = [
+  { label: '验收标准', value: '待补强', tone: 'warning' },
+  { label: '知识产权', value: '已定位', tone: 'success' },
+  { label: '付款边界', value: '复核中', tone: 'info' },
+  { label: '违约责任', value: '待确认', tone: 'warning' }
+]
+
+const deliveryItems = [
+  { title: '条款骨架', desc: '5 个核心模块已成型' },
+  { title: '风险标注', desc: '付款、验收、权属重点校验' },
+  { title: '草案预览', desc: '同步生成正式合同文本' }
+]
 
 const reasoningItems = ref([
   { title: '提取合同主体与交易背景', desc: '识别甲乙双方、开发范围、交付方式与付款结构。' },
@@ -646,8 +717,8 @@ onMounted(() => {
 
 <style scoped>
 .agent-workbench {
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
+  overflow: visible;
   padding: var(--page-padding-y) var(--page-padding-x);
   background: #f4f8fd;
   color: #17233c;
@@ -791,9 +862,10 @@ button {
 .workspace-grid {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: minmax(240px, 272px) minmax(0, 1fr) minmax(260px, 296px);
+  grid-template-columns: minmax(248px, 272px) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
+  min-height: min(820px, calc(100vh - 188px));
 }
 
 .left-rail,
@@ -802,6 +874,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
 }
 
 .task-board {
@@ -809,6 +882,31 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
+}
+
+.node-panel,
+.flow-panel,
+.recommendation-panel {
+  flex: 1 1 auto;
+}
+
+.node-panel,
+.flow-panel,
+.detail-card,
+.preview-card,
+.timeline-panel,
+.recommendation-panel {
+  min-height: 0;
+}
+
+.flow-panel,
+.detail-card,
+.preview-card,
+.timeline-panel,
+.recommendation-panel {
+  display: flex;
+  flex-direction: column;
 }
 
 .panel {
@@ -902,6 +1000,9 @@ button {
   display: flex;
   flex-direction: column;
   gap: 9px;
+  max-height: clamp(230px, 28vh, 350px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .module-item {
@@ -980,6 +1081,12 @@ button {
 
 .node-panel {
   padding-bottom: 10px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.node-panel .panel-title {
+  flex: 0 0 auto;
 }
 
 .node-row {
@@ -1145,6 +1252,146 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 12px;
+  max-height: clamp(260px, 34vh, 460px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.flow-insight-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(210px, 0.9fr) minmax(220px, 0.9fr);
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.flow-insight-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-input);
+}
+
+.flow-insight-card.is-primary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), var(--bg-input));
+  border-color: var(--primary-line);
+}
+
+.insight-label {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flow-insight-card h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.flow-insight-card p {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.insight-meta-row {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.insight-meta-row span,
+.insight-meta-row strong {
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.insight-meta-row span {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.insight-meta-row strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.gate-list,
+.delivery-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gate-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.gate-item span,
+.delivery-list span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.gate-item strong,
+.delivery-list strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.gate-item.success strong {
+  color: var(--success);
+}
+
+.gate-item.warning strong {
+  color: var(--warning);
+}
+
+.gate-item.info strong {
+  color: var(--info);
+}
+
+.delivery-list > div {
+  padding: 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.delivery-list strong,
+.delivery-list span {
+  display: block;
+}
+
+.delivery-list span {
+  margin-top: 4px;
+  line-height: 1.45;
 }
 
 .flow-step {
@@ -1230,6 +1477,13 @@ button {
   padding: 18px;
 }
 
+.detail-card .section-head,
+.preview-card .section-head,
+.timeline-panel .section-head,
+.recommendation-panel .section-head {
+  flex: 0 0 auto;
+}
+
 .section-head h3,
 .section-head compact h3 {
   margin: 0;
@@ -1300,6 +1554,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: clamp(210px, 28vh, 360px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .cot-list > div {
@@ -1335,6 +1593,9 @@ button {
   margin-top: 14px;
   padding: 16px;
   min-height: 220px;
+  max-height: clamp(260px, 34vh, 440px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   border-radius: 8px;
   background: linear-gradient(180deg, #ffffff, #f8fbff);
   border: 1px solid #e1ebf6;
@@ -1359,6 +1620,9 @@ button {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  max-height: clamp(190px, 24vh, 320px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .timeline-item {
@@ -1593,6 +1857,9 @@ button {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: clamp(250px, 32vh, 420px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .source-list > div {
@@ -1638,6 +1905,12 @@ button {
   gap: 8px;
 }
 
+.recommendation-panel :deep(.recommendation-list) {
+  max-height: clamp(260px, 34vh, 450px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 .recommendation-list button {
   padding: 10px 12px;
   border: 1px solid #e0eaf6;
@@ -1649,15 +1922,9 @@ button {
   line-height: 1.45;
 }
 
-@media (max-width: 1540px) {
+@media (max-width: 1280px) {
   .workspace-grid {
     grid-template-columns: 250px minmax(520px, 1fr);
-  }
-
-  .right-rail {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
   }
 
   .flow-step::after {
@@ -1665,7 +1932,7 @@ button {
   }
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1160px) {
   .workspace-grid {
     grid-template-columns: 250px minmax(0, 1fr);
   }
@@ -1681,15 +1948,16 @@ button {
 
   .workspace-grid {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
-  .left-rail,
-  .right-rail {
+  .left-rail {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
   }
 
   .flow-lane,
+  .flow-insight-board,
   .timeline {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1708,9 +1976,13 @@ button {
     padding: 12px;
   }
 
+  .workspace-grid {
+    min-height: 0;
+  }
+
   .left-rail,
-  .right-rail,
   .flow-lane,
+  .flow-insight-board,
   .timeline,
   .detail-meta {
     grid-template-columns: 1fr;
@@ -1880,9 +2152,28 @@ button {
 
 .command-bar button,
 .assistant-action {
-  background: var(--primary-color);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
   color: #fff;
-  border: 0;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-shadow: 0 1px 1px rgba(23, 36, 34, 0.18);
+  box-shadow: 0 10px 22px rgba(63, 107, 99, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.command-bar button:hover:not(:disabled),
+.assistant-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(63, 107, 99, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.command-bar button:disabled {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: linear-gradient(135deg, #7b84dc, #5f68c9);
+  color: rgba(255, 255, 255, 0.96);
+  cursor: not-allowed;
+  opacity: 1;
+  box-shadow: 0 8px 18px rgba(95, 104, 201, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .voice-wave span,

@@ -114,18 +114,14 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/federated-agent-workbench',
     name: 'FederatedAgentWorkbench',
-    component: () => import('@/views/FederatedAgentWorkbenchView.vue'),
-    meta: {
-      title: '联邦智能体工作台',
-      requiresAuth: true
-    }
+    redirect: '/agentos/legal/contract-review'
   },
   {
     path: '/agentos-console',
     name: 'AgentOsConsole',
     component: () => import('@/views/AgentOsConsoleView.vue'),
     meta: {
-      title: 'AgentOS 控制台',
+      title: 'AgentOS 运维',
       requiresAuth: true
     }
   },
@@ -143,7 +139,7 @@ const routes: RouteRecordRaw[] = [
     name: 'ContractClausePlanner',
     component: () => import('@/views/ContractClausePlannerView.vue'),
     meta: {
-      title: '软件开发合同起草',
+      title: '职业工作台',
       requiresAuth: true
     }
   },

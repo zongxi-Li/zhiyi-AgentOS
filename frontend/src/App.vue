@@ -25,21 +25,13 @@
                 <el-icon><ChatDotRound /></el-icon>
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
-              <el-menu-item index="/federated-agent-workbench">
+              <el-menu-item index="/contract-clause-planner">
                 <el-icon><Operation /></el-icon>
-                <span>智能体工作台</span>
-              </el-menu-item>
-              <el-menu-item index="/agentos-console">
-                <el-icon><Monitor /></el-icon>
-                <span>AgentOS 控制台</span>
+                <span>职业工作台</span>
               </el-menu-item>
               <el-menu-item index="/agentos/legal/contract-review">
                 <el-icon><DocumentChecked /></el-icon>
                 <span>律师合同审查</span>
-              </el-menu-item>
-              <el-menu-item index="/contract-clause-planner">
-                <el-icon><DocumentChecked /></el-icon>
-                <span>合同起草规划</span>
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
@@ -53,6 +45,10 @@
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.system') }}</div>
+              <el-menu-item index="/agentos-console">
+                <el-icon><Monitor /></el-icon>
+                <span>AgentOS 运维</span>
+              </el-menu-item>
               <el-menu-item index="/roles">
                 <el-icon><User /></el-icon>
                 <span>{{ $t('nav.roles') }}</span>
@@ -133,21 +129,13 @@
                 <el-icon><ChatDotRound /></el-icon>
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
-              <el-menu-item index="/federated-agent-workbench">
+              <el-menu-item index="/contract-clause-planner">
                 <el-icon><Operation /></el-icon>
-                <span>智能体工作台</span>
-              </el-menu-item>
-              <el-menu-item index="/agentos-console">
-                <el-icon><Monitor /></el-icon>
-                <span>AgentOS 控制台</span>
+                <span>职业工作台</span>
               </el-menu-item>
               <el-menu-item index="/agentos/legal/contract-review">
                 <el-icon><DocumentChecked /></el-icon>
                 <span>律师合同审查</span>
-              </el-menu-item>
-              <el-menu-item index="/contract-clause-planner">
-                <el-icon><DocumentChecked /></el-icon>
-                <span>合同起草规划</span>
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
@@ -161,6 +149,10 @@
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.system') }}</div>
+              <el-menu-item index="/agentos-console">
+                <el-icon><Monitor /></el-icon>
+                <span>AgentOS 运维</span>
+              </el-menu-item>
               <el-menu-item index="/roles">
                 <el-icon><User /></el-icon>
                 <span>{{ $t('nav.roles') }}</span>
@@ -289,17 +281,16 @@ const isRouteScrollable = computed(() => {
   return (
     path.startsWith('/federated-learning') ||
     path.startsWith('/federated-models') ||
-    path.startsWith('/federated-agent-workbench') ||
     path.startsWith('/agentos-console') ||
     path.startsWith('/agentos/legal/contract-review') ||
-    path.startsWith('/contract-clause-planner')
+    path.startsWith('/contract-clause-planner') ||
+    path.startsWith('/rag')
   )
 })
 
 const activeMenu = computed(() => {
   const path = route.path
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
-  if (path.startsWith('/federated-agent-workbench')) return '/federated-agent-workbench'
   if (path.startsWith('/agentos-console')) return '/agentos-console'
   if (path.startsWith('/agentos/legal/contract-review')) return '/agentos/legal/contract-review'
   if (path.startsWith('/contract-clause-planner')) return '/contract-clause-planner'

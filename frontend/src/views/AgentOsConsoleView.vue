@@ -301,9 +301,9 @@ onMounted(loadRuns)
 
 <style scoped>
 .agentos-console {
-  height: 100%;
+  min-height: 100%;
   color: var(--text-primary);
-  overflow: auto;
+  overflow: visible;
 }
 
 .console-header {
@@ -348,9 +348,10 @@ p {
 
 .console-layout {
   display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(310px, 380px);
+  grid-template-columns: minmax(260px, 310px) minmax(0, 1fr) minmax(320px, 390px);
   gap: 16px;
   align-items: stretch;
+  min-height: min(820px, calc(100vh - 188px));
 }
 
 .run-sidebar,
@@ -359,11 +360,65 @@ p {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+  height: 100%;
 }
 
 .run-sidebar {
-  position: sticky;
-  top: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.console-main,
+.console-side {
+  min-height: 0;
+}
+
+.console-main :deep(.checkpoint-panel),
+.console-side :deep(.trace-event-timeline) {
+  flex: 1 1 auto;
+}
+
+.console-main :deep(.workflow-run-panel),
+.console-main :deep(.workflow-step-list),
+.console-main :deep(.checkpoint-panel),
+.console-side :deep(.human-review-panel),
+.console-side :deep(.trace-event-timeline) {
+  min-height: 0;
+}
+
+.console-main :deep(.workflow-step-list),
+.console-main :deep(.checkpoint-panel),
+.console-side :deep(.human-review-panel),
+.console-side :deep(.trace-event-timeline) {
+  display: flex;
+  flex-direction: column;
+}
+
+.console-main :deep(.steps),
+.console-main :deep(.checkpoint-list),
+.console-side :deep(.review-history),
+.console-side :deep(.events) {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+.console-main :deep(.steps) {
+  max-height: clamp(260px, 34vh, 460px);
+}
+
+.console-main :deep(.checkpoint-list) {
+  max-height: clamp(240px, 32vh, 420px);
+}
+
+.console-side :deep(.review-history) {
+  max-height: clamp(260px, 34vh, 440px);
+}
+
+.console-side :deep(.events) {
+  max-height: clamp(360px, 52vh, 640px);
 }
 
 .filter-panel {
@@ -523,12 +578,18 @@ input:focus {
 @media (max-width: 1180px) {
   .console-layout {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
+
 }
 
 @media (max-width: 720px) {
   .agentos-console {
     padding: 14px;
+  }
+
+  .console-layout {
+    min-height: 0;
   }
 
   .console-header {

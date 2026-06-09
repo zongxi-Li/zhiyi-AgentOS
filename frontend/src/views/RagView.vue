@@ -289,11 +289,11 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .rag-view {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   background: transparent;
 }
 
@@ -390,15 +390,18 @@ onMounted(() => {
 
 /* 主要内容区域 */
 .page-content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+  flex: 0 1 auto;
+  min-height: auto;
+  overflow: visible;
   padding: var(--page-padding-y) var(--page-padding-x);
 }
 
 .content-inner {
   max-width: var(--page-content-max-width);
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 /* 标签导航 */
@@ -443,38 +446,49 @@ onMounted(() => {
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
   gap: var(--section-gap);
+  align-items: stretch;
+  min-height: min(760px, calc(100vh - 210px));
 }
 
 .graph-section {
-  min-height: 400px;
+  min-height: min(760px, calc(100vh - 210px));
+  display: flex;
+  flex-direction: column;
 }
 
 .docs-only-section {
   max-width: var(--page-content-max-width);
   margin: 0 auto;
   width: 100%;
+  min-height: min(680px, calc(100vh - 210px));
+  display: flex;
+  flex-direction: column;
 }
 
 .query-section {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .docs-section {
-  position: sticky;
-  top: var(--space-xl);
-  height: fit-content;
-  max-height: calc(100vh - 120px);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .docs-card {
   background: #ffffff;
   border: 1px solid var(--border-light);
-  border-radius: 20px;
+  border-radius: 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .card-header {
@@ -527,8 +541,11 @@ onMounted(() => {
 
 .docs-list {
   padding: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  max-height: 100%;
+  max-height: clamp(320px, 58vh, 720px);
+  scrollbar-gutter: stable;
   
   &::-webkit-scrollbar {
     width: 6px;
@@ -580,6 +597,49 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.query-section :deep(.rag-query-container),
+.query-section :deep(.query-card),
+.graph-section :deep(.knowledge-graph-viz) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.query-section :deep(.rag-query-container) {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.query-section :deep(.query-card),
+.graph-section :deep(.knowledge-graph-viz) {
+  border-radius: 8px;
+}
+
+.query-section :deep(.query-body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.query-section :deep(.result-area) {
+  max-height: clamp(280px, 42vh, 560px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.query-section :deep(.sources-list) {
+  max-height: clamp(180px, 28vh, 360px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.graph-section :deep(.graph-container) {
+  min-height: 520px;
 }
 
 .doc-item {
@@ -726,11 +786,11 @@ onMounted(() => {
 @media (max-width: 1024px) {
   .layout-grid {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .docs-section {
-    position: static;
-    max-height: none;
+    min-height: 0;
   }
 }
 
@@ -768,6 +828,7 @@ onMounted(() => {
 
   .layout-grid {
     gap: var(--space-lg);
+    min-height: 0;
   }
 }
 </style>
