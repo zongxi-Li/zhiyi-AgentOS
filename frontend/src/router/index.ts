@@ -130,17 +130,16 @@ const routes: RouteRecordRaw[] = [
     name: 'LawyerContractReviewWorkbench',
     component: () => import('@/views/LawyerContractReviewWorkbenchView.vue'),
     meta: {
-      title: '律师合同审查',
+      title: '角色工作台',
       requiresAuth: true
     }
   },
   {
     path: '/contract-clause-planner',
     name: 'ContractClausePlanner',
-    component: () => import('@/views/ContractClausePlannerView.vue'),
-    meta: {
-      title: '职业工作台',
-      requiresAuth: true
+    redirect: {
+      path: '/agentos/legal/contract-review',
+      query: { role: 'lawyer', template: 'lawyer-document' }
     }
   },
   {

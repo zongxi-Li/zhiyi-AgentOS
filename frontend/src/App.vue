@@ -25,13 +25,9 @@
                 <el-icon><ChatDotRound /></el-icon>
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
-              <el-menu-item index="/contract-clause-planner">
-                <el-icon><Operation /></el-icon>
-                <span>职业工作台</span>
-              </el-menu-item>
               <el-menu-item index="/agentos/legal/contract-review">
                 <el-icon><DocumentChecked /></el-icon>
-                <span>律师合同审查</span>
+                <span>角色工作台</span>
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
@@ -129,13 +125,9 @@
                 <el-icon><ChatDotRound /></el-icon>
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
-              <el-menu-item index="/contract-clause-planner">
-                <el-icon><Operation /></el-icon>
-                <span>职业工作台</span>
-              </el-menu-item>
               <el-menu-item index="/agentos/legal/contract-review">
                 <el-icon><DocumentChecked /></el-icon>
-                <span>律师合同审查</span>
+                <span>角色工作台</span>
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
@@ -225,7 +217,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { 
   ChatDotRound, User, Search, 
   Clock, Setting, SwitchButton, Connection,
-  Operation, Monitor, DocumentChecked, Cpu,
+  Monitor, DocumentChecked, Cpu,
   Menu as MenuIcon
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
@@ -283,7 +275,6 @@ const isRouteScrollable = computed(() => {
     path.startsWith('/federated-models') ||
     path.startsWith('/agentos-console') ||
     path.startsWith('/agentos/legal/contract-review') ||
-    path.startsWith('/contract-clause-planner') ||
     path.startsWith('/rag')
   )
 })
@@ -293,7 +284,6 @@ const activeMenu = computed(() => {
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
   if (path.startsWith('/agentos-console')) return '/agentos-console'
   if (path.startsWith('/agentos/legal/contract-review')) return '/agentos/legal/contract-review'
-  if (path.startsWith('/contract-clause-planner')) return '/contract-clause-planner'
   if (path === '/roles' || path.startsWith('/roles')) return '/roles'
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
   if (path === '/settings' || path.startsWith('/settings')) return '/settings'
