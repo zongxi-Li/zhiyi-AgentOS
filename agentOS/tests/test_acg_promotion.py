@@ -49,7 +49,7 @@ def _linear_workflow(step_count: int = 3) -> WorkflowDefinition:
 
 def test_promote_preserves_linear_order():
     wf = _linear_workflow(5)
-    bp = promote_workflow_to_acg(wf, task_id="t1")
+    bp = promote_workflow_to_acg(wf, task_id="t1", enrich=False)
     validate_blueprint(bp)
 
     assert bp.task_id == "t1"
@@ -96,7 +96,7 @@ def test_promote_without_explicit_next_uses_declaration_order():
             ],
         }
     )
-    bp = promote_workflow_to_acg(wf)
+    bp = promote_workflow_to_acg(wf, enrich=False)
     validate_blueprint(bp)
     assert bp.edge_count == 2
     assert sorted(bp.dependency_sources("b")) == ["a"]
@@ -104,8 +104,51 @@ def test_promote_without_explicit_next_uses_declaration_order():
 
 
 def test_promoted_nodes_are_step_type():
-    bp = promote_workflow_to_acg(_linear_workflow(3))
+    bp = promote_workflow_to_acg(_linear_workflow(3), enrich=False)
     assert len(bp.step_nodes()) == 3
     assert all(n.node_type == NodeType.STEP for n in bp.nodes)
     assert bp.metadata["promotedFromLinear"] is True
     assert bp.metadata["sourceWorkflowId"] == "wf_linear"
+
+
+def test_promote_enriched_injects_cognitive_nodes():
+    """enrich=True（默认）应注入 Agent/Memory/Evidence 认知节点，
+    但不改变就绪集调度行为（执行顺序仍线性）。"""
+    wf = WorkflowDefinition.model_validate(
+        {
+            "workflowId": "wf_enrich",
+            "name": "enrich",
+            "domain": "legal",
+            "steps": [
+                {"stepId": "parse", "name": "解析", "agentName": "parser", "capability": "parse"},
+                {"stepId": "risk", "name": "风险识别", "agentName": "risker", "capability": "risk_detect"},
+                {"stepId": "report", "name": "报告生成", "agentName": "reporter", "capability": "report_generate"},
+            ],
+        }
+    )
+    bp = promote_workflow_to_acg(wf, enrich=True)
+    validate_blueprint(bp)
+
+    # 注入了多类节点
+    types = {n.node_type for n in bp.nodes}
+    assert NodeType.STEP in types
+    assert NodeType.AGENT in types
+    assert NodeType.EVIDENCE in types  # risk/report 含证据关键词
+    assert NodeType.MEMORY in types    # risk/report 含记忆关键词
+
+    # 每个 Step 都有执行 Agent 节点
+    assert len(bp.step_nodes()) == 3
+    assert len([n for n in bp.nodes if n.node_type == NodeType.AGENT]) == 3
+
+    # 关键：就绪集调度仍线性，认知节点不参与执行
+    completed: set[str] = set()
+    order: list[str] = []
+    while True:
+        ready = ready_steps(bp, completed)
+        if not ready:
+            break
+        assert len(ready) == 1
+        order.append(ready[0])
+        completed.add(ready[0])
+    assert order == ["parse", "risk", "report"]
+    assert bp.metadata["enriched"] is True

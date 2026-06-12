@@ -119,7 +119,9 @@ def test_plan_static_template_path():
     assert result.strategy == "static_template"
     assert result.template_id == "legal_contract_review_v1"
     validate_blueprint(result.blueprint)
-    assert all(n.node_type == NodeType.STEP for n in result.blueprint.nodes)
+    # 升格后含 Step 节点；enrich 默认注入 Agent 等认知节点丰富拓扑
+    assert len(result.blueprint.step_nodes()) >= 1
+    assert all(s.node_type == NodeType.STEP for s in result.blueprint.step_nodes())
 
 
 def test_plan_dynamic_generation_path():

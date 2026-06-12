@@ -77,9 +77,10 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
     const style = NODE_STYLE[node.nodeType] || NODE_STYLE.step
     const isDone = completed.has(node.nodeId)
     const label = node.name || node.nodeId
+    const isStep = node.nodeType === 'step'
     return {
       id: node.nodeId,
-      label: node.nodeType === 'step' ? `${label}` : label,
+      label,
       shape: style.shape,
       color: {
         background: style.background,
@@ -87,8 +88,11 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
         highlight: { background: style.background, border: '#2f8f5b' }
       },
       borderWidth: isDone ? 3 : 1.5,
-      font: { size: 13, color: '#1d2422' },
-      margin: 8
+      // Step 为主干节点（大、醒目）；Agent/Memory/Evidence 为认知卫星节点（小）
+      size: isStep ? 26 : 16,
+      font: { size: isStep ? 14 : 11, color: isStep ? '#1d2422' : '#5a635e' },
+      mass: isStep ? 3 : 1,
+      margin: isStep ? 10 : 6
     }
   })
 }
@@ -96,32 +100,38 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
 const buildEdgeRows = (edges: AcgEdge[]) => {
   return edges.map((edge, index) => {
     const style = EDGE_STYLE[edge.edgeType] || EDGE_STYLE.dependency
+    const isDep = edge.edgeType === 'dependency'
     return {
       id: edge.edgeId || `e-${index}`,
       from: edge.sourceId,
       to: edge.targetId,
-      arrows: edge.edgeType === 'dependency' || edge.edgeType === 'execution' ? 'to' : 'to',
+      arrows: 'to',
       color: { color: style.color, highlight: '#2f8f5b' },
       dashes: style.dashes,
-      smooth: { enabled: true, type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.5 },
-      width: edge.edgeType === 'dependency' ? 2 : 1
+      smooth: { enabled: true, type: 'dynamic' },
+      // 依赖主干边更粗更短（强弹簧），认知关联边更细
+      width: isDep ? 2.5 : 1,
+      length: isDep ? 130 : 70
     }
   })
 }
 
 const options = {
   autoResize: true,
-  layout: {
-    hierarchical: {
-      enabled: true,
-      direction: 'LR',
-      sortMethod: 'directed',
-      levelSeparation: 160,
-      nodeSpacing: 90
-    }
+  layout: { improvedLayout: true },
+  physics: {
+    enabled: true,
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {
+      gravitationalConstant: -45,
+      centralGravity: 0.012,
+      springLength: 120,
+      springConstant: 0.18,
+      avoidOverlap: 0.6
+    },
+    stabilization: { enabled: true, iterations: 220, fit: true }
   },
-  physics: { enabled: false },
-  interaction: { hover: true, dragNodes: true, zoomView: true }
+  interaction: { hover: true, dragNodes: true, zoomView: true, navigationButtons: false }
 }
 
 const render = async () => {

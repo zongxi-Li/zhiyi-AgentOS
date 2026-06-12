@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from agentos.core.acg.blueprint import ACGBlueprint
 from agentos.core.acg.edges import ACGEdge
 from agentos.core.acg.enums import ComplexityLevel, EdgeType
-from agentos.core.acg.nodes import StepNode
+from agentos.core.acg.nodes import AgentNode, EvidenceNode, MemoryNode, StepNode, _node_id
 
 if TYPE_CHECKING:
     from agentos.core.models.types import WorkflowDefinition
@@ -32,16 +32,35 @@ def _complexity_from_step_count(count: int) -> ComplexityLevel:
     return ComplexityLevel.EXTREME
 
 
+# 注入认知节点的关键词规则（覆盖中英文 capability / stepId）：
+# - 产生结论性内容、值得沉淀的步骤 → 注入 Memory 节点
+# - 需要外部依据支撑、可审计的步骤 → 注入 Evidence 节点
+_MEMORY_KEYWORDS = ("risk", "风险", "suggest", "revision", "建议", "report", "报告", "analysis", "分析", "summary", "结论")
+_EVIDENCE_KEYWORDS = ("risk", "风险", "evidence", "证据", "依据", "report", "报告", "statute", "法条", "citation")
+
+
+def _matches(text: str, keywords: tuple[str, ...]) -> bool:
+    low = (text or "").lower()
+    return any(k in low for k in keywords)
+
+
 def promote_workflow_to_acg(
     workflow: "WorkflowDefinition",
     *,
     task_id: str | None = None,
+    enrich: bool = True,
 ) -> ACGBlueprint:
-    """把线性 WorkflowDefinition 升格为等价的 ACGBlueprint。
+    """把线性 WorkflowDefinition 升格为 ACGBlueprint。
 
     - 保留 step 顺序：用每个 step 的 stepId 作为 StepNode.node_id。
     - 依赖边：按 next_step_id 串联；若无显式 next，则按声明顺序串联。
     - reviewRequired 透传到 StepNode.review_required。
+    - enrich=True（默认）时注入认知协作节点，使图从线性链变为多层认知网络：
+        * 每个 Step 挂一个执行 Agent 节点（按 agentName 去重复用）+ EXECUTION 边
+        * 产出结论的 Step 挂 Memory 节点 + WRITE 边
+        * 需外部依据的 Step 挂 Evidence 节点 + SUPPORT 边
+      这些节点与边不参与就绪集调度（执行器只看 STEP + DEPENDENCY），
+      因此不改变执行行为，仅丰富拓扑的认知协作语义与可视化表达。
     """
     steps = list(workflow.steps)
     blueprint = ACGBlueprint(
@@ -51,6 +70,7 @@ def promote_workflow_to_acg(
         metadata={
             "sourceWorkflowId": workflow.workflow_id,
             "promotedFromLinear": True,
+            "enriched": enrich,
             "runtimeEngine": workflow.effective_runtime_engine,
         },
     )
@@ -86,8 +106,58 @@ def promote_workflow_to_acg(
                 )
             )
 
+    if enrich:
+        _inject_cognitive_nodes(blueprint, steps)
+
     blueprint.touch()
     return blueprint
+
+
+def _inject_cognitive_nodes(blueprint: ACGBlueprint, steps) -> None:
+    """为每个 Step 注入 Agent / Memory / Evidence 认知节点与关联边。"""
+    agent_nodes: dict[str, str] = {}  # agentName -> agent_node_id（去重复用）
+
+    for definition in steps:
+        step_id = definition.step_id
+        agent_name = definition.agent_name or step_id
+        cap = definition.capability or ""
+        sig = f"{cap} {step_id}"
+
+        # 1) 执行 Agent 节点（同名 Agent 复用一个节点，体现“一个 Agent 执行多个 Step”）
+        if agent_name not in agent_nodes:
+            an_id = f"agent::{agent_name}"
+            blueprint.nodes.append(
+                AgentNode(
+                    nodeId=an_id,
+                    name=agent_name,
+                    role=cap or agent_name,
+                    capabilityTags=[cap] if cap else [],
+                )
+            )
+            agent_nodes[agent_name] = an_id
+        blueprint.edges.append(
+            ACGEdge(sourceId=agent_nodes[agent_name], targetId=step_id, edgeType=EdgeType.EXECUTION)
+        )
+
+        # 2) Evidence 节点（需外部依据支撑的步骤）
+        if _matches(sig, _EVIDENCE_KEYWORDS):
+            ev_id = _node_id("ev")
+            blueprint.nodes.append(
+                EvidenceNode(nodeId=ev_id, name=f"证据·{definition.name}", evidenceType="retrieved")
+            )
+            blueprint.edges.append(
+                ACGEdge(sourceId=ev_id, targetId=step_id, edgeType=EdgeType.SUPPORT)
+            )
+
+        # 3) Memory 节点（产出结论、值得沉淀的步骤）
+        if _matches(sig, _MEMORY_KEYWORDS):
+            mem_id = _node_id("mem")
+            blueprint.nodes.append(
+                MemoryNode(nodeId=mem_id, name=f"记忆·{definition.name}", memoryType="episodic")
+            )
+            blueprint.edges.append(
+                ACGEdge(sourceId=step_id, targetId=mem_id, edgeType=EdgeType.WRITE)
+            )
 
 
 __all__ = ["promote_workflow_to_acg"]
