@@ -30,6 +30,11 @@
                 <span>角色工作台</span>
               </el-menu-item>
 
+              <el-menu-item index="/agentos/acg">
+                <el-icon><Cpu /></el-icon>
+                <span>ACG 动态群体智能引擎</span>
+              </el-menu-item>
+
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
               <el-menu-item index="/rag">
                 <el-icon><Search /></el-icon>
@@ -128,6 +133,11 @@
               <el-menu-item index="/agentos/legal/contract-review">
                 <el-icon><DocumentChecked /></el-icon>
                 <span>角色工作台</span>
+              </el-menu-item>
+
+              <el-menu-item index="/agentos/acg">
+                <el-icon><Cpu /></el-icon>
+                <span>ACG 动态群体智能引擎</span>
               </el-menu-item>
 
               <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
@@ -275,6 +285,7 @@ const isRouteScrollable = computed(() => {
     path.startsWith('/federated-models') ||
     path.startsWith('/agentos-console') ||
     path.startsWith('/agentos/legal/contract-review') ||
+    path.startsWith('/agentos/acg') ||
     path.startsWith('/rag')
   )
 })
@@ -284,6 +295,7 @@ const activeMenu = computed(() => {
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
   if (path.startsWith('/agentos-console')) return '/agentos-console'
   if (path.startsWith('/agentos/legal/contract-review')) return '/agentos/legal/contract-review'
+  if (path.startsWith('/agentos/acg')) return '/agentos/acg'
   if (path === '/roles' || path.startsWith('/roles')) return '/roles'
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
   if (path === '/settings' || path.startsWith('/settings')) return '/settings'

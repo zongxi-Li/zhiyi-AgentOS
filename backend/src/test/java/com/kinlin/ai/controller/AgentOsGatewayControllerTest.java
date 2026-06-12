@@ -229,6 +229,24 @@ class AgentOsGatewayControllerTest {
     }
 
     @Test
+    void getAcgView_forwardsToAgentOsCore() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("runId", "run_001");
+        response.put("engine", "acg");
+        response.put("lowEntropyMetrics", Map.of("tokensSaved", 42));
+
+        agentOsGatewayService.getResponses.put("/ai/core/workflows/runs/run_001/acg", response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/acg"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value("run_001"))
+                .andExpect(jsonPath("$.engine").value("acg"))
+                .andExpect(jsonPath("$.lowEntropyMetrics.tokensSaved").value(42));
+
+        assertEquals("/ai/core/workflows/runs/run_001/acg", agentOsGatewayService.lastGetPath);
+    }
+
+    @Test
     void listReviews_forwardsToAgentOsCore() throws Exception {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("runId", "run_001");

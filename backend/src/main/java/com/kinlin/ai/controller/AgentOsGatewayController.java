@@ -123,6 +123,11 @@ public class AgentOsGatewayController {
         return gatewayResponse(agentOsGatewayService.get(path));
     }
 
+    @GetMapping("/core/workflows/runs/{runId}/acg")
+    public ResponseEntity<Map<String, Object>> getAcgView(HttpServletRequest request) {
+        return gatewayResponse(agentOsGatewayService.get(toPythonPath(request)));
+    }
+
     @GetMapping("/core/workflows/runs/{runId}/reviews")
     public ResponseEntity<Map<String, Object>> listReviews(HttpServletRequest request) {
         return gatewayResponse(agentOsGatewayService.get(toPythonPath(request)));
