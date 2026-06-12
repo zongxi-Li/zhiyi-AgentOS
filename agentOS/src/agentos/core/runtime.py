@@ -7,7 +7,8 @@ import os
 from typing import Mapping, Optional
 
 from agentos.agents import AgentRegistry
-from agentos.core.execution import ExecutionAdapterFactory, NativeWorkflowAdapter
+from agentos.core.acg import ACGBlueprint, promote_workflow_to_acg
+from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory, NativeWorkflowAdapter
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.evaluation import WorkflowEvaluator
 from agentos.core.workflow.orchestrator import Orchestrator
@@ -77,8 +78,8 @@ class WorkflowRuntime:
 
     def register_execution_adapter(self, runtime_engine: str, factory: ExecutionAdapterFactory) -> None:
         engine = self._normalize_runtime_engine(runtime_engine)
-        if engine == "native":
-            raise ValueError("native runtime engine is built into AgentOS Core")
+        if engine in {"native", "acg"}:
+            raise ValueError(f"{engine} runtime engine is built into AgentOS Core")
         self.execution_adapter_factories[engine] = factory
 
     def create_task(
@@ -148,6 +149,99 @@ class WorkflowRuntime:
         )
         self.workflow_store.save_run(run)
         return await self._run_until_blocked(task, run, workflow)
+
+    async def _start_acg(
+        self,
+        *,
+        task: AgentTask,
+        run: WorkflowRun,
+        workflow: WorkflowDefinition,
+        executor,
+    ) -> WorkflowRun:
+        """ACG 执行路径入口：构建蓝图并交给就绪集调度执行器。"""
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.TASK_CREATED,
+            observation=f"Task created: {task.title}",
+            payload=task.model_dump(by_alias=True, mode="json"),
+        )
+        blueprint = self._build_acg_blueprint(task, run, workflow)
+        return await executor.run(task=task, run=run, workflow=workflow, blueprint=blueprint)
+
+    def _build_acg_blueprint(
+        self,
+        task: AgentTask,
+        run: WorkflowRun,
+        workflow: WorkflowDefinition,
+    ) -> ACGBlueprint:
+        """获取 ACG 蓝图：优先用 run.input 携带的规划器产物，否则线性升格。
+
+        规划器（阶段4）会把产出的 ACGBlueprint 放进 run.input['acgBlueprint']；
+        当前阶段没有规划器时，从静态工作流定义无损升格，行为等价线性执行。
+        """
+        provided = run.input.get("acgBlueprint") or (run.acg_blueprint if run.acg_blueprint else None)
+        if isinstance(provided, dict) and provided.get("nodes"):
+            blueprint = ACGBlueprint.model_validate(provided)
+            if not blueprint.task_id:
+                blueprint.task_id = task.task_id
+            return blueprint
+        return promote_workflow_to_acg(workflow, task_id=task.task_id)
+
+    async def _apply_acg_review(self, decision: ReviewDecision, *, executor) -> WorkflowRun:
+        run = self.workflow_store.get_run(decision.run_id)
+        task = self.task_manager.get_task(run.task_id)
+        workflow = self.workflow_registry.get(run.workflow_id)
+        step = run.get_step(decision.step_id)
+
+        self.review_manager.record(run, decision)
+        blueprint = ACGBlueprint.model_validate(run.acg_blueprint) if run.acg_blueprint else promote_workflow_to_acg(workflow, task_id=task.task_id)
+
+        if decision.decision == ReviewDecisionType.APPROVED:
+            self._transition_step(step, StepStatus.COMPLETED)
+            completed = set(run.completed_step_ids)
+            completed.add(step.step_id)
+            run.completed_step_ids = sorted(completed)
+            self._transition_run(run, WorkflowStatus.RUNNING)
+            self.task_manager.mark_running(task)
+            self.workflow_store.save_run(run)
+            return await executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
+
+        if decision.decision == ReviewDecisionType.RERUN:
+            step.retry_count += 1
+            self._transition_step(step, StepStatus.RETRYING)
+            self._transition_run(run, WorkflowStatus.RETRYING)
+            self.task_manager.mark_retrying(task)
+            self.workflow_store.save_run(run)
+            return await executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
+
+        if decision.decision == ReviewDecisionType.CANCELLED:
+            return self.cancel(run.run_id)
+
+        if decision.decision == ReviewDecisionType.NEED_MORE_INFO:
+            step.status = StepStatus.WAITING_REVIEW
+            self._transition_run_if_needed(run, WorkflowStatus.WAITING_REVIEW)
+            run.error = decision.comment or "Reviewer requested more information."
+            self.task_manager.mark_waiting_review(task)
+            self.workflow_store.save_run(run)
+            return run
+
+        # REJECTED
+        self._transition_step(step, StepStatus.FAILED)
+        self._transition_run(run, WorkflowStatus.FAILED)
+        run.error = decision.comment or "Review rejected workflow step."
+        self.task_manager.mark_failed(task)
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_FAILED,
+            step_id=step.step_id,
+            observation=run.error,
+        )
+        self.workflow_store.save_run(run)
+        return run
+
+    def _transition_run_if_needed(self, run: WorkflowRun, status: WorkflowStatus) -> None:
+        if run.status != status:
+            self._transition_run(run, status)
 
     def get_status(self, run_id: str) -> WorkflowRun:
         return self.workflow_store.get_run(run_id)
@@ -295,6 +389,8 @@ class WorkflowRuntime:
         if adapter is None:
             if runtime_engine == "native":
                 adapter = NativeWorkflowAdapter(self)
+            elif runtime_engine == "acg":
+                adapter = ACGWorkflowAdapter(self)
             else:
                 factory = self.execution_adapter_factories.get(runtime_engine)
                 if factory is None:

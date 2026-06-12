@@ -49,8 +49,10 @@ class TraceEventType(str, Enum):
     TASK_STATUS_CHANGED = "task_status_changed"
     TASK_ERROR = "task_error"
     RUN_STARTED = "run_started"
+    STEP_SCHEDULED = "step_scheduled"
     STEP_STARTED = "step_started"
     AGENT_CALLED = "agent_called"
+    STEP_SUCCEEDED = "step_succeeded"
     TOOL_CALLED = "tool_called"
     CHECKPOINT_CREATED = "checkpoint_created"
     REVIEW_REQUIRED = "review_required"
@@ -221,6 +223,11 @@ class WorkflowRun(CoreModel):
     trace: List[TraceEvent] = Field(default_factory=list)
     error: Optional[str] = None
     recovery_count: int = Field(default=0, alias="recoveryCount")
+    # ACG 执行路径承载字段（可选，仅 runtimeEngine=acg 时填充）。
+    # acg_blueprint 存规划器产物 / 升格结果；completed_step_ids 记录就绪集调度
+    # 已完成的 StepNode，用于并行调度时计算下一批就绪集，不影响线性路径。
+    acg_blueprint: Optional[Dict[str, Any]] = Field(default=None, alias="acgBlueprint")
+    completed_step_ids: List[str] = Field(default_factory=list, alias="completedStepIds")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
     updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 
