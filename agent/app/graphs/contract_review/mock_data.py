@@ -124,6 +124,7 @@ def _evidence_trace_payload(
     fallback: bool,
     error: Optional[str] = None,
     top_k: int = 2,
+    evidences: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     payload = {
         "retriever_type": "keyword",
@@ -131,6 +132,28 @@ def _evidence_trace_payload(
         "result_count": result_count,
         "fallback": fallback,
     }
+    if evidences:
+        payload["evidence_preview"] = [
+            {
+                "id": item.get("id"),
+                "riskId": item.get("riskId"),
+                "sourceType": item.get("sourceType"),
+                "sourceName": item.get("sourceName"),
+                "citationText": item.get("citationText"),
+                "confidence": item.get("confidence"),
+                "retrievalScore": item.get("retrievalScore"),
+                "metadata": {
+                    key: value
+                    for key, value in (item.get("metadata") or {}).items()
+                    if key in {"lawName", "articleNo", "sourcePath", "sourceUrl", "officialId", "docId", "demo"}
+                },
+            }
+            for item in evidences[:8]
+        ]
+        payload["evidence_source_count"] = len({str(item.get("sourceName") or "") for item in evidences})
+        payload["evidence_demo_count"] = sum(
+            1 for item in evidences if (item.get("metadata") or {}).get("demo") or item.get("sourceType") == "mock"
+        )
     if error:
         payload["error"] = str(error)[:240]
     return payload

@@ -53,6 +53,12 @@ def legal_evidence_match_node(state: ContractReviewState) -> ContractReviewState
         step_id="legal_evidence_match",
         event_type=TraceEventType.AGENT_CALLED.value,
         observation="Matched legal evidence to risks.",
-        payload=_evidence_trace_payload(result_count=len(evidences), fallback=fallback, error=error, top_k=top_k),
+        payload=_evidence_trace_payload(
+            result_count=len(evidences),
+            fallback=fallback,
+            error=error,
+            top_k=top_k,
+            evidences=evidences,
+        ),
     )
     return state
