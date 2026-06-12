@@ -75,6 +75,27 @@ class WorkflowRuntime:
             self._normalize_runtime_engine(engine): factory
             for engine, factory in (execution_adapter_factories or {}).items()
         }
+        # 认知规划引擎（懒构造）。app 层可通过 set_intent_llm 注入真实 LLM，
+        # 让意图解析走 DeepSeek；未注入时规划器用启发式回退。
+        self._planning_engine = None
+        self._intent_llm = None
+
+    def set_intent_llm(self, intent_llm) -> None:
+        """注入意图解析 LLM（app 层在装配时调用）。重置已构造的规划引擎。"""
+        self._intent_llm = intent_llm
+        self._planning_engine = None
+
+    @property
+    def planning_engine(self):
+        if self._planning_engine is None:
+            from agentos.core.planning import PlanningEngine
+
+            self._planning_engine = PlanningEngine(
+                workflow_registry=self.workflow_registry,
+                agent_registry=self.agent_registry,
+                intent_llm=self._intent_llm,
+            )
+        return self._planning_engine
 
     def register_execution_adapter(self, runtime_engine: str, factory: ExecutionAdapterFactory) -> None:
         engine = self._normalize_runtime_engine(runtime_engine)
@@ -174,10 +195,12 @@ class WorkflowRuntime:
         run: WorkflowRun,
         workflow: WorkflowDefinition,
     ) -> ACGBlueprint:
-        """获取 ACG 蓝图：优先用 run.input 携带的规划器产物，否则线性升格。
+        """获取 ACG 蓝图，三级优先级：
 
-        规划器（阶段4）会把产出的 ACGBlueprint 放进 run.input['acgBlueprint']；
-        当前阶段没有规划器时，从静态工作流定义无损升格，行为等价线性执行。
+        1. 现成蓝图：run.input['acgBlueprint'] 或 run.acg_blueprint（外部/前序产物）。
+        2. 认知规划引擎：task.input['usePlanner'] 为真，或工作流未定义 steps，
+           则调 PlanningEngine 走“静态优选、动态补位”生成 ACG，并把规划决策入 Trace。
+        3. 线性升格：默认把静态工作流定义无损升格（行为等价线性执行）。
         """
         provided = run.input.get("acgBlueprint") or (run.acg_blueprint if run.acg_blueprint else None)
         if isinstance(provided, dict) and provided.get("nodes"):
@@ -185,6 +208,29 @@ class WorkflowRuntime:
             if not blueprint.task_id:
                 blueprint.task_id = task.task_id
             return blueprint
+
+        use_planner = bool(task.input.get("usePlanner")) or not workflow.steps
+        if use_planner:
+            intent_text = str(
+                task.input.get("userIntent")
+                or task.input.get("intent")
+                or task.title
+                or workflow.description
+            )
+            plan = self.planning_engine.plan(
+                task_id=task.task_id,
+                intent=intent_text,
+                domain=workflow.domain or task.domain,
+                task_type=workflow.intent or task.intent,
+            )
+            self.trace_store.append(
+                run=run,
+                event_type=TraceEventType.TASK_STATUS_CHANGED,
+                observation=f"Planner produced ACG via {plan.strategy}",
+                payload=plan.to_decision(),
+            )
+            return plan.blueprint
+
         return promote_workflow_to_acg(workflow, task_id=task.task_id)
 
     async def _apply_acg_review(self, decision: ReviewDecision, *, executor) -> WorkflowRun:

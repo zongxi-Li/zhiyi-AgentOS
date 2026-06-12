@@ -188,3 +188,58 @@ def test_acg_engine_emits_low_entropy_provenance_events():
         assert payload["sourceStepIds"] == ["a"]
 
     asyncio.run(_run())
+
+
+def test_acg_engine_planner_driven_static_template():
+    """usePlanner=true 时，规划器命中静态模板并经 ACG 引擎执行全链路。"""
+
+    class _LegalAgent(BaseAgent):
+        def __init__(self, name, calls):
+            super().__init__(AgentProfile(agentName=name, domain="legal", capabilities=[name]))
+            self.calls = calls
+
+        async def run(self, context):
+            self.calls.append(context.step.step_id)
+            return AgentOutput(output={"step": context.step.step_id}, summary="ok")
+
+    async def _run():
+        steps = [
+            WorkflowStepDefinition(stepId="parse", name="解析", agentName="parse", nextStepId="risk"),
+            WorkflowStepDefinition(stepId="risk", name="风险", agentName="risk"),
+        ]
+        registry = AgentRegistry()
+        calls: list[str] = []
+        for name in ["parse", "risk"]:
+            registry.register(_LegalAgent(name, calls))
+        wf_registry = WorkflowRegistry()
+        wf_registry.register(
+            WorkflowDefinition(
+                workflowId="acg_wf",
+                name="合同审查",
+                domain="legal",
+                intent="contract_review",
+                description="解析合同并识别风险",
+                runtimeEngine="acg",
+                steps=steps,
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=registry, workflow_registry=wf_registry)
+        task = runtime.create_task(
+            title="审查合同",
+            domain="legal",
+            intent="contract_review",
+            input={"usePlanner": True, "userIntent": "审查这份采购合同的违约风险"},
+        )
+        run = await runtime.start(task.task_id, workflow_id="acg_wf")
+
+        assert run.status == WorkflowStatus.COMPLETED
+        assert calls == ["parse", "risk"]
+        # 规划决策应入 trace
+        planner_events = [
+            e for e in run.trace
+            if e.event_type == TraceEventType.TASK_STATUS_CHANGED and "Planner" in e.observation
+        ]
+        assert planner_events
+        assert planner_events[0].payload["strategy"] == "static_template"
+
+    asyncio.run(_run())
