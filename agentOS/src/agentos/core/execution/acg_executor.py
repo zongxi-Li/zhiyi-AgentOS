@@ -29,6 +29,7 @@ from agentos.core.acg import (
     validate_blueprint,
 )
 from agentos.core.communication import ContextAssembler, ProvenanceLedger
+from agentos.core.execution.fault_injection import FaultInjector, InjectedFault
 from agentos.core.execution.step_wrapper import (
     StepExecutionTimer,
     input_summary,
@@ -57,6 +58,7 @@ class ACGExecutor:
         self.max_parallelism = max(1, max_parallelism)
         self.ledger = ProvenanceLedger()
         self.assembler = ContextAssembler(self.ledger)
+        self.fault_injector = FaultInjector()
 
     # ------------------------------------------------------------------
     # 入口
@@ -71,6 +73,21 @@ class ACGExecutor:
     ) -> WorkflowRun:
         validate_blueprint(blueprint)
         run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
+        self.fault_injector = FaultInjector.from_config(task.input.get("faultInjection"))
+        if self.fault_injector.active:
+            self.runtime.trace_store.append(
+                run=run,
+                event_type=TraceEventType.RUN_STARTED,
+                observation=(
+                    f"Fault injection armed: {self.fault_injector.fault_type.value} "
+                    f"at {self.fault_injector.step_id}"
+                ),
+                payload={
+                    "faultType": self.fault_injector.fault_type.value,
+                    "stepId": self.fault_injector.step_id,
+                    "maxTriggers": self.fault_injector.max_triggers,
+                },
+            )
         self.runtime.trace_store.append(
             run=run,
             event_type=TraceEventType.RUN_STARTED,
@@ -140,7 +157,16 @@ class ACGExecutor:
 
             # 3) 结算本批结果
             waiting_review = False
+            self_healed = False
             for node_id, outcome in zip(batch, results):
+                if isinstance(outcome, InjectedFault):
+                    # 可恢复故障：检查点 + 局部重规划，自愈续跑（不置 run 失败）
+                    if self._self_heal(run, task, blueprint, node_id, outcome):
+                        self_healed = True
+                        continue
+                    self._mark_step_failed(run, task, node_id, outcome)
+                    self.runtime.workflow_store.save_run(run)
+                    return run
                 if isinstance(outcome, Exception):
                     self._mark_step_failed(run, task, node_id, outcome)
                     self.runtime.workflow_store.save_run(run)
@@ -255,6 +281,8 @@ class ACGExecutor:
 
         memory = WorkflowMemory.from_run(run)
         timer = StepExecutionTimer()
+        # 故障注入点：在真正调用 Agent 前触发（模拟模型超时/Agent崩溃等）。
+        self.fault_injector.fire(node_id)
         result, _ = await self.runtime.orchestrator.dispatch_agent(
             task=task, run=run, workflow=workflow, step=step, memory=memory
         )
@@ -339,6 +367,58 @@ class ACGExecutor:
         except KeyError:
             return
         self.runtime._mark_step_failed(run, task, step, exc)
+
+    def _self_heal(
+        self, run: WorkflowRun, task, blueprint: ACGBlueprint, node_id: str, fault: InjectedFault
+    ) -> bool:
+        """对可恢复故障执行自愈：检查点 → 局部重规划 → 复位节点续跑。
+
+        返回 True 表示已安排自愈续跑；False 表示无法自愈（交由失败逻辑）。
+        若故障源仍会再次触发（未达自愈上限），仍复位重试以模拟有限重试自愈。
+        """
+        try:
+            step = run.get_step(node_id)
+        except KeyError:
+            return False
+
+        # 循环保护：单节点自愈重试上限，避免持续故障导致死循环。
+        if step.retry_count >= 3:
+            return False
+
+        run.recovery_count += 1
+        # 1) 故障事件入轨
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.STEP_FAILED,
+            step_id=node_id,
+            agent_name=step.agent_name,
+            observation=f"Injected fault: {fault.fault_type.value}",
+            payload={"faultType": fault.fault_type.value, "recoverable": True},
+        )
+        # 2) 检查点（保存当前现场，供恢复定位）。直接复位节点状态属于恢复语义，
+        #    与 native resume 一致地绕过状态机（无 RUNNING→PENDING 合法转换）。
+        step.status = StepStatus.PENDING
+        step.error = None
+        step.retry_count += 1
+        run.error = None
+        checkpoint = self.runtime.checkpoint_store.create(run, node_id)
+        # 3) 局部重规划轨迹：声明从检查点恢复、仅重跑该子图
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_RECOVERED,
+            step_id=node_id,
+            agent_name=step.agent_name,
+            observation=(
+                f"Self-healing: recover from checkpoint {checkpoint.checkpoint_id}, "
+                f"local replan re-runs step {node_id}"
+            ),
+            payload={
+                "checkpointId": checkpoint.checkpoint_id,
+                "strategy": "local_replan",
+                "recoveryCount": run.recovery_count,
+            },
+        )
+        return True
 
     @staticmethod
     def _safe_has_step(run: WorkflowRun, step_id: str) -> bool:
