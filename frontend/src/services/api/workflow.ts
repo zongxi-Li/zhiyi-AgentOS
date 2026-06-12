@@ -1,5 +1,12 @@
 import {
   agentosApi,
+  type AcgView,
+  type AcgBlueprint,
+  type AcgNode,
+  type AcgEdge,
+  type AcgLowEntropyMetrics,
+  type ProvenanceConsumption,
+  type ProvenanceProduction,
   type Checkpoint,
   type EvaluationRun,
   type PageResponse,
@@ -18,6 +25,13 @@ import {
 } from './agentos'
 
 export type {
+  AcgView,
+  AcgBlueprint,
+  AcgNode,
+  AcgEdge,
+  AcgLowEntropyMetrics,
+  ProvenanceConsumption,
+  ProvenanceProduction,
   Checkpoint,
   EvaluationRun,
   PageResponse,
@@ -74,5 +88,9 @@ export const workflowApi = {
 
   getMetrics(params: Pick<WorkflowRunQuery, 'status' | 'domain' | 'workflowId' | 'source'> = {}): Promise<EvaluationRun> {
     return agentosApi.getWorkflowMetrics(params)
+  },
+
+  getAcgView(runId: string): Promise<AcgView> {
+    return agentosApi.getAcgView(runId)
   }
 }

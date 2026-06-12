@@ -135,6 +135,15 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/agentos/acg',
+    name: 'AcgVisualization',
+    component: () => import('@/views/AcgVisualizationView.vue'),
+    meta: {
+      title: 'ACG 动态群体智能引擎',
+      requiresAuth: true
+    }
+  },
+  {
     path: '/contract-clause-planner',
     name: 'ContractClausePlanner',
     redirect: {

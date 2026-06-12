@@ -214,6 +214,77 @@ export interface WorkflowRunQuery {
   pageSize?: number
 }
 
+// ===== ACG 动态群体智能引擎可视化视图类型 =====
+
+export interface AcgNode {
+  nodeId: string
+  nodeType: 'step' | 'agent' | 'skill' | 'memory' | 'evidence' | 'control'
+  name?: string
+  description?: string
+  goal?: string
+  agentName?: string
+  capability?: string
+  controlType?: string
+  metadata?: Record<string, any>
+}
+
+export interface AcgEdge {
+  edgeId: string
+  sourceId: string
+  targetId: string
+  edgeType: 'dependency' | 'communication' | 'control_flow' | 'execution' | 'write' | 'read' | 'support'
+  condition?: string
+  metadata?: Record<string, any>
+}
+
+export interface AcgBlueprint {
+  graphId: string
+  taskId?: string
+  objective?: string
+  complexityLevel?: string
+  nodes: AcgNode[]
+  edges: AcgEdge[]
+  metadata?: Record<string, any>
+}
+
+export interface ProvenanceProduction {
+  eventId: string
+  producerStepId: string
+  checksum?: string
+  fieldNames?: string[]
+  tokenSize?: number
+}
+
+export interface ProvenanceConsumption {
+  eventId: string
+  consumerStepId: string
+  producerStepIds: string[]
+  consumedFields?: string[]
+}
+
+export interface AcgLowEntropyMetrics {
+  averageSavingRatio: number
+  tokensAvailable: number
+  tokensDelivered: number
+  tokensSaved: number
+  recoveryCount: number
+}
+
+export interface AcgView {
+  runId: string
+  status: WorkflowStatus
+  engine: string
+  acgBlueprint: AcgBlueprint | null
+  completedStepIds: string[]
+  provenance: {
+    productions: ProvenanceProduction[]
+    consumptions: ProvenanceConsumption[]
+  }
+  recoveryTrace: TraceEvent[]
+  scheduleTrace: TraceEvent[]
+  lowEntropyMetrics: AcgLowEntropyMetrics
+}
+
 export const agentosApi = {
   async listWorkflowRuns(params: WorkflowRunQuery = {}): Promise<PageResponse<WorkflowRun>> {
     const response = await agentosRequest.get<PageResponse<WorkflowRun>>('/core/workflows/runs', { params })
@@ -270,6 +341,11 @@ export const agentosApi = {
 
   async getWorkflowMetrics(params: Pick<WorkflowRunQuery, 'status' | 'domain' | 'workflowId' | 'source'> = {}): Promise<EvaluationRun> {
     const response = await agentosRequest.get<EvaluationRun>('/core/workflows/metrics', { params })
+    return response.data
+  },
+
+  async getAcgView(runId: string): Promise<AcgView> {
+    const response = await agentosRequest.get<AcgView>(`/core/workflows/runs/${runId}/acg`)
     return response.data
   }
 }
