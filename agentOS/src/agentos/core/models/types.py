@@ -230,6 +230,8 @@ class WorkflowRun(CoreModel):
     # 已完成的 StepNode，用于并行调度时计算下一批就绪集，不影响线性路径。
     acg_blueprint: Optional[Dict[str, Any]] = Field(default=None, alias="acgBlueprint")
     completed_step_ids: List[str] = Field(default_factory=list, alias="completedStepIds")
+    # 数据血缘图（低熵通信审计产物，ACG 路径填充）：生产/消费事件，供前端血缘面板。
+    provenance: Optional[Dict[str, Any]] = Field(default=None)
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
     updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 

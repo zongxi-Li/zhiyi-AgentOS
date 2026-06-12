@@ -178,6 +178,7 @@ class ACGExecutor:
                     completed.add(node_id)
 
             run.completed_step_ids = sorted(completed)
+            run.provenance = self.ledger.to_graph()
             run.updated_at = utc_now()
             self.runtime.workflow_store.save_run(run)
 

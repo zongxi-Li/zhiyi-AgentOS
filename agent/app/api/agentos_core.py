@@ -1691,6 +1691,50 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             )
         return runtime.trace_store.export_json(run)
 
+    @router.get("/core/workflows/runs/{run_id}/acg")
+    async def get_acg_view(run_id: str):
+        """ACG 引擎可视化聚合视图：拓扑蓝图 + 数据血缘 + 恢复轨迹 + 低熵指标。
+
+        供前端 ACG 拓扑图 / 数据血缘 / 恢复轨迹面板直接消费。
+        """
+        try:
+            run = runtime.get_status(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        events = runtime.trace_store.events(run)
+
+        def _by_type(*types: str) -> list[Dict[str, Any]]:
+            wanted = set(types)
+            return [
+                _to_json(e) for e in events if e.event_type.value in wanted
+            ]
+
+        # 低熵指标聚合：平均节省率、累计可获取/投递 token
+        consumed = [e for e in events if e.event_type.value == "data_consumed"]
+        ratios = [float(e.payload.get("savingRatio", 0.0)) for e in consumed if e.payload]
+        tokens_available = sum(int(e.payload.get("tokensAvailable", 0)) for e in consumed if e.payload)
+        tokens_delivered = sum(int(e.payload.get("tokensDelivered", 0)) for e in consumed if e.payload)
+        avg_saving = round(sum(ratios) / len(ratios), 4) if ratios else 0.0
+
+        return {
+            "runId": run.run_id,
+            "status": run.status.value,
+            "engine": run.runtime_engine,
+            "acgBlueprint": run.acg_blueprint,
+            "completedStepIds": run.completed_step_ids,
+            "provenance": run.provenance or {"productions": [], "consumptions": []},
+            "recoveryTrace": _by_type("step_failed", "run_recovered"),
+            "scheduleTrace": _by_type("step_scheduled"),
+            "lowEntropyMetrics": {
+                "averageSavingRatio": avg_saving,
+                "tokensAvailable": tokens_available,
+                "tokensDelivered": tokens_delivered,
+                "tokensSaved": max(0, tokens_available - tokens_delivered),
+                "recoveryCount": run.recovery_count,
+            },
+        }
+
     @router.get("/core/workflows/runs/{run_id}/reviews")
     async def list_reviews(run_id: str):
         try:
