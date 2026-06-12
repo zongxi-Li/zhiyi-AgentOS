@@ -28,6 +28,7 @@ from agentos.core.acg import (
     ready_steps,
     validate_blueprint,
 )
+from agentos.core.communication import ContextAssembler, ProvenanceLedger
 from agentos.core.execution.step_wrapper import (
     StepExecutionTimer,
     input_summary,
@@ -54,6 +55,8 @@ class ACGExecutor:
     def __init__(self, runtime: "WorkflowRuntime", *, max_parallelism: int = 4):
         self.runtime = runtime
         self.max_parallelism = max(1, max_parallelism)
+        self.ledger = ProvenanceLedger()
+        self.assembler = ContextAssembler(self.ledger)
 
     # ------------------------------------------------------------------
     # 入口
@@ -217,6 +220,39 @@ class ACGExecutor:
             payload={"inputSummary": input_summary(step.input)},
         )
 
+        # 低熵通信：按 input_spec 精准装配下游上下文，记录消费血缘与节省率。
+        step_node = blueprint.get_node(node_id)
+        upstream_outputs = {
+            sid: dict(run.get_step(sid).output)
+            for sid in blueprint.dependency_sources(node_id)
+            if self._safe_has_step(run, sid)
+        }
+        if isinstance(step_node, StepNode) and upstream_outputs:
+            pack = self.assembler.assemble(
+                run_id=run.run_id,
+                blueprint=blueprint,
+                step_node=step_node,
+                objective=blueprint.objective,
+                upstream_outputs=upstream_outputs,
+            )
+            self.runtime.trace_store.append(
+                run=run,
+                event_type=TraceEventType.DATA_CONSUMED,
+                step_id=node_id,
+                agent_name=step.agent_name,
+                observation=(
+                    f"Context assembled: {pack.tokens_delivered}/{pack.tokens_available} tokens "
+                    f"(saved {pack.saving_ratio:.1%})"
+                ),
+                payload={
+                    "sourceStepIds": pack.source_step_ids,
+                    "tokensDelivered": pack.tokens_delivered,
+                    "tokensAvailable": pack.tokens_available,
+                    "savingRatio": pack.saving_ratio,
+                    "evidenceRefs": pack.evidence_refs,
+                },
+            )
+
         memory = WorkflowMemory.from_run(run)
         timer = StepExecutionTimer()
         result, _ = await self.runtime.orchestrator.dispatch_agent(
@@ -225,6 +261,16 @@ class ACGExecutor:
         duration_ms = timer.elapsed_ms()
 
         step.output = dict(result.output)
+        # 数据生产事件：登记产物，供前向追溯与节省率统计。
+        self.assembler.record_production(node_id, step.output)
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.DATA_PRODUCED,
+            step_id=node_id,
+            agent_name=step.agent_name,
+            observation=f"Data produced by {node_id}",
+            payload={"fields": sorted(step.output.keys())},
+        )
         self.runtime.trace_store.append(
             run=run,
             event_type=TraceEventType.AGENT_CALLED,
@@ -293,6 +339,18 @@ class ACGExecutor:
         except KeyError:
             return
         self.runtime._mark_step_failed(run, task, step, exc)
+
+    @staticmethod
+    def _safe_has_step(run: WorkflowRun, step_id: str) -> bool:
+        try:
+            run.get_step(step_id)
+            return True
+        except KeyError:
+            return False
+
+    def provenance_graph(self) -> dict:
+        """导出数据血统图（供 API / 前端血缘面板）。"""
+        return self.ledger.to_graph()
 
 
 __all__ = ["ACGExecutor"]

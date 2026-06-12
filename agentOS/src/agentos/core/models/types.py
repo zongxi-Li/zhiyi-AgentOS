@@ -54,6 +54,8 @@ class TraceEventType(str, Enum):
     AGENT_CALLED = "agent_called"
     STEP_SUCCEEDED = "step_succeeded"
     TOOL_CALLED = "tool_called"
+    DATA_PRODUCED = "data_produced"
+    DATA_CONSUMED = "data_consumed"
     CHECKPOINT_CREATED = "checkpoint_created"
     REVIEW_REQUIRED = "review_required"
     REVIEW_DECIDED = "review_decided"

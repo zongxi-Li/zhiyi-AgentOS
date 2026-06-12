@@ -162,3 +162,29 @@ def test_acg_engine_emits_unified_step_trace():
         assert "outputSummary" in succeeded.payload
 
     asyncio.run(_run())
+
+
+def test_acg_engine_emits_low_entropy_provenance_events():
+    """多步工作流应产生数据生产/消费事件，并在装配时携带节省率度量。"""
+
+    async def _run():
+        steps = [
+            WorkflowStepDefinition(stepId="a", name="A", agentName="a", nextStepId="b"),
+            WorkflowStepDefinition(stepId="b", name="B", agentName="b"),
+        ]
+        runtime, _ = _runtime(steps, ["a", "b"])
+        task = runtime.create_task(title="t", domain="test", intent="demo", input={})
+        run = await runtime.start(task.task_id, workflow_id="acg_wf")
+
+        event_types = {e.event_type for e in run.trace}
+        assert TraceEventType.DATA_PRODUCED in event_types
+        assert TraceEventType.DATA_CONSUMED in event_types
+
+        consumed = [e for e in run.trace if e.event_type == TraceEventType.DATA_CONSUMED]
+        assert consumed, "下游 b 应有数据消费事件"
+        payload = consumed[0].payload
+        assert "savingRatio" in payload
+        assert "tokensDelivered" in payload
+        assert payload["sourceStepIds"] == ["a"]
+
+    asyncio.run(_run())
