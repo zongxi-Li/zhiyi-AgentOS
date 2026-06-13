@@ -108,7 +108,7 @@ const buildEdgeRows = (edges: AcgEdge[]) => {
       arrows: 'to',
       color: { color: style.color, highlight: '#2f8f5b' },
       dashes: style.dashes,
-      smooth: { enabled: true, type: 'dynamic' },
+      smooth: { enabled: true, type: 'continuous' },
       // 依赖主干边更粗更短（强弹簧），认知关联边更细
       width: isDep ? 2.5 : 1,
       length: isDep ? 130 : 70
@@ -127,12 +127,19 @@ const options = {
       centralGravity: 0.012,
       springLength: 120,
       springConstant: 0.18,
+      damping: 0.42,
       avoidOverlap: 0.6
     },
+    maxVelocity: 28,
+    minVelocity: 0.45,
+    timestep: 0.5,
+    adaptiveTimestep: true,
     stabilization: { enabled: true, iterations: 220, fit: true }
   },
   interaction: { hover: true, dragNodes: true, zoomView: true, navigationButtons: false }
 }
+
+let settleTimer: number | null = null
 
 const render = async () => {
   await nextTick()
@@ -147,6 +154,26 @@ const render = async () => {
     edges: new DataSet(buildEdgeRows(props.blueprint.edges))
   }
   network = new Network(graphRef.value, data as any, options as any)
+
+  // 布局展开成形后，完全冻结 physics —— 节点定住不再漂移抖动。
+  network.once('stabilizationIterationsDone', () => {
+    network?.setOptions({ physics: { enabled: false } } as any)
+    network?.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } })
+  })
+
+  // 拖动时临时激活 physics，让被拖节点与邻居平滑联动（灵动手感）；
+  // 松手后短暂重新定型再冻结，保证整体仍然稳定。
+  network.on('dragStart', () => {
+    if (settleTimer) { window.clearTimeout(settleTimer); settleTimer = null }
+    network?.setOptions({ physics: { enabled: true } } as any)
+  })
+  network.on('dragEnd', () => {
+    if (settleTimer) window.clearTimeout(settleTimer)
+    settleTimer = window.setTimeout(() => {
+      network?.setOptions({ physics: { enabled: false } } as any)
+      settleTimer = null
+    }, 600)
+  })
 }
 
 const fit = () => network?.fit({ animation: true })
@@ -154,6 +181,7 @@ const fit = () => network?.fit({ animation: true })
 watch(() => [props.blueprint, props.completedStepIds], () => render(), { deep: true })
 onMounted(render)
 onBeforeUnmount(() => {
+  if (settleTimer) window.clearTimeout(settleTimer)
   network?.destroy()
   network = null
 })
