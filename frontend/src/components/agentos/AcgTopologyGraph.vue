@@ -139,8 +139,6 @@ const options = {
   interaction: { hover: true, dragNodes: true, zoomView: true, navigationButtons: false }
 }
 
-let settleTimer: number | null = null
-
 const render = async () => {
   await nextTick()
   if (!graphRef.value || !hasData.value || !props.blueprint) return
@@ -156,23 +154,11 @@ const render = async () => {
   network = new Network(graphRef.value, data as any, options as any)
 
   // 布局展开成形后，完全冻结 physics —— 节点定住不再漂移抖动。
+  // physics 关闭后 dragNodes 仍有效：拖动只移动被拖的单个节点，
+  // 其余节点保持不动，不会触发整图重新布局/旋转。
   network.once('stabilizationIterationsDone', () => {
     network?.setOptions({ physics: { enabled: false } } as any)
     network?.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } })
-  })
-
-  // 拖动时临时激活 physics，让被拖节点与邻居平滑联动（灵动手感）；
-  // 松手后短暂重新定型再冻结，保证整体仍然稳定。
-  network.on('dragStart', () => {
-    if (settleTimer) { window.clearTimeout(settleTimer); settleTimer = null }
-    network?.setOptions({ physics: { enabled: true } } as any)
-  })
-  network.on('dragEnd', () => {
-    if (settleTimer) window.clearTimeout(settleTimer)
-    settleTimer = window.setTimeout(() => {
-      network?.setOptions({ physics: { enabled: false } } as any)
-      settleTimer = null
-    }, 600)
   })
 }
 
@@ -181,7 +167,6 @@ const fit = () => network?.fit({ animation: true })
 watch(() => [props.blueprint, props.completedStepIds], () => render(), { deep: true })
 onMounted(render)
 onBeforeUnmount(() => {
-  if (settleTimer) window.clearTimeout(settleTimer)
   network?.destroy()
   network = null
 })
