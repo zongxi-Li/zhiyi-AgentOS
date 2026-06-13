@@ -63,10 +63,13 @@ import { computed, ref, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import type { AcgDeliverable } from '@/services/api/workflow'
 
-const props = defineProps<{
-  deliverables: AcgDeliverable[]
-  finalReport: string | null
-}>()
+const props = withDefaults(defineProps<{
+  deliverables?: AcgDeliverable[]
+  finalReport?: string | null
+}>(), {
+  deliverables: () => [],
+  finalReport: null
+})
 
 const hasReport = computed(() => !!props.finalReport && props.finalReport.trim().length > 0)
 const tab = ref<'report' | 'detail'>('detail')

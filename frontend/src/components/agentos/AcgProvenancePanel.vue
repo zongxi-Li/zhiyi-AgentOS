@@ -53,10 +53,13 @@ import { ref } from 'vue'
 import { Connection, Right } from '@element-plus/icons-vue'
 import type { ProvenanceConsumption, TraceEvent } from '@/services/api/agentos'
 
-defineProps<{
-  consumptions: ProvenanceConsumption[]
-  recoveryTrace: TraceEvent[]
-}>()
+withDefaults(defineProps<{
+  consumptions?: ProvenanceConsumption[]
+  recoveryTrace?: TraceEvent[]
+}>(), {
+  consumptions: () => [],
+  recoveryTrace: () => []
+})
 
 const tab = ref<'lineage' | 'recovery'>('lineage')
 

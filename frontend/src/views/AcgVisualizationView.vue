@@ -75,7 +75,13 @@
 import { computed, reactive, ref } from 'vue'
 import { Cpu } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { workflowApi, type AcgView, type WorkflowStatus } from '@/services/api/workflow'
+import {
+  workflowApi,
+  type AcgDeliverable,
+  type AcgView,
+  type WorkflowRun,
+  type WorkflowStatus
+} from '@/services/api/workflow'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
@@ -126,6 +132,59 @@ const scheduleBatches = computed<string[][]>(() => {
   return batches
 })
 
+const hasStepOutput = (output?: Record<string, any>) => {
+  return !!output && Object.keys(output).length > 0
+}
+
+const deliverablesFromRun = (run: WorkflowRun): AcgDeliverable[] => {
+  return (run.steps || [])
+    .filter((step) => hasStepOutput(step.output))
+    .map((step) => ({
+      stepId: step.stepId,
+      name: step.name,
+      status: step.status,
+      output: step.output || {}
+    }))
+}
+
+const asMarkdown = (value: unknown): string | null => {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
+}
+
+const finalReportFromRun = (run: WorkflowRun): string | null => {
+  let finalReport: string | null = null
+  for (const step of run.steps || []) {
+    const output = step.output || {}
+    const markdown = asMarkdown(output.report_markdown) || asMarkdown(output.report) || asMarkdown(output.final_report)
+    if (markdown) finalReport = markdown
+  }
+
+  if (finalReport) return finalReport
+
+  const runOutput = run.output || {}
+  const direct = asMarkdown(runOutput.report_markdown) || asMarkdown(runOutput.report) || asMarkdown(runOutput.final_report)
+  if (direct) return direct
+
+  const artifacts = runOutput.artifacts
+  if (artifacts && typeof artifacts === 'object') {
+    for (const artifact of Object.values(artifacts as Record<string, any>)) {
+      if (!artifact || typeof artifact !== 'object') continue
+      const markdown = asMarkdown(artifact.report_markdown) || asMarkdown(artifact.report) || asMarkdown(artifact.final_report)
+      if (markdown) finalReport = markdown
+    }
+  }
+
+  return finalReport
+}
+
+const hydrateAcgView = (view: AcgView, run: WorkflowRun): AcgView => {
+  return {
+    ...view,
+    deliverables: view.deliverables.length ? view.deliverables : deliverablesFromRun(run),
+    finalReport: view.finalReport || finalReportFromRun(run)
+  }
+}
+
 const startRun = async () => {
   if (!contractText.value.trim()) {
     ElMessage.warning('请输入合同文本')
@@ -146,8 +205,9 @@ const startRun = async () => {
       workflowId: WORKFLOW_ID,
       input
     })
-    await pollUntilStable(res.run.runId)
-    acgView.value = await workflowApi.getAcgView(res.run.runId)
+    const latest = await pollUntilStable(res.run.runId)
+    const view = await workflowApi.getAcgView(res.run.runId)
+    acgView.value = hydrateAcgView(view, latest)
     ElMessage.success('ACG 引擎执行完成')
   } catch (err: any) {
     ElMessage.error(`启动失败：${err?.message || err}`)
@@ -156,7 +216,7 @@ const startRun = async () => {
   }
 }
 
-const pollUntilStable = async (runId: string) => {
+const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
   let latest = await workflowApi.getRun(runId)
   let tries = 0
   while (!STABLE.includes(latest.status) && tries < 6) {
@@ -164,6 +224,7 @@ const pollUntilStable = async (runId: string) => {
     latest = await workflowApi.getRun(runId)
     tries += 1
   }
+  return latest
 }
 </script>
 

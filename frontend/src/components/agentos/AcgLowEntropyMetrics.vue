@@ -43,9 +43,17 @@ import { computed } from 'vue'
 import { DataLine } from '@element-plus/icons-vue'
 import type { AcgLowEntropyMetrics } from '@/services/api/agentos'
 
-const props = defineProps<{
-  metrics: AcgLowEntropyMetrics
-}>()
+const props = withDefaults(defineProps<{
+  metrics?: AcgLowEntropyMetrics
+}>(), {
+  metrics: () => ({
+    averageSavingRatio: 0,
+    tokensAvailable: 0,
+    tokensDelivered: 0,
+    tokensSaved: 0,
+    recoveryCount: 0
+  })
+})
 
 const savingPercent = computed(() => `${(props.metrics.averageSavingRatio * 100).toFixed(1)}%`)
 

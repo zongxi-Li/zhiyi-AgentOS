@@ -25,6 +25,12 @@ export default defineConfig(({ mode }) => {
         }
       ]
     },
+    optimizeDeps: {
+      include: [
+        'vis-data',
+        'vis-network',
+      ],
+    },
     server: {
       port: 3000,
       strictPort: false,

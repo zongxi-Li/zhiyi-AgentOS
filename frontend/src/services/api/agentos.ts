@@ -294,6 +294,26 @@ export interface AcgView {
   lowEntropyMetrics: AcgLowEntropyMetrics
 }
 
+const normalizeAcgView = (view: AcgView): AcgView => ({
+  ...view,
+  completedStepIds: Array.isArray(view.completedStepIds) ? view.completedStepIds : [],
+  provenance: {
+    productions: Array.isArray(view.provenance?.productions) ? view.provenance.productions : [],
+    consumptions: Array.isArray(view.provenance?.consumptions) ? view.provenance.consumptions : []
+  },
+  recoveryTrace: Array.isArray(view.recoveryTrace) ? view.recoveryTrace : [],
+  scheduleTrace: Array.isArray(view.scheduleTrace) ? view.scheduleTrace : [],
+  deliverables: Array.isArray(view.deliverables) ? view.deliverables : [],
+  finalReport: typeof view.finalReport === 'string' ? view.finalReport : null,
+  lowEntropyMetrics: view.lowEntropyMetrics || {
+    averageSavingRatio: 0,
+    tokensAvailable: 0,
+    tokensDelivered: 0,
+    tokensSaved: 0,
+    recoveryCount: 0
+  }
+})
+
 export const agentosApi = {
   async listWorkflowRuns(params: WorkflowRunQuery = {}): Promise<PageResponse<WorkflowRun>> {
     const response = await agentosRequest.get<PageResponse<WorkflowRun>>('/core/workflows/runs', { params })
@@ -355,6 +375,6 @@ export const agentosApi = {
 
   async getAcgView(runId: string): Promise<AcgView> {
     const response = await agentosRequest.get<AcgView>(`/core/workflows/runs/${runId}/acg`)
-    return response.data
+    return normalizeAcgView(response.data)
   }
 }

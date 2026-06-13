@@ -400,6 +400,8 @@ p {
 .console-main :deep(.checkpoint-list),
 .console-side :deep(.review-history),
 .console-side :deep(.events) {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
@@ -410,7 +412,7 @@ p {
 }
 
 .console-main :deep(.checkpoint-list) {
-  max-height: clamp(240px, 32vh, 420px);
+  max-height: none;
 }
 
 .console-side :deep(.review-history) {
@@ -418,7 +420,20 @@ p {
 }
 
 .console-side :deep(.events) {
-  max-height: clamp(360px, 52vh, 640px);
+  max-height: none;
+}
+
+.console-side :deep(.events.is-managed) {
+  max-height: none;
+}
+
+.console-main :deep(.checkpoint-panel > .empty),
+.console-side :deep(.trace-event-timeline > .empty) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .filter-panel {
