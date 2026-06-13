@@ -1717,6 +1717,31 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
         tokens_delivered = sum(int(e.payload.get("tokensDelivered", 0)) for e in consumed if e.payload)
         avg_saving = round(sum(ratios) / len(ratios), 4) if ratios else 0.0
 
+        # 交付物：把每个步骤的实际产出（风险/证据/建议/报告等）汇总，
+        # 供前端「审查结论」面板展示真正交付给用户的成果，而非仅引擎内部视角。
+        deliverables = [
+            {
+                "stepId": step.step_id,
+                "name": step.name,
+                "status": step.status.value if hasattr(step.status, "value") else str(step.status),
+                "output": step.output or {},
+            }
+            for step in run.steps
+            if step.output
+        ]
+        # 最终报告（若有 report_generate 类步骤产出 markdown，单独提取置顶展示）
+        final_report = None
+        for step in run.steps:
+            out = step.output or {}
+            md = out.get("report_markdown") or out.get("report") or out.get("final_report")
+            if isinstance(md, str) and md.strip():
+                final_report = md
+        run_output = run.output or {}
+        if not final_report:
+            md = run_output.get("report_markdown") or run_output.get("report")
+            if isinstance(md, str) and md.strip():
+                final_report = md
+
         return {
             "runId": run.run_id,
             "status": run.status.value,
@@ -1726,6 +1751,8 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             "provenance": run.provenance or {"productions": [], "consumptions": []},
             "recoveryTrace": _by_type("step_failed", "run_recovered"),
             "scheduleTrace": _by_type("step_scheduled"),
+            "deliverables": deliverables,
+            "finalReport": final_report,
             "lowEntropyMetrics": {
                 "averageSavingRatio": avg_saving,
                 "tokensAvailable": tokens_available,

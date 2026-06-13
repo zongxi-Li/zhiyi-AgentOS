@@ -270,6 +270,13 @@ export interface AcgLowEntropyMetrics {
   recoveryCount: number
 }
 
+export interface AcgDeliverable {
+  stepId: string
+  name: string
+  status: string
+  output: Record<string, any>
+}
+
 export interface AcgView {
   runId: string
   status: WorkflowStatus
@@ -282,6 +289,8 @@ export interface AcgView {
   }
   recoveryTrace: TraceEvent[]
   scheduleTrace: TraceEvent[]
+  deliverables: AcgDeliverable[]
+  finalReport: string | null
   lowEntropyMetrics: AcgLowEntropyMetrics
 }
 

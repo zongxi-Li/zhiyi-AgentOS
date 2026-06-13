@@ -44,6 +44,7 @@
     <div class="acg-grid" v-if="acgView">
       <div class="grid-main">
         <AcgTopologyGraph :blueprint="acgView.acgBlueprint" :completed-step-ids="acgView.completedStepIds" />
+        <AcgDeliverables :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
         <div class="schedule-strip ui-surface" v-if="scheduleBatches.length">
           <h4>就绪集调度轨迹（动态拓扑）</h4>
           <div class="batch-row">
@@ -78,6 +79,7 @@ import { workflowApi, type AcgView, type WorkflowStatus } from '@/services/api/w
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
+import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
 
 const WORKFLOW_ID = 'legal_contract_review_acg_v1'
 const faultStepOptions = ['contract_parse', 'clause_classify', 'risk_detect', 'legal_evidence_match', 'revision_suggest', 'report_generate']
