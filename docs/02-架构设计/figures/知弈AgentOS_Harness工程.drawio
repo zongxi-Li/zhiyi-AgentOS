@@ -1,0 +1,329 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.0 Chrome/140.0.7339.249 Electron/38.7.2 Safari/537.36" version="29.3.0" pages="2">
+  <diagram id="harness-architecture" name="Harness工程总览">
+    <mxGraphModel dx="2022" dy="1437" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1760" pageHeight="1120" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="h_title" value="知弈 AgentOS Harness 工程总览" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="620" y="42" width="520" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="h_subtitle" value="Task / Workflow / Execution Adapter / Trace / Checkpoint / Review / ACG 可视化共同组成可治理运行时挽具" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;fontColor=#5f6368;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="390" y="88" width="980" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h_front_container" value="用户与前端展示层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f8ff;strokeColor=#4f81bd;fontSize=15;fontStyle=1;verticalAlign=top;spacingTop=12;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="40" y="145" width="300" height="805" as="geometry" />
+        </mxCell>
+        <mxCell id="h_gateway_container" value="网关与 API 入口" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f3ff;strokeColor=#7e57c2;fontSize=15;fontStyle=1;verticalAlign=top;spacingTop=12;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="375" y="145" width="305" height="805" as="geometry" />
+        </mxCell>
+        <mxCell id="h_runtime_container" value="AgentOS Core Harness 内核" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1fbf7;strokeColor=#2e7d5b;fontSize=15;fontStyle=1;verticalAlign=top;spacingTop=12;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="715" y="145" width="475" height="805" as="geometry" />
+        </mxCell>
+        <mxCell id="h_exec_container" value="执行引擎与治理设施" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=15;fontStyle=1;verticalAlign=top;spacingTop=12;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="1225" y="145" width="495" height="805" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h_user" value="用户 / 审核者&#xa;启动任务、选择故障注入、查看恢复轨迹" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="75" y="195" width="230" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="h_console" value="AgentOsConsoleView.vue&#xa;WorkflowRunPanel / WorkflowStepList&#xa;CheckpointPanel / HumanReviewPanel&#xa;TraceEventTimeline / metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="75" y="315" width="230" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="h_acg_view" value="AcgVisualizationView.vue&#xa;故障注入开关 faultInjection&#xa;AcgTopologyGraph / LowEntropyMetrics&#xa;ProvenancePanel / recoveryTrace" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f0ff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="75" y="485" width="230" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="h_front_api" value="frontend/src/services/api/agentos.ts&#xa;startWorkflow()&#xa;getWorkflowRun() / getWorkflowTrace()&#xa;listWorkflowCheckpoints()&#xa;resumeWorkflow() / getAcgView()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="75" y="670" width="230" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h_java_gateway" value="Java AgentOsGatewayController&#xa;/ai/core/* 转发&#xa;统一认证、超时和错误包装" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="415" y="205" width="225" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="h_fastapi" value="Python FastAPI: agentos_core.py&#xa;POST /core/workflows/start&#xa;GET /runs/{runId}&#xa;GET /trace /checkpoints /reviews&#xa;GET /runs/{runId}/acg" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="415" y="340" width="225" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="h_api_aggregate" value="ACG 聚合视图 /acg&#xa;acgBlueprint&#xa;completedStepIds&#xa;provenance / recoveryTrace&#xa;scheduleTrace / lowEntropyMetrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4ecff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="415" y="525" width="225" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="h_api_resume" value="恢复与审核 API&#xa;POST /runs/{runId}/resume&#xa;POST /runs/{runId}/reviews&#xa;GET /metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="415" y="715" width="225" height="105" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h_runtime" value="WorkflowRuntime (runtime.py)&#xa;中央调度器&#xa;create_task / start / apply_review&#xa;resume_from_checkpoint / cancel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="755" y="195" width="395" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="h_task" value="TaskManager + WorkflowRegistry&#xa;创建 AgentTask&#xa;绑定 WorkflowDefinition&#xa;写入 TASK_CREATED / 状态事件" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="755" y="345" width="185" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="h_store" value="WorkflowStore&#xa;Memory / SQLite&#xa;保存 WorkflowRun&#xa;steps / trace / checkpoints / provenance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="965" y="345" width="185" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="h_adapter_selector" value="ExecutionAdapter 选择&#xa;workflow.effective_runtime_engine&#xa;native / acg / langgraph&#xa;adapterKey = engine:implementationId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="755" y="505" width="395" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="h_planning" value="规划与蓝图构建&#xa;_build_acg_blueprint()&#xa;1. 外部 acgBlueprint&#xa;2. PlanningEngine: 静态优选 / 动态补位&#xa;3. promote_workflow_to_acg()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="755" y="660" width="395" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h_native" value="NativeWorkflowAdapter&#xa;线性 YAML 工作流&#xa;_start_native() / _run_until_blocked()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="195" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="h_acg_exec" value="ACGWorkflowAdapter + ACGExecutor&#xa;validate_blueprint()&#xa;ready_steps() 计算就绪集&#xa;asyncio.gather 并行执行 batch&#xa;ContextAssembler 低熵装配&#xa;FaultInjector 自愈入口" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#c67c00;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="190" width="195" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="h_langgraph" value="LangGraphAdapter&#xa;应用层 StateGraph 桥接&#xa;Projector 投影回 WorkflowRun / Trace / Checkpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="335" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="h_orchestrator" value="Orchestrator + AgentRegistry&#xa;dispatch_agent(task, run, workflow, step, memory)&#xa;行业 Pack: legal / education / programmer / writer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="405" width="195" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="h_governance" value="治理层：Trace / Checkpoint / Review / Evaluation&#xa;TraceStore: STEP_SCHEDULED / DATA_CONSUMED / STEP_FAILED / RUN_RECOVERED&#xa;CheckpointStore: stateSnapshot / outputSnapshot / canResume&#xa;ReviewManager: approved / rerun / need_more_info / reject&#xa;WorkflowEvaluator: 成功率、恢复次数、治理指标" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="575" width="420" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="h_self_heal" value="Harness 自愈闭环&#xa;faultInjection → InjectedFault&#xa;STEP_FAILED → CheckpointStore.create&#xa;step.status=PENDING / retryCount++&#xa;RUN_RECOVERED(strategy=local_replan)&#xa;ready_steps 下一轮重调度" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecea;strokeColor=#d93025;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="785" width="420" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="h_e_user_console" value="操作任务" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4f81bd;fontSize=11;" edge="1" parent="1" source="h_user" target="h_console">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_console_api" value="workflowApi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4f81bd;fontSize=11;" edge="1" parent="1" source="h_console" target="h_front_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_acg_api" value="start + getAcgView" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4f81bd;fontSize=11;" edge="1" parent="1" source="h_acg_view" target="h_front_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_front_gateway" value="/ai/core/*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#6f42c1;fontSize=11;" edge="1" parent="1" source="h_front_api" target="h_java_gateway">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="360" y="745" />
+              <mxPoint x="360" y="252" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h_e_gateway_fastapi" value="WebClient 转发" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#6f42c1;fontSize=11;" edge="1" parent="1" source="h_java_gateway" target="h_fastapi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_fastapi_runtime" value="runtime.start / get_status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="h_fastapi" target="h_runtime">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_runtime_task" value="任务与工作流" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="h_runtime" target="h_task">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_runtime_store" value="save_run" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="h_runtime" target="h_store">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_runtime_adapter" value="_workflow_adapter()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="h_runtime" target="h_adapter_selector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_adapter_planning" value="ACG 蓝图" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="h_adapter_selector" target="h_planning">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_adapter_native" value="native" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" edge="1" parent="1" source="h_adapter_selector" target="h_native">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1205" y="565" />
+              <mxPoint x="1205" y="245" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h_e_adapter_acg" value="acg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="h_planning" target="h_acg_exec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1205" y="730" />
+              <mxPoint x="1205" y="275" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h_e_adapter_langgraph" value="langgraph" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" edge="1" parent="1" source="h_adapter_selector" target="h_langgraph">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1205" y="590" />
+              <mxPoint x="1205" y="392" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h_e_acg_agent" value="dispatch_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" edge="1" parent="1" source="h_acg_exec" target="h_orchestrator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_exec_gov" value="Trace / Checkpoint / Review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="h_acg_exec" target="h_governance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_gov_self" value="可恢复故障" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;dashed=1;strokeWidth=2;" edge="1" parent="1" source="h_governance" target="h_self_heal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h_e_self_acg" value="local_replan 回到就绪集" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;dashed=1;" edge="1" parent="1" source="h_self_heal" target="h_acg_exec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1725" y="850" />
+              <mxPoint x="1725" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h_e_acg_aggregate" value="拓扑 / 低熵 / 恢复轨迹" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;" edge="1" parent="1" source="h_governance" target="h_api_aggregate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1210" y="650" />
+              <mxPoint x="1210" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h_e_resume_api" value="resume / review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;" edge="1" parent="1" source="h_api_resume" target="h_runtime">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="770" />
+              <mxPoint x="700" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="harness-self-healing" name="故障注入自愈闭环">
+    <mxGraphModel dx="2022" dy="1437" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1760" pageHeight="1120" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="s_title" value="Harness 故障注入 + 自愈闭环时序" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="610" y="42" width="560" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="s_subtitle" value="task.input.faultInjection 声明式注入，ACGExecutor 捕获 InjectedFault 后通过 Checkpoint + local_replan 完成可回放恢复" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;fontColor=#5f6368;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="330" y="88" width="1100" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_input" value="1 输入配置" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f8ff;strokeColor=#4f81bd;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="55" y="155" width="300" height="225" as="geometry" />
+        </mxCell>
+        <mxCell id="s_input" value="AcgVisualizationView.vue&#xa;input.faultInjection = {&#xa;  step_id: risk_detect,&#xa;  fault_type: timeout,&#xa;  max_triggers: 1&#xa;}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="85" y="215" width="240" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_start" value="2 启动与装备" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f3ff;strokeColor=#7e57c2;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="395" y="155" width="310" height="225" as="geometry" />
+        </mxCell>
+        <mxCell id="s_arm" value="ACGExecutor.run()&#xa;validate_blueprint(blueprint)&#xa;FaultInjector.from_config(task.input.faultInjection)&#xa;Trace: RUN_STARTED(fault armed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="425" y="215" width="250" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_schedule" value="3 就绪集调度" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1fbf7;strokeColor=#2e7d5b;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="745" y="155" width="405" height="225" as="geometry" />
+        </mxCell>
+        <mxCell id="s_ready" value="_drive() 循环&#xa;_resolve_control_nodes()&#xa;ready_steps(blueprint, completed)&#xa;batch = ready[:max_parallelism]&#xa;Trace: STEP_SCHEDULED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="775" y="215" width="165" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s_gather" value="asyncio.gather(..., return_exceptions=True)&#xa;批量执行可并行 Step&#xa;异常作为结果回收" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="965" y="215" width="155" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_fault" value="4 故障触发" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="155" width="510" height="225" as="geometry" />
+        </mxCell>
+        <mxCell id="s_execute" value="_execute_step()&#xa;STEP_STARTED&#xa;ContextAssembler.assemble()&#xa;Trace: DATA_CONSUMED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="215" width="150" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s_fire" value="FaultInjector.fire(node_id)&#xa;should_fire(step_id)&#xa;_triggered &lt; max_triggers&#xa;raise InjectedFault" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecea;strokeColor=#d93025;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1395" y="215" width="145" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s_capture" value="结果结算&#xa;isinstance(outcome, InjectedFault)&#xa;进入 _self_heal()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1565" y="215" width="105" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_heal" value="5 自愈策略" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecea;strokeColor=#d93025;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="95" y="475" width="710" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="s_failed" value="Trace: STEP_FAILED&#xa;payload = {faultType, recoverable: true}&#xa;run.recovery_count++" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d93025;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="125" y="545" width="190" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="s_checkpoint" value="CheckpointStore.create(run, node_id)&#xa;stateSnapshot: run / input / output / steps&#xa;outputSnapshot: 当前 Step 输出&#xa;canResume = true" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d93025;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="335" y="545" width="215" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="s_reset" value="局部重规划&#xa;step.status = PENDING&#xa;step.error = None&#xa;step.retry_count += 1&#xa;run.error = None" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d93025;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="570" y="545" width="190" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="s_recovered" value="Trace: RUN_RECOVERED&#xa;payload = {checkpointId, strategy: local_replan, recoveryCount}&#xa;WorkflowStore.save_run(run)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2f0;strokeColor=#d93025;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="255" y="665" width="360" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_continue" value="6 重新调度与完成" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1fbf7;strokeColor=#2e7d5b;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="850" y="475" width="405" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="s_redrive" value="下一轮 _drive()&#xa;ready_steps 重新发现该 Step&#xa;故障达到 max_triggers 后不再触发" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="890" y="545" width="155" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="s_success" value="Agent 正常执行&#xa;Orchestrator.dispatch_agent()&#xa;DATA_PRODUCED / AGENT_CALLED&#xa;STEP_SUCCEEDED / CHECKPOINT_CREATED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="545" width="155" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="s_done" value="Run 完成&#xa;completedStepIds 更新&#xa;provenance 回写&#xa;RUN_COMPLETED / final output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="980" y="665" width="170" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_c_view" value="7 治理回放与前端交付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f8ff;strokeColor=#4f81bd;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="1305" y="475" width="395" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="s_view_api" value="GET /core/workflows/runs/{runId}/acg&#xa;recoveryTrace = STEP_FAILED + RUN_RECOVERED&#xa;scheduleTrace = STEP_SCHEDULED&#xa;lowEntropyMetrics.recoveryCount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1335" y="545" width="160" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s_panels" value="前端面板&#xa;AcgProvenancePanel: 恢复轨迹&#xa;TraceEventTimeline: 事件回放&#xa;CheckpointPanel: 恢复点列表&#xa;AcgTopologyGraph: 完成节点" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f0ff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="545" width="150" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_legend" value="关键代码入口&#xa;agentOS/src/agentos/core/execution/acg_executor.py&#xa;agentOS/src/agentos/core/execution/fault_injection.py&#xa;agentOS/src/agentos/core/governance/checkpoint.py&#xa;agentOS/src/agentos/core/governance/trace.py&#xa;agent/app/api/agentos_core.py&#xa;frontend/src/views/AcgVisualizationView.vue / AgentOsConsoleView.vue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f6f9;strokeColor=#9aa0a6;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="180" y="830" width="1400" height="115" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s_e_input_arm" value="POST /start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#6f42c1;fontSize=11;" edge="1" parent="1" source="s_input" target="s_arm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_arm_ready" value="run()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="s_arm" target="s_ready">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_ready_gather" value="batch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="s_ready" target="s_gather">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_gather_execute" value="_execute_step" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" edge="1" parent="1" source="s_gather" target="s_execute">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_execute_fire" value="调用 Agent 前" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="s_execute" target="s_fire">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_fire_capture" value="InjectedFault" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="s_fire" target="s_capture">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_capture_failed" value="_self_heal()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="s_capture" target="s_failed">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1620" y="420" />
+              <mxPoint x="220" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s_e_failed_ckpt" value="保存现场" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;" edge="1" parent="1" source="s_failed" target="s_checkpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_ckpt_reset" value="局部复位" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;" edge="1" parent="1" source="s_checkpoint" target="s_reset">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_reset_recovered" value="恢复入轨" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;" edge="1" parent="1" source="s_reset" target="s_recovered">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_recovered_redrive" value="continue while loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;dashed=1;strokeWidth=2;" edge="1" parent="1" source="s_recovered" target="s_redrive">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_redrive_success" value="重跑 Step" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="s_redrive" target="s_success">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_success_done" value="更新 run" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="s_success" target="s_done">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_done_api" value="GET /acg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4f81bd;fontSize=11;" edge="1" parent="1" source="s_done" target="s_view_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s_e_api_panels" value="渲染" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4f81bd;fontSize=11;" edge="1" parent="1" source="s_view_api" target="s_panels">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

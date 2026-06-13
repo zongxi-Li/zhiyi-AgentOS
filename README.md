@@ -282,10 +282,13 @@ kinlin_ai/
 │   ├── src/agentos/stores/                # MemoryWorkflowStore、SQLiteWorkflowStore
 │   └── tests/                             # AgentOS Core 单元测试
 ├── docs/
-│   ├── 01-项目架构/                       # 架构设计与图
-│   ├── 02-项目开发日志/                   # 当前能力边界和开发记录
-│   └── 04-演示与交付/                     # 演示指南、ACG 报告与样例
+│   ├── README.md                          # 文档总索引
+│   ├── 01-赛题与项目概述/                 # 赛题背景、设计方案、技术路线、竞品
+│   ├── 02-架构设计/                       # 系统/代码层次架构、各引擎技术设计与图
+│   ├── 03-开发记录/                       # 当前能力边界、TODO 与实现计划
+│   └── 04-演示与交付/                     # 演示指南、ACG 报告与测试样例
 ├── scripts/
+│   ├── build_agentos_innovation_doc.py    # 生成 AgentOS 创新点文档
 │   └── demo_federated_learning.py         # 联邦学习演示脚本
 ├── docker-compose.yml                     # 开发环境全栈编排
 ├── dev.sh                                 # Linux/macOS Docker 开发脚本
