@@ -177,9 +177,10 @@ const pollUntilStable = async (runId: string) => {
 .ctrl-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
 .ctrl-options { flex-direction: row; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
 
-.acg-grid { display: grid; grid-template-columns: 1fr 380px; gap: var(--space-lg); align-items: start; }
+.acg-grid { display: grid; grid-template-columns: 1fr 380px; gap: var(--space-lg); align-items: stretch; }
 .grid-main { display: flex; flex-direction: column; gap: var(--space-lg); }
-.grid-side { display: flex; flex-direction: column; gap: var(--space-lg); }
+.grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-height: 0; }
+.grid-side :deep(.acg-provenance) { flex: 1 1 auto; min-height: 0; }
 
 .schedule-strip { padding: var(--space-md); }
 .schedule-strip h4 { margin: 0 0 var(--space-sm); font-size: 13px; font-weight: 700; color: var(--text-primary); }

@@ -80,8 +80,17 @@ const recoveryLabel = (t: string) => {
 }
 .tabs button.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
 
-.tab-body { max-height: 320px; overflow-y: auto; }
-.empty { padding: 24px 12px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+.tab-body { flex: 1 1 320px; min-height: 320px; overflow-y: auto; }
+.empty {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
 
 .lineage-list, .recovery-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
 .lineage-item { padding: var(--space-sm); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-panel); }
