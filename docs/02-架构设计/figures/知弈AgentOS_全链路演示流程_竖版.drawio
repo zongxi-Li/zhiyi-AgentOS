@@ -1,0 +1,215 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.0 Chrome/140.0.7339.249 Electron/38.7.2 Safari/537.36" version="29.3.0" pages="1">
+  <diagram id="agentos-demo-vertical-flow" name="全链路演示流程竖版">
+    <mxGraphModel dx="1480" dy="2500" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1080" pageHeight="2400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d7dbe2;strokeWidth=2;arcSize=2;" vertex="1" parent="1">
+          <mxGeometry x="30" y="25" width="1020" height="2325" as="geometry" />
+        </mxCell>
+        <mxCell id="title" value="知弈 AgentOS 全链路演示流程（竖版）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#0b2545;" vertex="1" parent="1">
+          <mxGeometry x="190" y="50" width="700" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="从合同审查业务闭环 → Harness 治理 → ACG 低熵通信与自愈 → 联邦协作扩展" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;fontColor=#5f6368;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="155" y="96" width="770" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stage1_band" value="第一段演示：用户业务入口" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#f3f8ff;strokeColor=#4f81bd;fontSize=15;fontStyle=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="150" width="920" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="input_prompt" value="演示输入提示词&#xa;甲方委托乙方开发 CRM 系统，合同总价 100 万元。合同签署后甲方支付 30%，系统上线验收后支付 70%。乙方应在 60 日内完成开发并交付。合同未明确验收标准、需求变更流程、知识产权归属、数据安全责任和争议解决方式。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;spacingRight=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="205" width="840" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend_contract" value="页面 1：/agentos/legal/contract-review&#xa;律师合同审查工作台&#xa;选择 Workflow: legal_contract_review_v1&#xa;点击“开始审查”" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f0ff;strokeColor=#4f81bd;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="330" width="265" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="business_outputs" value="可讲解内容&#xa;风险面板：验收标准 / 需求变更 / 知识产权 / 数据安全&#xa;Evidence 面板：本地知识库 + keyword 检索&#xa;报告预览：Markdown 审查报告" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="330" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="business_message" value="讲解要点&#xa;先让评委看到系统解决什么问题：&#xa;专业任务从自然语言输入变成结构化风险、证据和报告。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#4f81bd;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="715" y="330" width="245" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stage2_band" value="第二段演示：AgentOS Harness 生命周期治理" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#f1fbf7;strokeColor=#2e7d5b;fontSize=15;fontStyle=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="500" width="920" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="api_start" value="Frontend → Java Gateway → Python FastAPI&#xa;POST /ai/core/workflows/start&#xa;title / domain=legal / intent=contract_review&#xa;workflowId=legal_contract_review_v1&#xa;reviewMode=human_in_loop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="555" width="255" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="runtime_core" value="WorkflowRuntime (Harness 核心)&#xa;create_task() → AgentTask&#xa;start() → WorkflowRun&#xa;_workflow_adapter() 按 runtimeEngine 选执行引擎&#xa;统一持有 Trace / Review / Checkpoint / Store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="415" y="555" width="255" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="adapter_select" value="ExecutionAdapter 三引擎&#xa;native：线性 YAML 流程&#xa;acg：Core Native ACG 就绪集调度&#xa;langgraph：应用层 StateGraph 桥接&#xa;三者共享治理对象" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="705" y="555" width="255" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="langgraph_flow" value="合同审查标准流程：runtimeEngine=langgraph&#xa;parse_contract → classify_clauses → risk_detect&#xa;→ legal_evidence_match → suggestion_generate&#xa;→ human_review → report_generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="720" width="390" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="review_gate" value="Human Review 关口&#xa;LangGraph interrupt_before=[report_generate]&#xa;运行进入 waiting_review&#xa;审核 approved 后 Command(update=review) 恢复执行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="550" y="720" width="410" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="projector" value="ContractReviewRunProjector.project()&#xa;LangGraph state → AgentOS 治理对象&#xa;WorkflowRun.steps / output.artifacts / Trace / Checkpoint&#xa;status = waiting_review 或 completed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="855" width="840" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stage3_band" value="第三段演示：Console 治理视角" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=15;fontStyle=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="980" width="920" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="console_page" value="页面 2：/agentos-console&#xa;查看同一个 WorkflowRun&#xa;WorkflowRunPanel / WorkflowStepList&#xa;TraceEventTimeline / CheckpointPanel / HumanReviewPanel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1035" width="270" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="trace_checkpoint" value="治理三件套&#xa;Trace：19 种事件，记录 step_started / agent_called / review_decided / run_completed 等&#xa;Checkpoint：保存 run、input、output、steps 快照&#xa;Review：审核决策进入 REVIEW_DECIDED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="425" y="1035" width="265" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="console_message" value="讲解要点&#xa;AgentOS 的价值不是只给答案，&#xa;而是让专业任务有运行状态、审核点、恢复点和可导出的黑匣子记录。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="725" y="1035" width="235" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="console_note" value="答辩提示：合同审查页展示业务交付，Console 展示 Harness 工程治理；两者指向同一个 runId。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#c67c00;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1180" width="840" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stage4_band" value="第四段演示：ACG 动态群体智能引擎" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#f7f3ff;strokeColor=#7e57c2;fontSize=15;fontStyle=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1330" width="920" height="560" as="geometry" />
+        </mxCell>
+        <mxCell id="acg_page" value="页面 3：/agentos/acg&#xa;输入合同文本&#xa;Workflow: legal_contract_review_acg_v1&#xa;可勾选 usePlanner&#xa;勾选 faultInjection 演示自愈" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1385" width="255" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="acg_blueprint" value="ACGBlueprint&#xa;6 类节点：Step / Agent / Skill / Memory / Evidence / Control&#xa;7 类边：Dependency / Communication / ControlFlow / Execution / Read / Write / Support&#xa;promote_workflow_to_acg() 可将线性工作流升格为图 IR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="410" y="1385" width="265" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="acg_executor" value="ACGExecutor._drive()&#xa;validate_blueprint()&#xa;ready_steps() 计算就绪集&#xa;asyncio.gather 并行执行 batch&#xa;completedStepIds / provenance 回写" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="710" y="1385" width="250" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="low_entropy" value="低熵通信&#xa;ContextAssembler 以 DEPENDENCY 上游为默认来源&#xa;按 input.fields / input.from 精准取字段&#xa;生成 ContextPack: data / tokensAvailable / tokensDelivered / savingRatio&#xa;Trace: DATA_CONSUMED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4ecff;strokeColor=#7e57c2;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1545" width="390" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="provenance" value="数据血缘&#xa;ProvenanceLedger.record_production()&#xa;ProvenanceLedger.record_consumption()&#xa;记录下游消费了哪些上游字段&#xa;/acg 端点返回 provenance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="550" y="1545" width="410" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="fault_prompt" value="ACG 自愈演示输入&#xa;勾选：注入故障演示自愈&#xa;节点：risk_detect&#xa;故障类型：模型超时 timeout&#xa;max_triggers=1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecea;strokeColor=#d93025;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1710" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="self_heal_flow" value="自愈闭环&#xa;FaultInjector.fire() → InjectedFault&#xa;STEP_FAILED → CheckpointStore.create()&#xa;step.status=PENDING / retryCount++&#xa;RUN_RECOVERED(strategy=local_replan)&#xa;下一轮 ready_steps 重新调度" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2f0;strokeColor=#d93025;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="410" y="1710" width="265" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="acg_observe" value="观察结果&#xa;ACG 拓扑：Step / Agent / Evidence / Memory 节点&#xa;低熵指标：Token 节省率&#xa;恢复轨迹：STEP_FAILED + RUN_RECOVERED&#xa;任务最终 completed，recoveryCount=1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="710" y="1710" width="250" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stage5_band" value="第五段演示：联邦学习与跨机构扩展" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#eef7f4;strokeColor=#3f6b63;fontSize=15;fontStyle=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1940" width="920" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="fed_page" value="页面 4：/federated-learning&#xa;联邦网络拓扑 / 训练曲线 / 模型聚合 / 隐私保护&#xa;用于展示跨机构协作能力" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#3f6b63;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1995" width="255" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="fed_rag" value="联邦 RAG 优化&#xa;客户端上传 RAGStatistics：top_k / threshold / success_rate / avg_time&#xa;服务端聚合 balanced / precision / recall / speed / personalized 参数&#xa;原始文档和查询留在本地" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#3f6b63;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="410" y="1995" width="265" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="fed_governance" value="治理增强&#xa;FederatedAdapter.get_risk_enhancement()&#xa;输出 risk_adjustment / confidence / federated_nodes_count&#xa;把联邦优化结果注入 AgentOS 风险治理" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#3f6b63;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="710" y="1995" width="250" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="summary_band" value="最后 20 秒总结：五个核心创新点" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#f4f6f9;strokeColor=#9aa0a6;fontSize=15;fontStyle=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="2220" width="920" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="summary_text" value="1. Harness 工程：Task / WorkflowRun / Trace / Review / Checkpoint 生命周期治理&#xa;2. ACG 计算图：多智能体协作结构化，支持 DAG 就绪集调度&#xa;3. 低熵通信：字段契约精准投递，降低 Token 浪费和上下文污染&#xa;4. 故障注入自愈：InjectedFault + Checkpoint + local_replan 可回放恢复&#xa;5. 联邦 RAG：跨机构统计聚合，隐私边界内优化检索与治理置信度" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9aa0a6;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="120" y="2265" width="840" height="38" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_1" value="启动任务" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4f81bd;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="frontend_contract" target="api_start">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="253" y="470" />
+              <mxPoint x="253" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_2" value="进入 Harness" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="api_start" target="runtime_core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_3" value="选择执行器" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="runtime_core" target="adapter_select">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_4" value="langgraph 路径" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="adapter_select" target="langgraph_flow">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="833" y="700" />
+              <mxPoint x="315" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_5" value="人审暂停" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" edge="1" parent="1" source="langgraph_flow" target="review_gate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_6" value="投影回 AgentOS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" edge="1" parent="1" source="review_gate" target="projector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_7" value="治理视角" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="projector" target="console_page">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="540" y="950" />
+              <mxPoint x="255" y="950" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_8" value="同一 runId" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" edge="1" parent="1" source="console_page" target="trace_checkpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_9" value="切到核心引擎" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="console_note" target="acg_page">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="540" y="1305" />
+              <mxPoint x="248" y="1305" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_10" value="构图" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;" edge="1" parent="1" source="acg_page" target="acg_blueprint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_11" value="调度执行" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;" edge="1" parent="1" source="acg_blueprint" target="acg_executor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_12" value="按需投递" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;" edge="1" parent="1" source="acg_executor" target="low_entropy">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="835" y="1525" />
+              <mxPoint x="315" y="1525" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_13" value="血缘记账" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#7e57c2;fontSize=11;" edge="1" parent="1" source="low_entropy" target="provenance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_14" value="故障注入" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="fault_prompt" target="self_heal_flow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_15" value="恢复可视化" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d93025;fontSize=11;" edge="1" parent="1" source="self_heal_flow" target="acg_observe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_16" value="扩展能力" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#3f6b63;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="acg_observe" target="fed_page">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="835" y="1915" />
+              <mxPoint x="248" y="1915" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_17" value="统计聚合" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#3f6b63;fontSize=11;" edge="1" parent="1" source="fed_page" target="fed_rag">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_18" value="注入治理" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#3f6b63;fontSize=11;" edge="1" parent="1" source="fed_rag" target="fed_governance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_19" value="收束创新点" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#9aa0a6;fontSize=11;strokeWidth=2;" edge="1" parent="1" source="fed_governance" target="summary_text">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="835" y="2200" />
+              <mxPoint x="540" y="2200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

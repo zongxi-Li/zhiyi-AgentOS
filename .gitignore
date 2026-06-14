@@ -129,3 +129,6 @@ temp/
 *.seed
 nohup.out
 build_agentos_innovation_doc.py
+
+# draw.io temporary backup files
+*.drawio.bkp
