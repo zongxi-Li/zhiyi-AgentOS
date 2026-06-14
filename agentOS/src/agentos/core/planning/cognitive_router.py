@@ -23,6 +23,34 @@ from agentos.agents.base import BaseAgent
 from agentos.core.planning.profile import TaskSemanticProfile
 
 
+_CAPABILITY_ALIASES = {
+    "文本解析": ("contract_parse", "parse_contract", "contract_parser", "合同解析", "文本解析"),
+    "条款分类": ("clause_classify", "clause_classifier", "条款分类", "条款识别"),
+    "风险识别": ("risk_detect", "risk_detection", "risk_assessment", "风险识别", "风险评估"),
+    "证据检索": ("legal_evidence_match", "legal_evidence_search", "evidence_analysis", "证据检索", "依据匹配"),
+    "修改建议": ("revision_suggest", "revision_suggestion", "suggestion_generate", "修改建议", "修订建议"),
+    "人工审核": ("human_review", "human_review_gate", "review", "人工审核", "复核"),
+    "报告生成": ("report_generate", "report_generation", "draft", "报告生成", "文书生成"),
+    "需求分析": ("case_intake", "case_understanding", "contract_parse", "需求分析", "案情理解"),
+}
+
+_NON_EXECUTABLE_CAPABILITY_KEYWORDS = (
+    "多智能体",
+    "协作编排",
+    "任务图",
+    "图编排",
+    "工作流编排",
+    "ACG",
+    "DAG",
+    "低熵通信",
+    "上下文组织",
+    "字段投递",
+    "并行分析",
+    "并行处理",
+    "输出格式",
+)
+
+
 @dataclass
 class CapabilityBinding:
     capability: str
@@ -63,6 +91,9 @@ class CognitiveRouter:
         agents = [a for a in self.agent_registry.all() if a.profile.domain.lower() == domain.lower()]
 
         for capability in profile.required_capabilities:
+            if _is_non_executable_capability(capability):
+                network.notes.append(f"skipped non-executable planning capability: {capability}")
+                continue
             binding = self._match_capability(capability, agents)
             network.bindings.append(binding)
 
@@ -79,10 +110,10 @@ class CognitiveRouter:
     def _match_capability(self, capability: str, agents: List[BaseAgent]) -> CapabilityBinding:
         # 候选生成与硬过滤：能力标签语义包含匹配
         scored: List[tuple[float, BaseAgent]] = []
-        cap_lower = capability.lower()
+        cap_aliases = _capability_aliases(capability)
         for agent in agents:
             caps = [c.lower() for c in agent.profile.capabilities]
-            score = self._capability_score(cap_lower, caps, agent)
+            score = self._capability_score(cap_aliases, caps, agent)
             if score > 0:
                 scored.append((score, agent))
 
@@ -104,19 +135,49 @@ class CognitiveRouter:
         )
 
     @staticmethod
-    def _capability_score(cap: str, agent_caps: List[str], agent: BaseAgent) -> float:
+    def _capability_score(cap_aliases: List[str], agent_caps: List[str], agent: BaseAgent) -> float:
         # 多维效用评分（简化）：语义匹配 + 风险等级匹配
         semantic = 0.0
-        for ac in agent_caps:
-            if cap == ac:
-                semantic = 1.0
-                break
-            if cap in ac or ac in cap:
-                semantic = max(semantic, 0.7)
-        if semantic == 0.0:
+        agent_name = (agent.profile.agent_name or "").strip().lower()
+        for index, cap in enumerate(cap_aliases):
+            if not cap:
+                continue
+            alias_weight = max(0.65, 1.0 - index * 0.03)
+            for ac in agent_caps:
+                if not ac:
+                    continue
+                if cap == ac:
+                    semantic = max(semantic, alias_weight)
+                elif cap in ac or ac in cap:
+                    semantic = max(semantic, min(0.82, alias_weight - 0.12))
+            if agent_name:
+                if cap == agent_name:
+                    semantic = max(semantic, alias_weight - 0.01)
+                elif cap in agent_name or agent_name in cap:
+                    semantic = max(semantic, min(0.78, alias_weight - 0.16))
+        if semantic <= 0.0:
             return 0.0
         # 健康/可用维度：当前 demo agent 默认健康，给固定加权
-        return semantic
+        return round(semantic, 4)
+
+
+def _capability_aliases(capability: str) -> List[str]:
+    raw = (capability or "").strip()
+    aliases = [raw.lower()]
+    for key, values in _CAPABILITY_ALIASES.items():
+        if raw == key or raw.lower() in {v.lower() for v in values}:
+            aliases.extend(v.lower() for v in values)
+            break
+    seen: List[str] = []
+    for item in aliases:
+        if item and item not in seen:
+            seen.append(item)
+    return seen
+
+
+def _is_non_executable_capability(capability: str) -> bool:
+    compact = (capability or "").replace(" ", "").replace("/", "")
+    return any(keyword.lower() in compact.lower() for keyword in _NON_EXECUTABLE_CAPABILITY_KEYWORDS)
 
 
 __all__ = ["CognitiveRouter", "CollaborationNetwork", "CapabilityBinding"]

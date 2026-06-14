@@ -15,7 +15,7 @@ if str(_SRC) not in sys.path:
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
-from agentos.core.acg import NodeType, validate_blueprint
+from agentos.core.acg import ControlType, EdgeType, NodeType, validate_blueprint
 from agentos.core.acg.enums import ComplexityLevel
 from agentos.core.models.types import WorkflowDefinition
 from agentos.core.planning import IntentParser, PlanningEngine, TaskSemanticProfile
@@ -52,6 +52,21 @@ def _registries():
     ar.register(_Agent("risk", "legal", ["风险识别"]))
     ar.register(_Agent("reporter", "legal", ["报告生成"]))
     return wr, ar
+
+
+def _legal_acg_agent_registry():
+    ar = AgentRegistry()
+    for name, caps in [
+        ("contract_parse", ["contract_parse"]),
+        ("clause_classify", ["clause_classify"]),
+        ("risk_detect", ["risk_detect"]),
+        ("legal_evidence_match", ["legal_evidence_match"]),
+        ("revision_suggest", ["revision_suggest"]),
+        ("human_review", ["human_review_gate"]),
+        ("report_generate", ["report_generate"]),
+    ]:
+        ar.register(_Agent(name, "legal", caps))
+    return ar
 
 
 # ---------- 意图解析 ----------
@@ -139,6 +154,85 @@ def test_plan_dynamic_generation_path():
     node_types = {n.node_type for n in result.blueprint.nodes}
     assert NodeType.STEP in node_types
     assert NodeType.EVIDENCE in node_types or NodeType.MEMORY in node_types
+
+
+def test_plan_force_dynamic_bypasses_template_and_adds_data_edges():
+    wr, _ = _registries()
+    ar = _legal_acg_agent_registry()
+    engine = PlanningEngine(workflow_registry=wr, agent_registry=ar)
+    result = engine.plan(
+        task_id="t3",
+        intent="审查这份合同中的付款、验收、知识产权和违约责任风险，匹配依据，生成修改建议、人工审核要点和审查报告",
+        domain="legal",
+        task_type="contract_review",
+        force_dynamic=True,
+    )
+
+    assert result.strategy == "dynamic_generation"
+    assert result.template_id is None
+    assert result.template_score == 0.0
+    validate_blueprint(result.blueprint)
+
+    roles = {step.metadata.get("role") for step in result.blueprint.step_nodes()}
+    assert {"parse", "classify", "risk", "evidence", "suggest", "review", "report"}.issubset(roles)
+    agents = {step.agent_name for step in result.blueprint.step_nodes()}
+    assert {
+        "contract_parse",
+        "clause_classify",
+        "risk_detect",
+        "legal_evidence_match",
+        "revision_suggest",
+        "human_review",
+        "report_generate",
+    }.issubset(agents)
+    assert any(
+        node.node_type == NodeType.CONTROL and getattr(node, "control_type", None) == ControlType.PARALLEL
+        for node in result.blueprint.nodes
+    )
+    communication_edges = result.blueprint.edges_of_type(EdgeType.COMMUNICATION)
+    assert communication_edges
+    assert any(edge.data_fields for edge in communication_edges)
+
+
+def test_dynamic_planner_drops_meta_capabilities_from_llm():
+    class _LLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            return {
+                "data": {
+                    "primaryGoal": "以 ACG 多智能体方式完成合同审查",
+                    "requiredCapabilities": [
+                        "文本解析",
+                        "条款分类",
+                        "风险识别",
+                        "证据/依据匹配",
+                        "多智能体协作编排",
+                        "最终 Markdown 审查报告生成",
+                    ],
+                    "estimatedComplexity": "complex",
+                    "domainHint": "legal",
+                    "taskTypeHint": "contract_review",
+                }
+            }
+
+    wr, _ = _registries()
+    engine = PlanningEngine(
+        workflow_registry=wr,
+        agent_registry=_legal_acg_agent_registry(),
+        intent_llm=_LLM(),
+    )
+    result = engine.plan(
+        task_id="t4",
+        intent="请以 ACG 多智能体协作方式审查合同，提取人工审核要点，生成 Markdown 审查报告。",
+        domain="legal",
+        task_type="contract_review",
+        force_dynamic=True,
+    )
+
+    validate_blueprint(result.blueprint)
+    step_caps = {step.capability for step in result.blueprint.step_nodes()}
+    assert "多智能体协作编排" not in step_caps
+    assert "报告生成" in step_caps
+    assert all(not step.agent_name.startswith("ephemeral::") for step in result.blueprint.step_nodes())
 
 
 def test_cognitive_router_binds_capabilities():

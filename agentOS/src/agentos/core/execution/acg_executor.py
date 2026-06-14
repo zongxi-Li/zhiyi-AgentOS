@@ -228,6 +228,20 @@ class ACGExecutor:
             run.steps.append(step)
             return step
 
+    def _data_sources(self, blueprint: ACGBlueprint, node_id: str) -> List[str]:
+        """优先按 COMMUNICATION 边取真实数据生产者，兼容旧图的 DEPENDENCY 边。"""
+        source_ids = [edge.source_id for edge in blueprint.incoming(node_id, EdgeType.COMMUNICATION)]
+        if not source_ids:
+            source_ids = blueprint.dependency_sources(node_id)
+        seen: set[str] = set()
+        ordered: List[str] = []
+        for source_id in source_ids:
+            if source_id in seen:
+                continue
+            seen.add(source_id)
+            ordered.append(source_id)
+        return ordered
+
     # ------------------------------------------------------------------
     # 单节点执行：统一 Trace wrapper（started → agent_called/succeeded → failed）
     # ------------------------------------------------------------------
@@ -251,7 +265,7 @@ class ACGExecutor:
         step_node = blueprint.get_node(node_id)
         upstream_outputs = {
             sid: dict(run.get_step(sid).output)
-            for sid in blueprint.dependency_sources(node_id)
+            for sid in self._data_sources(blueprint, node_id)
             if self._safe_has_step(run, sid)
         }
         if isinstance(step_node, StepNode) and upstream_outputs:

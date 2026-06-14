@@ -43,9 +43,12 @@ class ContextAssembler:
 
         upstream_outputs: {step_id -> 该上游 Step 的完整输出}，由执行器提供。
         """
-        # 1) 确定数据来源：优先依赖边上游，回退到全部已知上游
+        # 1) 确定数据来源：优先通信边上游，回退到依赖边上游，再回退到全部已知上游
+        comm_edges = blueprint.incoming(step_node.node_id, EdgeType.COMMUNICATION)
+        comm_sources = [edge.source_id for edge in comm_edges]
         dep_sources = blueprint.dependency_sources(step_node.node_id)
-        source_ids = [sid for sid in dep_sources if sid in upstream_outputs] or list(upstream_outputs.keys())
+        raw_source_ids = comm_sources or dep_sources
+        source_ids = [sid for sid in raw_source_ids if sid in upstream_outputs] or list(upstream_outputs.keys())
 
         # 可获取的 token 总量（若全盘倾倒）
         tokens_available = sum(estimate_tokens(upstream_outputs[sid]) for sid in source_ids)
@@ -57,6 +60,13 @@ class ContextAssembler:
 
         from_map = spec.get("from") if isinstance(spec.get("from"), dict) else None
         field_list = spec.get("fields") if isinstance(spec.get("fields"), list) else None
+        if not field_list and comm_edges:
+            edge_fields: List[str] = []
+            for edge in comm_edges:
+                for field in edge.data_fields:
+                    if field not in edge_fields:
+                        edge_fields.append(field)
+            field_list = edge_fields or None
 
         if from_map:
             for src_id, fields in from_map.items():

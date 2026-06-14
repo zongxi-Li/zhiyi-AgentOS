@@ -70,33 +70,40 @@ class PlanningEngine:
         intent: str,
         domain: str = "general",
         task_type: str = "general",
+        force_dynamic: bool = False,
     ) -> PlanResult:
         profile = self.intent_parser.parse(intent=intent, domain=domain, task_type=task_type)
 
-        # 静态优选
-        match = self.template_matcher.match(profile)
-        if self.template_matcher.is_hit(match):
-            blueprint = promote_workflow_to_acg(match.workflow, task_id=task_id)
-            blueprint.objective = profile.primary_goal or blueprint.objective
-            return PlanResult(
-                blueprint=blueprint,
-                profile=profile,
-                strategy="static_template",
-                template_id=match.workflow.workflow_id,
-                template_score=match.score,
-                notes=[f"matched template by {match.matched_by}"],
-            )
+        match = None
+        if not force_dynamic:
+            # 静态优选
+            match = self.template_matcher.match(profile)
+            if self.template_matcher.is_hit(match):
+                blueprint = promote_workflow_to_acg(match.workflow, task_id=task_id)
+                blueprint.objective = profile.primary_goal or blueprint.objective
+                return PlanResult(
+                    blueprint=blueprint,
+                    profile=profile,
+                    strategy="static_template",
+                    template_id=match.workflow.workflow_id,
+                    template_score=match.score,
+                    notes=[f"matched template by {match.matched_by}"],
+                )
 
         # 动态补位
         network = self.cognitive_router.route(profile, domain=domain)
         blueprint = self.acg_builder.build(task_id=task_id, profile=profile, network=network)
-        notes = ["no template hit; generated ACG dynamically"]
+        notes = [
+            "force dynamic planning; generated ACG dynamically"
+            if force_dynamic
+            else "no template hit; generated ACG dynamically"
+        ]
         notes.extend(network.notes)
         return PlanResult(
             blueprint=blueprint,
             profile=profile,
             strategy="dynamic_generation",
-            template_score=match.score,
+            template_score=match.score if match else 0.0,
             notes=notes,
         )
 

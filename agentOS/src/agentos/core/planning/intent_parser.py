@@ -38,6 +38,57 @@ _PROFILE_SCHEMA = {
     "required": ["primaryGoal", "requiredCapabilities", "estimatedComplexity"],
 }
 
+_NON_EXECUTABLE_CAPABILITY_KEYWORDS = (
+    "多智能体",
+    "协作编排",
+    "任务图",
+    "图编排",
+    "工作流编排",
+    "ACG",
+    "DAG",
+    "低熵通信",
+    "上下文组织",
+    "字段投递",
+    "并行分析",
+    "并行处理",
+    "输出格式",
+)
+
+
+def _canonical_capability(capability: str) -> Optional[str]:
+    raw = (capability or "").strip()
+    if not raw:
+        return None
+
+    if "报告" in raw and any(k in raw for k in ("生成", "输出", "撰写", "Markdown", "markdown")):
+        return "报告生成"
+    if ("证据" in raw or "依据" in raw) and any(k in raw for k in ("检索", "匹配", "引用")):
+        return "证据检索"
+    if "修改" in raw or "修订" in raw:
+        return "修改建议"
+    if "审核" in raw or "复核" in raw:
+        return "人工审核"
+    if "条款" in raw and any(k in raw for k in ("分类", "识别", "摘要")):
+        return "条款分类"
+    if "风险" in raw:
+        return "风险识别"
+    if any(k in raw for k in ("解析", "提取")) and "合同" in raw:
+        return "文本解析"
+
+    compact = raw.replace(" ", "").replace("/", "")
+    if any(k.lower() in compact.lower() for k in _NON_EXECUTABLE_CAPABILITY_KEYWORDS):
+        return None
+    return raw
+
+
+def _clean_capabilities(capabilities: List[str]) -> List[str]:
+    cleaned: List[str] = []
+    for capability in capabilities:
+        canonical = _canonical_capability(capability)
+        if canonical and canonical not in cleaned:
+            cleaned.append(canonical)
+    return cleaned
+
 
 def _build_prompt(intent: str, domain: str, task_type: str) -> str:
     return (
@@ -77,7 +128,7 @@ class IntentParser:
         data.setdefault("domainHint", domain)
         data.setdefault("taskTypeHint", task_type)
         data["rawIntent"] = intent
-        return TaskSemanticProfile.model_validate(data)
+        return self._enrich_profile(TaskSemanticProfile.model_validate(data), intent, domain, task_type)
 
     def _heuristic(self, intent: str, domain: str, task_type: str) -> TaskSemanticProfile:
         text = intent or ""
@@ -91,7 +142,7 @@ class IntentParser:
 
         capabilities = self._infer_capabilities(text, domain, task_type)
         risk = "high" if any(k in text for k in ("风险", "合规", "诉讼", "违约")) else "normal"
-        return TaskSemanticProfile(
+        profile = TaskSemanticProfile(
             primaryGoal=text[:80] or task_type,
             requiredCapabilities=capabilities,
             estimatedComplexity=complexity,
@@ -100,14 +151,40 @@ class IntentParser:
             riskLevel=risk,
             rawIntent=text,
         )
+        return self._enrich_profile(profile, intent, domain, task_type)
+
+    def _enrich_profile(
+        self,
+        profile: TaskSemanticProfile,
+        intent: str,
+        domain: str,
+        task_type: str,
+    ) -> TaskSemanticProfile:
+        """用确定性启发式补齐 LLM 可能遗漏的能力，保证图规划稳定。"""
+        for cap in self._infer_capabilities(intent or "", domain, task_type, include_defaults=False):
+            if cap not in profile.required_capabilities:
+                profile.required_capabilities.append(cap)
+        profile.required_capabilities = _clean_capabilities(profile.required_capabilities)
+        if not profile.domain_hint:
+            profile.domain_hint = domain
+        if not profile.task_type_hint:
+            profile.task_type_hint = task_type
+        if not profile.raw_intent:
+            profile.raw_intent = intent or ""
+        if profile.risk_level in {"", "normal", "low"} and any(k in (intent or "") for k in ("风险", "合规", "诉讼", "违约")):
+            profile.risk_level = "high"
+        return profile
 
     @staticmethod
-    def _infer_capabilities(text: str, domain: str, task_type: str) -> List[str]:
+    def _infer_capabilities(text: str, domain: str, task_type: str, *, include_defaults: bool = True) -> List[str]:
         caps: List[str] = []
         keyword_map = {
             "文本解析": ("解析", "提取", "分析", "合同"),
+            "条款分类": ("条款", "分类", "付款", "验收", "知识产权", "违约责任"),
             "风险识别": ("风险", "隐患", "合规", "违约"),
             "证据检索": ("证据", "依据", "法规", "检索", "引用"),
+            "修改建议": ("建议", "修改", "修订", "优化", "补充"),
+            "人工审核": ("人工", "审核", "审批", "复核"),
             "报告生成": ("报告", "总结", "输出", "生成"),
             "代码生成": ("代码", "实现", "函数", "编程"),
             "需求分析": ("需求", "规格", "设计"),
@@ -115,7 +192,16 @@ class IntentParser:
         for cap, keywords in keyword_map.items():
             if any(k in text for k in keywords):
                 caps.append(cap)
-        if not caps:
+        if (domain or "").lower() == "legal" and ("合同" in text or "contract" in text.lower()):
+            legal_defaults = ["文本解析", "条款分类"]
+            if any(k in text for k in ("审查", "风险", "违约", "合规")):
+                legal_defaults.extend(["风险识别", "证据检索", "修改建议"])
+            if any(k in text for k in ("审查", "报告", "总结", "输出")):
+                legal_defaults.append("报告生成")
+            for cap in legal_defaults:
+                if cap not in caps:
+                    caps.append(cap)
+        if include_defaults and not caps:
             caps = ["文本解析", "报告生成"]
         return caps
 

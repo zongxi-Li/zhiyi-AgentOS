@@ -187,6 +187,7 @@ class WorkflowRuntime:
             payload=task.model_dump(by_alias=True, mode="json"),
         )
         blueprint = self._build_acg_blueprint(task, run, workflow)
+        self._sync_run_steps_to_acg(run, blueprint)
         return await executor.run(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
     def _build_acg_blueprint(
@@ -209,7 +210,9 @@ class WorkflowRuntime:
                 blueprint.task_id = task.task_id
             return blueprint
 
-        use_planner = bool(task.input.get("usePlanner")) or not workflow.steps
+        planning_mode = str(task.input.get("planningMode") or "").strip().lower()
+        force_dynamic = bool(task.input.get("forceDynamicPlanning")) or planning_mode == "dynamic"
+        use_planner = force_dynamic or bool(task.input.get("usePlanner")) or not workflow.steps
         if use_planner:
             intent_text = str(
                 task.input.get("userIntent")
@@ -222,6 +225,7 @@ class WorkflowRuntime:
                 intent=intent_text,
                 domain=workflow.domain or task.domain,
                 task_type=workflow.intent or task.intent,
+                force_dynamic=force_dynamic,
             )
             self.trace_store.append(
                 run=run,
@@ -232,6 +236,36 @@ class WorkflowRuntime:
             return plan.blueprint
 
         return promote_workflow_to_acg(workflow, task_id=task.task_id)
+
+    def _sync_run_steps_to_acg(self, run: WorkflowRun, blueprint: ACGBlueprint) -> None:
+        """让 WorkflowRun 的步骤列表与最终 ACG 蓝图保持一致。"""
+        existing = {step.step_id: step for step in run.steps}
+        synced: list[WorkflowStep] = []
+        for node in blueprint.step_nodes():
+            step = existing.get(node.node_id)
+            if step is None:
+                step = WorkflowStep(
+                    stepId=node.node_id,
+                    name=node.name or node.node_id,
+                    agentName=node.agent_name or node.node_id,
+                    capability=node.capability,
+                    input=dict(node.input_spec),
+                    reviewRequired=node.review_required,
+                    maxRetries=node.retry_limit,
+                )
+            else:
+                step.name = node.name or step.name
+                step.agent_name = node.agent_name or step.agent_name
+                step.capability = node.capability
+                step.input = dict(node.input_spec)
+                step.requires_review = node.review_required
+                step.max_retries = node.retry_limit
+            synced.append(step)
+
+        run.steps = synced
+        step_ids = {step.step_id for step in synced}
+        if run.current_step_id not in step_ids:
+            run.current_step_id = synced[0].step_id if synced else None
 
     async def _apply_acg_review(self, decision: ReviewDecision, *, executor) -> WorkflowRun:
         run = self.workflow_store.get_run(decision.run_id)
