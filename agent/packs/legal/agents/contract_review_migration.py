@@ -321,6 +321,7 @@ class ReportGenerateAgent(BaseAgent):
 人工审核已通过，报告进入最终审查。
 """
         output = {
+            "final_answer": report_markdown,
             "report_markdown": report_markdown,
             "report": {
                 "contractInfo": {
