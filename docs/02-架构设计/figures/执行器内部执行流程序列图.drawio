@@ -1,0 +1,414 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.0 Chrome/140.0.7339.249 Electron/38.7.2 Safari/537.36" version="29.3.0">
+  <diagram name="执行器内部执行流程序列图" id="executor-seq">
+    <mxGraphModel dx="1714" dy="1213" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1800" pageHeight="2000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#1a3c34;" value="ACGExecutor 执行器内部执行流程序列图" vertex="1">
+          <mxGeometry height="36" width="800" x="400" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontColor=#6b8a82;" value="从 ExecutionTask 接收到全局状态同步更新的完整生命周期 · 五阶段确定性管道模型" vertex="1">
+          <mxGeometry height="22" width="900" x="350" y="44" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_s_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3f6b63;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="Scheduler" vertex="1">
+          <mxGeometry height="30" width="100" x="80" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_s" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#3f6b63;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="120" as="sourcePoint" />
+            <mxPoint x="130" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_d_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2f8f5b;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="ACGExecutor&#xa;_drive()" vertex="1">
+          <mxGeometry height="38" width="110" x="235" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_d" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#2f8f5b;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="290" y="120" as="sourcePoint" />
+            <mxPoint x="290" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_e_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#496b8f;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="ACGExecutor&#xa;_execute_step()" vertex="1">
+          <mxGeometry height="38" width="120" x="400" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_e" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#496b8f;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="120" as="sourcePoint" />
+            <mxPoint x="460" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_ca_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9a7432;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="Context&#xa;Assembler" vertex="1">
+          <mxGeometry height="38" width="90" x="565" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_ca" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#9a7432;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="610" y="120" as="sourcePoint" />
+            <mxPoint x="610" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_fi_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b24a4a;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="Fault&#xa;Injector" vertex="1">
+          <mxGeometry height="38" width="80" x="695" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_fi" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#b24a4a;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="735" y="120" as="sourcePoint" />
+            <mxPoint x="735" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_or_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b5b95;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="Orchestrator&#xa;dispatch_agent()" vertex="1">
+          <mxGeometry height="38" width="120" x="820" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_or" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#6b5b95;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="120" as="sourcePoint" />
+            <mxPoint x="880" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_ag_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#666;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="Agent&#xa;(BaseAgent)" vertex="1">
+          <mxGeometry height="38" width="90" x="985" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_ag" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#666;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1030" y="120" as="sourcePoint" />
+            <mxPoint x="1030" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_tr_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5a623;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="TraceStore&#xa;Works.BPM" vertex="1">
+          <mxGeometry height="38" width="100" x="1120" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_tr" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#f5a623;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1170" y="120" as="sourcePoint" />
+            <mxPoint x="1170" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_ws_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8a6a3a;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="WorkflowStore&#xa;+ BPMGateway" vertex="1">
+          <mxGeometry height="38" width="120" x="1270" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_ws" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#8a6a3a;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1330" y="120" as="sourcePoint" />
+            <mxPoint x="1330" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pline_gv_title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b24a4a;strokeColor=none;fontSize=12;fontColor=#fff;fontStyle=1;" value="Governance&#xa;CBSpace/Review&#xa;Works.BPM" vertex="1">
+          <mxGeometry height="50" width="120" x="1440" y="74" as="geometry" />
+        </mxCell>
+        <mxCell id="pline_gv" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#b24a4a;strokeWidth=1;dashed=1;dashPattern=4 4;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="124" as="sourcePoint" />
+            <mxPoint x="1500" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase1_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0ed;strokeColor=#3f6b63;strokeWidth=2;opacity=20;" value="" vertex="1">
+          <mxGeometry height="160" width="1580" x="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="phase1_l" parent="1" style="text;html=1;strokeColor=none;fillColor=#3f6b63;align=center;verticalAlign=middle;fontSize=13;fontColor=#fff;fontStyle=1;" value="阶段一 · 任务接收与预处理" vertex="1">
+          <mxGeometry height="24" width="180" x="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="s1_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#3f6b63;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="175" as="sourcePoint" />
+            <mxPoint x="285" y="175" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s1_label" connectable="0" parent="s1_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#3f6b63;fontStyle=1;" value="ExecutionTask(task, run,&#xa;workflow, blueprint)" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s1_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4e5de;strokeColor=#3f6b63;fontSize=10;fontColor=#1a3c34;" value="validate_blueprint()&#xa;环检测+悬空依赖" vertex="1">
+          <mxGeometry height="28" width="130" x="250" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="s1_self2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4e5de;strokeColor=#3f6b63;fontSize=10;fontColor=#1a3c34;" value="FaultInjector.from_config()&#xa;武装故障注入（可选）" vertex="1">
+          <mxGeometry height="28" width="160" x="250" y="232" as="geometry" />
+        </mxCell>
+        <mxCell id="s1_tr_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="410" y="246" as="sourcePoint" />
+            <mxPoint x="1165" y="246" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s1_tr_label" connectable="0" parent="s1_tr_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="append(RUN_STARTED) {引擎信息, 节点数, 边数}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s1_ws_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#8a6a3a;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="275" as="sourcePoint" />
+            <mxPoint x="1325" y="275" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s1_ws_label" connectable="0" parent="s1_ws_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#8a6a3a;" value="save_run(run) {acg_blueprint, 初始状态}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase2_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2f8f5b;strokeWidth=2;opacity=20;" value="" vertex="1">
+          <mxGeometry height="180" width="1580" x="60" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="phase2_l" parent="1" style="text;html=1;strokeColor=none;fillColor=#2f8f5b;align=center;verticalAlign=middle;fontSize=13;fontColor=#fff;fontStyle=1;" value="阶段二 · 就绪集计算与并行调度  (_drive 主循环)" vertex="1">
+          <mxGeometry height="24" width="300" x="60" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="s2_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5f0e0;strokeColor=#2f8f5b;fontSize=10;fontColor=#1a3c34;" value="_resolve_control_nodes()&#xa;放行START/PARALLEL/CONSENSUS" vertex="1">
+          <mxGeometry height="30" width="180" x="220" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="s2_self2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5f0e0;strokeColor=#2f8f5b;fontSize=10;fontColor=#1a3c34;" value="ready_steps(blueprint, completed)&#xa;→ _eligible_steps() 过滤状态" vertex="1">
+          <mxGeometry height="30" width="200" x="210" y="394" as="geometry" />
+        </mxCell>
+        <mxCell id="s2_self3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5f0e0;strokeColor=#2f8f5b;fontSize=10;fontColor=#1a3c34;" value="batch = ready[:max_parallelism]" vertex="1">
+          <mxGeometry height="22" width="160" x="230" y="433" as="geometry" />
+        </mxCell>
+        <mxCell id="s2_tr_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="390" y="445" as="sourcePoint" />
+            <mxPoint x="1165" y="445" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s2_tr_label" connectable="0" parent="s2_tr_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="append(STEP_SCHEDULED) {readySet, batch}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s2_e_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#2f8f5b;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="290" y="470" as="sourcePoint" />
+            <mxPoint x="455" y="470" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s2_e_label" connectable="0" parent="s2_e_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#2f8f5b;fontStyle=1;" value="asyncio.gather(*[_execute_step(nid)])&#xa;并行执行本批就绪节点" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase3_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3edf5;strokeColor=#496b8f;strokeWidth=2;opacity=20;arcSize=5;" value="" vertex="1">
+          <mxGeometry height="595" width="1578" x="62" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="phase3_l" parent="1" style="text;html=1;strokeColor=none;fillColor=#496b8f;align=center;verticalAlign=middle;fontSize=13;fontColor=#fff;fontStyle=1;" value="阶段三 · 单节点执行  _execute_step() → agent.run()" vertex="1">
+          <mxGeometry height="24" width="280" x="60" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8e6f3;strokeColor=#496b8f;fontSize=10;fontColor=#1a3c34;" value="_bridge_step():&#xa;StepNode→WorkflowStep&#xa;缺失则动态补建" vertex="1">
+          <mxGeometry height="40" width="150" x="380" y="555" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_tr1_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="605" as="sourcePoint" />
+            <mxPoint x="1165" y="605" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_tr1_label" connectable="0" parent="s3_tr1_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="_transition_step(RUNNING) + append(STEP_STARTED) {inputSummary}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_ca_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#496b8f;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="635" as="sourcePoint" />
+            <mxPoint x="605" y="635" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_ca_label" connectable="0" parent="s3_ca_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#496b8f;fontStyle=1;" value="assemble(run_id, blueprint,&#xa;step_node, upstream_outputs)" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_ca_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcefd6;strokeColor=#9a7432;fontSize=9;fontColor=#5a4a2a;align=left;" value="① 确定上游来源&#xa;② 按input_spec精准提取&#xa;③ 聚合evidence_refs&#xa;④ 计算saving_ratio&#xa;⑤ ledger.record_consumption()" vertex="1">
+          <mxGeometry height="70" width="180" x="580" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_ca_ret" edge="1" parent="1" style="endArrow=open;html=1;strokeColor=#9a7432;strokeWidth=1.5;endFill=0;dashed=1;dashPattern=3 3;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="605" y="735" as="sourcePoint" />
+            <mxPoint x="465" y="735" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_ca_ret_l" connectable="0" parent="s3_ca_ret" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#9a7432;" value="ContextPack {data, saving_ratio, evidence_refs}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_tr2_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="755" as="sourcePoint" />
+            <mxPoint x="1165" y="755" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_tr2_label" connectable="0" parent="s3_tr2_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="append(DATA_CONSUMED) {tokensDelivered, savingRatio, 血缘}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_fi_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#496b8f;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="785" as="sourcePoint" />
+            <mxPoint x="730" y="785" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_fi_label" connectable="0" parent="s3_fi_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#b24a4a;fontStyle=1;" value="fire(step_id)" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_fi_alt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6dede;strokeColor=#b24a4a;fontSize=9;fontColor=#5a2a2a;align=left;" value="匹配? → should_fire()&#xa;未达上限→ 抛InjectedFault&#xa;已达上限→ 自愈(跳过)" vertex="1">
+          <mxGeometry height="40" width="160" x="700" y="808" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_or_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#496b8f;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="865" as="sourcePoint" />
+            <mxPoint x="875" y="865" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_or_label" connectable="0" parent="s3_or_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#6b5b95;fontStyle=1;" value="dispatch_agent(task, run,&#xa;workflow, step, memory)" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_or_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6e0f0;strokeColor=#6b5b95;fontSize=9;fontColor=#3a2a5a;align=left;" value="① replace_registry.resolve()&#xa;② AgentRunContext(task,run,works.BPM,step,m)&#xa;③ agent.run(context)" vertex="1">
+          <mxGeometry height="42" width="220" x="830" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_ag_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#6b5b95;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="940" as="sourcePoint" />
+            <mxPoint x="1025" y="940" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_ag_label" connectable="0" parent="s3_ag_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#666;" value="agent.run(context)&#xa;AgentOutput {output, summary, riskLevel}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_or_ret" edge="1" parent="1" style="endArrow=open;html=1;strokeColor=#6b5b95;strokeWidth=1.5;endFill=0;dashed=1;dashPattern=3 3;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="875" y="985" as="sourcePoint" />
+            <mxPoint x="465" y="985" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_or_ret_l" connectable="0" parent="s3_or_ret" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#6b5b95;fontStyle=1;" value="(AgentOutput, duration_ms)" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_self2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8e6f3;strokeColor=#496b8f;fontSize=10;fontColor=#1a3c34;" value="step.output = dict(result.output)&#xa;record_production() → PRODUCED trace" vertex="1">
+          <mxGeometry height="30" width="200" x="370" y="1015" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_tr3_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="1055" as="sourcePoint" />
+            <mxPoint x="1165" y="1055" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_tr3_label" connectable="0" parent="s3_tr3_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="append(DATA_PRODUCED) + append(AGENT_CALLED) {duration_ms}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_branch" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2e6;strokeColor=#9a7432;fontSize=10;fontColor=#5a4a2a;" value="requires_review&#xa;&amp;&amp; review_mode&#xa;!= auto ?" vertex="1">
+          <mxGeometry height="70" width="110" x="405" y="1085" as="geometry" />
+        </mxCell>
+        <mxCell id="s3_no_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#2f8f5b;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="515" y="1120" as="sourcePoint" />
+            <mxPoint x="650" y="1120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3_no_label" connectable="0" parent="s3_no_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#2f8f5b;fontStyle=1;" value="NO → COMPLETED" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase4_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f0e8;strokeColor=#8a6a3a;strokeWidth=2;opacity=20;" value="" vertex="1">
+          <mxGeometry height="250" width="1580" x="60" y="1140" as="geometry" />
+        </mxCell>
+        <mxCell id="phase4_l" parent="1" style="text;html=1;strokeColor=none;fillColor=#8a6a3a;align=center;verticalAlign=middle;fontSize=13;fontColor=#fff;fontStyle=1;" value="阶段四 · 结算、治理回写与自愈" vertex="1">
+          <mxGeometry height="24" width="200" x="60" y="1140" as="geometry" />
+        </mxCell>
+        <mxCell id="s4_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5f0e0;strokeColor=#2f8f5b;fontSize=10;fontColor=#1a3c34;" value="_transition_step(COMPLETED)" vertex="1">
+          <mxGeometry height="22" width="150" x="650" y="1180" as="geometry" />
+        </mxCell>
+        <mxCell id="s4_tr1" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="800" y="1190" as="sourcePoint" />
+            <mxPoint x="1165" y="1190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_tr1l" connectable="0" parent="s4_tr1" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="append(STEP_SUCCEEDED) {outputSummary, duration_ms}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_ck1" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#b24a4a;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="800" y="1220" as="sourcePoint" />
+            <mxPoint x="1495" y="1220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_ck1l" connectable="0" parent="s4_ck1" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#b24a4a;" value="_create_checkpoint() + 保存 run 状态快照" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_rev_self" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2e6;strokeColor=#9a7432;fontSize=9;fontColor=#5a4a2a;align=left;" value="_transition_step(WAITING_REVIEW)&#xa;_transition_run(WAITING_REVIEW)&#xa;mark_waiting_review(task)&#xa;_create_checkpoint(run, step)" vertex="1">
+          <mxGeometry height="55" width="200" x="650" y="1260" as="geometry" />
+        </mxCell>
+        <mxCell id="s4_rev_tr" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#f5a623;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="850" y="1285" as="sourcePoint" />
+            <mxPoint x="1165" y="1285" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_rev_l" connectable="0" parent="s4_rev_tr" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#f5a623;" value="append(REVIEW_REQUIRED) {step.output}" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_rev_ret" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6dede;strokeColor=#b24a4a;fontSize=9;fontColor=#5a2a2a;align=left;" value="return WAITING_REVIEW&#xa;→ _drive() 退出循环&#xa;→ 等待外部 apply_review()" vertex="1">
+          <mxGeometry height="42" width="180" x="160" y="1270" as="geometry" />
+        </mxCell>
+        <mxCell id="s4_rev_ret_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#b24a4a;strokeWidth=1.5;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="1290" as="sourcePoint" />
+            <mxPoint x="165" y="1290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4_heal_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6dede;strokeColor=#b24a4a;strokeWidth=2;opacity=30;" value="" vertex="1">
+          <mxGeometry height="55" width="400" x="160" y="1330" as="geometry" />
+        </mxCell>
+        <mxCell id="s4_heal_title" parent="1" style="text;html=1;strokeColor=none;fillColor=#b24a4a;align=center;verticalAlign=middle;fontSize=11;fontColor=#fff;fontStyle=1;" value="自愈路径: InjectedFault → _self_heal()" vertex="1">
+          <mxGeometry height="20" width="220" x="160" y="1330" as="geometry" />
+        </mxCell>
+        <mxCell id="s4_heal_1" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#5a2a2a;" value="① retry_count≥3? → False(失败)&#xa;② trace(STEP_FAILED) 故障入轨&#xa;③ checkpoint_store.create() 保存现场&#xa;④ status=PENDING + retry_count++&#xa;⑤ trace(RUN_RECOVERED) 恢复入轨" vertex="1">
+          <mxGeometry height="62" width="380" x="170" y="1352" as="geometry" />
+        </mxCell>
+        <mxCell id="phase5_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#666;strokeWidth=2;opacity=20;" value="" vertex="1">
+          <mxGeometry height="180" width="1580" x="60" y="1410" as="geometry" />
+        </mxCell>
+        <mxCell id="phase5_l" parent="1" style="text;html=1;strokeColor=none;fillColor=#666;align=center;verticalAlign=middle;fontSize=13;fontColor=#fff;fontStyle=1;" value="阶段五 · 全局结算与批次收尾" vertex="1">
+          <mxGeometry height="24" width="200" x="60" y="1410" as="geometry" />
+        </mxCell>
+        <mxCell id="s5_self1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#666;fontSize=10;fontColor=#333;align=left;" value="结算 batch 结果:&#xa;· COMPLETED → completed.add(nid)&#xa;· WAITING_REVIEW → 标记暂停&#xa;· InjectedFault → _self_heal()&#xa;· Exception → _mark_step_failed()" vertex="1">
+          <mxGeometry height="65" width="250" x="200" y="1445" as="geometry" />
+        </mxCell>
+        <mxCell id="s5_self2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#666;fontSize=10;fontColor=#333;align=left;" value="run.completed_step_ids = sorted(completed)&#xa;run.provenance = ledger.to_graph()&#xa;run.updated_at = utc_now()" vertex="1">
+          <mxGeometry height="45" width="280" x="500" y="1445" as="geometry" />
+        </mxCell>
+        <mxCell id="s5_ws_arrow" edge="1" parent="1" style="endArrow=block;html=1;strokeColor=#8a6a3a;strokeWidth=2;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="500" y="1505" as="sourcePoint" />
+            <mxPoint x="1325" y="1505" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s5_ws_label" connectable="0" parent="s5_ws_arrow" style="edgeLabel;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8a6a3a;fontStyle=1;" value="workflow_store.save_run(run) → 持久化全局运行状态" vertex="1">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s5_end" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2e6;strokeColor=#9a7432;fontSize=10;fontColor=#5a4a2a;" value="waiting_review?&#xa;→ return(暂停)&#xa;: loop continue" vertex="1">
+          <mxGeometry height="65" width="130" x="560" y="1520" as="geometry" />
+        </mxCell>
+        <mxCell id="s5_complete" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5f0e0;strokeColor=#2f8f5b;fontSize=10;fontColor=#1a3c34;fontStyle=1;align=left;" value="全步骤完成?&#xa;→ _complete_run()&#xa;→ RUN_COMPLETED trace&#xa;→ 返回 WorkflowRun" vertex="1">
+          <mxGeometry height="65" width="200" x="780" y="1520" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
