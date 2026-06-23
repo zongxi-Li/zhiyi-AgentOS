@@ -1348,17 +1348,16 @@ const sendMessage = async () => {
   inputText.value = ''
 
   try {
-    if (isLawyerMode.value) {
-      await chatStore.sendLawyerMessage(userText)
-    } else if (isTeacherMode.value) {
-      await chatStore.sendTeacherMessage(userText)
-    } else if (isProgrammerMode.value) {
-      await chatStore.sendProgrammerMessage(userText)
-    } else if (isWriterMode.value) {
-      await chatStore.sendWriterMessage(userText)
-    } else {
-      await chatStore.sendMessageStream(userText)
-    }
+    const agentMode = isLawyerMode.value
+      ? 'lawyer'
+      : isTeacherMode.value
+        ? 'teacher'
+        : isProgrammerMode.value
+          ? 'programmer'
+          : isWriterMode.value
+            ? 'writer'
+            : 'default'
+    await chatStore.sendMessageStream(userText, agentMode)
     scrollToBottom()
   } catch (err: any) {
     ElMessage.error(err.message || '发送消息失败')

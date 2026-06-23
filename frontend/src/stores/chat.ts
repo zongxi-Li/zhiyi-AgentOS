@@ -126,6 +126,8 @@ export interface Message {
   implementationId?: string
 }
 
+type AgentMode = NonNullable<Message['agentMode']>
+
 export const useChatStore = defineStore('chat', () => {
   const messages = ref<Message[]>([])
   const loading = ref(false)
@@ -243,75 +245,15 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // ---- 流式发送（SSE）----
-  const sendLawyerMessageStream = async (text: string) => {
-    if (!text.trim() || loading.value) return
-
-    pushUserMessage(text)
-    loading.value = true
-
-    const streamMsg: Message = {
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: '',
-      createdAt: new Date(),
-      modelInfo: 'Lawyer Agent (streaming)',
-      agentMode: 'lawyer'
-    }
-    messages.value.push(streamMsg)
-    const streamIndex = messages.value.length - 1
-    const setStreamContent = (content: string) => {
-      const message = messages.value[streamIndex]
-      if (message) message.content = content
-    }
-    const appendStreamContent = (delta: string) => {
-      const message = messages.value[streamIndex]
-      if (message) message.content = (message.content || '') + delta
-    }
-
-    const token = localStorage.getItem('token')
-    try {
-      const resp = await fetch('/ai/chat/text/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({ text, role_id: currentRoleId.value || undefined })
-      })
-
-      const reader = resp.body?.getReader()
-      if (!reader) { setStreamContent('流式读取失败'); return }
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.delta) {
-                appendStreamContent(parsed.delta)
-              }
-            } catch { /* skip parse errors */ }
-          }
-        }
-      }
-      emitHistoryRefresh()
-    } catch (e) {
-      setStreamContent('流式请求失败: ' + (e as Error).message)
-    } finally {
-      loading.value = false
-    }
+  const streamModelInfo: Record<AgentMode, string> = {
+    default: 'AI (streaming)',
+    lawyer: 'Lawyer Agent (streaming)',
+    teacher: 'Teacher Agent (streaming)',
+    programmer: 'Programmer Agent (streaming)',
+    writer: 'Writer Agent (streaming)'
   }
 
-  const sendMessageStream = async (text: string) => {
+  const sendMessageStream = async (text: string, agentMode: AgentMode = 'default') => {
     if ((!text.trim()) || loading.value) return
 
     pushUserMessage(text)
@@ -322,8 +264,8 @@ export const useChatStore = defineStore('chat', () => {
       role: 'assistant',
       content: '',
       createdAt: new Date(),
-      modelInfo: 'AI (streaming)',
-      agentMode: 'default'
+      modelInfo: streamModelInfo[agentMode],
+      agentMode
     }
     messages.value.push(streamMsg)
     const streamIndex = messages.value.length - 1
@@ -347,6 +289,11 @@ export const useChatStore = defineStore('chat', () => {
         body: JSON.stringify({ text, role_id: currentRoleId.value || undefined })
       })
 
+      if (!resp.ok) {
+        setStreamContent(`Stream request failed: HTTP ${resp.status}`)
+        return
+      }
+
       const reader = resp.body?.getReader()
       if (!reader) { setStreamContent('流式读取失败'); return }
       const decoder = new TextDecoder()
@@ -366,6 +313,8 @@ export const useChatStore = defineStore('chat', () => {
               const parsed = JSON.parse(data)
               if (parsed.delta) {
                 appendStreamContent(parsed.delta)
+              } else if (parsed.error) {
+                setStreamContent(`Stream request failed: ${parsed.error}`)
               }
             } catch { /* skip parse errors */ }
           }
@@ -378,6 +327,8 @@ export const useChatStore = defineStore('chat', () => {
       loading.value = false
     }
   }
+
+  const sendLawyerMessageStream = async (text: string) => sendMessageStream(text, 'lawyer')
 
   const sendTeacherMessage = async (text: string) => {
     if (!text.trim() || loading.value) return
