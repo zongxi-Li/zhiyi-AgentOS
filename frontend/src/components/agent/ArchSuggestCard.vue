@@ -1,3 +1,4 @@
+<!-- 架构建议卡片 — 展示架构优化建议，含优先级标签、分类和实现细节 -->
 <template>
   <section class="card arch-card">
     <header class="card-head">

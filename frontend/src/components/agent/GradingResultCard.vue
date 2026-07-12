@@ -1,3 +1,4 @@
+<!-- 作业批改结果卡片 — 显示评分条、教师反馈、订正清单和参考答案 -->
 <template>
   <section class="card grading-card">
     <header class="card-head">

@@ -1,3 +1,4 @@
+<!-- 联邦智能体工作台页面 — 多专业体协同编排、任务规划、知识融合，支持演示/API 模式和普通/专业用户模式 -->
 <template>
   <section class="agent-workbench">
     <header class="workbench-header">

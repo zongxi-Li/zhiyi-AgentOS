@@ -1,3 +1,4 @@
+<!-- Mermaid 渲染器 — 底层渲染组件，调用 mermaid 库将 Mermaid 代码渲染为 SVG，含错误回退 -->
 <template>
   <section class="mermaid-renderer">
     <div v-if="error" class="render-error">

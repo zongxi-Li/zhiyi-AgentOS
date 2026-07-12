@@ -1,3 +1,4 @@
+<!-- AgentOS 控制台页面 — 统一查看 WorkflowRun 生命周期、审核记录、恢复点和治理指标 -->
 <template>
   <main class="agentos-console ui-shell">
     <header class="console-header ui-hero">

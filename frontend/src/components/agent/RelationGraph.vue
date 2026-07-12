@@ -1,3 +1,4 @@
+<!-- 人物关系图 — 使用 vis-network 渲染人物关系网络图，支持全屏查看和图片下载 -->
 <template>
   <section class="card relation-card">
     <header class="card-head">

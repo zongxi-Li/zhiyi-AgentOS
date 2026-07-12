@@ -1,3 +1,4 @@
+<!-- 编辑角色对话框 — 编辑已有 AI 角色名称和描述的表单弹窗 -->
 <template>
   <el-dialog
     v-model="visible"

@@ -1,3 +1,4 @@
+<!-- 调试追踪卡片 — 编号垂直时间线展示调试步骤，含根因分析和每步状态标记 -->
 <template>
   <section class="card debug-card">
     <header class="card-head">

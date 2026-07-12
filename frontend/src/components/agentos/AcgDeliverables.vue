@@ -1,3 +1,4 @@
+<!-- ACG 交付物面板 — 双 Tab 展示合同审查交付物：Markdown 最终报告和按步骤拆分的结构化产物 -->
 <template>
   <section class="acg-deliverables ui-surface">
     <header class="panel-head">

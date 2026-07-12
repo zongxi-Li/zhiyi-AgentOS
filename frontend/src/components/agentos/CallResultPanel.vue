@@ -1,3 +1,4 @@
+<!-- 调用结果面板 — 列出 Agent 和工具调用结果，含标题、类型、摘要、Agent 名、状态、耗时和可展开详情 -->
 <template>
   <section class="call-result-panel ui-surface ui-surface--pad">
     <div class="section-head">

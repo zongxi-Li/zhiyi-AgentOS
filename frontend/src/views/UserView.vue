@@ -1,3 +1,4 @@
+<!-- 用户个人中心页面 — 头像上传、用户名/邮箱、注册日期及统计数据展示 -->
 <template>
   <div class="user-view">
     <div class="user-container">

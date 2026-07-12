@@ -1,3 +1,4 @@
+<!-- 大纲查看器 — 展示文章大纲，支持 Markdown 渲染或嵌套节点树（含层级标记、标题、描述和子节点） -->
 <template>
   <section class="card outline-card">
     <header class="card-head">

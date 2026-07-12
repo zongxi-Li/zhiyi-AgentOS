@@ -1,3 +1,4 @@
+<!-- 创建角色对话框 — 创建自定义 AI 角色的表单弹窗，含名称、描述和校验规则 -->
 <template>
   <el-dialog
     v-model="visible"

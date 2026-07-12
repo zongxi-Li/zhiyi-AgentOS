@@ -1,3 +1,4 @@
+<!-- 追踪事件时间线 — 渲染工作流运行的 Trace 事件时间线，含事件类型、时间戳、观察、步骤标签和耗时 -->
 <template>
   <section class="trace-event-timeline ui-surface ui-surface--pad">
     <div class="section-head">

@@ -1,3 +1,4 @@
+<!-- 设置中心页面 — Tab 切换管理主题模式、语言、隐私、对话与语音等偏好设置 -->
 <template>
   <div class="settings-view">
     <div class="ambient-glow top-left"></div>

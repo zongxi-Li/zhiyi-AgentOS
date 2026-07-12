@@ -1,3 +1,4 @@
+<!-- 工作流运行详情面板 — 展示 WorkflowRun 顶层信息：工作流 ID、状态、当前步骤、域、Run ID、引擎，含刷新和导出 -->
 <template>
   <section class="workflow-run-panel ui-surface ui-surface--pad">
     <div class="panel-head">

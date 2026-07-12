@@ -1,3 +1,4 @@
+<!-- 作家技能面板 — 作家 Agent 智能写作助手仪表盘，含技能追踪、联邦增强状态和 Tab 导航 -->
 <template>
   <section class="skill-panel writer-panel">
     <div class="panel-header">

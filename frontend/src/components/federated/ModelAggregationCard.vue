@@ -1,3 +1,4 @@
+<!-- 模型聚合卡片 — 展示各客户端模型聚合状态、加权进度条、上传状态和聚合算法（FedAvg） -->
 <template>
   <div class="aggregation-card">
     <div class="aggregation-header">

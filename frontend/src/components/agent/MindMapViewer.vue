@@ -1,3 +1,4 @@
+<!-- 思维导图查看器 — 使用 markmap-lib 将 Markdown 渲染为交互式思维导图 SVG，支持全屏和下载 -->
 <template>
   <section class="card mindmap-card">
     <header class="card-head">

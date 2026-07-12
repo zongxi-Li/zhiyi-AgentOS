@@ -1,3 +1,4 @@
+<!-- 律师技能面板 — 律师 Agent 技能仪表盘，含风险等级、技能使用次数、联邦增强状态和 Tab 切换 -->
 <template>
   <section class="skill-panel lawyer-panel">
     <div class="panel-header">

@@ -1,3 +1,4 @@
+<!-- 联邦学习系统页面 — 分布式智能协作平台，含系统状态、训练轮次、演示和重置功能 -->
 <template>
   <div class="federated-learning-view">
     <div class="ambient-layer">

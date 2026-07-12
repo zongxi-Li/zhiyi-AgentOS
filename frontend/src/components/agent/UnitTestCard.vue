@@ -1,3 +1,4 @@
+<!-- 单元测试卡片 — 展示生成的单元测试用例，含状态图标、描述、代码块和断言数量汇总 -->
 <template>
   <section class="card test-card">
     <header class="card-head">

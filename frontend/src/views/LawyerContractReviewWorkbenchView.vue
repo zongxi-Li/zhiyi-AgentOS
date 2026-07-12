@@ -1,3 +1,4 @@
+<!-- 律师合同审查工作台页面 — 核心业务页面，支持角色与模板切换，合同审查全工作流管理 -->
 <template>
   <main class="contract-review-workbench ui-shell" :style="roleThemeStyle">
     <header class="workbench-header ui-hero">

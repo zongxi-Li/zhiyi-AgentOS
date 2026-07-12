@@ -1,3 +1,4 @@
+<!-- 检查点面板 — 展示工作流检查点（恢复点）列表，含步骤 ID、检查点 ID、创建时间和恢复按钮 -->
 <template>
   <section class="checkpoint-panel ui-surface ui-surface--pad">
     <div class="section-head">

@@ -1,3 +1,4 @@
+<!-- ACG 低熵通信指标 — 展示平均 Token 节省率、累计节省/交付/可用 Token 数和自愈恢复次数 -->
 <template>
   <section class="acg-metrics ui-surface">
     <header class="panel-head">

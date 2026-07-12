@@ -1,6 +1,7 @@
+<!-- 角色卡片组件 — 可选择 AI 角色卡片，展示头像、名称、ID、类型标签（内置/自定义）、描述和收藏按钮 -->
 <template>
-  <div 
-    class="role-card" 
+  <div
+    class="role-card"
     :class="{ 'selected': isSelected }"
     @click="handleClick"
   >

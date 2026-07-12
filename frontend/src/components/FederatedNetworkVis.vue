@@ -1,3 +1,4 @@
+<!-- 联邦网络拓扑可视化组件 — 星空、能量场、神经线程和中心节点的动效空间可视化 -->
 <template>
   <div class="federated-network-vis" :class="theme" ref="container">
     <!-- 极深邃背景 -->

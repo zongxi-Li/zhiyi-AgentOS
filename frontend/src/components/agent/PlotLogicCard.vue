@@ -1,3 +1,4 @@
+<!-- 情节逻辑卡片 — 展示情节逻辑一致性检查：摘要、章节事件时间线和已标记的逻辑问题 -->
 <template>
   <section class="card plot-card">
     <header class="card-head">

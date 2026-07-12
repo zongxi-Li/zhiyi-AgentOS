@@ -1,3 +1,4 @@
+<!-- ACG 数据血缘面板 — 双 Tab 展示生产者→消费者步骤数据流（消费字段）和故障恢复追踪 -->
 <template>
   <section class="acg-provenance ui-surface">
     <header class="panel-head">

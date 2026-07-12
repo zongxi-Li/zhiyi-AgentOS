@@ -1,3 +1,4 @@
+<!-- 知识图谱视图 — 展示知识图谱统计（实体、三元组、关系）和可视化画布 -->
 <template>
   <div class="knowledge-graph-container">
     <div class="graph-header">

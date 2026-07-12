@@ -1,3 +1,4 @@
+<!-- 训练曲线图 — 自定义 SVG 图表绘制联邦训练准确率和损失曲线，双 Y 轴、网格线和渐变填充 -->
 <template>
   <div class="training-curve">
     <svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" class="curve-svg">

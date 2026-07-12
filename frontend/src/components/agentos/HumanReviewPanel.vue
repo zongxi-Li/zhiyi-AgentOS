@@ -1,3 +1,4 @@
+<!-- 人工审核面板 — 提交审批/驳回/需补充信息的表单，含审核人名称和评论 -->
 <template>
   <section class="human-review-panel ui-surface ui-surface--pad">
     <div class="section-head">

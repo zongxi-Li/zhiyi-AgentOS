@@ -1,3 +1,4 @@
+<!-- ACG 动态群体智能引擎页面 — 输入合同文本和任务目标，引擎进行解析、分类、风险分析、证据和建议生成 -->
 <template>
   <div class="acg-view ui-shell">
     <header class="ui-hero">

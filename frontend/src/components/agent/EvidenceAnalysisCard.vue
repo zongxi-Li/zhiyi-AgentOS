@@ -1,3 +1,4 @@
+<!-- 证据分析卡片 — 展示法律证据项（名称、类型、强度、备注）、缺失证据清单和法律依据 -->
 <template>
   <section class="card">
     <header class="card-head">

@@ -1,3 +1,4 @@
+<!-- 教案查看器 — 将 Markdown 格式个性化教案渲染展示，从年级、学科、主题属性计算标题 -->
 <template>
   <section class="card lesson-card">
     <header class="card-head">

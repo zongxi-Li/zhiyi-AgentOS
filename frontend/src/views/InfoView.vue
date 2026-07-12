@@ -1,3 +1,4 @@
+<!-- 信息导航中枢页面 — 以卡片形式提供知识库、角色管理、系统设置等快捷入口 -->
 <template>
   <div class="info-view">
     <el-card class="info-card">

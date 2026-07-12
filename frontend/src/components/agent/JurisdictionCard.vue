@@ -1,3 +1,4 @@
+<!-- 管辖建议卡片 — 展示法院管辖建议，含推荐法院标签、依据说明和法律基础引用 -->
 <template>
   <section class="card">
     <header class="card-head">

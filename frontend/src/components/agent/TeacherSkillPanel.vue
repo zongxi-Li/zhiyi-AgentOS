@@ -1,3 +1,4 @@
+<!-- 教师技能面板 — 教师 Agent 智能教学助手仪表盘，含技能追踪、联邦增强状态和 Tab 导航 -->
 <template>
   <section class="skill-panel teacher-panel">
     <div class="panel-header">

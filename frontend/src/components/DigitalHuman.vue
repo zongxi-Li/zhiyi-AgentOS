@@ -1,3 +1,4 @@
+<!-- 数字人组件 — 基于 Canvas 渲染 3D 数字人形象，含加载/错误/空状态和重试 -->
 <template>
   <div class="digital-human-container" ref="containerRef">
     <canvas ref="canvasRef" class="digital-human-canvas"></canvas>

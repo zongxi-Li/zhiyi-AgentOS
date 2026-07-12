@@ -1,3 +1,4 @@
+<!-- 题目推送列表 — 错因归因和题目推送，含知识缺口标签、分析摘要和推荐练习题列表 -->
 <template>
   <section class="card push-card">
     <header class="card-head">

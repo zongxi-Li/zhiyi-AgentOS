@@ -1,3 +1,4 @@
+<!-- 学习诊断雷达图 — SVG 雷达图展示学生多维度学习诊断指标，含进度条和掌握程度总结 -->
 <template>
   <section class="card diagnosis-card">
     <header class="card-head">

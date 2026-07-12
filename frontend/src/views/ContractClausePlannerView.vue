@@ -1,3 +1,4 @@
+<!-- 职业工作台页面 — 知弈 OS 职业智能体工作台，支持角色选择、模板应用和共享操作 -->
 <template>
   <section class="career-workbench">
     <header class="career-header">

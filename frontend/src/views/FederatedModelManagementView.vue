@@ -1,3 +1,4 @@
+<!-- 联邦模型管理页面 — 统一查看模型版本、状态和评估结果，支持新建和刷新模型 -->
 <template>
   <div class="model-management-view">
     <div class="ambient-glow top-left"></div>

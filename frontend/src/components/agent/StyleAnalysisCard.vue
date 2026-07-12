@@ -1,3 +1,4 @@
+<!-- 风格分析卡片 — 展示写作风格分析结果，含综合评分、多维度分解柱状图和主导风格标签 -->
 <template>
   <section class="card style-card">
     <header class="card-head">

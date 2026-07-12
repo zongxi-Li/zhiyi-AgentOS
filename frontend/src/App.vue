@@ -1,3 +1,4 @@
+<!-- 知弈平台根布局组件 — 侧边栏导航（对话、职业工作台、ACG 引擎、RAG 知识库、联邦学习），含错误边界和沉浸/简洁模式 -->
 <template>
   <ErrorBoundary>
     <div id="app">

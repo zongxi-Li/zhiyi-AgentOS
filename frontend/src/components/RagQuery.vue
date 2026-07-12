@@ -1,3 +1,4 @@
+<!-- RAG 查询组件 — 基于知识库的智能检索输入界面，含文本域、可配置 Top-K 和提交按钮 -->
 <template>
   <div class="rag-query-container">
     <div class="query-card">

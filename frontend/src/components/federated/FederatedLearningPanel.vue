@@ -1,3 +1,4 @@
+<!-- 联邦学习控制台面板 — 仪表盘含拓扑、聚合、训练曲线 Tab，展示系统状态和当前轮次 -->
 <template>
   <section class="federated-panel">
     <div class="panel-header">

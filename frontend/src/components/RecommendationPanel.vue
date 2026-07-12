@@ -1,3 +1,4 @@
+<!-- 推荐面板组件 — 展示 AI 生成的推荐项列表，含置信度百分比、刷新和可选择功能 -->
 <template>
   <section class="recommendation-panel">
     <div class="recommendation-head">

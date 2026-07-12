@@ -1,3 +1,4 @@
+<!-- 数字人形象设置抽屉面板 — 调整头像主色、辅色、强调色等外观参数 -->
 <template>
   <el-drawer
     v-model="visible"

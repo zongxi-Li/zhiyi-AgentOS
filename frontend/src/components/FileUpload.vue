@@ -1,3 +1,4 @@
+<!-- 文件上传组件 — 基于 Element Plus 的单文件上传按钮，含图片预览和删除 -->
 <template>
   <div class="file-upload">
     <el-upload

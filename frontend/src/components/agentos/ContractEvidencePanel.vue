@@ -1,3 +1,4 @@
+<!-- 合同证据面板 — 展示证据链条，含来源名称/类型、引用文本、内容和置信度/检索分数 -->
 <template>
   <section class="contract-evidence-panel ui-surface ui-surface--pad">
     <div class="section-head">

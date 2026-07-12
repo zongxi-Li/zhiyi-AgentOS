@@ -1,3 +1,4 @@
+<!-- 代码审查卡片 — 展示代码审查结果，含严重度分类问题、文件/位置信息和修改建议 -->
 <template>
   <section class="card review-card">
     <header class="card-head">

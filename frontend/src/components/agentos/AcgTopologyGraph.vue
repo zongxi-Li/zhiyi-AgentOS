@@ -1,3 +1,4 @@
+<!-- ACG 拓扑图 — 使用 vis-network 渲染 ACG 交互式拓扑，含步骤、Agent、记忆、证据、控制节点和图例 -->
 <template>
   <section class="acg-topology ui-surface">
     <header class="panel-head">

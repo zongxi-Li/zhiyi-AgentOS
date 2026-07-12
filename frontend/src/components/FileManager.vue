@@ -1,3 +1,4 @@
+<!-- 文件管理对话框 — 弹窗式文件管理，含上传、搜索和文件表格列表 -->
 <template>
   <el-dialog
     v-model="visible"

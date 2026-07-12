@@ -1,3 +1,4 @@
+<!-- 消息气泡组件 — 渲染聊天消息气泡，含发送者头像、名称、时间戳、文件附件和图片预览 -->
 <template>
   <div v-if="message && message.role && message.content !== undefined" :class="['message-bubble', message.role]">
     <div class="message-avatar">

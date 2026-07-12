@@ -1,3 +1,4 @@
+<!-- 语音对话页面 — 数字皮套人展示、角色选择、语音录制与交互 -->
 <template>
   <div class="voice-view">
     <header class="voice-header">

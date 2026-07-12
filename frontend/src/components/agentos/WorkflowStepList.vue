@@ -1,3 +1,4 @@
+<!-- 工作流步骤列表 — 卡片列表展示各步骤状态，含名称、Agent、能力、审核需求、重试次数、耗时和错误 -->
 <template>
   <section class="workflow-step-list ui-surface ui-surface--pad">
     <div class="section-head">

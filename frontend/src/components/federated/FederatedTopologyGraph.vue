@@ -1,3 +1,4 @@
+<!-- 联邦拓扑图 — SVG 交互式拓扑，可视化联邦学习客户端与中心服务器的连接关系 -->
 <template>
   <div class="topology-graph">
     <svg

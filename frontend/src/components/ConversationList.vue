@@ -1,3 +1,4 @@
+<!-- 对话列表组件 — 可滚动对话列表，含头像、标题、预览、时间戳和编辑/删除操作 -->
 <template>
   <div class="conversation-list-container">
     <!-- 对话列表 -->

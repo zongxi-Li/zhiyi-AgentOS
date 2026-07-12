@@ -1,3 +1,4 @@
+<!-- 登录/注册页面 — 知弈·职业智能体操作系统入口，左侧品牌展示区，右侧登录/注册表单 -->
 <template>
   <div class="login-view ui-shell">
     <!-- Atmospheric Background -->

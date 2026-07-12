@@ -1,3 +1,4 @@
+<!-- 润色对比卡片 — 并排展示原文与润色后文本，以及编号的具体修改清单 -->
 <template>
   <section class="card polish-card">
     <header class="card-head">

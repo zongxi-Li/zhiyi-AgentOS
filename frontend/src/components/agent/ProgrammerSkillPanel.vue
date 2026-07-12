@@ -1,3 +1,4 @@
+<!-- 程序员技能面板 — 程序员 Agent 技能仪表盘，含需求分析、代码搜索、代码生成、图表和联邦增强状态 -->
 <template>
   <section class="skill-panel programmer-panel">
     <div class="panel-header">

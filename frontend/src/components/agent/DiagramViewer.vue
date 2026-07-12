@@ -1,3 +1,4 @@
+<!-- 图表查看器 — 封装 MermaidRenderer，支持全屏查看、PNG 下载和可折叠源码切换 -->
 <template>
   <section class="card diagram-card">
     <header class="card-head">

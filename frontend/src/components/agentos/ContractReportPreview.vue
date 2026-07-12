@@ -1,3 +1,4 @@
+<!-- 合同报告预览 — 以 Markdown 渲染审查报告，或展示"暂无报告"占位提示 -->
 <template>
   <section class="contract-report-preview ui-surface ui-surface--pad">
     <div class="section-head">

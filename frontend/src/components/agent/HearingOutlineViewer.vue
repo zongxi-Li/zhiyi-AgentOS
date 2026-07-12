@@ -1,3 +1,4 @@
+<!-- 庭审提纲查看器 — 将 Markdown 格式庭审提纲渲染为 HTML 展示 -->
 <template>
   <section class="card">
     <header class="card-head">

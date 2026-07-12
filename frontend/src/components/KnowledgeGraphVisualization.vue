@@ -1,3 +1,4 @@
+<!-- 知识图谱可视化面板 — 含统计信息、刷新/适配视图和加载/错误/空状态的丰富知识图谱 -->
 <template>
   <div class="knowledge-graph-viz">
     <div class="graph-header">
