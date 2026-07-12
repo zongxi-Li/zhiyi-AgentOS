@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/** AgentOS 核心网关代理控制器 — 映射 /api/agentos、/agentos、/ai，代理转发 AgentOS 任务创建/查询等 API */
 @RestController
 @RequestMapping({"/api/agentos", "/agentos", "/ai"})
 @RequiredArgsConstructor

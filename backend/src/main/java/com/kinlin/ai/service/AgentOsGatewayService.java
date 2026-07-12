@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+/** AgentOS 网关服务 — 通过 WebClient 将请求代理转发到 Python AgentOS 后端 */
 @Slf4j
 @Service
 public class AgentOsGatewayService {

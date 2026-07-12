@@ -6,6 +6,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.Optional;
 import java.util.UUID;
 
+/** 认证用户工具类 — 从 Spring Security SecurityContextHolder 中提取当前已认证用户 ID */
 public final class AuthenticatedUser {
 
     private AuthenticatedUser() {
