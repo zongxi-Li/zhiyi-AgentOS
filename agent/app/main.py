@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+import os
 import uvicorn
 import logging
 
@@ -128,6 +129,46 @@ async def health_check():
         "status": "healthy",
         "service": "知弈 Agent",
         "version": "1.0.0"
+    }
+
+
+@app.get("/health/live")
+async def liveness_check():
+    return {"status": "UP", "service": "kinlin-ai-service", "check": "liveness"}
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    checks = {"dataDirectory": False, "packsRegistered": False, "workflowStore": False}
+    try:
+        _data_dir.mkdir(parents=True, exist_ok=True)
+        probe = _data_dir / ".readiness-probe"
+        probe.write_text("ready", encoding="utf-8")
+        probe.unlink()
+        checks["dataDirectory"] = True
+        from app.api.agentos_core import runtime
+
+        checks["packsRegistered"] = bool(runtime.workflow_registry.all())
+        runtime.workflow_store.list_runs(page=1, page_size=1)
+        checks["workflowStore"] = True
+    except Exception as exc:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(status_code=503, content={"status": "DOWN", "checks": checks, "error": type(exc).__name__})
+    return {"status": "UP", "checks": checks}
+
+
+@app.get("/health/dependencies")
+async def dependency_check():
+    configured = bool(settings.DEEPSEEK_API_KEY or settings.DASHSCOPE_API_KEY or settings.QWEN_API_KEY or settings.KYLIN_AI_API_KEY)
+    return {
+        "status": "UP" if configured else "DEGRADED",
+        "dependencies": {
+            "modelProvider": {
+                "status": "CONFIGURED" if configured else "UNCONFIGURED",
+                "affectsReadiness": False,
+            }
+        },
     }
 
 # RAG路由

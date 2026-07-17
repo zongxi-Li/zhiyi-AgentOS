@@ -1,4 +1,3 @@
-# RFC v1.1 one-release compatibility override; canonical definitions live at repository root.
 services:
   frontend:
     ports:

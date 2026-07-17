@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 
@@ -7,9 +7,15 @@ RUN npm ci
 
 COPY . .
 
+RUN addgroup -g 10003 -S kinlin \
+    && adduser -S -D -H -u 10003 -G kinlin kinlin \
+    && chown -R 10003:10003 /app
+
 ENV DEV_BACKEND_PROXY_TARGET=http://backend:8080
 ENV DEV_AI_SERVICE_PROXY_TARGET=http://ai-service:8000
 
 EXPOSE 3000
+
+USER 10003:10003
 
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

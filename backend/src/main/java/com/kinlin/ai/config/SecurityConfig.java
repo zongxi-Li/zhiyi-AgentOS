@@ -34,6 +34,8 @@ public class SecurityConfig {
                 // 公开接口
                 .requestMatchers(
                     "/health",
+                    "/health/**",
+                    "/actuator/health/**",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/ws/**",

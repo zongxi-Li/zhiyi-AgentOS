@@ -41,9 +41,9 @@ logs/
 .env.*.local
 
 # Local-only bootstrap/deployment files
-.env.example
-dev.ps1
-dev.sh
+!.env.example
+!dev.ps1
+!dev.sh
 docker-compose.yml
 
 # 数据库
@@ -116,9 +116,15 @@ Recommend/agent/models/
 # Claude
 .claude/
 
-# Docker
-.dockerignore
-**/.dockerignore
+# Docker build rules are part of the deployment contract
+!.dockerignore
+!**/.dockerignore
+
+# Local infrastructure secrets, backups, reports and generated evidence
+.secrets/
+backups/
+.tmp-*
+artifacts/infra-rfc-v1.1/runtime/
 
 # Runtime/temp files
 tmp/
