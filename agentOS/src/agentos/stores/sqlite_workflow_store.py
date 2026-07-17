@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -16,6 +17,7 @@ class SQLiteWorkflowStore(WorkflowStore):
 
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
+        self.busy_timeout_ms = int(os.getenv("AGENTOS_SQLITE_BUSY_TIMEOUT_MS", "5000"))
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
@@ -107,7 +109,10 @@ class SQLiteWorkflowStore(WorkflowStore):
         return paginate_items(runs, page=page, page_size=page_size)
 
     def _init_schema(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
+            journal_mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+            if str(journal_mode).lower() != "wal":
+                raise RuntimeError(f"SQLite WAL mode is required, got: {journal_mode}")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -130,21 +135,57 @@ class SQLiteWorkflowStore(WorkflowStore):
             conn.commit()
 
     def _execute(self, sql: str, params: tuple) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute(sql, params)
             conn.commit()
 
     def _fetch_one(self, sql: str, params: tuple):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(sql, params)
             return cursor.fetchone()
 
     def _fetch_all(self, sql: str, params: tuple = ()):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(sql, params)
             return cursor.fetchall()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=max(self.busy_timeout_ms, 1) / 1000)
+        conn.execute(f"PRAGMA busy_timeout={max(self.busy_timeout_ms, 1)}")
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
+    def checkpoint(self) -> tuple[int, int, int]:
+        """Flush committed WAL pages before maintenance operations."""
+        with self._connect() as conn:
+            row = conn.execute("PRAGMA wal_checkpoint(FULL)").fetchone()
+            return tuple(int(value) for value in row)
+
+    def backup_to(self, destination: str | Path) -> dict[str, int | str]:
+        """Create and verify a transactionally consistent SQLite backup."""
+        target = Path(destination)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.resolve() == self.db_path.resolve():
+            raise ValueError("backup destination must differ from source database")
+        with self._connect() as source, sqlite3.connect(target) as dest:
+            source.backup(dest)
+            dest.commit()
+        with sqlite3.connect(target) as verify:
+            integrity = str(verify.execute("PRAGMA integrity_check").fetchone()[0])
+            if integrity.lower() != "ok":
+                raise RuntimeError(f"SQLite backup integrity check failed: {integrity}")
+            task_count = int(verify.execute("SELECT COUNT(*) FROM tasks").fetchone()[0])
+            run_count = int(verify.execute("SELECT COUNT(*) FROM runs").fetchone()[0])
+        return {
+            "source": str(self.db_path),
+            "destination": str(target),
+            "integrity": integrity,
+            "taskCount": task_count,
+            "runCount": run_count,
+        }
 
 
 def _matches_task(task: AgentTask, *, status: str | None, domain: str | None, source: str | None) -> bool:

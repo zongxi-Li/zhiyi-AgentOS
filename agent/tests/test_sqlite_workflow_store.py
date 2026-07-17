@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import sqlite3
 
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus, WorkflowStep
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
@@ -106,3 +107,20 @@ def test_sqlite_workflow_store_queries_tasks_and_runs_with_filters_and_paginatio
     assert paged_runs.page == 2
     assert paged_runs.page_size == 1
     assert [run.run_id for run in paged_runs.items] == [chat_run.run_id]
+
+
+def test_sqlite_workflow_store_enables_wal_and_verified_backup(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTOS_SQLITE_BUSY_TIMEOUT_MS", "4321")
+    source = tmp_path / "workflow.db"
+    backup = tmp_path / "backup" / "workflow.db"
+    store = SQLiteWorkflowStore(source)
+    task = AgentTask(title="持久化测试", domain="legal", intent="contract_review")
+    store.save_task(task)
+    result = store.backup_to(backup)
+    with sqlite3.connect(source) as conn:
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+    assert store.busy_timeout_ms == 4321
+    assert result["integrity"] == "ok"
+    assert result["taskCount"] == 1
+    assert result["runCount"] == 0
+    assert SQLiteWorkflowStore(backup).get_task(task.task_id).title == "持久化测试"

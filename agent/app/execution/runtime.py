@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict
 
 from agentos.core.models.types import WorkflowDefinition
@@ -10,6 +11,7 @@ from agentos.core.runtime import WorkflowRuntime, build_default_runtime as build
 
 from app.execution.langgraph_adapter import LangGraphAdapter
 from app.execution.langgraph_registry import get_default_langgraph_registry
+from app.execution.instance_lock import acquire_workflow_instance_lock
 
 logger = logging.getLogger(__name__)
 
@@ -51,4 +53,7 @@ def configure_execution_adapters(runtime: WorkflowRuntime) -> WorkflowRuntime:
 
 
 def build_default_runtime() -> WorkflowRuntime:
+    workflow_db_path = os.getenv("AGENTOS_WORKFLOW_DB_PATH", "").strip()
+    if workflow_db_path:
+        acquire_workflow_instance_lock(workflow_db_path)
     return configure_execution_adapters(build_core_default_runtime())
