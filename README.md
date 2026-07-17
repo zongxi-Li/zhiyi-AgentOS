@@ -3,10 +3,24 @@
 ![Status](https://img.shields.io/badge/status-V1.0--alpha-yellow)
 ![Frontend](https://img.shields.io/badge/frontend-Vue%203%20%2B%20Vite-42b883)
 ![Java](https://img.shields.io/badge/java-17-blue)
-![Node](https://img.shields.io/badge/node-18-green)
+![Node](https://img.shields.io/badge/node-24-green)
 ![Python](https://img.shields.io/badge/python-3.14.5-blue)
 
 一句话定位：**知弈 AgentOS 是一个面向职业任务的智能体运行时，把大模型能力纳入 Task、Workflow、Trace、Review、Checkpoint 和 Artifact 的可治理生命周期。**
+
+## Docker P0/P1 基线
+
+仓库根目录的 `compose.yaml` 是唯一 Canonical Compose，`compose.dev.yaml` 和 `compose.prod.yaml` 只提供环境差异；`docker/docker-compose*.yml` 仅保留一个发布周期的兼容入口。部署前必须为每个环境选择不同的 `KINLIN_DEPLOYMENT_ID`，生成 Secret，并通过预检：
+
+```powershell
+python -m scripts.infra.init_secrets .secrets/kinlin-dev-001
+$env:KINLIN_DEPLOYMENT_ID = "kinlin-dev-001"
+$env:KINLIN_SECRETS_DIR = (Resolve-Path ".secrets/kinlin-dev-001").Path
+python -m scripts.infra.preflight --deployment-id $env:KINLIN_DEPLOYMENT_ID --secrets-dir $env:KINLIN_SECRETS_DIR
+docker compose -f compose.yaml -f compose.dev.yaml up -d --build --wait
+```
+
+生产入口默认只绑定 `127.0.0.1:8080`，Backend、FastAPI、PostgreSQL 和 Redis 均不发布宿主机端口。AgentOS Workflow Store 固定为单 FastAPI 实例、单 Uvicorn Worker 和 SQLite WAL；完成 PostgreSQL Workflow Store 前禁止水平扩容。已有数据库不得直接迁移，必须先执行 Schema 审计，再按审计报告显式 baseline。完整约束、备份恢复流程和已知风险见 [Docker 基础设施重构 RFC v1.1](docs/02-架构设计/07-docker-infrastructure-rfc-v1.1.md) 与 [P0/P1 实施报告](docs/03-开发记录/05-2026-07-18-docker-p0-p1-implementation.md)。
 
 ## 项目简介
 
@@ -41,7 +55,7 @@
 | LLM Gateway | Mock Provider + OpenAI-compatible Provider，DeepSeek/Qwen 环境变量回退 | `agent/app/llm/` |
 | 本地法律 Evidence 检索 | 本地法律知识材料 + keyword retriever + fallback evidence | `agent/app/rag/` |
 | AgentOS API | 创建任务、启动工作流、审核、恢复、Trace、ACG 聚合视图 | `agent/app/api/agentos_core.py` |
-| Docker 开发环境 | 一键启动 Frontend、Backend、AI、PostgreSQL、Redis | `docker-compose.yml`, `dev.sh`, `dev.ps1` |
+| Docker 开发环境 | 一键启动 Frontend、Backend、AI、PostgreSQL、Redis | `compose.yaml`, `compose.dev.yaml`, `dev.sh`, `dev.ps1` |
 
 ### 🟡 部分实现或实验性
 
@@ -90,7 +104,7 @@ flowchart TD
 
     RT --> TM[TaskManager]
     RT --> WR[WorkflowRegistry]
-    RT --> WS[WorkflowStore<br/>Memory by default / SQLite optional]
+    RT --> WS[WorkflowStore<br/>Compose 固定 SQLite WAL]
     RT --> GOV[Trace / Review / Checkpoint]
 
     RT --> EA{runtimeEngine}
@@ -168,7 +182,7 @@ flowchart TD
    `agent/app/execution/runtime.py` 注册 `langgraph` adapter；`LangGraphImplementationRegistry` 将 `legal_contract_review_stategraph_v1` 映射到 `LegalContractReviewStateGraphRuntime`。LangGraph 的定位是应用层执行适配器，AgentOS Core 继续负责 Task、WorkflowRun、Trace、Review 和 Checkpoint。
 
 5. **State 如何保存**
-   LangGraph 使用 `InMemorySaver` 保存图执行线程状态；执行结果通过 `ContractReviewRunProjector` 投影回 AgentOS 的 `WorkflowRun.output`、`steps`、`Trace` 和 `Checkpoint`。AgentOS 默认使用 `MemoryWorkflowStore`；设置 `AGENTOS_WORKFLOW_DB_PATH` 后使用 SQLite。
+   LangGraph 使用 `InMemorySaver` 保存图执行线程状态；执行结果通过 `ContractReviewRunProjector` 投影回 AgentOS 的 `WorkflowRun.output`、`steps`、`Trace` 和 `Checkpoint`。库级默认仍可使用 `MemoryWorkflowStore`，Canonical Compose 强制设置 `AGENTOS_WORKFLOW_DB_PATH`，以单实例、单 Worker 的 SQLite WAL 持久化运行。
 
 6. **何时进入 `waiting_review`**
    `build_contract_review_graph()` 配置了 `interrupt_before=["report_generate"]`。当流程到达 `human_review` 后，Projector 会把运行状态映射为 `waiting_review`，等待用户或评委在前端/接口中提交审核结果。
@@ -211,7 +225,7 @@ flowchart TD
 | Vue Router | `^4.2.5` | `frontend/package.json` |
 | vue-i18n | `^9.14.5` | `frontend/package.json` |
 | vis-network | `^10.0.2` | `frontend/package.json` |
-| Node.js | `18` 推荐 | `frontend/Dockerfile.dev` |
+| Node.js | `24` | `frontend/Dockerfile.dev` |
 
 ### Java Gateway
 
@@ -290,7 +304,7 @@ kinlin_ai/
 ├── scripts/
 │   ├── build_agentos_innovation_doc.py    # 生成 AgentOS 创新点文档
 │   └── demo_federated_learning.py         # 联邦学习演示脚本
-├── docker-compose.yml                     # 开发环境全栈编排
+├── compose.yaml                           # Canonical Compose 全栈编排
 ├── dev.sh                                 # Linux/macOS Docker 开发脚本
 └── dev.ps1                                # Windows PowerShell Docker 开发脚本
 ```
@@ -301,7 +315,7 @@ kinlin_ai/
 | --- | --- |
 | 操作系统 | Windows、Linux、macOS 均可；仓库提供 PowerShell 和 Bash 启动脚本 |
 | Docker | 推荐 Docker Desktop 或 Docker Engine + Docker Compose plugin |
-| Node.js | 推荐 18.x；仓库前端开发镜像为 `node:18-alpine` |
+| Node.js | 推荐 24.x；仓库前端开发镜像为 `node:24-alpine` |
 | 包管理器 | npm；仓库包含 `package-lock.json`，推荐 `npm ci` |
 | Java | 17 |
 | Maven | 推荐 3.9.x；仓库后端开发镜像为 `maven:3.9-eclipse-temurin-17` |
