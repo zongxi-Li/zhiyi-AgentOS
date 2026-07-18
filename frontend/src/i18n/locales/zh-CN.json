@@ -16,9 +16,9 @@
     "info": "提示"
   },
   "nav": {
-    "main": "MAIN",
-    "knowledge": "KNOWLEDGE",
-    "system": "SYSTEM",
+    "main": "主要",
+    "knowledge": "知识",
+    "system": "系统",
     "chat": "对话",
     "digitalHuman": "数字人",
     "voice": "语音交互",
