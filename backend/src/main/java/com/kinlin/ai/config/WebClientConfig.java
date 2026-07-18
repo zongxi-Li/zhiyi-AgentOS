@@ -1,6 +1,7 @@
 package com.kinlin.ai.config;
 
 import com.kinlin.ai.gateway.PythonServiceAuthentication;
+import com.kinlin.ai.gateway.TrustedUserContextForwarder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -21,7 +22,10 @@ public class WebClientConfig {
     private String aiServiceUrl;
 
     @Bean
-    public WebClient.Builder webClientBuilder(PythonServiceAuthentication authentication) {
+    public WebClient.Builder webClientBuilder(
+            PythonServiceAuthentication authentication,
+            TrustedUserContextForwarder userContextForwarder
+    ) {
         return WebClient.builder()
                 .baseUrl(aiServiceUrl)
                 .codecs(configurer -> configurer
@@ -30,7 +34,12 @@ public class WebClientConfig {
                 .defaultHeader("Content-Type", "application/json")
                 .filter((request, next) -> {
                     ClientRequest authenticated = ClientRequest.from(request)
-                            .headers(authentication::apply)
+                            .headers(headers -> {
+                                authentication.apply(headers);
+                                if (!request.url().getPath().startsWith("/health")) {
+                                    userContextForwarder.apply(headers);
+                                }
+                            })
                             .build();
                     return next.exchange(authenticated);
                 });
@@ -38,10 +47,12 @@ public class WebClientConfig {
 
     @Bean
     public RestTemplateCustomizer pythonAuthenticationRestTemplateCustomizer(
-            PythonServiceAuthentication authentication
+            PythonServiceAuthentication authentication,
+            TrustedUserContextForwarder userContextForwarder
     ) {
         return restTemplate -> restTemplate.getInterceptors().add((request, body, execution) -> {
             authentication.apply(request.getHeaders());
+            userContextForwarder.apply(request.getHeaders());
             return execution.execute(request, body);
         });
     }

@@ -14,6 +14,19 @@ from agentos.core.runtime import WorkflowRuntime
 from app.execution.runtime import build_default_runtime
 from app.llm.gateway import get_llm_gateway
 from app.llm.schemas import CHAT_ROUTE_DECISION_SCHEMA
+from app.security.internal_auth import current_trusted_user
+
+
+def _input_with_authenticated_actor(payload: Dict[str, Any]) -> Dict[str, Any]:
+    actor = current_trusted_user()
+    if actor is None:
+        return payload
+    return {
+        **payload,
+        "authenticatedUserId": actor.user_id,
+        "authenticatedSubject": actor.subject,
+        "authenticatedRole": actor.role,
+    }
 
 
 class AgentTaskCreateRequest(BaseModel):
@@ -202,7 +215,7 @@ async def _create_task_and_start(
         title=request.title,
         domain=request.domain,
         intent=request.intent,
-        input=request.input,
+        input=_input_with_authenticated_actor(request.input),
         security_level=request.security_level,
         priority=request.priority,
         role_type=request.role_type,
@@ -1489,7 +1502,7 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
                 title=request.title,
                 domain=request.domain,
                 intent=request.intent,
-                input=request.input,
+                input=_input_with_authenticated_actor(request.input),
                 security_level=request.security_level,
                 priority=request.priority,
                 role_type=request.role_type,

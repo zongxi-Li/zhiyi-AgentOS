@@ -13,19 +13,27 @@ public final class AuthenticatedUser {
     }
 
     public static Optional<UUID> currentUserId() {
+        return currentContext().map(AuthenticatedUserContext::userId);
+    }
+
+    public static Optional<AuthenticatedUserContext> currentContext() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getPrincipal() == null) {
             return Optional.empty();
         }
 
         Object principal = authentication.getPrincipal();
+        if (principal instanceof AuthenticatedUserContext context) {
+            return Optional.of(context);
+        }
         if (principal instanceof UUID uuid) {
-            return Optional.of(uuid);
+            return Optional.of(new AuthenticatedUserContext(uuid, uuid.toString(), "USER", null, null));
         }
 
         if (principal instanceof String text && !"anonymousUser".equals(text)) {
             try {
-                return Optional.of(UUID.fromString(text));
+                UUID userId = UUID.fromString(text);
+                return Optional.of(new AuthenticatedUserContext(userId, text, "USER", null, null));
             } catch (IllegalArgumentException ignored) {
                 return Optional.empty();
             }

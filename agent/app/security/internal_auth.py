@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import hmac
 import json
+from contextvars import ContextVar
+from dataclasses import dataclass
 from collections.abc import Awaitable, Callable
 
 
 INTERNAL_SERVICE_TOKEN_HEADER = b"x-internal-service-token"
+AUTHENTICATED_USER_ID_HEADER = b"x-authenticated-user-id"
+AUTHENTICATED_USER_SUBJECT_HEADER = b"x-authenticated-user-subject"
+AUTHENTICATED_USER_ROLE_HEADER = b"x-authenticated-user-role"
+AUTHENTICATED_TENANT_ID_HEADER = b"x-authenticated-tenant-id"
 MINIMUM_TOKEN_LENGTH = 32
 FORBIDDEN_TOKEN_VALUES = {
     "changeme",
@@ -22,6 +28,23 @@ PUBLIC_PATHS = {
     "/health/dependencies",
     "/metrics",
 }
+
+
+@dataclass(frozen=True)
+class TrustedUserContext:
+    user_id: str
+    subject: str
+    role: str
+    tenant_id: str | None = None
+
+
+_trusted_user_context: ContextVar[TrustedUserContext | None] = ContextVar(
+    "trusted_user_context", default=None
+)
+
+
+def current_trusted_user() -> TrustedUserContext | None:
+    return _trusted_user_context.get()
 
 
 def is_valid_internal_token(value: str) -> bool:
@@ -68,8 +91,15 @@ class InternalServiceAuthMiddleware:
             and hmac.compare_digest(supplied[0], self.token)
         )
         if authenticated:
-            await self.app(scope, receive, send)
-            return
+            identity = self._trusted_identity(scope)
+            if identity is not None:
+                context_token = _trusted_user_context.set(identity)
+                scope.setdefault("state", {})["authenticated_user"] = identity
+                try:
+                    await self.app(scope, receive, send)
+                finally:
+                    _trusted_user_context.reset(context_token)
+                return
 
         if scope_type == "websocket":
             await send({"type": "websocket.close", "code": 4403, "reason": "access denied"})
@@ -89,3 +119,22 @@ class InternalServiceAuthMiddleware:
             }
         )
         await send({"type": "http.response.body", "body": body})
+
+    def _trusted_identity(self, scope) -> TrustedUserContext | None:
+        headers = scope.get("headers", [])
+
+        def exactly_one(name: bytes) -> str | None:
+            values = [
+                value.decode("utf-8", errors="replace").strip()
+                for key, value in headers
+                if key.lower() == name
+            ]
+            return values[0] if len(values) == 1 and values[0] else None
+
+        user_id = exactly_one(AUTHENTICATED_USER_ID_HEADER)
+        subject = exactly_one(AUTHENTICATED_USER_SUBJECT_HEADER)
+        role = exactly_one(AUTHENTICATED_USER_ROLE_HEADER)
+        if not user_id or not subject or not role:
+            return None
+        tenant_id = exactly_one(AUTHENTICATED_TENANT_ID_HEADER)
+        return TrustedUserContext(user_id=user_id, subject=subject, role=role, tenant_id=tenant_id)

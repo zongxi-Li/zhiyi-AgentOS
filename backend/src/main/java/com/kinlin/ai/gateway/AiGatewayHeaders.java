@@ -4,6 +4,10 @@ package com.kinlin.ai.gateway;
 public final class AiGatewayHeaders {
 
     public static final String INTERNAL_SERVICE_TOKEN = "X-Internal-Service-Token";
+    public static final String AUTHENTICATED_USER_ID = "X-Authenticated-User-Id";
+    public static final String AUTHENTICATED_USER_SUBJECT = "X-Authenticated-User-Subject";
+    public static final String AUTHENTICATED_USER_ROLE = "X-Authenticated-User-Role";
+    public static final String AUTHENTICATED_TENANT_ID = "X-Authenticated-Tenant-Id";
 
     private AiGatewayHeaders() {
     }

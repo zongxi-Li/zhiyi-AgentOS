@@ -1,6 +1,7 @@
 package com.kinlin.ai.filter;
 
 import com.kinlin.ai.util.JwtUtil;
+import com.kinlin.ai.security.AuthenticatedUserContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.UUID;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * JWT认证过滤器
@@ -35,13 +37,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         
-        // Skip public auth paths and local/demo AgentOS proxy paths.
-        // Production deployments must tighten this before deployment.
+        // Only authentication and health/documentation endpoints are public.
         String path = request.getRequestURI();
         if (path != null && (
             path.startsWith("/auth/") || path.equals("/auth") ||
-            path.startsWith("/ai/core/") || path.equals("/ai/core") ||
-            path.equals("/ai/chat/workflows/upgrade") ||
             path.startsWith("/health") ||
             path.startsWith("/actuator/health") ||
             path.startsWith("/swagger-ui/") ||
@@ -60,15 +59,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 String username = jwtUtil.getUsernameFromToken(token);
                 UUID userId = jwtUtil.getUserIdFromToken(token);
+                String role = jwtUtil.getRoleFromToken(token);
                 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     if (jwtUtil.validateToken(token, username)) {
                         // 设置用户上下文
                         UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(
-                                        userId,
+                                        new AuthenticatedUserContext(userId, username, role, null, null),
                                         null,
-                                        new ArrayList<>()
+                                        java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role))
                                 );
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -78,9 +78,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     }
                 }
             } catch (Exception e) {
-                log.error("JWT验证失败", e);
-                // 对于认证路径，即使Token验证失败也继续执行
-                // 对于其他路径，Security会处理未认证的请求
+                log.debug("JWT validation rejected: {}", e.getClass().getSimpleName());
             }
         }
         

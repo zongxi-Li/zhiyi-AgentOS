@@ -1,9 +1,11 @@
 package com.kinlin.ai.config;
 
 import com.kinlin.ai.filter.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -39,15 +41,16 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/ws/**",
-                    "/auth/**",  // 允许所有 /auth 路径（登录、注册、验证Token）
-                    // Local/demo AgentOS and Python AI proxy allowance.
-                    // Production deployments must require auth for these workflow routes.
-                    "/ai/core/**",
-                    "/ai/chat/workflows/upgrade"
+                    "/auth/**"
                 ).permitAll()
                 // 其他接口需要认证
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, error) -> {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.getWriter().write("{\"error\":\"unauthorized\"}");
+            }))
             // 添加JWT过滤器（在UsernamePasswordAuthenticationFilter之前）
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
