@@ -2,23 +2,29 @@ FROM maven:3.9-eclipse-temurin-17
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu iproute2 netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s "$(command -v gosu)" /usr/local/bin/su-exec \
+    && groupadd --gid 10001 kinlin \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin kinlin \
+    && mkdir -p /app/data/uploads /run/kinlin-secrets \
+    && chown -R 10001:10001 /app /run/kinlin-secrets
+
 COPY pom.xml .
 RUN mvn dependency:resolve -q
 
 COPY src ./src
 
 COPY docker-entrypoint.sh /usr/local/bin/kinlin-entrypoint
-RUN apk add --no-cache su-exec \
-    && addgroup -g 10001 -S kinlin \
-    && adduser -S -D -H -u 10001 -G kinlin kinlin \
-    && mkdir -p /app/data/uploads /run/kinlin-secrets \
-    && chown -R 10001:10001 /app /run/kinlin-secrets \
-    && chmod 0755 /usr/local/bin/kinlin-entrypoint
+COPY docker-entrypoint-dev.sh /usr/local/bin/kinlin-dev-entrypoint
+RUN chmod 0755 /usr/local/bin/kinlin-entrypoint /usr/local/bin/kinlin-dev-entrypoint
 
 EXPOSE 8080
 EXPOSE 5005
 
-ENTRYPOINT ["/usr/local/bin/kinlin-entrypoint"]
+ENTRYPOINT ["/usr/local/bin/kinlin-dev-entrypoint"]
 CMD ["mvn", "spring-boot:run", \
-     "-Dspring-boot.run.profiles=dev", \
+     "-Dmaven.test.skip=true", \
+     "-Dspring-boot.run.profiles=compose", \
      "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"]

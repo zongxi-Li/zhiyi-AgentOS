@@ -1,4 +1,9 @@
 target/
+**/target/
+.venv/
+logs/
+release/
+.tmp-backups/
 .mvn/
 mvnw
 mvnw.cmd

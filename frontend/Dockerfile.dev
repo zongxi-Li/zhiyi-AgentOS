@@ -2,20 +2,25 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
-
-COPY . .
-
 RUN addgroup -g 10003 -S kinlin \
     && adduser -S -D -H -u 10003 -G kinlin kinlin \
-    && chown -R 10003:10003 /app
+    && mkdir -p /home/kinlin/.npm \
+    && chown -R 10003:10003 /app /home/kinlin
+
+ENV HOME=/home/kinlin
+
+COPY --chown=10003:10003 package*.json ./
+USER 10003:10003
+RUN npm ci
+RUN sha256sum package-lock.json | cut -d ' ' -f 1 > node_modules/.kinlin-package-lock.sha256
+
+COPY --chown=10003:10003 . .
+COPY --chown=10003:10003 --chmod=0755 docker-entrypoint-dev.sh /usr/local/bin/kinlin-frontend-dev-entrypoint
 
 ENV DEV_BACKEND_PROXY_TARGET=http://backend:8080
 ENV DEV_AI_SERVICE_PROXY_TARGET=http://ai-service:8000
 
 EXPOSE 3000
 
-USER 10003:10003
-
+ENTRYPOINT ["/usr/local/bin/kinlin-frontend-dev-entrypoint"]
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

@@ -1,5 +1,8 @@
 services:
   ai-service:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile.dev
     environment:
       ENVIRONMENT: development
       DEBUG: "true"
@@ -7,6 +10,7 @@ services:
       - ./agent/app:/app/app
       - ./agent/packs:/app/packs
       - ./agent/knowledge:/app/knowledge
+      - ./agent/requirements_minimal.txt:/app/requirements_minimal.txt:ro
       - ./agentOS/src:/app/agentOS/src
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--reload"]
   backend:
@@ -16,6 +20,7 @@ services:
     environment:
       KINLIN_SPRING_PROFILE: compose
       SPRING_PROFILES_ACTIVE: compose
+      KINLIN_DEV_MODE: "true"
     volumes:
       - ./backend/src:/app/src
       - ./backend/pom.xml:/app/pom.xml
@@ -28,5 +33,7 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json:ro
+      - ./frontend/package-lock.json:/app/package-lock.json:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
