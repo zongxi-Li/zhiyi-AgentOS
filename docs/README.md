@@ -33,10 +33,11 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [01-current-capabilities](03-开发记录/01-current-capabilities.md) | 当前已完成 / 未完成的能力边界 |
 | [02-core-todo](03-开发记录/02-core-todo.md) | Core TODO 与进度摘要 |
 | [03-2026-05-15-console-governance-plan](03-开发记录/03-2026-05-15-console-governance-plan.md) | Console 与治理实现计划 |
 | [04-2026-05-22-domain-models](03-开发记录/04-2026-05-22-domain-models.md) | 领域模型实现计划 |
+| [05-2026-07-18-docker-p0-p1-implementation](03-开发记录/05-2026-07-18-docker-p0-p1-implementation.md) | Docker P0/P1 基础设施实施记录 |
+| [06-2026-07-18-p1-windows-docker-desktop](03-开发记录/06-2026-07-18-p1-windows-docker-desktop.md) | Windows Docker Desktop 开发环境记录 |
 
 ## 04-演示与交付
 
@@ -44,7 +45,14 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [01-demo-guide](04-演示与交付/01-demo-guide.md) | 端到端演示启动指南 |
 | [02-acg-test-samples](04-演示与交付/02-acg-test-samples.md) | ACG 可视化面板功能测试样例集 |
 | [03-acg-engine-final-report](04-演示与交付/03-acg-engine-final-report.md) | ACG 引擎最终技术报告 |
 | [figures/](04-演示与交付/figures/) | 演示相关图示 |
+
+## 05-设计资料归档
+
+早期设计材料与原始内容提取稿，仅用于追溯设计演进，不作为当前能力说明。
+
+| 文档 | 说明 |
+| --- | --- |
+| [01-初步设计提取稿](05-设计资料归档/01-初步设计提取稿.md) | 从早期设计文档整理出的 Markdown 原始提取稿 |

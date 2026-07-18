@@ -129,6 +129,9 @@ backups/
 .tmp-*
 artifacts/infra-rfc-v1.1/runtime/
 
+# Playwright CLI runtime snapshots
+.playwright-cli/
+
 # Runtime/temp files
 tmp/
 temp/
