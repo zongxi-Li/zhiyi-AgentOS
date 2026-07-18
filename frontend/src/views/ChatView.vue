@@ -85,6 +85,7 @@
             </div>
 
             <div class="landing-composer-actions">
+              <ModelRuntimeControls compact />
               <button class="landing-attach-btn" type="button" aria-label="添加附件" @click="openLandingAttachment">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="m21.4 11.1-9.5 9.5a6 6 0 0 1-8.5-8.5l10-10a4 4 0 0 1 5.7 5.7l-10 10a2 2 0 1 1-2.8-2.8l9.4-9.4" />
@@ -339,6 +340,7 @@
               />
             </div>
             <div class="right-actions">
+              <ModelRuntimeControls compact />
               <span class="word-count" :class="{ warning: inputText.length > 500 }">
                 {{ $t('chat.wordCount', { count: inputText.length }) }}
               </span>
@@ -677,6 +679,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MessageBubble from '@/components/MessageBubble.vue'
+import ModelRuntimeControls from '@/components/ModelRuntimeControls.vue'
 import FileManager from '@/components/FileManager.vue'
 import LawyerSkillPanel from '@/components/agent/LawyerSkillPanel.vue'
 import TeacherSkillPanel from '@/components/agent/TeacherSkillPanel.vue'
@@ -701,6 +704,7 @@ import { recommendationApi, type RecommendationItem } from '@/services/api/recom
 import { useChatStore } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
 import { useDebounce } from '@/composables/useDebounce'
+import { loadModelSettings } from '@/config/modelSettings'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -1358,7 +1362,7 @@ const sendMessage = async () => {
           : isWriterMode.value
             ? 'writer'
             : 'default'
-    await chatStore.sendMessageStream(userText, agentMode)
+    await chatStore.sendMessageStream(userText, agentMode, loadModelSettings())
     scrollToBottom()
   } catch (err: any) {
     ElMessage.error(err.message || '发送消息失败')
@@ -1489,7 +1493,7 @@ const handleFileSelected = async (file: any) => {
   loading.value = true
 
   try {
-    await chatStore.sendMessage('', fileUrl)
+    await chatStore.sendMessage('', fileUrl, loadModelSettings())
     scrollToBottom()
     ElMessage.success(`已发送文件: ${file.name}`)
   } catch (error: any) {
@@ -1992,6 +1996,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 13px;
   flex: 0 0 auto;
+}
+
+.landing-composer-actions :deep(.model-runtime-controls) {
+  margin-right: 2px;
 }
 
 .landing-attach-btn {
@@ -3105,6 +3113,45 @@ onUnmounted(() => {
 }
 
 @media (max-width: 620px) {
+  .chat-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 58px 12px 10px;
+  }
+
+  .chat-header .left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .chat-header .title {
+    position: absolute;
+    top: 23px;
+    left: 62px;
+  }
+
+  .mode-switcher {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .mode-btn {
+    min-width: 0;
+    justify-content: center;
+    padding: 7px 4px;
+  }
+
+  .chat-header .right {
+    gap: 6px;
+  }
+
+  .chat-header .right .el-button {
+    margin-left: 0;
+  }
+
   .landing-topbar {
     min-height: 136px;
   }
@@ -3187,7 +3234,43 @@ onUnmounted(() => {
   }
 
   .chat-main.simple-session .quick-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chat-main .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .chat-main .empty-state .quick-actions {
+    display: none;
+  }
+
+  .chat-main .template-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .chat-main .template-item {
+    min-width: 0;
+    padding: 6px 8px;
+    white-space: normal;
+  }
+
+  .chat-main .quick-btn {
+    min-width: 0;
+    justify-content: center;
+    padding: 8px;
+    white-space: normal;
+  }
+
+  .chat-main .quick-btn.lawyer-btn,
+  .chat-main .quick-btn.teacher-btn,
+  .chat-main .quick-btn.programmer-btn,
+  .chat-main .quick-btn.writer-btn {
+    display: none;
   }
 
   .chat-main.simple-session .composer {
@@ -3200,13 +3283,28 @@ onUnmounted(() => {
     width: 100%;
   }
 
-  .chat-main.simple-session .composer-footer {
+  .chat-main .composer-footer {
     flex-direction: column;
     align-items: stretch;
   }
 
+  .composer-footer .left-actions {
+    width: 100%;
+  }
+
   .chat-main.simple-session .right-actions {
     justify-content: space-between;
+  }
+
+  .composer-footer .right-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    width: 100%;
+  }
+
+  .composer-footer .right-actions :deep(.model-runtime-controls) {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .landing-hero h2 {

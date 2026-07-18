@@ -642,14 +642,15 @@ onUnmounted(() => {
   flex-direction: column;
   background: var(--bg-app);
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .voice-view::before,
 .voice-view::after {
   content: '';
   position: absolute;
-  width: 500px;
+  width: min(500px, 100%);
   height: 500px;
   border-radius: 50%;
   filter: blur(120px);
@@ -659,14 +660,14 @@ onUnmounted(() => {
 }
 
 .voice-view::before {
-  top: -200px;
-  left: -150px;
+  top: 0;
+  left: 0;
   background: radial-gradient(circle, rgba(79, 70, 229, 0.35), transparent 60%);
 }
 
 .voice-view::after {
-  bottom: -200px;
-  right: -150px;
+  bottom: 0;
+  right: 0;
   background: radial-gradient(circle, rgba(16, 185, 129, 0.25), transparent 60%);
 }
 
@@ -1229,6 +1230,35 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1024px) {
+  .voice-view {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .voice-header {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  .header-left {
+    flex: 1 1 220px;
+  }
+
+  .role-select {
+    width: min(100%, 320px);
+    flex: 1 1 220px;
+  }
+
+  .voice-main {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .left-column {
+    grid-template-rows: auto;
+  }
+
   .voice-main {
     grid-template-columns: 1fr;
   }

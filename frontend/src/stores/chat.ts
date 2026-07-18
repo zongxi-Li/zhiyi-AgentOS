@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { agentosApi, type WorkflowStartResponse } from '@/services/api/agentos'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
+import { loadModelSettings, toModelRequestSettings, type ModelSettings } from '@/config/modelSettings'
 import {
   agentLawyerApi,
   type AgentRoutingInfo,
@@ -157,7 +158,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const sendMessage = async (text: string, fileUrl?: string) => {
+  const sendMessage = async (text: string, fileUrl?: string, runtimeSettings?: ModelSettings) => {
     if ((!text.trim() && !fileUrl) || loading.value) return
 
     pushUserMessage(text, fileUrl)
@@ -168,7 +169,8 @@ export const useChatStore = defineStore('chat', () => {
         text: text || '',
         roleId: currentRoleId.value || undefined,
         contextId: contextId.value || undefined,
-        fileUrl: fileUrl || undefined
+        fileUrl: fileUrl || undefined,
+        ...toModelRequestSettings(runtimeSettings || loadModelSettings())
       }
 
       const response = await chatApi.sendMessage(request)
@@ -253,7 +255,11 @@ export const useChatStore = defineStore('chat', () => {
     writer: 'Writer Agent (streaming)'
   }
 
-  const sendMessageStream = async (text: string, agentMode: AgentMode = 'default') => {
+  const sendMessageStream = async (
+    text: string,
+    agentMode: AgentMode = 'default',
+    runtimeSettings: ModelSettings = loadModelSettings()
+  ) => {
     if ((!text.trim()) || loading.value) return
 
     pushUserMessage(text)
@@ -264,7 +270,9 @@ export const useChatStore = defineStore('chat', () => {
       role: 'assistant',
       content: '',
       createdAt: new Date(),
-      modelInfo: streamModelInfo[agentMode],
+      modelInfo: runtimeSettings.provider === 'system'
+        ? streamModelInfo[agentMode]
+        : runtimeSettings.selectedModel,
       agentMode
     }
     messages.value.push(streamMsg)
@@ -286,7 +294,14 @@ export const useChatStore = defineStore('chat', () => {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ text, role_id: currentRoleId.value || undefined })
+        body: JSON.stringify({
+          text,
+          role_id: currentRoleId.value || undefined,
+          model: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.selectedModel,
+          base_url: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.baseUrl,
+          api_key: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.apiKey,
+          reasoning_effort: runtimeSettings.reasoningEffort
+        })
       })
 
       if (!resp.ok) {

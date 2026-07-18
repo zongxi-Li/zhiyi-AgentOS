@@ -4,7 +4,7 @@
     <div id="app">
       <el-container class="app-layout" :class="{ 'immersive-mode': isImmersive, 'simple-chat-shell': isSimpleChatMode }">
         <!-- Sidebar Navigation -->
-        <el-aside width="248px" class="app-sidebar" v-if="!isImmersive && !isSimpleChatMode">
+        <el-aside width="248px" class="app-sidebar" v-if="!isImmersive && !usesDrawerNavigation">
           <!-- Logo Section -->
           <div class="sidebar-header" @click="router.push('/chat')">
             <div class="logo-icon">
@@ -94,7 +94,7 @@
         </el-aside>
 
         <button
-          v-if="isSimpleChatMode"
+          v-if="usesDrawerNavigation"
           class="simple-nav-toggle"
           type="button"
           aria-label="展开导航"
@@ -105,7 +105,7 @@
         </button>
 
         <el-drawer
-          v-if="isSimpleChatMode"
+          v-if="usesDrawerNavigation"
           v-model="simpleNavOpen"
           direction="ltr"
           :size="268"
@@ -246,6 +246,8 @@ const getStoredChatInterfaceMode = (): ChatInterfaceMode => {
 }
 const chatInterfaceMode = ref<ChatInterfaceMode>(getStoredChatInterfaceMode())
 const simpleNavOpen = ref(false)
+const mobileMediaQuery = window.matchMedia('(max-width: 760px)')
+const isMobileViewport = ref(mobileMediaQuery.matches)
 
 // Sidebar navigation state
 
@@ -279,6 +281,10 @@ const isSimpleChatMode = computed(() => {
   return route.path.startsWith('/chat') && chatInterfaceMode.value === 'simple' && !isImmersive.value
 })
 
+const usesDrawerNavigation = computed(() => {
+  return !isImmersive.value && (isSimpleChatMode.value || isMobileViewport.value)
+})
+
 const isRouteScrollable = computed(() => {
   const path = route.path
   return (
@@ -287,7 +293,8 @@ const isRouteScrollable = computed(() => {
     path.startsWith('/agentos-console') ||
     path.startsWith('/agentos/legal/contract-review') ||
     path.startsWith('/agentos/acg') ||
-    path.startsWith('/rag')
+    path.startsWith('/rag') ||
+    path.startsWith('/voice-chat')
   )
 })
 
@@ -343,6 +350,13 @@ const handleStorage = (event: StorageEvent) => {
   }
 }
 
+const handleViewportChange = (event: MediaQueryListEvent) => {
+  isMobileViewport.value = event.matches
+  if (!event.matches && !isSimpleChatMode.value) {
+    simpleNavOpen.value = false
+  }
+}
+
 // Logout with confirmation dialog
 const handleLogout = async () => {
   try {
@@ -375,12 +389,14 @@ onMounted(() => {
   window.addEventListener('global-error', handleGlobalError as EventListener)
   window.addEventListener(CHAT_INTERFACE_MODE_EVENT, handleChatInterfaceModeChange as EventListener)
   window.addEventListener('storage', handleStorage)
+  mobileMediaQuery.addEventListener('change', handleViewportChange)
 })
 
 onUnmounted(() => {
   window.removeEventListener('global-error', handleGlobalError as EventListener)
   window.removeEventListener(CHAT_INTERFACE_MODE_EVENT, handleChatInterfaceModeChange as EventListener)
   window.removeEventListener('storage', handleStorage)
+  mobileMediaQuery.removeEventListener('change', handleViewportChange)
 })
 
 watch(isSimpleChatMode, active => {

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import type { ReasoningEffort } from '@/config/modelSettings'
 
 export interface ChatRequest {
   text?: string
@@ -8,6 +9,10 @@ export interface ChatRequest {
   fileUrl?: string
   emotionTag?: string
   context?: Array<{ role: string; content: string }>
+  model?: string
+  baseUrl?: string
+  apiKey?: string
+  reasoningEffort?: ReasoningEffort
 }
 
 export interface Source {
@@ -42,7 +47,11 @@ export const chatApi = {
       roleId: chatRequest.roleId,
       contextId: chatRequest.contextId,
       fileUrl: chatRequest.fileUrl,
-      context: chatRequest.context
+      context: chatRequest.context,
+      model: chatRequest.model,
+      baseUrl: chatRequest.baseUrl,
+      apiKey: chatRequest.apiKey,
+      reasoningEffort: chatRequest.reasoningEffort
     })
     return response.data
   },
