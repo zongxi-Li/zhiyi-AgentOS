@@ -4,6 +4,7 @@ from app.ai_engine.model_runtime import (
     apply_reasoning_instruction,
     build_messages,
     completion_options,
+    resolve_system_runtime_config,
     validate_runtime_config,
 )
 
@@ -54,3 +55,17 @@ def test_native_reasoning_options_cover_openai_and_qwen():
         "reasoning_effort": "max",
         "extra_body": {"thinking": {"type": "enabled"}},
     }
+
+
+def test_system_runtime_model_override_reuses_server_credentials(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "server-secret")
+    monkeypatch.setattr(settings, "DEEPSEEK_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setattr(settings, "DEEPSEEK_MODEL", "deepseek-chat")
+
+    assert resolve_system_runtime_config("deepseek-v4-pro") == (
+        "deepseek-v4-pro",
+        "https://api.example.com/v1",
+        "server-secret",
+    )

@@ -8,7 +8,12 @@ from typing import List, Dict, Optional
 import json
 from app.services.aiservice import AIService
 from app.ai_engine.kylin_sdk.client import KylinAIClient
-from app.ai_engine.model_runtime import apply_reasoning_instruction, stream_with_runtime_model
+from app.ai_engine.model_runtime import (
+    apply_reasoning_instruction,
+    list_system_runtime_models,
+    resolve_system_runtime_config,
+    stream_with_runtime_model,
+)
 
 router = APIRouter()
 
@@ -31,6 +36,12 @@ class ChatResponse(BaseModel):
     tokens_used: int
     animation: Optional[Dict] = None
     model_info: Optional[str] = None
+
+
+@router.get("/chat/models")
+async def chat_models():
+    """Return models available through the server-managed API connection."""
+    return await list_system_runtime_models()
 
 @router.post("/chat/text", response_model=ChatResponse)
 async def chat_text(request: ChatRequest):
@@ -57,6 +68,9 @@ async def chat_text_stream(request: ChatRequest):
     """流式文本对话 (SSE)"""
     async def event_stream():
         try:
+            if request.model and not request.base_url and not request.api_key:
+                request.model, request.base_url, request.api_key = resolve_system_runtime_config(request.model)
+
             if request.model or request.base_url or request.api_key:
                 chunks = stream_with_runtime_model(
                     text=request.text,

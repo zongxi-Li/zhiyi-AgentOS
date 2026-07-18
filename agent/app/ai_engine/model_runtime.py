@@ -14,6 +14,47 @@ REASONING_INSTRUCTIONS = {
 }
 
 
+def resolve_system_runtime_config(model: str = "") -> tuple[str, str, str]:
+    """Resolve a request-level model override against server-managed credentials."""
+    from app.config import settings
+
+    deepseek_key = (settings.DEEPSEEK_API_KEY or "").strip()
+    if deepseek_key:
+        return (
+            model.strip() or settings.DEEPSEEK_MODEL,
+            settings.DEEPSEEK_BASE_URL,
+            deepseek_key,
+        )
+
+    qwen_key = (settings.DASHSCOPE_API_KEY or settings.QWEN_API_KEY or "").strip()
+    if qwen_key:
+        return (
+            model.strip() or settings.QWEN_MODEL_BALANCED,
+            settings.QWEN_BASE_URL,
+            qwen_key,
+        )
+
+    raise ValueError("服务端尚未配置可用的模型 API Key")
+
+
+async def list_system_runtime_models() -> Dict[str, object]:
+    """Read the real model catalog without exposing the server API key."""
+    default_model, base_url, api_key = resolve_system_runtime_config()
+    client = AsyncOpenAI(api_key=api_key, base_url=base_url.rstrip("/"))
+    try:
+        page = await client.models.list()
+        models = sorted({item.id for item in page.data if getattr(item, "id", "")})
+    except Exception:
+        # Some OpenAI-compatible providers do not implement GET /models.
+        models = [default_model]
+    finally:
+        await client.close()
+
+    if default_model not in models:
+        models.insert(0, default_model)
+    return {"models": models, "default_model": default_model}
+
+
 def validate_runtime_config(model: str, base_url: str, api_key: str) -> None:
     if not model.strip() or not base_url.strip() or not api_key.strip():
         raise ValueError("模型、API 地址和 API Key 均不能为空")

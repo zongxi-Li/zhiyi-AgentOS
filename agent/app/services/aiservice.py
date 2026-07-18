@@ -6,7 +6,11 @@ AI服务
 import logging
 from typing import Dict, List, Optional
 from app.ai_engine.kylin_sdk.client import KylinAIClient
-from app.ai_engine.model_runtime import apply_reasoning_instruction, generate_with_runtime_model
+from app.ai_engine.model_runtime import (
+    apply_reasoning_instruction,
+    generate_with_runtime_model,
+    resolve_system_runtime_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,9 @@ class AIService:
             包含text、confidence、emotion、animation等的字典
         """
         try:
+            if model and not base_url and not api_key:
+                model, base_url, api_key = resolve_system_runtime_config(model)
+
             if model or base_url or api_key:
                 return await generate_with_runtime_model(
                     text=text,
