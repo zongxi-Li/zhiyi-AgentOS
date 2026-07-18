@@ -24,23 +24,32 @@ FONT = "Microsoft YaHei"
 
 STATUS = {
     "done": {
-        "color": "#2F6B5F",
-        "fill": "#F5FAF8",
-        "stroke": "#4F766D",
+        "color": "#009E7A",
+        "fill": "#ECF8F5",
+        "stroke": "#1AA888",
         "dash": "0",
     },
     "evolving": {
-        "color": "#B97716",
-        "fill": "#FFFAF0",
-        "stroke": "#C58A2A",
+        "color": "#F59E0B",
+        "fill": "#FFF7E8",
+        "stroke": "#E9A23B",
         "dash": "0",
     },
     "future": {
-        "color": "#7C8792",
-        "fill": "#FAFBFC",
-        "stroke": "#8C96A0",
+        "color": "#64748B",
+        "fill": "#F8FAFC",
+        "stroke": "#94A3B8",
         "dash": "1",
     },
+}
+
+LAYER = {
+    "L0": {"accent": "#00A896", "fill": "#E7F8F5", "panel": "#F6FCFB", "border": "#46BFB0"},
+    "L1": {"accent": "#2563EB", "fill": "#EAF2FF", "panel": "#F7FAFF", "border": "#7AA6F7"},
+    "L2": {"accent": "#7C3AED", "fill": "#F2ECFF", "panel": "#FBF9FF", "border": "#B79AF5"},
+    "L3": {"accent": "#0891B2", "fill": "#E7F7FA", "panel": "#F6FCFD", "border": "#6DC4D4"},
+    "L4": {"accent": "#F43F5E", "fill": "#FFF0F3", "panel": "#FFF8F9", "border": "#F59BAA"},
+    "L5": {"accent": "#334155", "fill": "#EEF2F6", "panel": "#F8FAFC", "border": "#A3B2C3"},
 }
 
 
@@ -77,7 +86,7 @@ model = ET.SubElement(
         "pageHeight": "982",
         "math": "0",
         "shadow": "0",
-        "background": "#FFFFFF",
+        "background": "#F6F8FB",
     },
 )
 root = ET.SubElement(model, "root")
@@ -132,7 +141,7 @@ def edge(
     if style is None:
         style = (
             "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;"
-            "jettySize=auto;html=1;strokeColor=#344054;strokeWidth=1;"
+            "jettySize=auto;html=1;strokeColor=#435466;strokeWidth=1;"
             "endArrow=classic;endFill=1;"
         )
     cell = ET.SubElement(
@@ -163,7 +172,7 @@ def html_text(title: str, subtitle: str = "", status: str | None = None) -> str:
     if subtitle:
         return (
             f'{prefix}<b>{title}</b><br>'
-            f'<font color="#5F6B76">{subtitle}</font>'
+            f'<font color="#596776">{subtitle}</font>'
         )
     return f"{prefix}<b>{title}</b>"
 
@@ -183,7 +192,7 @@ def card_style(
         "rounded=1;whiteSpace=wrap;html=1;"
         f'fillColor={spec["fill"]};strokeColor={spec["stroke"]};'
         f"strokeWidth=1;arcSize={arc};{dash}"
-        f"fontFamily={FONT};fontSize={font_size};fontColor=#1F2937;"
+        f"fontFamily={FONT};fontSize={font_size};fontColor=#172B2E;"
         f"align={align};verticalAlign={vertical};spacingLeft={spacing_left};"
         "spacingRight=5;spacingTop=3;spacingBottom=3;"
     )
@@ -191,37 +200,38 @@ def card_style(
 
 TEXT = (
     "text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;"
-    f"fontFamily={FONT};fontColor=#1F2937;verticalAlign=middle;"
+    f"fontFamily={FONT};fontColor=#172B2E;verticalAlign=middle;"
 )
 CONTAINER = (
     "rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;"
-    "strokeColor=#667085;strokeWidth=1;arcSize=5;"
+    "strokeColor=#A9B4C0;strokeWidth=1;arcSize=5;"
 )
 GROUP = (
     "rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;"
-    "strokeColor=#8A949E;strokeWidth=1;"
-    f"fontFamily={FONT};fontColor=#1F2937;verticalAlign=top;spacingTop=5;arcSize=6;"
+    "strokeColor=#A7B3BF;strokeWidth=1;"
+    f"fontFamily={FONT};fontColor=#172B2E;verticalAlign=top;spacingTop=5;arcSize=6;"
 )
 BUS = (
-    "rounded=1;whiteSpace=wrap;html=1;fillColor=#F7F9FB;"
-    "strokeColor=#667085;strokeWidth=1;arcSize=8;"
-    f"fontFamily={FONT};fontColor=#344054;fontSize=11;fontStyle=1;"
+    "rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F9FB;"
+    "strokeColor=#22A8B5;strokeWidth=1;arcSize=8;"
+    f"fontFamily={FONT};fontColor=#0E6670;fontSize=11;fontStyle=1;"
 )
 EDGE_DOWN = (
-    "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#344054;"
+    "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#435466;"
     "strokeWidth=1.1;endArrow=classic;endFill=1;"
     "exitX=0.5;exitY=1;entryX=0.5;entryY=0;"
 )
 EDGE_DASH = (
-    "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7C8792;"
+    "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#708090;"
     "strokeWidth=1;dashed=1;dashPattern=5 4;endArrow=classic;endFill=1;"
 )
 
 
 def layer_label(cell_id: str, level: str, cn: str, en: str, y: int, height: int) -> None:
+    palette = LAYER[level]
     value = (
         f'<b>{level} {cn}</b><br>'
-        f'<font color="#52606D" style="font-size: 12px">{en}</font>'
+        f'<font color="{palette["accent"]}" style="font-size: 12px">{en}</font>'
     )
     vertex(
         cell_id,
@@ -230,14 +240,14 @@ def layer_label(cell_id: str, level: str, cn: str, en: str, y: int, height: int)
         y,
         132,
         height,
-        "rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;"
-        "strokeColor=#667085;strokeWidth=1;arcSize=8;"
-        f"fontFamily={FONT};fontColor=#1F2937;fontSize=14;align=center;"
+        f'rounded=1;whiteSpace=wrap;html=1;fillColor={palette["fill"]};'
+        f'strokeColor={palette["border"]};strokeWidth=1.2;arcSize=8;'
+        f'fontFamily={FONT};fontColor={palette["accent"]};fontSize=14;align=center;'
         "verticalAlign=middle;spacing=4;",
     )
 
 
-def layer_title(cell_id: str, value: str, x: int, y: int, width: int) -> None:
+def layer_title(cell_id: str, value: str, x: int, y: int, width: int, level: str) -> None:
     vertex(
         cell_id,
         f"<b>{value}</b>",
@@ -245,7 +255,16 @@ def layer_title(cell_id: str, value: str, x: int, y: int, width: int) -> None:
         y,
         width,
         22,
-        TEXT + "fontSize=16;fontStyle=1;align=center;",
+        TEXT + f'fontSize=16;fontStyle=1;align=center;fontColor={LAYER[level]["accent"]};',
+    )
+
+
+def layer_panel_style(level: str) -> str:
+    palette = LAYER[level]
+    return (
+        "rounded=1;whiteSpace=wrap;html=1;"
+        f'fillColor={palette["panel"]};strokeColor={palette["border"]};'
+        "strokeWidth=1.1;arcSize=5;"
     )
 
 
@@ -259,7 +278,7 @@ vertex(
     0,
     1600,
     982,
-    "rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;locked=1;",
+    "rounded=0;whiteSpace=wrap;html=1;fillColor=#F6F8FB;strokeColor=none;locked=1;",
 )
 vertex(
     "title",
@@ -268,7 +287,7 @@ vertex(
     1,
     1100,
     32,
-    TEXT + "fontSize=25;fontStyle=1;align=center;fontColor=#162A25;",
+    TEXT + "fontSize=25;fontStyle=1;align=center;fontColor=#0B3B3A;",
 )
 vertex(
     "scope_note",
@@ -277,12 +296,12 @@ vertex(
     34,
     520,
     18,
-    TEXT + "fontSize=10;align=left;fontColor=#667085;",
+    TEXT + "fontSize=10;align=left;fontColor=#64748B;",
 )
 legend_value = (
-    '<font color="#2F6B5F">●</font> 已实现　'
-    '<font color="#B97716">●</font> 演进中　'
-    '<font color="#7C8792">◇</font> 未来蓝图（虚线框）'
+    '<font color="#009E7A">●</font> 已实现　'
+    '<font color="#F59E0B">●</font> 演进中　'
+    '<font color="#64748B">◇</font> 未来蓝图（虚线框）'
 )
 vertex(
     "status_legend",
@@ -305,18 +324,26 @@ layer_label("label_l3", "L3", "执行与治理层", "Execution & Governance", 47
 layer_label("label_l4", "L4", "自愈恢复层", "Self-Healing Layer", 682, 93)
 layer_label("label_l5", "L5", "基础设施层", "Infrastructure Layer", 806, 112)
 
-vertex("l1_box", "", 163, 151, 1297, 165, CONTAINER)
-vertex("l2_box", "", 163, 335, 1297, 116, CONTAINER)
-vertex("l3_box", "", 163, 470, 1297, 213, CONTAINER)
-vertex("l4_box", "", 163, 695, 1297, 106, CONTAINER)
-vertex("l5_box", "", 151, 811, 1437, 155, CONTAINER)
-vertex("right_rail", "", 1482, 153, 106, 634, CONTAINER)
+vertex("l1_box", "", 163, 151, 1297, 165, layer_panel_style("L1"))
+vertex("l2_box", "", 163, 335, 1297, 116, layer_panel_style("L2"))
+vertex("l3_box", "", 163, 470, 1297, 213, layer_panel_style("L3"))
+vertex("l4_box", "", 163, 695, 1297, 106, layer_panel_style("L4"))
+vertex("l5_box", "", 151, 811, 1437, 155, layer_panel_style("L5"))
+vertex(
+    "right_rail",
+    "",
+    1482,
+    153,
+    106,
+    634,
+    "rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#9AA8B7;strokeWidth=1.1;arcSize=5;",
+)
 
-layer_title("l1_title", "认知规划引擎（Cognitive Planning Engine）", 163, 156, 855)
-layer_title("l2_title", "群体组织层（动态能力编组与受控协作）", 163, 339, 1297)
-layer_title("l3_title", "执行与治理运行时（Workflow Runtime）", 163, 473, 1297)
-layer_title("l4_title", "自愈恢复控制器（Self-Healing Controller）", 163, 699, 1297)
-layer_title("l5_title", "基础设施与资源织网（跨层支撑能力）", 151, 812, 1437)
+layer_title("l1_title", "认知规划引擎（Cognitive Planning Engine）", 163, 156, 855, "L1")
+layer_title("l2_title", "群体组织层（动态能力编组与受控协作）", 163, 339, 1297, "L2")
+layer_title("l3_title", "执行与治理运行时（Workflow Runtime）", 163, 473, 1297, "L3")
+layer_title("l4_title", "自愈恢复控制器（Self-Healing Controller）", 163, 699, 1297, "L4")
+layer_title("l5_title", "基础设施与资源织网（跨层支撑能力）", 151, 812, 1437, "L5")
 
 
 # Cross-layer flow; short connectors occupy the gaps between layer bands.
@@ -412,7 +439,7 @@ vertex(
     "plan_strategy",
     '<b>静态优选</b>：模板命中 → promote_workflow_to_acg　｜　'
     '<b>动态补位</b>：能力路由 → ACG 构建　｜　'
-    '<font color="#7C8792">◇ 自动发现复杂并行子图</font>',
+    '<font color="#64748B">◇ 自动发现复杂并行子图</font>',
     178,
     286,
     831,
@@ -427,8 +454,8 @@ vertex(
     163,
     326,
     147,
-    "rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;"
-    "strokeColor=#7C8792;strokeWidth=1;arcSize=7;",
+    "rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FBFF;"
+    "strokeColor=#2563EB;strokeWidth=1.2;arcSize=7;",
 )
 vertex(
     "acg_preview_title",
@@ -437,7 +464,7 @@ vertex(
     156,
     185,
     20,
-    TEXT + "fontSize=12;align=center;fillColor=#FFFFFF;",
+    TEXT + "fontSize=12;align=center;fillColor=#FFFFFF;fontColor=#2563EB;",
 )
 edge("plan_to_acg", "plan_builder", "acg_preview")
 
@@ -471,7 +498,7 @@ for cell_id, label, x, y, shape_style in graph_nodes:
     )
 
 mini_edge = (
-    "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#667085;"
+    "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#64748B;"
     "strokeWidth=0.8;endArrow=block;endFill=1;endSize=4;"
 )
 for idx, (source, target) in enumerate(
@@ -503,7 +530,7 @@ vertex(
     157,
     104,
     151,
-    "rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8A949E;arcSize=7;",
+    "rounded=1;whiteSpace=wrap;html=1;fillColor=#FBF9FF;strokeColor=#8B5CF6;strokeWidth=1.1;arcSize=7;",
 )
 legend_rows = [
     ("#2563EB", "Agent"),
@@ -530,7 +557,7 @@ vertex(
     296,
     88,
     9,
-    TEXT + "fontSize=7;align=center;fontColor=#667085;",
+    TEXT + "fontSize=7;align=center;fontColor=#64748B;",
 )
 
 
@@ -613,9 +640,9 @@ edge("exec_chain_3", "executor_group", "audit_group")
 
 vertex(
     "l3_event_bus",
-    '<font color="#B97716">●</font> <b>低熵上下文总线</b>（Low-Entropy Context Bus）　'
+    '<font color="#F59E0B">●</font> <b>低熵上下文总线</b>（Low-Entropy Context Bus）　'
     'ContextAssembler · ContextPack · input_spec · ProvenanceLedger　'
-    '<font color="#7C8792">◇ 动态摘要压缩</font>',
+    '<font color="#64748B">◇ 动态摘要压缩</font>',
     407,
     655,
     1007,
@@ -628,7 +655,7 @@ for idx, source in enumerate(["dispatch_group", "executor_group", "audit_group"]
         source,
         "l3_event_bus",
         style=(
-            "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7C8792;"
+            "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#708090;"
             "strokeWidth=0.9;endArrow=none;startArrow=none;"
             "exitX=0.5;exitY=1;entryX=0.5;entryY=0;"
         ),
@@ -665,7 +692,7 @@ edge(
     "heal_replan",
     "heal_resume",
     style=(
-        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#344054;"
+        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#435466;"
         "strokeWidth=1;endArrow=classic;endFill=1;"
         "exitX=1;exitY=0.78;entryX=0;entryY=0.78;"
     ),
@@ -679,7 +706,7 @@ edge(
     "heal_resume",
     "audit_group",
     style=(
-        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#667085;"
+        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#64748B;"
         "strokeWidth=1;endArrow=classic;endFill=1;"
         "exitX=0.5;exitY=0;entryX=0.5;entryY=1;"
     ),
@@ -691,12 +718,12 @@ edge(
 # L5 — memory, communication, resource and observability fabrics
 # ---------------------------------------------------------------------------
 infra_groups = [
-    ("memory_group", 160, 344, "记忆中枢（Memory Fabric）"),
-    ("communication_group", 519, 314, "通信总线（Communication Fabric）"),
-    ("resource_group", 846, 348, "资源池（Resource & Model Pool）"),
-    ("observability_group", 1208, 368, "可观测与安全（Observability & Security）"),
+    ("memory_group", 160, 344, "记忆中枢（Memory Fabric）", "#00A896"),
+    ("communication_group", 519, 314, "通信总线（Communication Fabric）", "#2563EB"),
+    ("resource_group", 846, 348, "资源池（Resource & Model Pool）", "#F59E0B"),
+    ("observability_group", 1208, 368, "可观测与安全（Observability & Security）", "#8B5CF6"),
 ]
-for cell_id, x, width, title in infra_groups:
+for cell_id, x, width, title, accent in infra_groups:
     vertex(
         cell_id,
         f"<b>{title}</b>",
@@ -704,8 +731,8 @@ for cell_id, x, width, title in infra_groups:
         834,
         width,
         122,
-        "rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8A949E;"
-        f"strokeWidth=1;arcSize=6;fontFamily={FONT};fontSize=10;"
+        f"rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor={accent};"
+        f"strokeWidth=1.15;arcSize=6;fontFamily={FONT};fontSize=10;fontColor={accent};"
         "fontStyle=1;align=center;verticalAlign=top;spacingTop=4;",
     )
 
@@ -719,7 +746,7 @@ for cell_id, x, width, label, status in memory_items:
     vertex(cell_id, html_text(label, "", status), x, 858, width, 55, card_style(status, font_size=9))
 vertex(
     "memory_footer",
-    'Memory / SQLite　｜　PostgreSQL / Redis　｜　<font color="#7C8792">◇ Vector / Capsule</font>',
+    'Memory / SQLite　｜　PostgreSQL / Redis　｜　<font color="#64748B">◇ Vector / Capsule</font>',
     168,
     921,
     328,
@@ -737,7 +764,7 @@ for cell_id, x, width, label, status in communication_items:
     vertex(cell_id, html_text(label, "", status), x, 858, width, 55, card_style(status, font_size=8))
 vertex(
     "communication_footer",
-    'input_spec ｜ Structured Message ｜ <font color="#7C8792">◇ Context Compression</font>',
+    'input_spec ｜ Structured Message ｜ <font color="#64748B">◇ Context Compression</font>',
     527,
     921,
     298,
@@ -755,7 +782,7 @@ for cell_id, x, width, label, status in resource_items:
     vertex(cell_id, html_text(label, "", status), x, 858, width, 55, card_style(status, font_size=8))
 vertex(
     "resource_footer",
-    'DeepSeek / Qwen / Mock　｜　Tool / Evidence　｜　<font color="#7C8792">◇ Resource Fabric</font>',
+    'DeepSeek / Qwen / Mock　｜　Tool / Evidence　｜　<font color="#64748B">◇ Resource Fabric</font>',
     854,
     921,
     332,
@@ -773,7 +800,7 @@ for cell_id, x, width, label, status in observability_items:
     vertex(cell_id, html_text(label, "", status), x, 858, width, 55, card_style(status, font_size=8))
 vertex(
     "observability_footer",
-    '可视化看板 ｜ 成本/质量 ｜ JWT / Policy ｜ <font color="#7C8792">◇ Multi-tenant</font>',
+    '可视化看板 ｜ 成本/质量 ｜ JWT / Policy ｜ <font color="#64748B">◇ Multi-tenant</font>',
     1216,
     921,
     352,
@@ -787,12 +814,12 @@ vertex(
 # ---------------------------------------------------------------------------
 vertex(
     "delivery_title",
-    "<b>最终交付物</b><br><font color=\"#667085\">Deliverables</font>",
+    "<b>最终交付物</b><br><font color=\"#64748B\">Deliverables</font>",
     1488,
     160,
     94,
     38,
-    TEXT + "fontSize=11;align=center;",
+    TEXT + "fontSize=11;align=center;fontColor=#F97316;",
 )
 delivery_cards = [
     ("delivery_risk", 202, "风险项 / Evidence", "done"),
@@ -807,12 +834,12 @@ for cell_id, y, label, status in delivery_cards:
 
 vertex(
     "trace_title",
-    "<b>全链路可追溯</b><br><font color=\"#667085\">Traceability</font>",
+    "<b>全链路可追溯</b><br><font color=\"#64748B\">Traceability</font>",
     1488,
     475,
     94,
     38,
-    TEXT + "fontSize=10;align=center;",
+    TEXT + "fontSize=10;align=center;fontColor=#2563EB;",
 )
 trace_cards = [
     ("trace_intent", 520, "Task / Intent"),
@@ -829,7 +856,7 @@ edge(
     "l3_box",
     "delivery_report",
     style=(
-        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#344054;"
+        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#435466;"
         "strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.25;entryX=0;entryY=0.5;"
     ),
 )
@@ -838,7 +865,7 @@ edge(
     "audit_group",
     "trace_lineage",
     style=(
-        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#667085;"
+        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#64748B;"
         "strokeWidth=1;startArrow=classic;startFill=1;endArrow=classic;endFill=1;"
         "exitX=1;exitY=0.5;entryX=0;entryY=0.5;"
     ),
@@ -848,7 +875,7 @@ edge(
     "trace_recovery",
     "heal_resume",
     style=(
-        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#667085;"
+        "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#64748B;"
         "strokeWidth=1;endArrow=classic;endFill=1;"
         "exitX=0;exitY=0.5;entryX=1;entryY=0.5;"
     ),
@@ -863,7 +890,7 @@ vertex(
     968,
     1418,
     10,
-    TEXT + "fontSize=8;align=center;fontColor=#667085;",
+    TEXT + "fontSize=8;align=center;fontColor=#64748B;",
 )
 
 
