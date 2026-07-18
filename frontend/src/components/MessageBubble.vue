@@ -1,17 +1,7 @@
-<!-- 消息气泡组件 — 渲染聊天消息气泡，含发送者头像、名称、时间戳、文件附件和图片预览 -->
+<!-- 消息展示组件 — 用户使用紧凑气泡，助手使用无边框阅读流 -->
 <template>
   <div v-if="message && message.role && message.content !== undefined" :class="['message-bubble', message.role]">
-    <div class="message-avatar">
-      <el-avatar :size="36" shape="square" :src="roleAvatar">
-        {{ message.role === 'user' ? 'Me' : roleName?.charAt(0) }}
-      </el-avatar>
-    </div>
     <div class="message-content-wrapper">
-      <div class="message-meta">
-        <span class="sender-name">{{ message.role === 'user' ? '你' : roleName }}</span>
-        <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-      </div>
-      
       <div class="message-content">
         <!-- 文件展示 -->
         <div v-if="message.fileUrl" class="message-file">
@@ -110,25 +100,26 @@
             </el-collapse-item>
           </el-collapse>
         </div>
+      </div>
 
-        <!-- Message Actions Area -->
-        <div class="message-actions">
-           <el-tooltip content="复制" placement="top">
-             <div class="action-item" @click="handleAction('copy')"><el-icon><CopyDocument /></el-icon></div>
-           </el-tooltip>
-           <el-tooltip content="引用" placement="top">
-             <div class="action-item" @click="handleAction('quote')"><el-icon><ChatLineSquare /></el-icon></div>
-           </el-tooltip>
-           <el-tooltip content="生成语音" placement="top">
-             <div class="action-item" @click="handleAction('tts')"><el-icon><Microphone /></el-icon></div>
-           </el-tooltip>
-           <el-tooltip content="导出" placement="top">
-             <div class="action-item" @click="handleAction('export')"><el-icon><Download /></el-icon></div>
-           </el-tooltip>
-           <el-tooltip content="删除" placement="top">
-             <div class="action-item delete" @click="handleAction('delete')"><el-icon><Delete /></el-icon></div>
-           </el-tooltip>
-        </div>
+      <!-- Message Actions Area -->
+      <div class="message-actions">
+        <el-tooltip content="复制" placement="top">
+          <div class="action-item" @click="handleAction('copy')"><el-icon><CopyDocument /></el-icon></div>
+        </el-tooltip>
+        <el-tooltip content="引用" placement="top">
+          <div class="action-item" @click="handleAction('quote')"><el-icon><ChatLineSquare /></el-icon></div>
+        </el-tooltip>
+        <el-tooltip content="生成语音" placement="top">
+          <div class="action-item" @click="handleAction('tts')"><el-icon><Microphone /></el-icon></div>
+        </el-tooltip>
+        <el-tooltip content="导出" placement="top">
+          <div class="action-item" @click="handleAction('export')"><el-icon><Download /></el-icon></div>
+        </el-tooltip>
+        <el-tooltip content="删除" placement="top">
+          <div class="action-item delete" @click="handleAction('delete')"><el-icon><Delete /></el-icon></div>
+        </el-tooltip>
+        <span class="message-action-time">{{ formatTime(message.createdAt) }}</span>
       </div>
     </div>
   </div>
@@ -142,7 +133,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Document, InfoFilled, Link, CopyDocument, ChatLineSquare, Delete, Microphone, Download, FullScreen } from '@element-plus/icons-vue'
-import { useRoleStore } from '@/stores/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ImageViewer from '@/components/common/ImageViewer.vue'
 
@@ -175,7 +165,6 @@ interface Props {
 
 const props = defineProps<Props>()
 const emit = defineEmits(['copy', 'quote', 'delete', 'tts', 'export'])
-const roleStore = useRoleStore()
 const activeCollapse = ref<string[]>([])
 const imageViewerVisible = ref(false)
 
@@ -318,14 +307,6 @@ const renderedMessageHtml = computed(() => {
   return escapeHtml(content).replace(/\n/g, '<br />')
 })
 
-const roleName = computed(() => {
-  return roleStore.currentRole?.name || 'Assistant'
-})
-
-const roleAvatar = computed(() => {
-  return props.message.role === 'assistant' ? roleStore.currentRole?.avatar : undefined
-})
-
 const hasExplanation = computed(() => {
   return !!(
     props.message.confidence ||
@@ -358,74 +339,58 @@ const formatTime = (date: Date) => {
 
 <style scoped lang="scss">
 .message-bubble {
+  width: 100%;
   display: flex;
-  margin-bottom: 18px;
-  gap: 12px;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
   animation: fadeIn 180ms var(--ease-out);
-  padding: 0 12px;
+  padding: 0 28px;
 }
 
 .message-bubble.user {
-  flex-direction: row-reverse;
-}
-
-.message-avatar {
-  flex-shrink: 0;
-  margin-top: 4px;
+  justify-content: flex-end;
 }
 
 .message-content-wrapper {
-  max-width: 76%;
-  min-width: 120px;
+  width: min(100%, 780px);
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
 .message-bubble.user .message-content-wrapper {
+  width: auto;
+  max-width: min(72%, 560px);
   align-items: flex-end;
 }
 
-.message-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.message-bubble.user .message-meta {
-  flex-direction: row-reverse;
-}
-
-.sender-name {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
 .message-content {
-  padding: 13px 15px;
-  border-radius: 8px;
+  padding: 0;
+  border-radius: 0;
   word-wrap: break-word;
-  line-height: 1.6;
-  font-size: 15px;
+  line-height: 1.75;
+  font-size: 15.5px;
   position: relative;
   transition: var(--transition);
 }
 
 .message-bubble.user .message-content {
-  background-color: var(--primary-color);
-  color: white;
-  border-top-right-radius: 3px;
+  padding: 9px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
   box-shadow: none;
 }
 
 .message-bubble.assistant .message-content {
-  background-color: #fff;
+  background: transparent;
   color: var(--text-primary);
-  border: 1px solid var(--border-light);
-  border-top-left-radius: 3px;
-  box-shadow: var(--shadow-sm);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* System/History Messages (Placeholder for role='system') */
@@ -469,35 +434,40 @@ const formatTime = (date: Date) => {
 .message-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 4px 0;
-  opacity: 1;
+  gap: 2px;
+  margin-top: 7px;
+  padding: 0;
+  opacity: 0.62;
   transition: opacity 0.2s;
 }
 
 /* 保持悬停效果，但不再控制显示/隐藏 */
-.message-content:hover .message-actions {
+.message-bubble:hover .message-actions,
+.message-actions:focus-within {
   opacity: 1;
 }
 
+.message-bubble.user .message-actions {
+  justify-content: flex-end;
+}
+
 .action-item {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   color: var(--text-disabled);
   transition: var(--transition);
-  background: rgba(29, 36, 34, 0.03);
+  background: transparent;
 }
 
 .action-item:hover {
-  background: rgba(63, 107, 99, 0.08);
-  color: var(--primary-color);
-  transform: translateY(-1px);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  transform: none;
 }
 
 .action-item.delete:hover {
@@ -509,13 +479,25 @@ const formatTime = (date: Date) => {
 }
 
 .message-bubble.user .action-item {
-  color: rgba(255, 255, 255, 0.76);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-disabled);
+  background: transparent;
 }
 
 .message-bubble.user .action-item:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+  background: var(--bg-panel);
+}
+
+.message-action-time {
+  margin-left: 6px;
+  color: var(--text-disabled);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.message-bubble.user .message-action-time {
+  order: -1;
+  margin: 0 6px 0 0;
 }
 
 /* File Attachments */
@@ -578,7 +560,7 @@ const formatTime = (date: Date) => {
 
 .message-text.markdown-body {
   white-space: normal;
-  line-height: 1.7;
+  line-height: 1.78;
 }
 
 .message-text.markdown-body :deep(h1),
@@ -597,7 +579,11 @@ const formatTime = (date: Date) => {
 .message-text.markdown-body :deep(h3) { font-size: 16px; }
 
 .message-text.markdown-body :deep(p) {
-  margin: 8px 0;
+  margin: 0 0 12px;
+}
+
+.message-text.markdown-body :deep(p:last-child) {
+  margin-bottom: 0;
 }
 
 .message-text.markdown-body :deep(ul),

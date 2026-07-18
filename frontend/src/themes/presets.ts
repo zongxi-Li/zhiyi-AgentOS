@@ -1,4 +1,4 @@
-export type ColorSchemeId = 'claude-warm' | 'tea-green' | 'blue-purple'
+export type ColorSchemeId = 'codex-dark' | 'claude-warm' | 'tea-green' | 'blue-purple'
 
 export interface ColorScheme {
   id: ColorSchemeId
@@ -7,6 +7,90 @@ export interface ColorScheme {
   previewColor: string
   variables: Record<string, string>
   bodyBackground: string
+}
+
+const codexDark: ColorScheme = {
+  id: 'codex-dark',
+  name: 'Codex 深色',
+  nameEn: 'Codex Dark',
+  previewColor: '#A78BFA',
+  bodyBackground:
+    'radial-gradient(at 50% -20%, rgba(167, 139, 250, 0.08) 0px, transparent 42%), ' +
+    'linear-gradient(180deg, #202131 0%, #1E1F2E 100%)',
+  variables: {
+    '--primary-color': '#A78BFA',
+    '--primary-hover': '#B8A2FC',
+    '--primary-active': '#8F73E6',
+    '--primary-fade': 'rgba(167, 139, 250, 0.14)',
+    '--primary-line': 'rgba(167, 139, 250, 0.3)',
+
+    '--accent-color': '#C4B5FD',
+    '--accent-fade': 'rgba(196, 181, 253, 0.12)',
+
+    '--bg-app': '#1E1F2E',
+    '--bg-sidebar': '#292A3D',
+    '--bg-card': '#2D2E42',
+    '--bg-panel': '#343548',
+    '--bg-input': '#252638',
+    '--bg-glass': 'rgba(42, 43, 62, 0.86)',
+    '--app-layout-bg': 'linear-gradient(180deg, #232435 0%, #1E1F2E 100%)',
+    '--sidebar-bg': 'rgba(35, 36, 53, 0.96)',
+    '--drawer-bg': 'rgba(35, 36, 53, 0.98)',
+    '--sidebar-border': 'rgba(90, 91, 119, 0.42)',
+    '--scrollbar-thumb': 'rgba(170, 169, 190, 0.24)',
+    '--scrollbar-thumb-hover': 'rgba(196, 181, 253, 0.38)',
+
+    '--text-primary': '#E8E7F0',
+    '--text-regular': '#D2D1DE',
+    '--text-secondary': '#AAA9BE',
+    '--text-muted': '#85859B',
+    '--text-disabled': '#68697D',
+
+    '--border-light': '#414257',
+    '--border-hover': '#595A73',
+    '--border-focus': 'rgba(167, 139, 250, 0.55)',
+
+    '--success': '#75C69A',
+    '--warning': '#D9B66F',
+    '--danger': '#E88787',
+    '--info': '#8FB4E8',
+
+    '--shadow-sm': '0 1px 2px rgba(8, 9, 18, 0.22)',
+    '--shadow-md': '0 10px 26px rgba(8, 9, 18, 0.28)',
+    '--shadow-lg': '0 20px 52px rgba(8, 9, 18, 0.36)',
+    '--shadow-glow': '0 12px 30px rgba(167, 139, 250, 0.18)',
+
+    '--el-color-primary': '#A78BFA',
+    '--el-color-primary-light-3': '#B9A5FB',
+    '--el-color-primary-light-5': '#CBBDFB',
+    '--el-color-primary-light-7': '#6F648F',
+    '--el-color-primary-light-8': '#4C4966',
+    '--el-color-primary-light-9': '#38384D',
+    '--el-color-primary-dark-2': '#8F73E6',
+    '--el-bg-color': '#292A3D',
+    '--el-bg-color-page': '#1E1F2E',
+    '--el-bg-color-overlay': '#343548',
+    '--el-fill-color-blank': '#2D2E42',
+    '--el-fill-color': '#343548',
+    '--el-fill-color-light': '#38394D',
+    '--el-fill-color-lighter': '#3D3E52',
+    '--el-fill-color-extra-light': '#414257',
+    '--el-fill-color-dark': '#242536',
+    '--el-fill-color-darker': '#202131',
+    '--el-fill-color-disabled': '#292A3D',
+    '--el-text-color-primary': '#E8E7F0',
+    '--el-text-color-regular': '#D2D1DE',
+    '--el-text-color-secondary': '#AAA9BE',
+    '--el-text-color-placeholder': '#85859B',
+    '--el-text-color-disabled': '#68697D',
+    '--el-border-color': '#414257',
+    '--el-border-color-light': '#494A60',
+    '--el-border-color-lighter': '#3C3D51',
+    '--el-border-color-extra-light': '#353649',
+    '--el-border-color-dark': '#595A73',
+    '--el-border-color-darker': '#696A84',
+    '--el-mask-color': 'rgba(8, 9, 18, 0.72)',
+  },
 }
 
 const claudeWarm: ColorScheme = {
@@ -195,8 +279,8 @@ const bluePurple: ColorScheme = {
   },
 }
 
-export const colorSchemes: ColorScheme[] = [claudeWarm, bluePurple, teaGreen]
+export const colorSchemes: ColorScheme[] = [codexDark, claudeWarm, bluePurple, teaGreen]
 
 export function getColorScheme(id: ColorSchemeId): ColorScheme {
-  return colorSchemes.find((s) => s.id === id) || claudeWarm
+  return colorSchemes.find((s) => s.id === id) || codexDark
 }

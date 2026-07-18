@@ -2,30 +2,105 @@
 <template>
   <ErrorBoundary>
     <div id="app">
-      <el-container class="app-layout" :class="{ 'immersive-mode': isImmersive, 'simple-chat-shell': isSimpleChatMode }">
+      <el-container class="app-layout" :class="{ 'immersive-mode': isImmersive }">
         <!-- Sidebar Navigation -->
-        <el-aside width="248px" class="app-sidebar" v-if="!isImmersive && !usesDrawerNavigation">
+        <el-aside
+          v-if="!isImmersive && !usesDrawerNavigation"
+          :width="sidebarAsideWidth"
+          class="app-sidebar"
+          :class="{ collapsed: mainSidebarCompact, 'chat-panel-open': chatNavOpen, resizing: sidebarResizing || chatPanelResizing }"
+        >
+          <div class="primary-sidebar" :style="{ width: primarySidebarWidth }">
           <!-- Logo Section -->
-          <div class="sidebar-header" @click="router.push('/chat')">
-            <div class="logo-icon">
-              <el-icon><Connection /></el-icon>
-            </div>
-            <span class="logo-text">知弈</span>
+          <div class="sidebar-header">
+            <button class="sidebar-brand" type="button" aria-label="返回对话" @click="router.push('/chat')">
+              <span class="logo-icon">
+                <el-icon><Connection /></el-icon>
+              </span>
+              <span v-if="!mainSidebarCompact" class="logo-text">知弈</span>
+            </button>
+            <button
+              class="sidebar-collapse-btn"
+              type="button"
+              :aria-label="chatNavOpen ? '关闭聊天面板' : (sidebarCollapsed ? '展开侧边栏' : '收起侧边栏')"
+              :title="chatNavOpen ? '关闭聊天面板' : (sidebarCollapsed ? '展开侧边栏' : '收起侧边栏')"
+              @click="toggleSidebar"
+            >
+              <el-icon><Expand v-if="mainSidebarCompact" /><Fold v-else /></el-icon>
+            </button>
           </div>
 
           <!-- Main Navigation -->
           <div class="sidebar-nav" ref="sidebarNav">
+            <div
+              v-if="!mainSidebarCompact"
+              class="workspace-switch"
+              role="tablist"
+              aria-label="工作模式"
+            >
+              <div class="agent-switch-entry">
+                <button
+                  class="workspace-switch-btn"
+                  :class="{ active: workspaceMode === 'agent' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="workspaceMode === 'agent'"
+                  @click="selectWorkspaceMode('agent')"
+                >
+                  <el-icon><Monitor /></el-icon>
+                  <span>Agent</span>
+                </button>
+                <div class="agent-hover-menu" role="menu">
+                  <button type="button" role="menuitem" @click.stop="openRoleSelection">
+                    <el-icon><User /></el-icon>
+                    <span>选择角色</span>
+                    <el-icon class="agent-hover-arrow"><ArrowRight /></el-icon>
+                  </button>
+                </div>
+              </div>
+              <button
+                class="workspace-switch-btn"
+                :class="{ active: workspaceMode === 'chat' }"
+                type="button"
+                role="tab"
+                :aria-selected="workspaceMode === 'chat'"
+                @click="selectWorkspaceMode('chat')"
+              >
+                <el-icon><ChatDotRound /></el-icon>
+                <span>Chat</span>
+              </button>
+            </div>
+
             <el-menu
               :default-active="activeMenu"
               router
               class="sidebar-menu"
+              :collapse="mainSidebarCompact"
+              :collapse-transition="false"
               @wheel="handleSidebarWheel"
             >
-              <div class="menu-group-title">{{ $t('nav.main') }}</div>
-              <el-menu-item index="/chat">
-                <el-icon><ChatDotRound /></el-icon>
-                <span>{{ $t('nav.chat') }}</span>
-              </el-menu-item>
+              <div v-if="!mainSidebarCompact" class="menu-group-title">{{ $t('nav.main') }}</div>
+              <div
+                v-if="workspaceMode === 'chat'"
+                class="chat-nav-group"
+                :class="{ active: route.path.startsWith('/chat'), open: chatNavOpen }"
+              >
+                <button
+                  class="chat-nav-trigger"
+                  type="button"
+                  :aria-expanded="chatNavOpen"
+                  aria-controls="chat-side-panel"
+                  @click="handleChatNavToggle"
+                >
+                  <el-icon><ChatDotRound /></el-icon>
+                  <span v-if="!mainSidebarCompact" class="chat-nav-label">{{ $t('nav.chat') }}</span>
+                  <el-icon v-if="!mainSidebarCompact" class="chat-nav-chevron">
+                    <ArrowDown v-if="chatNavOpen" />
+                    <ArrowRight v-else />
+                  </el-icon>
+                </button>
+
+              </div>
               <el-menu-item index="/agentos/legal/contract-review">
                 <el-icon><DocumentChecked /></el-icon>
                 <span>角色工作台</span>
@@ -36,17 +111,13 @@
                 <span>ACG 动态群体智能引擎</span>
               </el-menu-item>
 
-              <div class="menu-group-title">{{ $t('nav.knowledge') }}</div>
+              <div v-if="!mainSidebarCompact" class="menu-group-title">{{ $t('nav.knowledge') }}</div>
               <el-menu-item index="/rag">
                 <el-icon><Search /></el-icon>
                 <span>{{ $t('nav.rag') }}</span>
               </el-menu-item>
-              <el-menu-item index="/history">
-                <el-icon><Clock /></el-icon>
-                <span>{{ $t('nav.history') }}</span>
-              </el-menu-item>
 
-              <div class="menu-group-title">{{ $t('nav.system') }}</div>
+              <div v-if="!mainSidebarCompact" class="menu-group-title">{{ $t('nav.system') }}</div>
               <el-menu-item index="/agentos-console">
                 <el-icon><Monitor /></el-icon>
                 <span>AgentOS 运维</span>
@@ -74,12 +145,12 @@
           <div class="sidebar-footer">
             <div class="user-profile" @click="router.push('/user')">
               <el-avatar :size="32" class="user-avatar">U</el-avatar>
-              <div class="user-info">
+              <div v-if="!mainSidebarCompact" class="user-info">
                 <span class="user-name">User</span>
                 <span class="user-status">Online</span>
               </div>
             </div>
-            <div class="logout-section">
+            <div v-if="!mainSidebarCompact" class="logout-section">
               <el-button 
                 class="logout-btn" 
                 type="danger" 
@@ -91,6 +162,102 @@
               </el-button>
             </div>
           </div>
+          </div>
+
+          <Transition name="chat-panel">
+            <section
+              v-if="chatNavOpen"
+              id="chat-side-panel"
+              class="chat-side-panel"
+              :style="{ width: `${chatPanelWidth}px` }"
+              aria-label="聊天项目"
+            >
+              <div class="chat-panel-header">
+                <div class="chat-panel-switch" role="tablist" aria-label="工作模式">
+                  <div class="agent-switch-entry">
+                    <button type="button" role="tab" :aria-selected="workspaceMode === 'agent'" @click="selectWorkspaceMode('agent')">
+                      Agent
+                    </button>
+                    <div class="agent-hover-menu" role="menu">
+                      <button type="button" role="menuitem" @click.stop="openRoleSelection">
+                        <el-icon><User /></el-icon>
+                        <span>选择角色</span>
+                        <el-icon class="agent-hover-arrow"><ArrowRight /></el-icon>
+                      </button>
+                    </div>
+                  </div>
+                  <button class="active" type="button" role="tab" aria-selected="true">Chat</button>
+                </div>
+                <button class="chat-panel-close" type="button" aria-label="关闭聊天面板" title="关闭聊天面板" @click="closeChatPanel">
+                  <el-icon><Close /></el-icon>
+                </button>
+              </div>
+
+              <div class="chat-panel-content">
+                <button class="chat-submenu-action new-chat-action" type="button" @click="startNewChat">
+                  <el-icon><EditPen /></el-icon>
+                  <span>新建对话</span>
+                </button>
+
+                <div class="chat-submenu-section-head">
+                  <span>对话项目</span>
+                  <span v-if="recentConversations.length" class="chat-project-count">{{ recentConversations.length }}</span>
+                </div>
+
+                <div v-if="conversationListLoading" class="chat-submenu-loading">正在加载…</div>
+                <div v-else-if="recentConversations.length" class="chat-project-list">
+                  <button
+                    v-for="conversation in recentConversations"
+                    :key="conversation.id"
+                    class="chat-project-item"
+                    :class="{ active: route.query.contextId === (conversation.contextId || conversation.id) }"
+                    type="button"
+                    :title="conversation.title || '未命名对话'"
+                    @click="openConversation(conversation)"
+                  >
+                    <el-icon><ChatLineRound /></el-icon>
+                    <span>{{ conversation.title || '未命名对话' }}</span>
+                  </button>
+                </div>
+                <div v-else class="chat-submenu-empty">暂无历史对话</div>
+
+                <button class="chat-submenu-action history-action" type="button" @click="router.push('/history')">
+                  <el-icon><Clock /></el-icon>
+                  <span>查看全部聊天历史</span>
+                </button>
+              </div>
+              <div
+                class="chat-panel-resizer"
+                role="separator"
+                aria-label="调整聊天子栏宽度"
+                aria-orientation="vertical"
+                :aria-valuemin="CHAT_PANEL_MIN_WIDTH"
+                :aria-valuemax="CHAT_PANEL_MAX_WIDTH"
+                :aria-valuenow="chatPanelWidth"
+                tabindex="0"
+                title="拖动调整宽度，双击恢复默认"
+                @pointerdown="startChatPanelResize"
+                @keydown="handleChatPanelResizeKeydown"
+                @dblclick="resetChatPanelWidth"
+              ></div>
+            </section>
+          </Transition>
+
+          <div
+            v-if="!sidebarCollapsed && !chatNavOpen"
+            class="sidebar-resizer"
+            role="separator"
+            aria-label="调整侧边栏宽度"
+            aria-orientation="vertical"
+            :aria-valuemin="SIDEBAR_MIN_WIDTH"
+            :aria-valuemax="SIDEBAR_MAX_WIDTH"
+            :aria-valuenow="sidebarWidth"
+            tabindex="0"
+            title="拖动调整宽度，双击恢复默认"
+            @pointerdown="startSidebarResize"
+            @keydown="handleSidebarResizeKeydown"
+            @dblclick="resetSidebarWidth"
+          ></div>
         </el-aside>
 
         <button
@@ -101,14 +268,13 @@
           @click="simpleNavOpen = true"
         >
           <el-icon><MenuIcon /></el-icon>
-          <span>导航</span>
         </button>
 
         <el-drawer
           v-if="usesDrawerNavigation"
           v-model="simpleNavOpen"
           direction="ltr"
-          :size="268"
+          :size="248"
           :with-header="false"
           class="simple-nav-drawer"
         >
@@ -223,29 +389,63 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
-  ChatDotRound, User, Search, 
+  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, EditPen, User, Search,
   Clock, Setting, SwitchButton, Connection,
   Monitor, DocumentChecked, Cpu,
-  Menu as MenuIcon
+  Menu as MenuIcon, Fold, Expand, Close
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { authApi } from '@/services/api/auth'
+import { conversationApi, type Conversation } from '@/services/api/conversation'
+import { useChatStore } from '@/stores/chat'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
+const chatStore = useChatStore()
 const globalError = ref('')
-type ChatInterfaceMode = 'simple' | 'detail'
-const CHAT_INTERFACE_MODE_KEY = 'chat.interface_mode'
-const CHAT_INTERFACE_MODE_EVENT = 'chat-interface-mode-change'
-const getStoredChatInterfaceMode = (): ChatInterfaceMode => {
-  return localStorage.getItem(CHAT_INTERFACE_MODE_KEY) === 'detail' ? 'detail' : 'simple'
-}
-const chatInterfaceMode = ref<ChatInterfaceMode>(getStoredChatInterfaceMode())
 const simpleNavOpen = ref(false)
+type WorkspaceMode = 'agent' | 'chat'
+const WORKSPACE_MODE_KEY = 'layout.workspace_mode'
+const workspaceMode = ref<WorkspaceMode>(localStorage.getItem(WORKSPACE_MODE_KEY) === 'agent' ? 'agent' : 'chat')
+const CHAT_NAV_OPEN_KEY = 'layout.chat_nav_open'
+const chatNavOpen = ref(localStorage.getItem(CHAT_NAV_OPEN_KEY) === '1')
+const CHAT_PANEL_WIDTH_KEY = 'layout.chat_panel_width'
+const CHAT_PANEL_DEFAULT_WIDTH = 300
+const CHAT_PANEL_MIN_WIDTH = 220
+const CHAT_PANEL_MAX_WIDTH = 420
+const storedChatPanelWidth = Number(localStorage.getItem(CHAT_PANEL_WIDTH_KEY))
+const chatPanelWidth = ref(
+  Number.isFinite(storedChatPanelWidth) && storedChatPanelWidth >= CHAT_PANEL_MIN_WIDTH && storedChatPanelWidth <= CHAT_PANEL_MAX_WIDTH
+    ? storedChatPanelWidth
+    : CHAT_PANEL_DEFAULT_WIDTH
+)
+const chatPanelResizing = ref(false)
+const recentConversations = ref<Conversation[]>([])
+const conversationListLoading = ref(false)
+const SIDEBAR_COLLAPSED_KEY = 'layout.sidebar_collapsed'
+const SIDEBAR_WIDTH_KEY = 'layout.sidebar_width'
+const SIDEBAR_DEFAULT_WIDTH = 248
+const SIDEBAR_MIN_WIDTH = 220
+const SIDEBAR_MAX_WIDTH = 360
+const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+const storedSidebarWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+const sidebarWidth = ref(
+  Number.isFinite(storedSidebarWidth) && storedSidebarWidth >= SIDEBAR_MIN_WIDTH && storedSidebarWidth <= SIDEBAR_MAX_WIDTH
+    ? storedSidebarWidth
+    : SIDEBAR_DEFAULT_WIDTH
+)
+const sidebarResizing = ref(false)
+const mainSidebarCompact = computed(() => sidebarCollapsed.value || chatNavOpen.value)
+const sidebarAsideWidth = computed(() => `${chatNavOpen.value ? 60 + chatPanelWidth.value : (sidebarCollapsed.value ? 60 : sidebarWidth.value)}px`)
+const primarySidebarWidth = computed(() => `${mainSidebarCompact.value ? 60 : sidebarWidth.value}px`)
+let sidebarResizeStartX = 0
+let sidebarResizeStartWidth = SIDEBAR_DEFAULT_WIDTH
+let chatPanelResizeStartX = 0
+let chatPanelResizeStartWidth = CHAT_PANEL_DEFAULT_WIDTH
 const mobileMediaQuery = window.matchMedia('(max-width: 760px)')
 const isMobileViewport = ref(mobileMediaQuery.matches)
 
@@ -271,19 +471,207 @@ const handleSidebarWheel = (event: WheelEvent) => {
   })
 }
 
+const loadRecentConversations = async () => {
+  if (conversationListLoading.value) return
+
+  try {
+    conversationListLoading.value = true
+    const userId = localStorage.getItem('userId') || undefined
+    const conversations = await conversationApi.getUserConversations(userId)
+    recentConversations.value = [...conversations]
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+      .slice(0, 5)
+  } catch {
+    recentConversations.value = []
+  } finally {
+    conversationListLoading.value = false
+  }
+}
+
+const handleChatNavToggle = () => {
+  chatNavOpen.value = !chatNavOpen.value
+  localStorage.setItem(CHAT_NAV_OPEN_KEY, chatNavOpen.value ? '1' : '0')
+  if (chatNavOpen.value) void loadRecentConversations()
+  if (!route.path.startsWith('/chat')) void router.push('/chat')
+}
+
+const closeChatPanel = () => {
+  chatNavOpen.value = false
+  localStorage.setItem(CHAT_NAV_OPEN_KEY, '0')
+}
+
+const startNewChat = async () => {
+  chatStore.clearMessages()
+  await router.push('/chat')
+}
+
+const openConversation = async (conversation: Conversation) => {
+  const contextId = conversation.contextId || conversation.id
+  await router.push({ path: '/chat', query: { contextId } })
+}
+
+const handleHistoryRefresh = () => {
+  if (chatNavOpen.value) void loadRecentConversations()
+}
+
+const selectWorkspaceMode = (mode: WorkspaceMode) => {
+  workspaceMode.value = mode
+  localStorage.setItem(WORKSPACE_MODE_KEY, mode)
+  if (mode === 'agent') closeChatPanel()
+  void router.push('/chat')
+}
+
+const openRoleSelection = async () => {
+  closeChatPanel()
+  await router.push('/roles')
+}
+
 // Immersive mode: only keep login page immersive
 const isImmersive = computed(() => {
   const path = route.path
   return path.startsWith('/login')
 })
 
-const isSimpleChatMode = computed(() => {
-  return route.path.startsWith('/chat') && chatInterfaceMode.value === 'simple' && !isImmersive.value
+const usesDrawerNavigation = computed(() => {
+  return !isImmersive.value && isMobileViewport.value
 })
 
-const usesDrawerNavigation = computed(() => {
-  return !isImmersive.value && (isSimpleChatMode.value || isMobileViewport.value)
-})
+const toggleSidebar = () => {
+  if (chatNavOpen.value) {
+    closeChatPanel()
+    return
+  }
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.value ? '1' : '0')
+}
+
+const clampSidebarWidth = (width: number) => {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)))
+}
+
+const persistSidebarWidth = () => {
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+}
+
+const handleSidebarResizeMove = (event: PointerEvent) => {
+  if (!sidebarResizing.value) return
+  sidebarWidth.value = clampSidebarWidth(sidebarResizeStartWidth + event.clientX - sidebarResizeStartX)
+}
+
+const stopSidebarResize = () => {
+  if (!sidebarResizing.value) return
+  sidebarResizing.value = false
+  persistSidebarWidth()
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', handleSidebarResizeMove)
+  window.removeEventListener('pointerup', stopSidebarResize)
+  window.removeEventListener('pointercancel', stopSidebarResize)
+}
+
+const startSidebarResize = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  event.preventDefault()
+  sidebarResizeStartX = event.clientX
+  sidebarResizeStartWidth = sidebarWidth.value
+  sidebarResizing.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', handleSidebarResizeMove)
+  window.addEventListener('pointerup', stopSidebarResize)
+  window.addEventListener('pointercancel', stopSidebarResize)
+}
+
+const resetSidebarWidth = () => {
+  sidebarWidth.value = SIDEBAR_DEFAULT_WIDTH
+  persistSidebarWidth()
+}
+
+const handleSidebarResizeKeydown = (event: KeyboardEvent) => {
+  const increments: Record<string, number> = {
+    ArrowLeft: -8,
+    ArrowRight: 8
+  }
+
+  if (event.key === 'Home') {
+    sidebarWidth.value = SIDEBAR_MIN_WIDTH
+  } else if (event.key === 'End') {
+    sidebarWidth.value = SIDEBAR_MAX_WIDTH
+  } else if (increments[event.key]) {
+    sidebarWidth.value = clampSidebarWidth(sidebarWidth.value + increments[event.key])
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  persistSidebarWidth()
+}
+
+const clampChatPanelWidth = (width: number) => {
+  return Math.min(CHAT_PANEL_MAX_WIDTH, Math.max(CHAT_PANEL_MIN_WIDTH, Math.round(width)))
+}
+
+const persistChatPanelWidth = () => {
+  localStorage.setItem(CHAT_PANEL_WIDTH_KEY, String(chatPanelWidth.value))
+}
+
+const handleChatPanelResizeMove = (event: PointerEvent) => {
+  if (!chatPanelResizing.value) return
+  chatPanelWidth.value = clampChatPanelWidth(chatPanelResizeStartWidth + event.clientX - chatPanelResizeStartX)
+}
+
+const stopChatPanelResize = () => {
+  if (!chatPanelResizing.value) return
+  chatPanelResizing.value = false
+  persistChatPanelWidth()
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', handleChatPanelResizeMove)
+  window.removeEventListener('pointerup', stopChatPanelResize)
+  window.removeEventListener('pointercancel', stopChatPanelResize)
+}
+
+const startChatPanelResize = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  event.preventDefault()
+  chatPanelResizeStartX = event.clientX
+  chatPanelResizeStartWidth = chatPanelWidth.value
+  chatPanelResizing.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', handleChatPanelResizeMove)
+  window.addEventListener('pointerup', stopChatPanelResize)
+  window.addEventListener('pointercancel', stopChatPanelResize)
+}
+
+const resetChatPanelWidth = () => {
+  chatPanelWidth.value = CHAT_PANEL_DEFAULT_WIDTH
+  persistChatPanelWidth()
+}
+
+const handleChatPanelResizeKeydown = (event: KeyboardEvent) => {
+  const step = event.shiftKey ? 24 : 8
+
+  if (event.key === 'Home') {
+    chatPanelWidth.value = CHAT_PANEL_MIN_WIDTH
+  } else if (event.key === 'End') {
+    chatPanelWidth.value = CHAT_PANEL_MAX_WIDTH
+  } else if (event.key === 'ArrowLeft') {
+    chatPanelWidth.value = clampChatPanelWidth(chatPanelWidth.value - step)
+  } else if (event.key === 'ArrowRight') {
+    chatPanelWidth.value = clampChatPanelWidth(chatPanelWidth.value + step)
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  persistChatPanelWidth()
+}
+
+const handleViewportChange = (event: MediaQueryListEvent) => {
+  isMobileViewport.value = event.matches
+  if (!event.matches) simpleNavOpen.value = false
+}
 
 const isRouteScrollable = computed(() => {
   const path = route.path
@@ -334,29 +722,6 @@ const handleGlobalError = (event: CustomEvent) => {
   }
 }
 
-const handleChatInterfaceModeChange = (event: Event) => {
-  const mode = (event as CustomEvent<{ mode?: ChatInterfaceMode }>).detail?.mode
-  chatInterfaceMode.value = mode === 'detail' ? 'detail' : 'simple'
-  if (chatInterfaceMode.value !== 'simple') {
-    simpleNavOpen.value = false
-  }
-}
-
-const handleStorage = (event: StorageEvent) => {
-  if (event.key !== CHAT_INTERFACE_MODE_KEY) return
-  chatInterfaceMode.value = event.newValue === 'detail' ? 'detail' : 'simple'
-  if (chatInterfaceMode.value !== 'simple') {
-    simpleNavOpen.value = false
-  }
-}
-
-const handleViewportChange = (event: MediaQueryListEvent) => {
-  isMobileViewport.value = event.matches
-  if (!event.matches && !isSimpleChatMode.value) {
-    simpleNavOpen.value = false
-  }
-}
-
 // Logout with confirmation dialog
 const handleLogout = async () => {
   try {
@@ -387,22 +752,17 @@ const handleLogout = async () => {
 
 onMounted(() => {
   window.addEventListener('global-error', handleGlobalError as EventListener)
-  window.addEventListener(CHAT_INTERFACE_MODE_EVENT, handleChatInterfaceModeChange as EventListener)
-  window.addEventListener('storage', handleStorage)
+  window.addEventListener('history-refresh', handleHistoryRefresh)
   mobileMediaQuery.addEventListener('change', handleViewportChange)
+  if (chatNavOpen.value) void loadRecentConversations()
 })
 
 onUnmounted(() => {
+  stopSidebarResize()
+  stopChatPanelResize()
   window.removeEventListener('global-error', handleGlobalError as EventListener)
-  window.removeEventListener(CHAT_INTERFACE_MODE_EVENT, handleChatInterfaceModeChange as EventListener)
-  window.removeEventListener('storage', handleStorage)
+  window.removeEventListener('history-refresh', handleHistoryRefresh)
   mobileMediaQuery.removeEventListener('change', handleViewportChange)
-})
-
-watch(isSimpleChatMode, active => {
-  if (!active) {
-    simpleNavOpen.value = false
-  }
 })
 </script>
 
@@ -417,23 +777,130 @@ watch(isSimpleChatMode, active => {
 
 /* Sidebar Styles */
 .app-sidebar {
-  background-color: var(--sidebar-bg);
+  position: relative;
+  background-color: transparent;
   border-right: 1px solid var(--border-light);
   backdrop-filter: blur(18px);
   display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  transition: width 0.22s var(--ease-out);
+}
+
+.primary-sidebar {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  height: 100%;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
-  transition: width 0.24s var(--ease-out);
+  overflow: hidden;
+  background: var(--sidebar-bg);
+  transition: width 0.22s var(--ease-out);
+}
+
+.app-sidebar.chat-panel-open .primary-sidebar {
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.app-sidebar.resizing {
+  transition: none;
+}
+
+.app-sidebar.resizing .primary-sidebar {
+  transition: none;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--primary-color);
+  opacity: 0;
+  transform: scaleY(0.96);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.app-sidebar.resizing .sidebar-resizer::after {
+  opacity: 0.8;
+  transform: scaleY(1);
 }
 
 .sidebar-header {
   flex-shrink: 0;
-  height: 72px;
+  height: 54px;
   display: flex;
   align-items: center;
-  padding: 0 22px;
-  cursor: pointer;
-  gap: 10px;
+  justify-content: space-between;
+  padding: 0 10px;
+  gap: 6px;
   border-bottom: 1px solid var(--sidebar-border);
+}
+
+.sidebar-brand,
+.sidebar-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sidebar-brand {
+  min-width: 0;
+  gap: 10px;
+  padding: 0;
+}
+
+.sidebar-collapse-btn {
+  flex: 0 0 auto;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--text-secondary);
+  font-size: 17px;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--primary-fade);
+  color: var(--primary-color);
+}
+
+.sidebar-brand:focus-visible,
+.sidebar-collapse-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.app-sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-sidebar.collapsed .sidebar-brand {
+  display: none;
 }
 
 .logo-icon {
@@ -467,6 +934,273 @@ watch(isSimpleChatMode, active => {
   scroll-behavior: smooth;
 }
 
+.app-sidebar.collapsed .sidebar-nav {
+  padding: 8px 6px 10px;
+}
+
+.workspace-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  margin: 0 4px 8px;
+  padding: 3px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--bg-input);
+}
+
+.workspace-switch-btn {
+  width: 100%;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.workspace-switch-btn:hover {
+  color: var(--text-primary);
+}
+
+.workspace-switch-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.workspace-switch-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.workspace-switch-btn .el-icon {
+  font-size: 12px;
+}
+
+.agent-switch-entry {
+  position: relative;
+  min-width: 0;
+}
+
+.agent-hover-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  width: 142px;
+  padding-top: 6px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top left;
+  transition: opacity 0.14s ease, transform 0.16s var(--ease-out), visibility 0s linear 0.16s;
+}
+
+.agent-switch-entry:hover .agent-hover-menu,
+.agent-switch-entry:focus-within .agent-hover-menu {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
+}
+
+.agent-hover-menu > button {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.16s ease, background-color 0.16s ease;
+}
+
+.agent-hover-menu > button:hover {
+  color: var(--primary-color);
+  background: var(--bg-panel);
+}
+
+.agent-hover-menu > button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.agent-hover-arrow {
+  margin-left: auto;
+  color: var(--text-disabled);
+  font-size: 11px;
+}
+
+.chat-side-panel {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--sidebar-bg);
+  box-shadow: 10px 0 24px rgba(16, 18, 33, 0.04);
+}
+
+.chat-panel-resizer {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.chat-panel-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 3px;
+  bottom: 0;
+  width: 1px;
+  background: transparent;
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.chat-panel-resizer:hover::after,
+.chat-panel-resizer:focus-visible::after,
+.app-sidebar.resizing .chat-panel-resizer::after {
+  background: var(--primary-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+.chat-panel-header {
+  flex: 0 0 54px;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.chat-panel-switch {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--bg-input);
+}
+
+.chat-panel-switch > button,
+.chat-panel-switch > .agent-switch-entry > button {
+  width: 100%;
+  height: 27px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.chat-panel-switch > button:hover,
+.chat-panel-switch > .agent-switch-entry > button:hover {
+  color: var(--text-primary);
+}
+
+.chat-panel-switch > button.active,
+.chat-panel-switch > .agent-switch-entry > button.active {
+  color: var(--text-primary);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-panel-switch > button:focus-visible,
+.chat-panel-switch > .agent-switch-entry > button:focus-visible,
+.chat-panel-close:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.chat-panel-close {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
+}
+
+.chat-panel-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-panel);
+}
+
+.chat-panel-content {
+  min-width: 160px;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 8px 16px;
+  overflow: auto;
+}
+
+.chat-panel-enter-active {
+  transition: opacity 0.18s ease 0.04s, transform 0.22s var(--ease-out);
+}
+
+.chat-panel-leave-active {
+  transition: opacity 0.14s ease, transform 0.18s ease;
+}
+
+.chat-panel-enter-from,
+.chat-panel-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.chat-panel-enter-to,
+.chat-panel-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 /* Sidebar menu scrolling */
 .sidebar-nav::-webkit-scrollbar {
   width: 4px;
@@ -497,6 +1231,179 @@ watch(isSimpleChatMode, active => {
 .sidebar-menu {
   border: none;
   background: transparent;
+}
+
+.sidebar-menu.el-menu--collapse {
+  width: 100%;
+}
+
+.chat-nav-group {
+  position: relative;
+  margin-bottom: 2px;
+}
+
+.chat-nav-trigger,
+.chat-submenu-action,
+.chat-project-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-nav-trigger {
+  position: relative;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.chat-nav-trigger > .el-icon:first-child {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.chat-nav-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-nav-chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-disabled);
+}
+
+.chat-nav-trigger:hover {
+  background: var(--primary-fade);
+  color: var(--text-primary);
+}
+
+.chat-nav-group.active > .chat-nav-trigger {
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.chat-nav-group.active > .chat-nav-trigger::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary-color);
+}
+
+.app-sidebar.collapsed .chat-nav-trigger {
+  justify-content: center;
+  padding: 0;
+}
+
+.chat-submenu-action,
+.chat-project-item {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.chat-submenu-action:hover,
+.chat-project-item:hover,
+.chat-project-item.active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.chat-nav-trigger:focus-visible,
+.chat-submenu-action:focus-visible,
+.chat-project-item:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.new-chat-action {
+  color: var(--text-regular);
+  font-weight: 600;
+}
+
+.chat-submenu-section-head {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px 3px;
+  color: var(--text-disabled);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.chat-project-count {
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-disabled);
+  font-size: 9px;
+}
+
+.chat-project-item .el-icon,
+.chat-submenu-action .el-icon {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+.chat-project-item span,
+.chat-submenu-action span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-project-item.active {
+  color: var(--primary-color);
+}
+
+.chat-submenu-loading,
+.chat-submenu-empty {
+  padding: 8px 9px;
+  color: var(--text-disabled);
+  font-size: 11px;
+}
+
+.history-action {
+  margin-top: 3px;
+  color: var(--text-secondary);
+}
+
+.app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item) {
+  justify-content: center;
+  height: 44px;
+  padding: 0 !important;
+}
+
+.app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item .el-icon) {
+  margin: 0;
+  font-size: 18px;
 }
 
 /* 覆盖 Element Plus 默认激活态：去掉右侧指示条，改左侧橙色条 */
@@ -567,6 +1474,24 @@ watch(isSimpleChatMode, active => {
   border-top: 1px solid var(--sidebar-border);
 }
 
+.app-sidebar.collapsed .sidebar-footer {
+  padding: 8px 6px;
+}
+
+.app-sidebar.collapsed .user-profile {
+  justify-content: center;
+  gap: 0;
+  padding: 8px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar,
+  .primary-sidebar,
+  .chat-side-panel {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .user-profile {
   display: flex;
   align-items: center;
@@ -579,7 +1504,7 @@ watch(isSimpleChatMode, active => {
 }
 
 .user-profile:hover {
-  background-color: #fff;
+  background-color: var(--bg-card);
   border-color: var(--border-light);
 }
 
@@ -613,7 +1538,7 @@ watch(isSimpleChatMode, active => {
 
 .logout-btn {
   width: 100%;
-  background: #fff !important;
+  background: var(--bg-card) !important;
   border: 1px solid rgba(178, 74, 74, 0.22) !important;
   border-radius: 8px;
   color: var(--danger) !important;
@@ -637,26 +1562,23 @@ watch(isSimpleChatMode, active => {
   font-size: 14px;
 }
 
-.simple-chat-shell .main-container {
-  width: 100%;
-}
-
 .simple-nav-toggle {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  top: 9px;
+  left: 12px;
   z-index: 2100;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 34px;
   height: 36px;
-  padding: 0 12px;
+  padding: 0;
   border: 1px solid var(--primary-line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--primary-color);
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 650;
   cursor: pointer;
   box-shadow: 0 10px 22px rgba(24, 39, 35, 0.08);
@@ -668,6 +1590,11 @@ watch(isSimpleChatMode, active => {
   border-color: var(--border-focus);
   background: #fff;
   transform: translateY(-1px);
+}
+
+.simple-nav-toggle:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .simple-nav-drawer :deep(.el-drawer__body),
@@ -789,15 +1716,9 @@ watch(isSimpleChatMode, active => {
 
 @media (max-width: 620px) {
   .simple-nav-toggle {
-    top: 10px;
+    top: 9px;
     left: 10px;
-    width: 36px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .simple-nav-toggle span {
-    display: none;
+    width: 34px;
   }
 }
 </style>

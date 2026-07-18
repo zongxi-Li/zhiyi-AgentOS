@@ -1,237 +1,35 @@
-<!-- 主对话页面 — 角色快速导航（律师/教师/程序员/作家）、多界面模式切换（简洁/详细）、聊天交互区 -->
+<!-- 主对话页面 — 角色快速导航（律师/教师/程序员/作家）与聊天工作台 -->
 <template>
-  <div
-    class="chat-view"
-    :class="{
-      'landing-active': shouldShowLanding,
-      'simple-interface': isSimpleInterface,
-      'detail-interface': isDetailInterface
-    }"
-  >
-    <section v-if="shouldShowLanding" class="simple-chat-home" aria-label="知弈OS">
-      <header class="landing-topbar">
-        <section class="landing-brand" aria-label="产品信息">
-          <h1>知弈OS</h1>
-          <p>多角色协作 · ReAct Trace · RAG 引用</p>
-        </section>
-
-        <nav class="landing-role-nav" aria-label="角色导航">
-          <button type="button" class="landing-role" @click="switchLandingRole('lawyer')">
-            <span class="landing-role-mark lawyer">法</span>
-            <span>律师</span>
-          </button>
-          <button type="button" class="landing-role" @click="switchLandingRole('teacher')">
-            <span class="landing-role-mark teacher">教</span>
-            <span>教师</span>
-          </button>
-          <button type="button" class="landing-role" @click="switchLandingRole('programmer')">
-            <span class="landing-role-mark programmer">码</span>
-            <span>程序员</span>
-          </button>
-          <button type="button" class="landing-role" @click="switchLandingRole('writer')">
-            <span class="landing-role-mark writer">写</span>
-            <span>作家</span>
-          </button>
-        </nav>
-
-        <div class="interface-switch landing-interface-switch" aria-label="界面模式">
-          <button
-            type="button"
-            :class="{ active: isSimpleInterface }"
-            @click="switchToSimpleInterface"
-          >
-            简单版
-          </button>
-          <button
-            type="button"
-            :class="{ active: isDetailInterface }"
-            @click="switchToDetailInterface"
-          >
-            详情版
-          </button>
-        </div>
-
-        <button class="landing-network-btn" type="button" @click="openLandingNetwork">
-          <span class="landing-network-dot" aria-hidden="true"></span>
-          <span>联邦网络</span>
-        </button>
-      </header>
-
-      <section class="landing-hero">
-        <h2>知识如棋局，Agent 如棋手，任务如推演</h2>
-        <p>迈向全局知识推演智能</p>
-
-        <form class="landing-composer" autocomplete="off" @submit.prevent="submitLandingMessage">
-          <textarea
-            v-model="landingInputText"
-            class="landing-message-input"
-            aria-label="输入消息"
-            placeholder="输入消息或选择任务模板..."
-            @keydown="handleLandingKeydown"
-          ></textarea>
-
-          <div class="landing-composer-footer">
-            <div class="landing-quick-actions" aria-label="任务模板">
-              <button
-                v-for="template in landingTemplates"
-                :key="template"
-                class="landing-chip"
-                type="button"
-                @click="applyLandingTemplate(template)"
-              >
-                <span class="landing-chip-dot" aria-hidden="true"></span>
-                <span>{{ template }}</span>
-              </button>
-            </div>
-
-            <div class="landing-composer-actions">
-              <ModelRuntimeControls compact />
-              <button class="landing-attach-btn" type="button" aria-label="添加附件" @click="openLandingAttachment">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="m21.4 11.1-9.5 9.5a6 6 0 0 1-8.5-8.5l10-10a4 4 0 0 1 5.7 5.7l-10 10a2 2 0 1 1-2.8-2.8l9.4-9.4" />
-                </svg>
-              </button>
-              <button class="landing-send-btn" type="submit" :disabled="loading || !landingInputText.trim()">
-                发送
-              </button>
-            </div>
-          </div>
-        </form>
-      </section>
-    </section>
-
-    <template v-else>
-    <header v-if="isSimpleInterface" class="simple-session-topbar" :class="headerClass">
-      <div class="simple-session-brand">
-        <span class="simple-session-kicker">简单版对话</span>
-        <h1>{{ agentTitle }}</h1>
-      </div>
-      <div class="simple-session-actions">
-        <div class="interface-switch compact" aria-label="界面模式">
-          <button
-            type="button"
-            :class="{ active: isSimpleInterface }"
-            @click="switchToSimpleInterface"
-          >
-            简单版
-          </button>
-          <button
-            type="button"
-            :class="{ active: isDetailInterface }"
-            @click="switchToDetailInterface"
-          >
-            详情版
-          </button>
-        </div>
-        <button class="simple-session-btn" type="button" @click="showRoleDrawer = true">
-          <el-icon><User /></el-icon>
-          <span>角色</span>
-        </button>
-        <button class="simple-session-btn" type="button" @click="goToAgentOsConsole">
-          AgentOS
-        </button>
-      </div>
-    </header>
-
-    <header v-else class="chat-header" :class="headerClass">
-      <div class="left">
-        <span class="title">知弈OS</span>
-        <div class="mode-switcher">
-          <button
-            class="mode-btn"
-            :class="{ active: isLawyerMode }"
-            @click="toggleLawyerMode"
-          >
-            <el-icon class="mode-icon"><ScaleToOriginal /></el-icon>
-            <span class="mode-label">律师</span>
-          </button>
-          <button
-            class="mode-btn"
-            :class="{ active: isTeacherMode }"
-            @click="toggleTeacherMode"
-          >
-            <el-icon class="mode-icon"><School /></el-icon>
-            <span class="mode-label">教师</span>
-          </button>
-          <button
-            class="mode-btn"
-            :class="{ active: isProgrammerMode }"
-            @click="toggleProgrammerMode"
-          >
-            <el-icon class="mode-icon"><Cpu /></el-icon>
-            <span class="mode-label">程序员</span>
-          </button>
-          <button
-            class="mode-btn"
-            :class="{ active: isWriterMode }"
-            @click="toggleWriterMode"
-          >
-            <el-icon class="mode-icon"><EditPen /></el-icon>
-            <span class="mode-label">作家</span>
-          </button>
-        </div>
-      </div>
-      <div class="right">
-        <div class="interface-switch compact" aria-label="界面模式">
-          <button
-            type="button"
-            :class="{ active: isSimpleInterface }"
-            @click="switchToSimpleInterface"
-          >
-            简单版
-          </button>
-          <button
-            type="button"
-            :class="{ active: isDetailInterface }"
-            @click="switchToDetailInterface"
-          >
-            详情版
-          </button>
-        </div>
-        <el-button size="small" @click="showRoleDrawer = true">
-          <el-icon><User /></el-icon>
-          角色
-        </el-button>
-        <el-button size="small" @click="goToAgentOsConsole">
-          AgentOS
-        </el-button>
-        <el-button size="small" @click="goToSettings">
-          <el-icon><MoreFilled /></el-icon>
-          设置
-        </el-button>
-      </div>
-    </header>
-
-    <div class="chat-main" :class="[chatMainClass, { 'simple-session': isSimpleInterface }]">
-      <section class="chat-panel">
+  <div class="chat-view detail-interface">
+    <div
+      class="chat-main"
+      :class="[
+        chatMainClass,
+        {
+          'has-agent-results': isAgentMode,
+          'agent-panel-collapsed': isAgentMode && agentPanelCollapsed,
+          'agent-panel-resizing': agentPanelResizing
+        }
+      ]"
+      :style="agentPanelLayoutStyle"
+    >
+      <section class="chat-panel" :class="{ 'hero-mode': chatStore.messages.length === 0 }">
         <div class="messages" ref="messagesRef">
           <div v-if="chatStore.messages.length === 0" class="empty-state">
-            <div class="empty-icon">
-              <el-icon><component :is="agentIcon" /></el-icon>
+            <div class="rgb-orb" aria-hidden="true">
+              <span class="rgb-orb__aura"></span>
+              <span class="rgb-orb__core"></span>
+              <span class="rgb-orb__ring rgb-orb__ring--outer"></span>
+              <span class="rgb-orb__ring rgb-orb__ring--inner"></span>
+              <span class="rgb-orb__particle rgb-orb__particle--1"></span>
+              <span class="rgb-orb__particle rgb-orb__particle--2"></span>
+              <span class="rgb-orb__particle rgb-orb__particle--3"></span>
+              <span class="rgb-orb__particle rgb-orb__particle--4"></span>
+              <span class="rgb-orb__particle rgb-orb__particle--5"></span>
+              <span class="rgb-orb__particle rgb-orb__particle--6"></span>
             </div>
             <h2>{{ agentTitle }}</h2>
             <p>{{ agentSubtitle }}</p>
-            <div class="quick-actions">
-              <button v-if="currentTemplates[0]" class="quick-btn" @click="useTemplate(currentTemplates[0])">{{ currentTemplates[0] }}</button>
-              <button v-if="currentTemplates[1]" class="quick-btn" @click="useTemplate(currentTemplates[1])">{{ currentTemplates[1] }}</button>
-              <button v-if="currentTemplates[2]" class="quick-btn" @click="useTemplate(currentTemplates[2])">{{ currentTemplates[2] }}</button>
-              <button v-if="!isLawyerMode" class="quick-btn lawyer-btn" @click="toggleLawyerMode">
-                <el-icon><ScaleToOriginal /></el-icon>
-                <span>律师 Agent</span>
-              </button>
-              <button v-if="!isTeacherMode" class="quick-btn teacher-btn" @click="toggleTeacherMode">
-                <el-icon><School /></el-icon>
-                <span>教师 Agent</span>
-              </button>
-              <button v-if="!isProgrammerMode" class="quick-btn programmer-btn" @click="toggleProgrammerMode">
-                <el-icon><Cpu /></el-icon>
-                <span>程序员 Agent</span>
-              </button>
-              <button v-if="!isWriterMode" class="quick-btn writer-btn" @click="toggleWriterMode">
-                <el-icon><EditPen /></el-icon>
-                <span>作家 Agent</span>
-              </button>
-            </div>
           </div>
 
           <div v-else class="message-list">
@@ -266,31 +64,14 @@
           <span v-if="pendingMessageCount > 0" class="badge">{{ pendingMessageCount > 9 ? '9+' : pendingMessageCount }}</span>
         </button>
 
-        <div class="template-row" v-if="showAssistTools && currentTemplates.length">
-          <button v-for="tpl in currentTemplates" :key="tpl" class="template-item" @click="useTemplate(tpl)">
-            {{ tpl }}
-          </button>
-        </div>
+        <div ref="composerRef" class="composer">
+          <div v-if="showAssistTools && currentTemplates.length" class="composer-popover template-row">
+            <button v-for="tpl in currentTemplates" :key="tpl" class="template-item" @click="useTemplate(tpl)">
+              {{ tpl }}
+            </button>
+          </div>
 
-        <div class="recommendation-row" :class="{ collapsed: recommendationCollapsed }">
-          <button
-            class="recommendation-toggle"
-            type="button"
-            :aria-expanded="!recommendationCollapsed"
-            @click="toggleRecommendationPanel"
-          >
-            <span class="recommendation-toggle-copy">
-              <span class="recommendation-toggle-title">下一步推荐</span>
-              <span class="recommendation-toggle-subtitle">{{ recommendationToggleText }}</span>
-            </span>
-            <span class="recommendation-toggle-side">
-              <span v-if="recommendationLoading" class="recommendation-loading-dot" aria-hidden="true"></span>
-              <span class="recommendation-count">{{ chatRecommendations.length }}</span>
-              <el-icon><component :is="recommendationCollapsed ? ArrowDownBold : ArrowUp" /></el-icon>
-            </span>
-          </button>
-
-          <div v-show="!recommendationCollapsed" class="recommendation-panel-wrap">
+          <div v-show="!recommendationCollapsed" class="composer-popover recommendation-panel-wrap">
             <RecommendationPanel
               title="下一步推荐"
               subtitle="基于当前角色和最近对话生成"
@@ -301,74 +82,219 @@
               @select="applyChatRecommendation"
             />
           </div>
-        </div>
 
-        <div class="composer">
-          <el-input
-            v-model="inputText"
-            type="textarea"
-            :rows="1"
-            :autosize="{ minRows: 1, maxRows: 6 }"
-            resize="none"
-            :placeholder="$t('chat.placeholder')"
-            @keydown="handleKeydown"
-          />
-          <div class="composer-footer">
-            <div class="left-actions">
-              <el-button text @click="toggleAssistTools">{{ showAssistTools ? '收起模板' : '展开模板' }}</el-button>
-              <el-button text @click="isRecording ? stopVoiceInput() : startVoiceInput()">
-                <el-icon><Microphone /></el-icon>
-                {{ isRecording ? '停止录音' : '语音输入' }}
-              </el-button>
-              <el-button text @click="handleControl('folder')">
-                <el-icon><Folder /></el-icon>
-                文件
-              </el-button>
-              <el-button v-if="isTeacherMode" text @click="openTeacherUploadDialog">
-                <el-icon><UploadFilled /></el-icon>
-                上传作业
-              </el-button>
-              <el-button v-if="isDetailInterface" text :disabled="isWorkflowUpgradeDisabled" @click="upgradeChatToWorkflow">
-                升级 Workflow
-              </el-button>
-              <input
-                ref="teacherUploadInputRef"
-                class="hidden-file-input"
-                type="file"
-                accept=".png,.jpg,.jpeg,.pdf,.txt,.doc,.docx"
-                @change="handleTeacherFileUpload"
-              />
-            </div>
-            <div class="right-actions">
-              <ModelRuntimeControls compact />
-              <span class="word-count" :class="{ warning: inputText.length > 500 }">
-                {{ $t('chat.wordCount', { count: inputText.length }) }}
-              </span>
-              <el-button v-if="inputText.length > 500" text @click="autoSegment">自动分段</el-button>
-              <el-button type="primary" :disabled="isSendDisabled" @click="sendMessage">
-                <el-icon v-if="!loading"><ArrowUp /></el-icon>
-                <el-icon v-else class="is-loading"><Loading /></el-icon>
-              </el-button>
+          <div class="composer-shelf">
+            <button class="composer-shelf-action" type="button" @click="handleControl('folder')">
+              <el-icon><Folder /></el-icon>
+              <span>选择文件</span>
+            </button>
+            <button class="composer-shelf-action" type="button" @click="toggleAssistTools">
+              <el-icon><Notebook /></el-icon>
+              <span>快捷模板</span>
+            </button>
+            <button
+              class="composer-shelf-action"
+              type="button"
+              :class="{ active: !recommendationCollapsed }"
+              :aria-expanded="!recommendationCollapsed"
+              @click="toggleRecommendationPanel"
+            >
+              <span v-if="recommendationLoading" class="recommendation-loading-dot" aria-hidden="true"></span>
+              <span>下一步推荐</span>
+              <span class="composer-shelf-count">{{ chatRecommendations.length }}</span>
+            </button>
+            <button
+              class="composer-shelf-action"
+              type="button"
+              :disabled="isWorkflowUpgradeDisabled"
+              @click="upgradeChatToWorkflow"
+            >
+              <span>Workflow</span>
+            </button>
+            <button v-if="isTeacherMode" class="composer-shelf-action" type="button" @click="openTeacherUploadDialog">
+              <el-icon><UploadFilled /></el-icon>
+              <span>上传作业</span>
+            </button>
+            <input
+              ref="teacherUploadInputRef"
+              class="hidden-file-input"
+              type="file"
+              accept=".png,.jpg,.jpeg,.pdf,.txt,.doc,.docx"
+              @change="handleTeacherFileUpload"
+            />
+          </div>
+
+          <div class="composer-card">
+            <el-input
+              v-model="inputText"
+              type="textarea"
+              :rows="1"
+              :autosize="{ minRows: 1, maxRows: 6 }"
+              resize="none"
+              :placeholder="$t('chat.placeholder')"
+              @keydown="handleKeydown"
+            />
+            <div class="composer-footer">
+              <div class="left-actions">
+                <button class="composer-icon-action" type="button" aria-label="添加文件" title="添加文件" @click="handleControl('folder')">
+                  <el-icon><Plus /></el-icon>
+                </button>
+                <span class="composer-agent-mode">
+                  <el-icon><component :is="agentIcon" /></el-icon>
+                  {{ currentRole?.name || 'Agent' }} 模式
+                </span>
+                <button
+                  v-if="isAgentMode"
+                  class="composer-acg-toggle"
+                  :class="{ active: workflowPanelOpen }"
+                  type="button"
+                  :aria-pressed="workflowPanelOpen"
+                  :title="workflowPanelOpen ? '收起 ACG 拓扑' : '展开 ACG 拓扑'"
+                  @click="toggleWorkflowPanel"
+                >
+                  <el-icon><Share /></el-icon>
+                  <span>ACG</span>
+                </button>
+              </div>
+              <div class="right-actions">
+                <ModelRuntimeControls compact />
+                <span v-if="inputText.length" class="word-count" :class="{ warning: inputText.length > 500 }">
+                  {{ inputText.length }} 字
+                </span>
+                <button
+                  class="composer-icon-action"
+                  type="button"
+                  :class="{ active: isRecording }"
+                  :aria-label="isRecording ? '停止录音' : '语音输入'"
+                  :title="isRecording ? '停止录音' : '语音输入'"
+                  @click="isRecording ? stopVoiceInput() : startVoiceInput()"
+                >
+                  <el-icon><Microphone /></el-icon>
+                </button>
+                <el-button v-if="inputText.length > 500" text @click="autoSegment">自动分段</el-button>
+                <el-button class="composer-send" type="primary" :disabled="isSendDisabled" @click="sendMessage">
+                  <el-icon v-if="!loading"><ArrowUp /></el-icon>
+                  <el-icon v-else class="is-loading"><Loading /></el-icon>
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
+
+        <Transition name="workflow-acg-slide">
+          <section
+            v-if="isAgentMode && workflowPanelOpen"
+            class="workflow-acg-panel"
+            :class="{ resizing: workflowPanelResizing }"
+            :style="{ height: `${workflowPanelHeight}px` }"
+            aria-label="ACG 动态拓扑"
+          >
+            <div
+              class="workflow-panel-resizer"
+              role="separator"
+              aria-label="调整 ACG 拓扑面板高度"
+              aria-orientation="horizontal"
+              :aria-valuemin="WORKFLOW_PANEL_MIN_HEIGHT"
+              :aria-valuemax="WORKFLOW_PANEL_MAX_HEIGHT"
+              :aria-valuenow="workflowPanelHeight"
+              tabindex="0"
+              title="拖动调整高度，双击恢复默认"
+              @pointerdown="startWorkflowPanelResize"
+              @keydown="handleWorkflowPanelResizeKeydown"
+              @dblclick="resetWorkflowPanelHeight"
+            >
+              <span aria-hidden="true"></span>
+            </div>
+            <AcgTopologyGraph
+              :blueprint="displayAcgBlueprint"
+              :completed-step-ids="displayCompletedStepIds"
+            />
+            <button
+              class="workflow-panel-collapse"
+              type="button"
+              aria-label="收起 ACG 拓扑"
+              title="收起 ACG 拓扑"
+              @click="setWorkflowPanelOpen(false)"
+            >
+              <el-icon><ArrowDownBold /></el-icon>
+            </button>
+            <div v-if="acgViewLoading && !activeAcgView" class="workflow-acg-loading">正在加载动态拓扑…</div>
+          </section>
+        </Transition>
+        <button
+          v-if="isAgentMode && !workflowPanelOpen"
+          class="workflow-acg-dock"
+          type="button"
+          aria-label="展开 ACG 动态拓扑"
+          @click="setWorkflowPanelOpen(true)"
+        >
+          <span class="workflow-acg-dock__pulse" aria-hidden="true"></span>
+          <span>ACG 动态拓扑</span>
+          <span class="workflow-acg-dock__meta">{{ displayAcgBlueprint?.nodes.length || 0 }} 节点</span>
+          <el-icon><ArrowUp /></el-icon>
+        </button>
       </section>
 
-      <aside v-if="isAgentMode && isDetailInterface" class="agent-panel">
-        <LawyerSkillPanel
-          v-if="isLawyerMode"
-          :skills-used="latestLawyerMeta.skillsUsed"
-          :trace="latestLawyerMeta.trace"
-          :federated="latestLawyerMeta.federated"
-          :risk-level="latestLawyerMeta.riskLevel"
-          :result-count="availableLawyerResultPanels.length"
-          @open-federated-console="openFederatedConsole"
-          @optimize-federated="handleFederatedOptimize"
+      <Transition name="agent-panel-slide">
+        <aside
+          v-if="isAgentMode"
+          class="agent-panel"
+          :class="{ collapsed: agentPanelCollapsed, resizing: agentPanelResizing }"
         >
+          <div
+            v-if="!agentPanelCollapsed"
+            class="agent-panel-resizer"
+            role="separator"
+            aria-label="调整右侧工作台宽度"
+            aria-orientation="vertical"
+            :aria-valuemin="AGENT_PANEL_MIN_WIDTH"
+            :aria-valuemax="AGENT_PANEL_MAX_WIDTH"
+            :aria-valuenow="agentPanelWidth"
+            tabindex="0"
+            title="拖动调整宽度，双击恢复默认"
+            @pointerdown="startAgentPanelResize"
+            @keydown="handleAgentPanelResizeKeydown"
+            @dblclick="resetAgentPanelWidth"
+          ></div>
+
+          <div class="agent-panel-toggle-row">
+            <button
+              class="agent-panel-toggle"
+              type="button"
+              :aria-label="agentPanelCollapsed ? '展开右侧工作台' : '收起右侧工作台'"
+              :title="agentPanelCollapsed ? '展开右侧工作台' : '收起右侧工作台'"
+              @click="agentPanelCollapsed = !agentPanelCollapsed"
+            >
+              <el-icon>
+                <DArrowLeft v-if="agentPanelCollapsed" />
+                <DArrowRight v-else />
+              </el-icon>
+              <span v-if="!agentPanelCollapsed">收起</span>
+            </button>
+          </div>
+
+          <div v-if="agentPanelCollapsed" class="agent-panel-rail" aria-hidden="true">
+            <span class="agent-panel-rail-icon">
+              <el-icon><component :is="agentIcon" /></el-icon>
+            </span>
+          </div>
+
+          <div v-show="!agentPanelCollapsed" class="agent-panel-content">
+          <LawyerSkillPanel
+            v-if="isLawyerMode"
+            :skills-used="latestLawyerMeta.skillsUsed"
+            :trace="latestLawyerMeta.trace"
+            :federated="latestLawyerMeta.federated"
+            :risk-level="latestLawyerMeta.riskLevel"
+            :result-count="availableLawyerResultPanels.length"
+            @open-federated-console="openFederatedConsole"
+            @optimize-federated="handleFederatedOptimize"
+          >
           <template #results>
             <div v-if="!availableLawyerResultPanels.length" class="results-empty">
               <el-icon class="empty-icon"><Notebook /></el-icon>
               <span>暂无技能调用结果</span>
+              <span class="results-empty-hint">发送消息后，这里会整理 Agent 的结构化结果</span>
             </div>
             <el-collapse v-else v-model="activeLawyerResultPanels">
               <el-collapse-item
@@ -419,6 +345,7 @@
             <div v-if="!availableTeacherResultPanels.length" class="results-empty">
               <el-icon class="empty-icon"><Reading /></el-icon>
               <span>暂无技能调用结果</span>
+              <span class="results-empty-hint">发送消息后，这里会整理 Agent 的结构化结果</span>
             </div>
             <el-collapse v-else v-model="activeTeacherResultPanels">
               <el-collapse-item
@@ -469,6 +396,7 @@
             <div v-if="!availableProgrammerResultPanels.length" class="results-empty">
               <el-icon class="empty-icon"><Cpu /></el-icon>
               <span>暂无技能调用结果</span>
+              <span class="results-empty-hint">发送消息后，这里会整理 Agent 的结构化结果</span>
             </div>
             <el-collapse v-else v-model="activeProgrammerResultPanels">
               <el-collapse-item
@@ -579,6 +507,7 @@
             <div v-if="!availableWriterResultPanels.length" class="results-empty">
               <el-icon class="empty-icon"><EditPen /></el-icon>
               <span>暂无技能调用结果</span>
+              <span class="results-empty-hint">发送消息后，这里会整理 Agent 的结构化结果</span>
             </div>
             <el-collapse v-else v-model="activeWriterResultPanels">
               <el-collapse-item
@@ -623,7 +552,9 @@
             </el-collapse>
           </template>
         </WriterSkillPanel>
+          </div>
       </aside>
+      </Transition>
     </div>
 
     <el-drawer v-model="showRoleDrawer" direction="rtl" :size="320" :with-header="false">
@@ -650,7 +581,6 @@
     </el-drawer>
 
     <FileManager v-model="showFileManager" @fileSelected="handleFileSelected" />
-    </template>
   </div>
 </template>
 
@@ -665,17 +595,19 @@ import {
   Check,
   Close,
   Cpu,
+  DArrowLeft,
+  DArrowRight,
   EditPen,
   Folder,
   Loading,
   Microphone,
-  MoreFilled,
   Notebook,
+  Plus,
   Reading,
   ScaleToOriginal,
+  Share,
   School,
-  UploadFilled,
-  User
+  UploadFilled
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MessageBubble from '@/components/MessageBubble.vue'
@@ -697,6 +629,8 @@ import DiagramViewer from '@/components/agent/DiagramViewer.vue'
 import MindMapViewer from '@/components/agent/MindMapViewer.vue'
 import RelationGraph from '@/components/agent/RelationGraph.vue'
 import RecommendationPanel from '@/components/RecommendationPanel.vue'
+import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
+import { agentosApi, type AcgBlueprint, type AcgView, type WorkflowRun } from '@/services/api/agentos'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { federatedModelApi } from '@/services/api/federatedModel'
 import { fileApi } from '@/services/api/file'
@@ -710,26 +644,19 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
-type ChatInterfaceMode = 'simple' | 'detail'
-const CHAT_INTERFACE_MODE_KEY = 'chat.interface_mode'
-const CHAT_INTERFACE_MODE_EVENT = 'chat-interface-mode-change'
-const getInitialChatInterfaceMode = (): ChatInterfaceMode => {
-  return localStorage.getItem(CHAT_INTERFACE_MODE_KEY) === 'detail' ? 'detail' : 'simple'
-}
-
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
 
 const selectedRoleId = ref<string | null>(null)
 const inputText = ref('')
-const landingInputText = ref('')
 const loading = ref(false)
 const showRoleDrawer = ref(false)
 const showFileManager = ref(false)
 const isRecording = ref(false)
 const messagesRef = ref<HTMLElement | null>(null)
+const composerRef = ref<HTMLElement | null>(null)
 const teacherUploadInputRef = ref<HTMLInputElement | null>(null)
-const showAssistTools = ref(true)
+const showAssistTools = ref(false)
 const isNearBottom = ref(true)
 const pendingMessageCount = ref(0)
 const federatedOptimizing = ref(false)
@@ -740,20 +667,270 @@ const activeWriterResultPanels = ref<string[]>([])
 const chatRecommendations = ref<RecommendationItem[]>([])
 const recommendationLoading = ref(false)
 const recommendationCollapsed = ref(true)
-const ASSIST_TOOL_VISIBLE_KEY = 'chat.assist_tools_visible'
+const ASSIST_TOOL_VISIBLE_KEY = 'chat.composer_templates_visible'
 const RECOMMENDATION_COLLAPSED_KEY = 'chat.recommendation_collapsed'
-const landingTemplates = ['合同纠纷咨询', '劳动仲裁流程', '法律风险评估', '文书草稿生成']
+const AGENT_PANEL_COLLAPSED_KEY = 'chat.agent_panel_collapsed'
+const AGENT_PANEL_WIDTH_KEY = 'chat.agent_panel_width'
+const AGENT_PANEL_DEFAULT_WIDTH = 340
+const AGENT_PANEL_MIN_WIDTH = 280
+const AGENT_PANEL_MAX_WIDTH = 520
+const WORKFLOW_PANEL_HEIGHT_KEY = 'chat.workflow_panel_height'
+const WORKFLOW_PANEL_OPEN_KEY = 'chat.workflow_panel_open'
+const WORKFLOW_PANEL_DEFAULT_HEIGHT = 280
+const WORKFLOW_PANEL_MIN_HEIGHT = 180
+const WORKFLOW_PANEL_MAX_HEIGHT = 560
+const agentPanelCollapsed = ref(localStorage.getItem(AGENT_PANEL_COLLAPSED_KEY) === '1')
+const storedAgentPanelWidth = Number(localStorage.getItem(AGENT_PANEL_WIDTH_KEY))
+const agentPanelWidth = ref(
+  Number.isFinite(storedAgentPanelWidth) && storedAgentPanelWidth >= AGENT_PANEL_MIN_WIDTH && storedAgentPanelWidth <= AGENT_PANEL_MAX_WIDTH
+    ? storedAgentPanelWidth
+    : AGENT_PANEL_DEFAULT_WIDTH
+)
+const agentPanelResizing = ref(false)
+const storedWorkflowPanelHeight = Number(localStorage.getItem(WORKFLOW_PANEL_HEIGHT_KEY))
+const workflowPanelHeight = ref(
+  Number.isFinite(storedWorkflowPanelHeight) && storedWorkflowPanelHeight >= WORKFLOW_PANEL_MIN_HEIGHT && storedWorkflowPanelHeight <= WORKFLOW_PANEL_MAX_HEIGHT
+    ? storedWorkflowPanelHeight
+    : WORKFLOW_PANEL_DEFAULT_HEIGHT
+)
+const workflowPanelResizing = ref(false)
+const workflowPanelOpen = ref(false)
+const activeWorkflowRunId = ref('')
+const activeWorkflowRun = ref<WorkflowRun | null>(null)
+const activeAcgView = ref<AcgView | null>(null)
+const acgViewLoading = ref(false)
+const agentPanelLayoutStyle = computed(() => ({ '--agent-panel-width': `${agentPanelWidth.value}px` }))
+let agentPanelResizeStartX = 0
+let agentPanelResizeStartWidth = AGENT_PANEL_DEFAULT_WIDTH
+let workflowPanelResizeStartY = 0
+let workflowPanelResizeStartHeight = WORKFLOW_PANEL_DEFAULT_HEIGHT
+let acgRefreshTimer: number | undefined
+
+const workflowRunBlueprint = computed<AcgBlueprint | null>(() => {
+  const run = activeWorkflowRun.value
+  if (!run?.steps?.length) return null
+
+  const agentIds = new Map<string, string>()
+  run.steps.forEach(step => {
+    const name = step.agentName || 'Agent'
+    if (!agentIds.has(name)) agentIds.set(name, `agent:${name}`)
+  })
+
+  const nodes: AcgBlueprint['nodes'] = [
+    { nodeId: 'workflow:start', nodeType: 'control', name: 'START', controlType: 'start' },
+    ...run.steps.map(step => ({
+      nodeId: step.stepId,
+      nodeType: 'step' as const,
+      name: step.name || step.stepId,
+      agentName: step.agentName,
+      capability: step.capability,
+      metadata: { status: step.status }
+    })),
+    ...Array.from(agentIds.entries()).map(([name, nodeId]) => ({
+      nodeId,
+      nodeType: 'agent' as const,
+      name
+    }))
+  ]
+
+  const edges: AcgBlueprint['edges'] = []
+  run.steps.forEach((step, index) => {
+    edges.push({
+      edgeId: `flow:${index}`,
+      sourceId: index === 0 ? 'workflow:start' : run.steps[index - 1].stepId,
+      targetId: step.stepId,
+      edgeType: 'dependency'
+    })
+    const agentId = agentIds.get(step.agentName || 'Agent')
+    if (agentId) {
+      edges.push({
+        edgeId: `exec:${step.stepId}`,
+        sourceId: agentId,
+        targetId: step.stepId,
+        edgeType: 'execution'
+      })
+    }
+  })
+
+  return {
+    graphId: `workflow:${run.runId}`,
+    taskId: run.taskId,
+    objective: run.workflowId,
+    nodes,
+    edges,
+    metadata: { source: 'workflow-run' }
+  }
+})
+
+const displayAcgBlueprint = computed(() => activeAcgView.value?.acgBlueprint || workflowRunBlueprint.value)
+const displayCompletedStepIds = computed(() => {
+  if (activeAcgView.value?.acgBlueprint) return activeAcgView.value.completedStepIds
+  return activeWorkflowRun.value?.steps
+    .filter(step => step.status === 'completed')
+    .map(step => step.stepId) || []
+})
 const debouncedInputText = useDebounce(inputText, 350)
+
+const clampAgentPanelWidth = (width: number) => {
+  return Math.min(AGENT_PANEL_MAX_WIDTH, Math.max(AGENT_PANEL_MIN_WIDTH, Math.round(width)))
+}
+
+const persistAgentPanelWidth = () => {
+  localStorage.setItem(AGENT_PANEL_WIDTH_KEY, String(agentPanelWidth.value))
+}
+
+const handleAgentPanelResizeMove = (event: PointerEvent) => {
+  if (!agentPanelResizing.value) return
+  agentPanelWidth.value = clampAgentPanelWidth(agentPanelResizeStartWidth + agentPanelResizeStartX - event.clientX)
+}
+
+const stopAgentPanelResize = () => {
+  if (!agentPanelResizing.value) return
+  agentPanelResizing.value = false
+  persistAgentPanelWidth()
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', handleAgentPanelResizeMove)
+  window.removeEventListener('pointerup', stopAgentPanelResize)
+  window.removeEventListener('pointercancel', stopAgentPanelResize)
+}
+
+const startAgentPanelResize = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  event.preventDefault()
+  agentPanelResizeStartX = event.clientX
+  agentPanelResizeStartWidth = agentPanelWidth.value
+  agentPanelResizing.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', handleAgentPanelResizeMove)
+  window.addEventListener('pointerup', stopAgentPanelResize)
+  window.addEventListener('pointercancel', stopAgentPanelResize)
+}
+
+const resetAgentPanelWidth = () => {
+  agentPanelWidth.value = AGENT_PANEL_DEFAULT_WIDTH
+  persistAgentPanelWidth()
+}
+
+const handleAgentPanelResizeKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Home') {
+    agentPanelWidth.value = AGENT_PANEL_MIN_WIDTH
+  } else if (event.key === 'End') {
+    agentPanelWidth.value = AGENT_PANEL_MAX_WIDTH
+  } else if (event.key === 'ArrowLeft') {
+    agentPanelWidth.value = clampAgentPanelWidth(agentPanelWidth.value + 8)
+  } else if (event.key === 'ArrowRight') {
+    agentPanelWidth.value = clampAgentPanelWidth(agentPanelWidth.value - 8)
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  persistAgentPanelWidth()
+}
+
+const clampWorkflowPanelHeight = (height: number) => {
+  return Math.min(WORKFLOW_PANEL_MAX_HEIGHT, Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.round(height)))
+}
+
+const persistWorkflowPanelHeight = () => {
+  localStorage.setItem(WORKFLOW_PANEL_HEIGHT_KEY, String(workflowPanelHeight.value))
+}
+
+const handleWorkflowPanelResizeMove = (event: PointerEvent) => {
+  if (!workflowPanelResizing.value) return
+  workflowPanelHeight.value = clampWorkflowPanelHeight(
+    workflowPanelResizeStartHeight + workflowPanelResizeStartY - event.clientY
+  )
+}
+
+const stopWorkflowPanelResize = () => {
+  if (!workflowPanelResizing.value) return
+  workflowPanelResizing.value = false
+  persistWorkflowPanelHeight()
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', handleWorkflowPanelResizeMove)
+  window.removeEventListener('pointerup', stopWorkflowPanelResize)
+  window.removeEventListener('pointercancel', stopWorkflowPanelResize)
+}
+
+const startWorkflowPanelResize = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  event.preventDefault()
+  workflowPanelResizeStartY = event.clientY
+  workflowPanelResizeStartHeight = workflowPanelHeight.value
+  workflowPanelResizing.value = true
+  document.body.style.cursor = 'row-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', handleWorkflowPanelResizeMove)
+  window.addEventListener('pointerup', stopWorkflowPanelResize)
+  window.addEventListener('pointercancel', stopWorkflowPanelResize)
+}
+
+const resetWorkflowPanelHeight = () => {
+  workflowPanelHeight.value = WORKFLOW_PANEL_DEFAULT_HEIGHT
+  persistWorkflowPanelHeight()
+}
+
+const setWorkflowPanelOpen = (open: boolean) => {
+  workflowPanelOpen.value = open
+  localStorage.setItem(WORKFLOW_PANEL_OPEN_KEY, open ? '1' : '0')
+}
+
+const toggleWorkflowPanel = () => setWorkflowPanelOpen(!workflowPanelOpen.value)
+
+const handleWorkflowPanelResizeKeydown = (event: KeyboardEvent) => {
+  const step = event.shiftKey ? 24 : 8
+  if (event.key === 'Home') {
+    workflowPanelHeight.value = WORKFLOW_PANEL_MIN_HEIGHT
+  } else if (event.key === 'End') {
+    workflowPanelHeight.value = WORKFLOW_PANEL_MAX_HEIGHT
+  } else if (event.key === 'ArrowUp') {
+    workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value + step)
+  } else if (event.key === 'ArrowDown') {
+    workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value - step)
+  } else {
+    return
+  }
+  event.preventDefault()
+  persistWorkflowPanelHeight()
+}
+
+const stopAcgRefresh = () => {
+  if (acgRefreshTimer !== undefined) {
+    window.clearInterval(acgRefreshTimer)
+    acgRefreshTimer = undefined
+  }
+}
+
+const loadActiveAcgView = async () => {
+  if (!activeWorkflowRunId.value || acgViewLoading.value) return
+  acgViewLoading.value = true
+  try {
+    const [run, view] = await Promise.all([
+      agentosApi.getWorkflowRun(activeWorkflowRunId.value),
+      agentosApi.getAcgView(activeWorkflowRunId.value)
+    ])
+    activeWorkflowRun.value = run
+    activeAcgView.value = view
+    if (['completed', 'failed', 'cancelled'].includes(activeAcgView.value.status)) stopAcgRefresh()
+  } catch {
+    // The ACG projection can lag briefly behind WorkflowRun creation; polling retries it.
+  } finally {
+    acgViewLoading.value = false
+  }
+}
+
+const startAcgRefresh = () => {
+  stopAcgRefresh()
+  void loadActiveAcgView()
+  acgRefreshTimer = window.setInterval(() => void loadActiveAcgView(), 2500)
+}
 
 const roles = computed(() => roleStore.roles)
 const currentRole = computed(() => roleStore.currentRole)
-const chatInterfaceMode = ref<ChatInterfaceMode>(getInitialChatInterfaceMode())
-const isSimpleInterface = computed(() => chatInterfaceMode.value === 'simple')
-const isDetailInterface = computed(() => chatInterfaceMode.value === 'detail')
-const showLanding = ref(chatInterfaceMode.value === 'simple')
-const shouldShowLanding = computed(() => {
-  return isSimpleInterface.value && showLanding.value && chatStore.messages.length === 0 && !route.query.contextId
-})
 
 const isLawyerMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
@@ -776,14 +953,6 @@ const isWriterMode = computed(() => {
 })
 
 const isAgentMode = computed(() => isLawyerMode.value || isTeacherMode.value || isProgrammerMode.value || isWriterMode.value)
-
-const headerClass = computed(() => {
-  if (isLawyerMode.value) return 'lawyer-active'
-  if (isTeacherMode.value) return 'teacher-active'
-  if (isProgrammerMode.value) return 'programmer-active'
-  if (isWriterMode.value) return 'writer-active'
-  return ''
-})
 
 const chatMainClass = computed(() => {
   if (isLawyerMode.value) return 'lawyer'
@@ -981,6 +1150,24 @@ const availableWriterResultPanels = computed(() => {
   return panels
 })
 
+// 右侧工作台：仅当当前模式有技能调用结果时才显示
+const hasAgentResults = computed(() => {
+  if (isLawyerMode.value) return availableLawyerResultPanels.value.length > 0
+  if (isTeacherMode.value) return availableTeacherResultPanels.value.length > 0
+  if (isProgrammerMode.value) return availableProgrammerResultPanels.value.length > 0
+  if (isWriterMode.value) return availableWriterResultPanels.value.length > 0
+  return false
+})
+
+const hasAgentActivity = computed(() => {
+  if (hasAgentResults.value) return true
+  if (isLawyerMode.value) return latestLawyerMeta.value.skillsUsed.length > 0 || latestLawyerMeta.value.trace.length > 0
+  if (isTeacherMode.value) return latestTeacherMeta.value.skillsUsed.length > 0 || latestTeacherMeta.value.trace.length > 0
+  if (isProgrammerMode.value) return latestProgrammerMeta.value.skillsUsed.length > 0 || latestProgrammerMeta.value.trace.length > 0
+  if (isWriterMode.value) return latestWriterMeta.value.skillsUsed.length > 0 || latestWriterMeta.value.trace.length > 0
+  return false
+})
+
 const showScrollToBottom = computed(() => !isNearBottom.value && chatStore.messages.length > 0)
 const isSendDisabled = computed(() => loading.value || (!inputText.value.trim() && !isRecording.value))
 const isWorkflowUpgradeDisabled = computed(() => loading.value || !inputText.value.trim())
@@ -1164,14 +1351,6 @@ const handleFederatedOptimize = async () => {
   }
 }
 
-const goToSettings = () => {
-  router.push('/settings')
-}
-
-const goToAgentOsConsole = () => {
-  router.push('/agentos-console')
-}
-
 const toggleAssistTools = () => {
   showAssistTools.value = !showAssistTools.value
 }
@@ -1190,77 +1369,6 @@ const useTemplate = (text: string) => {
       textarea.setSelectionRange(text.length, text.length)
     }
   })
-}
-
-const setChatInterfaceMode = async (mode: ChatInterfaceMode) => {
-  chatInterfaceMode.value = mode
-  localStorage.setItem(CHAT_INTERFACE_MODE_KEY, mode)
-  window.dispatchEvent(new CustomEvent(CHAT_INTERFACE_MODE_EVENT, { detail: { mode } }))
-
-  if (mode === 'detail') {
-    showLanding.value = false
-  } else if (chatStore.messages.length === 0 && !route.query.contextId) {
-    showLanding.value = true
-  }
-
-  await nextTick()
-  bindMessagesScroll()
-}
-
-const switchToSimpleInterface = () => {
-  void setChatInterfaceMode('simple')
-}
-
-const switchToDetailInterface = () => {
-  void setChatInterfaceMode('detail')
-}
-
-const revealFullChat = async () => {
-  showLanding.value = false
-  await nextTick()
-  bindMessagesScroll()
-}
-
-const submitLandingMessage = async () => {
-  const text = landingInputText.value.trim()
-  if (!text || loading.value) return
-
-  await revealFullChat()
-  inputText.value = text
-  landingInputText.value = ''
-  await sendMessage()
-}
-
-const handleLandingKeydown = (event: KeyboardEvent) => {
-  if (event.isComposing || event.keyCode === 229) return
-  if (event.key !== 'Enter') return
-  if (event.ctrlKey || event.shiftKey) return
-
-  event.preventDefault()
-  submitLandingMessage()
-}
-
-const applyLandingTemplate = async (text: string) => {
-  await revealFullChat()
-  useTemplate(text)
-}
-
-const switchLandingRole = async (mode: 'lawyer' | 'teacher' | 'programmer' | 'writer') => {
-  await revealFullChat()
-  if (mode === 'lawyer') await toggleLawyerMode()
-  if (mode === 'teacher') await toggleTeacherMode()
-  if (mode === 'programmer') await toggleProgrammerMode()
-  if (mode === 'writer') await toggleWriterMode()
-}
-
-const openLandingNetwork = async () => {
-  await revealFullChat()
-  openFederatedConsole()
-}
-
-const openLandingAttachment = async () => {
-  await revealFullChat()
-  handleControl('folder')
 }
 
 const autoSegment = () => {
@@ -1333,6 +1441,37 @@ const selectRole = async (role: any) => {
   ElMessage.success(`已切换到角色: ${role.name}`)
 }
 
+const animateComposerToConversation = async (startRect: DOMRect) => {
+  await nextTick()
+  const composer = composerRef.value
+  if (!composer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+  const endRect = composer.getBoundingClientRect()
+  const offsetX = startRect.left - endRect.left
+  const offsetY = startRect.top - endRect.top
+  if (Math.abs(offsetX) < 1 && Math.abs(offsetY) < 1) return
+
+  const animation = composer.animate(
+    [
+      { transform: `translate(${offsetX}px, ${offsetY}px)`, opacity: 0.98 },
+      { transform: 'translate(0, 0)', opacity: 1 }
+    ],
+    {
+      duration: 480,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'both'
+    }
+  )
+
+  try {
+    await animation.finished
+  } catch {
+    // The animation may be cancelled when switching routes or roles.
+  } finally {
+    animation.cancel()
+  }
+}
+
 const sendMessage = async () => {
   if (loading.value) return
   if (!inputText.value.trim() && !isRecording.value) return
@@ -1351,6 +1490,9 @@ const sendMessage = async () => {
   loading.value = true
   const userText = inputText.value.trim()
   inputText.value = ''
+  const composerStartRect = chatStore.messages.length === 0
+    ? composerRef.value?.getBoundingClientRect()
+    : undefined
 
   try {
     const agentMode = isLawyerMode.value
@@ -1362,7 +1504,11 @@ const sendMessage = async () => {
           : isWriterMode.value
             ? 'writer'
             : 'default'
-    await chatStore.sendMessageStream(userText, agentMode, loadModelSettings())
+    const sendPromise = chatStore.sendMessageStream(userText, agentMode, loadModelSettings())
+    if (composerStartRect) {
+      await animateComposerToConversation(composerStartRect)
+    }
+    await sendPromise
     scrollToBottom()
   } catch (err: any) {
     ElMessage.error(err.message || '发送消息失败')
@@ -1389,6 +1535,11 @@ const upgradeChatToWorkflow = async () => {
       reviewMode: 'human_in_loop'
     })
     if (response?.run?.runId) {
+      activeWorkflowRunId.value = response.run.runId
+      activeWorkflowRun.value = response.run
+      activeAcgView.value = null
+      setWorkflowPanelOpen(true)
+      startAcgRefresh()
       ElMessage.success(`已创建 WorkflowRun：${response.run.runId}`)
     }
     scrollToBottom()
@@ -1491,9 +1642,16 @@ const handleFileSelected = async (file: any) => {
 
   showFileManager.value = false
   loading.value = true
+  const composerStartRect = chatStore.messages.length === 0
+    ? composerRef.value?.getBoundingClientRect()
+    : undefined
 
   try {
-    await chatStore.sendMessage('', fileUrl, loadModelSettings())
+    const sendPromise = chatStore.sendMessage('', fileUrl, loadModelSettings())
+    if (composerStartRect) {
+      await animateComposerToConversation(composerStartRect)
+    }
+    await sendPromise
     scrollToBottom()
     ElMessage.success(`已发送文件: ${file.name}`)
   } catch (error: any) {
@@ -1628,17 +1786,36 @@ watch(recommendationCollapsed, collapsed => {
   localStorage.setItem(RECOMMENDATION_COLLAPSED_KEY, collapsed ? '1' : '0')
 })
 
-onMounted(async () => {
-  window.dispatchEvent(new CustomEvent(CHAT_INTERFACE_MODE_EVENT, { detail: { mode: chatInterfaceMode.value } }))
-  if (chatInterfaceMode.value === 'detail') {
-    showLanding.value = false
-  }
+watch(agentPanelCollapsed, collapsed => {
+  localStorage.setItem(AGENT_PANEL_COLLAPSED_KEY, collapsed ? '1' : '0')
+})
 
+watch(
+  () => [...chatStore.messages].reverse().find(message => message.workflowRunId)?.workflowRunId,
+  runId => {
+    if (!runId || runId === activeWorkflowRunId.value) return
+    activeWorkflowRunId.value = runId
+    activeWorkflowRun.value = null
+    activeAcgView.value = null
+    startAcgRefresh()
+  },
+  { immediate: true }
+)
+
+watch(hasAgentActivity, active => {
+  if (active) agentPanelCollapsed.value = false
+})
+
+onMounted(async () => {
   await roleStore.loadRoles()
 
+  if (localStorage.getItem(AGENT_PANEL_COLLAPSED_KEY) === null && isAgentMode.value && !hasAgentActivity.value) {
+    agentPanelCollapsed.value = true
+  }
+
   const assistToolVisible = localStorage.getItem(ASSIST_TOOL_VISIBLE_KEY)
-  if (assistToolVisible === '0') {
-    showAssistTools.value = false
+  if (assistToolVisible === '1') {
+    showAssistTools.value = true
   }
 
   const recommendationPanelCollapsed = localStorage.getItem(RECOMMENDATION_COLLAPSED_KEY)
@@ -1662,6 +1839,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopAgentPanelResize()
+  stopWorkflowPanelResize()
+  stopAcgRefresh()
   if (messagesRef.value) {
     messagesRef.value.removeEventListener('scroll', checkScrollState)
   }
@@ -1898,7 +2078,7 @@ onUnmounted(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(860px, calc(100vw - 48px));
+  width: min(980px, calc(100vw - 48px));
   min-height: 160px;
   margin-top: 0;
   border: 1.5px solid var(--border-light);
@@ -1940,17 +2120,18 @@ onUnmounted(() => {
   position: absolute;
   right: 10px;
   bottom: 10px;
-  left: 33px;
+  left: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
 }
 
 .landing-quick-actions {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -2168,131 +2349,41 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
-.chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 24px 14px;
-  border-bottom: 1px solid var(--border-light);
-  background: rgba(251, 251, 248, 0.72);
-  backdrop-filter: blur(18px);
-  transition: border-bottom-color 0.3s ease, background 0.3s ease;
-}
-
-.chat-header.lawyer-active {
-  border-bottom-color: rgba(73, 107, 143, 0.32);
-}
-
-.chat-header.teacher-active {
-  border-bottom-color: rgba(61, 118, 86, 0.32);
-}
-
-.chat-header.programmer-active {
-  border-bottom-color: rgba(111, 102, 143, 0.32);
-}
-
-.chat-header.writer-active {
-  border-bottom-color: rgba(154, 116, 50, 0.32);
-}
-
-.chat-header .left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.chat-header .title {
-  font-size: 17px;
-  font-weight: 650;
-  color: var(--text-primary);
-  letter-spacing: 0;
-}
-
-.mode-switcher {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  background: var(--bg-input);
-  border: none;
-  border-radius: 999px;
-  padding: 3px;
-}
-
-.mode-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  padding: 4px 12px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: var(--transition);
-  white-space: nowrap;
-}
-
-.mode-btn:hover {
-  background: rgba(255, 255, 255, 0.7);
-  color: var(--text-primary);
-}
-
-.mode-btn.active {
-  background: #fff;
-  color: var(--primary-color);
-  box-shadow: 0 1px 4px rgba(31, 30, 29, 0.1);
-}
-
-.mode-btn:first-child.active {
-  color: var(--info);
-}
-
-.mode-btn:nth-child(2).active {
-  color: var(--success);
-}
-
-.mode-btn:nth-child(3).active {
-  color: var(--accent-color);
-}
-
-.mode-btn:nth-child(4).active {
-  color: var(--warning);
-}
-
-.mode-icon {
-  font-size: 13px;
-}
-
-.mode-label {
-  font-size: 12px;
-}
-
-.chat-header .right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .chat-main {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  padding: 16px 18px 18px;
+  gap: 0;
+  padding: 0;
   transition: grid-template-columns 0.24s var(--ease-out);
+}
+
+.chat-main.has-agent-results {
+  gap: 0;
+  padding: 0;
 }
 
 .chat-main.lawyer,
 .chat-main.teacher,
 .chat-main.programmer,
 .chat-main.writer {
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr;
+}
+
+.chat-main.has-agent-results.lawyer,
+.chat-main.has-agent-results.teacher,
+.chat-main.has-agent-results.programmer,
+.chat-main.has-agent-results.writer {
+  grid-template-columns: minmax(0, 1fr) var(--agent-panel-width, 340px);
+}
+
+.chat-main.has-agent-results.agent-panel-collapsed {
+  grid-template-columns: minmax(0, 1fr) 52px;
+}
+
+.chat-main.agent-panel-resizing {
+  transition: none;
 }
 
 .chat-main.simple-session {
@@ -2336,33 +2427,9 @@ onUnmounted(() => {
   backdrop-filter: none;
 }
 
-.chat-main.simple-session .empty-state .empty-icon {
+.chat-main.simple-session .empty-state .rgb-orb {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
-  color: var(--primary-color);
-  background: var(--primary-fade);
-  box-shadow: none;
-}
-
-.chat-main.simple-session .quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 24px;
-}
-
-.chat-main.simple-session .quick-btn {
-  justify-content: flex-start;
-  min-height: auto;
-  padding: 7px 16px;
-  text-align: left;
-  white-space: nowrap;
-  background: var(--bg-panel);
-  border: none;
-  border-radius: 999px;
-  box-shadow: none;
 }
 
 .chat-main.simple-session .typing {
@@ -2377,9 +2444,217 @@ onUnmounted(() => {
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg-app);
+}
+
+.workflow-acg-panel {
+  position: relative;
+  z-index: 6;
+  flex: 0 0 auto;
+  min-height: 180px;
+  overflow: hidden;
+  border-top: 1px solid var(--border-light);
+  background: color-mix(in srgb, var(--bg-card) 94%, var(--primary-fade));
+  box-shadow: 0 -12px 30px rgba(26, 31, 58, 0.035);
+  transition: height 0.2s var(--ease-out);
+}
+
+.workflow-acg-panel.resizing {
+  transition: none;
+}
+
+.workflow-panel-resizer {
+  position: absolute;
+  z-index: 10;
+  top: -5px;
+  right: 0;
+  left: 0;
+  height: 11px;
+  cursor: row-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.workflow-panel-resizer::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: transparent;
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.workflow-panel-resizer > span {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-light);
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.16s ease, background-color 0.16s ease;
+}
+
+.workflow-panel-resizer:hover::before,
+.workflow-panel-resizer:focus-visible::before,
+.workflow-acg-panel.resizing .workflow-panel-resizer::before {
+  background: var(--primary-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 16%, transparent);
+}
+
+.workflow-panel-resizer:hover > span,
+.workflow-panel-resizer:focus-visible > span,
+.workflow-acg-panel.resizing .workflow-panel-resizer > span {
+  opacity: 1;
+  background: var(--primary-color);
+}
+
+.workflow-acg-panel :deep(.acg-topology) {
+  height: 100%;
+  padding: 10px 12px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.workflow-acg-panel :deep(.panel-head) {
+  flex: 0 0 auto;
+  min-height: 28px;
+  margin-bottom: 4px;
+}
+
+.workflow-acg-panel :deep(.graph-canvas) {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.workflow-acg-panel :deep(.legend) {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  padding-top: 6px;
+}
+
+.workflow-acg-loading {
+  position: absolute;
+  inset: 42px 0 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-disabled);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.workflow-panel-collapse {
+  position: absolute;
+  z-index: 9;
+  top: 10px;
+  right: 52px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.82);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.workflow-panel-collapse:hover,
+.workflow-panel-collapse:focus-visible {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.workflow-acg-dock {
+  flex: 0 0 30px;
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-top: 1px solid var(--border-light);
+  background: color-mix(in srgb, var(--bg-card) 94%, var(--primary-fade));
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
+}
+
+.workflow-acg-dock:hover,
+.workflow-acg-dock:focus-visible {
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.workflow-acg-dock__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: 0 0 0 4px var(--primary-fade);
+  animation: acg-dock-pulse 2s ease-in-out infinite;
+}
+
+.workflow-acg-dock__meta {
+  color: var(--text-disabled);
+  font-weight: 500;
+}
+
+.workflow-acg-dock .el-icon {
+  margin-left: 2px;
+}
+
+@keyframes acg-dock-pulse {
+  50% { opacity: 0.55; transform: scale(0.86); }
+}
+
+.workflow-acg-slide-enter-active,
+.workflow-acg-slide-leave-active {
+  transition: opacity 0.2s ease, transform 0.24s var(--ease-out);
+}
+
+.workflow-acg-slide-enter-from,
+.workflow-acg-slide-leave-to {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.chat-panel.hero-mode .messages {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.chat-panel.hero-mode .empty-state {
+  margin-top: clamp(96px, 12vh, 138px);
+}
+
+.chat-panel.hero-mode .composer {
+  position: absolute;
+  top: 52%;
+  right: 0;
+  left: 0;
+  z-index: 4;
+  transform: translateY(-50%);
 }
 
 .messages {
@@ -2414,17 +2689,114 @@ onUnmounted(() => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.empty-state .empty-icon {
+.rgb-orb {
+  --orb-cyan: rgb(75 220 255);
+  --orb-magenta: rgb(210 99 255);
+  --orb-green: rgb(92 255 177);
+  position: relative;
   width: 52px;
   height: 52px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
   margin-bottom: 20px;
-  border-radius: 14px;
-  background: var(--primary-fade);
-  color: var(--primary-color);
-  font-size: 24px;
+  isolation: isolate;
+  filter: saturate(1.08);
+  animation: rgb-orb-breathe 3.8s ease-in-out infinite;
+}
+
+.rgb-orb__aura,
+.rgb-orb__core,
+.rgb-orb__ring,
+.rgb-orb__particle {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.rgb-orb__aura {
+  inset: 5px;
+  z-index: -1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 32%, color-mix(in srgb, var(--orb-cyan) 68%, transparent), transparent 48%),
+    radial-gradient(circle at 68% 35%, color-mix(in srgb, var(--orb-magenta) 68%, transparent), transparent 50%),
+    radial-gradient(circle at 48% 72%, color-mix(in srgb, var(--orb-green) 58%, transparent), transparent 52%);
+  filter: blur(9px);
+  opacity: 0.72;
+}
+
+.rgb-orb__core {
+  inset: 11px;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 24%, transparent);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgb(255 255 255 / 0.78) 0 3%, transparent 12%),
+    conic-gradient(from 215deg, var(--orb-cyan), var(--orb-magenta), var(--orb-green), var(--orb-cyan));
+  box-shadow:
+    inset -5px -7px 13px rgb(21 22 39 / 0.48),
+    inset 4px 3px 10px rgb(255 255 255 / 0.16),
+    0 0 12px color-mix(in srgb, var(--orb-magenta) 42%, transparent);
+  animation: rgb-orb-core 7s linear infinite;
+}
+
+.rgb-orb__core::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgb(30 31 46 / 0.08), rgb(30 31 46 / 0.52));
+  backdrop-filter: blur(1px);
+}
+
+.rgb-orb__ring {
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  border-top-color: color-mix(in srgb, var(--orb-cyan) 74%, transparent);
+  border-right-color: color-mix(in srgb, var(--orb-magenta) 54%, transparent);
+  animation: rgb-orb-orbit 8s linear infinite;
+}
+
+.rgb-orb__ring--inner {
+  inset: 8px;
+  border-top-color: color-mix(in srgb, var(--orb-green) 68%, transparent);
+  border-right-color: transparent;
+  border-bottom-color: color-mix(in srgb, var(--orb-magenta) 46%, transparent);
+  animation-duration: 5.8s;
+  animation-direction: reverse;
+}
+
+.rgb-orb__particle {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px 1px currentColor;
+  animation: rgb-orb-particle 2.8s ease-in-out infinite;
+}
+
+.rgb-orb__particle--1 { top: 3px; left: 25px; color: var(--orb-cyan); }
+.rgb-orb__particle--2 { top: 12px; right: 4px; color: var(--orb-magenta); animation-delay: -0.6s; }
+.rgb-orb__particle--3 { right: 8px; bottom: 8px; color: var(--orb-green); animation-delay: -1.2s; }
+.rgb-orb__particle--4 { bottom: 3px; left: 20px; color: var(--orb-cyan); animation-delay: -1.8s; }
+.rgb-orb__particle--5 { top: 27px; left: 2px; color: var(--orb-magenta); animation-delay: -2.2s; }
+.rgb-orb__particle--6 { top: 9px; left: 9px; color: var(--orb-green); animation-delay: -2.6s; }
+
+@keyframes rgb-orb-breathe {
+  0%, 100% { transform: scale(0.96); filter: saturate(1.02) brightness(0.94); }
+  50% { transform: scale(1.04); filter: saturate(1.18) brightness(1.08); }
+}
+
+@keyframes rgb-orb-core {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rgb-orb-orbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rgb-orb-particle {
+  0%, 100% { opacity: 0.28; transform: scale(0.72); }
+  48% { opacity: 1; transform: scale(1.18); }
 }
 
 .empty-state h2 {
@@ -2443,71 +2815,10 @@ onUnmounted(() => {
   line-height: 1.7;
 }
 
-.quick-actions {
-  margin-top: 24px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-}
-
-.quick-btn {
-  border: none;
-  background: var(--bg-panel);
-  border-radius: 999px;
-  padding: 7px 16px;
-  white-space: nowrap;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: var(--transition);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.quick-btn:hover {
-  background: rgba(217, 119, 87, 0.1);
-  color: var(--primary-color);
-}
-
-.quick-btn.lawyer-btn {
-  color: var(--info);
-}
-
-.quick-btn.lawyer-btn:hover {
-  background: rgba(122, 110, 93, 0.1);
-}
-
-.quick-btn.teacher-btn {
-  color: var(--success);
-}
-
-.quick-btn.teacher-btn:hover {
-  background: rgba(74, 124, 89, 0.1);
-}
-
-.quick-btn.programmer-btn {
-  color: var(--accent-color);
-}
-
-.quick-btn.programmer-btn:hover {
-  background: rgba(176, 123, 79, 0.1);
-}
-
-.quick-btn.writer-btn {
-  color: var(--warning);
-}
-
-.quick-btn.writer-btn:hover {
-  background: rgba(181, 133, 47, 0.1);
-}
-
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 26px;
 }
 
 .typing {
@@ -2687,6 +2998,36 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 
+/* 右侧工作台滑入动画 */
+.agent-panel-slide-enter-active {
+  transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out);
+}
+.agent-panel-slide-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.agent-panel-slide-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+.agent-panel-slide-leave-to {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-panel-slide-enter-active,
+  .agent-panel-slide-leave-active {
+    transition: none;
+  }
+
+  .rgb-orb,
+  .rgb-orb__core,
+  .rgb-orb__ring,
+  .rgb-orb__particle {
+    animation: none;
+  }
+}
+
 @keyframes recommendation-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(47, 143, 131, 0.42);
@@ -2713,7 +3054,7 @@ onUnmounted(() => {
 
 .template-item {
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 8px;
   padding: 6px 14px;
   white-space: nowrap;
@@ -2729,60 +3070,138 @@ onUnmounted(() => {
 
 .composer {
   flex-shrink: 0;
-  padding: 12px 14px 14px;
+  position: relative;
+  padding: 8px 14px 12px;
   background: transparent;
-  transition: border-top-color 0.3s ease;
+  will-change: transform;
 }
 
-.composer > .el-textarea,
-.composer > .el-input {
-  display: block;
-  width: 100%;
-  margin: 0 auto;
-  padding: 14px 16px 0;
-  border: 1.5px solid var(--border-light);
+.composer-popover {
+  width: 50%;
+  margin: 0 auto 7px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+
+.composer-popover.template-row {
+  padding: 6px;
+}
+
+.composer-popover.template-row .template-item {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.composer-popover.recommendation-panel-wrap {
+  max-height: min(28vh, 260px);
+  margin-top: 0;
+  padding: 7px;
+}
+
+.composer-shelf {
+  position: relative;
+  z-index: 1;
+  width: 50%;
+  min-height: 44px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0 auto -12px;
+  padding: 6px 11px 17px;
+  overflow-x: auto;
+  border: 1px solid var(--border-light);
   border-bottom: 0;
-  border-radius: 16px 16px 0 0;
-  background: #fff;
-  box-shadow: 0 -2px 12px rgba(31, 30, 29, 0.03);
+  border-radius: 15px 15px 8px 8px;
+  background: var(--bg-sidebar);
+}
+
+.composer-shelf-action {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.composer-shelf-action:hover,
+.composer-shelf-action.active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.composer-shelf-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.composer-shelf-count {
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.composer-card {
+  position: relative;
+  z-index: 2;
+  width: 50%;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.composer:focus-within > .el-textarea,
-.composer:focus-within > .el-input {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px rgba(217, 119, 87, 0.06), 0 8px 20px rgba(31, 30, 29, 0.04);
+.composer-card:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 4px var(--primary-fade), var(--shadow-md);
+}
+
+.composer-card > .el-textarea,
+.composer-card > .el-input {
+  display: block;
+  width: 100%;
+  padding: 13px 16px 0;
+  background: transparent;
 }
 
 .composer :deep(.el-textarea__inner) {
-  min-height: 48px !important;
-  padding: 4px 2px 0 !important;
+  min-height: 38px !important;
+  padding: 2px 0 0 !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
 .composer-footer {
   width: 100%;
-  margin: 0 auto;
-  padding: 8px 14px 10px;
-  border: 1.5px solid var(--border-light);
-  border-top: 1px solid var(--bg-input);
-  border-radius: 0 0 16px 16px;
-  background: #fff;
-  box-shadow: 0 6px 16px rgba(31, 30, 29, 0.04);
-  margin-top: 0;
   display: flex;
   justify-content: space-between;
-  gap: 12px;
   align-items: center;
-}
-
-.composer:focus-within .composer-footer {
-  border-color: var(--primary-color);
-  border-top-color: rgba(217, 119, 87, 0.12);
+  gap: 8px;
+  padding: 4px 10px 8px;
 }
 
 .chat-main.simple-session .composer {
@@ -2791,39 +3210,90 @@ onUnmounted(() => {
   background: linear-gradient(to top, #fff 74%, rgba(255, 255, 255, 0));
 }
 
-.chat-main.simple-session .composer > .el-textarea,
-.chat-main.simple-session .composer > .el-input,
-.chat-main.simple-session .composer-footer {
-  width: min(100%, 940px);
-}
-
-.chat-main.simple-session .left-actions .el-button,
-.chat-main.simple-session .right-actions .el-button:not(.el-button--primary) {
-  border-radius: 999px;
-}
-
-.chat-main.teacher .composer {
-  border-top-color: rgba(61, 118, 86, 0.22);
-}
-
-.chat-main.lawyer .composer {
-  border-top-color: rgba(73, 107, 143, 0.22);
-}
-
-.chat-main.programmer .composer {
-  border-top-color: rgba(111, 102, 143, 0.22);
-}
-
-.chat-main.writer .composer {
-  border-top-color: rgba(154, 116, 50, 0.22);
+.chat-main.simple-session .composer-card,
+.chat-main.simple-session .composer-shelf,
+.chat-main.simple-session .composer-popover {
+  width: 50%;
 }
 
 .left-actions,
 .right-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.composer-icon-action {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.composer-icon-action:hover,
+.composer-icon-action.active {
+  background: var(--primary-fade);
+  color: var(--primary-color);
+}
+
+.composer-agent-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary-color);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.composer-acg-toggle {
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
+}
+
+.composer-acg-toggle:hover,
+.composer-acg-toggle:focus-visible,
+.composer-acg-toggle.active {
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.composer-send.el-button {
+  width: 34px;
+  height: 34px;
+  margin-left: 2px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.word-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .hidden-file-input {
@@ -2835,30 +3305,158 @@ onUnmounted(() => {
 }
 
 .agent-panel {
+  position: relative;
+  --agent-panel-accent: var(--primary-color);
   background: var(--bg-sidebar);
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 12px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-light);
-  transition: border-color 0.3s ease;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border-light);
+  border-radius: 0;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.agent-panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 12;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.agent-panel-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--primary-color);
+  opacity: 0;
+  transform: scaleY(0.96);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.agent-panel-resizer:hover::after,
+.agent-panel-resizer:focus-visible::after,
+.agent-panel.resizing .agent-panel-resizer::after {
+  opacity: 0.8;
+  transform: scaleY(1);
+}
+
+.agent-panel-toggle-row {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  z-index: 20;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+}
+
+.agent-panel-toggle {
+  min-width: 30px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.agent-panel-toggle:hover {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.agent-panel-toggle span {
+  display: none;
+}
+
+.agent-panel-toggle:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.agent-panel.collapsed .agent-panel-toggle-row {
+  position: static;
+  flex: 0 0 54px;
+  height: 54px;
+  justify-content: center;
+  padding: 0;
+}
+
+.agent-panel.collapsed .agent-panel-toggle {
+  width: 38px;
+  padding: 0;
+  font-size: 16px;
+}
+
+.agent-panel-content {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+.agent-panel-rail {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}
+
+.agent-panel-rail-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  font-size: 17px;
 }
 
 .chat-main.lawyer .agent-panel {
+  --agent-panel-accent: #496b8f;
   border-left-color: rgba(73, 107, 143, 0.22);
 }
 
 .chat-main.teacher .agent-panel {
+  --agent-panel-accent: #3d7656;
   border-left-color: rgba(61, 118, 86, 0.22);
 }
 
 .chat-main.programmer .agent-panel {
+  --agent-panel-accent: #6f668f;
   border-left-color: rgba(111, 102, 143, 0.22);
 }
 
 .chat-main.writer .agent-panel {
+  --agent-panel-accent: #9a7432;
   border-left-color: rgba(154, 116, 50, 0.22);
 }
 
@@ -2866,16 +3464,187 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 32px 16px;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 52px 18px 24px;
   color: var(--text-secondary);
   font-size: 13px;
 }
 
 .results-empty .empty-icon {
-  font-size: 24px;
-  opacity: 0.8;
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border-radius: 9px;
+  background: var(--bg-panel);
+  color: var(--agent-panel-accent);
+  font-size: 18px;
+  opacity: 1;
+}
+
+.results-empty-hint {
+  max-width: 230px;
+  color: var(--text-disabled);
+  font-size: 11px;
+  line-height: 1.55;
+  text-align: center;
+  text-wrap: pretty;
+}
+
+.agent-panel-content :deep(.skill-panel) {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.agent-panel-content :deep(.lawyer-panel),
+.agent-panel-content :deep(.teacher-panel),
+.agent-panel-content :deep(.programmer-panel),
+.agent-panel-content :deep(.writer-panel) {
+  border-top: 0;
+}
+
+.agent-panel-content :deep(.panel-header) {
+  min-height: 64px;
+  padding: 10px 46px 10px 14px;
+  gap: 8px;
+  background: transparent;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.agent-panel-content :deep(.header-left) {
+  min-width: 0;
+  gap: 9px;
+}
+
+.agent-panel-content :deep(.agent-avatar) {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--primary-fade);
+  color: var(--agent-panel-accent);
+  box-shadow: none;
+  font-size: 15px;
+}
+
+.agent-panel-content :deep(.header-text) {
+  min-width: 0;
+  gap: 1px;
+}
+
+.agent-panel-content :deep(.panel-header h3) {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-panel-content :deep(.header-sub) {
+  overflow: hidden;
+  color: var(--text-disabled);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-panel-content :deep(.header-badges) {
+  flex: 0 0 auto;
+}
+
+.agent-panel-content :deep(.skill-pill),
+.agent-panel-content :deep(.risk-pill) {
+  padding: 3px 7px;
+  border: 0;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  box-shadow: none;
+}
+
+.agent-panel-content :deep(.pill-dot) {
+  width: 5px;
+  height: 5px;
+  background: var(--agent-panel-accent);
+  animation: none;
+}
+
+.agent-panel-content :deep(.panel-tabs) {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+  background: transparent;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.agent-panel-content :deep(.tab-btn) {
+  gap: 4px;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  box-sizing: border-box;
+  padding: 0 6px !important;
+  border-bottom-width: 1px;
+  background: transparent;
+  color: var(--text-disabled);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.agent-panel-content :deep(.tab-btn:hover) {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.agent-panel-content :deep(.tab-btn.active) {
+  background: transparent;
+  color: var(--text-primary);
+  border-bottom-color: var(--agent-panel-accent);
+}
+
+.agent-panel-content :deep(.tab-icon) {
+  display: none;
+}
+
+.agent-panel-content :deep(.tab-badge),
+.agent-panel-content :deep(.tab-btn.active .tab-badge) {
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  line-height: 13px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 8px;
+}
+
+.agent-panel-content :deep(.empty) {
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 48px 18px 24px;
+  color: var(--text-secondary);
+}
+
+.agent-panel-content :deep(.empty-illustration) {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--bg-panel);
+  color: var(--agent-panel-accent);
+  box-shadow: none;
+  font-size: 18px;
+}
+
+.agent-panel-content :deep(.empty-hint) {
+  max-width: 230px;
+  color: var(--text-disabled);
+  font-size: 11px;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .writer-content-preview {
@@ -2940,7 +3709,7 @@ onUnmounted(() => {
 .search-item {
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--bg-card);
   padding: 8px 10px;
 }
 
@@ -3023,6 +3792,28 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
+@media (max-width: 1100px) {
+  .landing-composer {
+    min-height: 204px;
+  }
+
+  .landing-composer-footer {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 8px 14px 12px;
+  }
+
+  .landing-quick-actions {
+    flex-wrap: wrap;
+  }
+
+  .landing-composer-actions {
+    justify-content: flex-end;
+  }
+}
+
 @media (max-width: 900px) {
   .landing-topbar {
     min-height: 118px;
@@ -3030,7 +3821,7 @@ onUnmounted(() => {
   }
 
   .chat-view.simple-interface .landing-topbar {
-    padding-left: 78px;
+    padding-left: 104px;
   }
 
   .landing-brand {
@@ -3063,7 +3854,8 @@ onUnmounted(() => {
   .landing-hero h2 {
     bottom: calc(50% + 184px);
     max-width: 680px;
-    font-size: 40px;
+    font-size: clamp(34px, 4.8vw, 38px);
+    text-wrap: balance;
   }
 
   .landing-hero p {
@@ -3072,68 +3864,9 @@ onUnmounted(() => {
     font-size: 18px;
   }
 
-  .landing-composer {
-    height: auto;
-    min-height: 204px;
-  }
-
-  .landing-composer-footer {
-    position: static;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
-    padding: 8px 14px 12px;
-  }
-
-  .landing-quick-actions {
-    flex-wrap: wrap;
-  }
-
-  .landing-composer-actions {
-    justify-content: flex-end;
-  }
 }
 
 @media (max-width: 620px) {
-  .chat-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 58px 12px 10px;
-  }
-
-  .chat-header .left {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .chat-header .title {
-    position: absolute;
-    top: 23px;
-    left: 62px;
-  }
-
-  .mode-switcher {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .mode-btn {
-    min-width: 0;
-    justify-content: center;
-    padding: 7px 4px;
-  }
-
-  .chat-header .right {
-    gap: 6px;
-  }
-
-  .chat-header .right .el-button {
-    margin-left: 0;
-  }
-
   .landing-topbar {
     min-height: 136px;
   }
@@ -3215,18 +3948,24 @@ onUnmounted(() => {
     border-radius: 14px;
   }
 
-  .chat-main.simple-session .quick-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .chat-main:not(.simple-session) .empty-state {
+    margin: 18px auto;
+    padding: 0 12px;
   }
 
-  .chat-main .quick-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+  .chat-main:not(.simple-session) .empty-state .rgb-orb {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 12px;
   }
 
-  .chat-main .empty-state .quick-actions {
-    display: none;
+  .chat-main:not(.simple-session) .empty-state h2 {
+    margin-bottom: 6px;
+    font-size: 22px;
+  }
+
+  .chat-main:not(.simple-session) .empty-state p {
+    line-height: 1.5;
   }
 
   .chat-main .template-row {
@@ -3239,20 +3978,6 @@ onUnmounted(() => {
     min-width: 0;
     padding: 6px 8px;
     white-space: normal;
-  }
-
-  .chat-main .quick-btn {
-    min-width: 0;
-    justify-content: center;
-    padding: 8px;
-    white-space: normal;
-  }
-
-  .chat-main .quick-btn.lawyer-btn,
-  .chat-main .quick-btn.teacher-btn,
-  .chat-main .quick-btn.programmer-btn,
-  .chat-main .quick-btn.writer-btn {
-    display: none;
   }
 
   .chat-main.simple-session .composer {
@@ -3329,10 +4054,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .chat-main.lawyer,
-  .chat-main.teacher,
-  .chat-main.programmer,
-  .chat-main.writer {
+  .chat-main.has-agent-results.lawyer,
+  .chat-main.has-agent-results.teacher,
+  .chat-main.has-agent-results.programmer,
+  .chat-main.has-agent-results.writer {
     grid-template-columns: 1fr;
   }
 
@@ -3340,6 +4065,10 @@ onUnmounted(() => {
     border-left: none;
     border-top: 1px solid var(--border-light);
     max-height: 300px;
+  }
+
+  .agent-panel-resizer {
+    display: none;
   }
 
   .programmer-grid.two-cols {

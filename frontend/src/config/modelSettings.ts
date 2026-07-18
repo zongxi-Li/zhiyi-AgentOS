@@ -20,6 +20,7 @@ export interface ModelSettings {
 
 export const MODEL_SETTINGS_KEY = 'kinlin.model_settings'
 export const MODEL_SETTINGS_EVENT = 'kinlin-model-settings-change'
+export const SYSTEM_FALLBACK_MODELS = ['deepseek-chat', 'deepseek-v4-flash', 'deepseek-v4-pro']
 
 export const modelProviderPresets: ModelProviderPreset[] = [
   {
@@ -27,7 +28,7 @@ export const modelProviderPresets: ModelProviderPreset[] = [
     name: '系统默认',
     description: '使用服务端环境变量中已配置的模型',
     baseUrl: '',
-    models: ['系统默认']
+    models: [...SYSTEM_FALLBACK_MODELS]
   },
   {
     id: 'qwen',
@@ -60,7 +61,7 @@ export const modelProviderPresets: ModelProviderPreset[] = [
 ]
 
 export const reasoningOptions: Array<{ value: ReasoningEffort; label: string; shortLabel: string }> = [
-  { value: 'off', label: '关闭思考', shortLabel: '关闭' },
+  { value: 'off', label: '关闭思考', shortLabel: '关' },
   { value: 'low', label: '低度思考', shortLabel: '低' },
   { value: 'medium', label: '中度思考', shortLabel: '中' },
   { value: 'high', label: '高度思考', shortLabel: '高' }
@@ -71,8 +72,8 @@ export function getDefaultModelSettings(): ModelSettings {
     provider: 'system',
     apiKey: '',
     baseUrl: '',
-    models: ['系统默认'],
-    selectedModel: '系统默认',
+    models: [...SYSTEM_FALLBACK_MODELS],
+    selectedModel: SYSTEM_FALLBACK_MODELS[0],
     reasoningEffort: 'off'
   }
 }
@@ -86,16 +87,25 @@ export function loadModelSettings(): ModelSettings {
     const provider = modelProviderPresets.some(item => item.id === parsed.provider)
       ? parsed.provider as ModelProviderId
       : fallback.provider
-    const models = Array.isArray(parsed.models)
+    const storedModels = Array.isArray(parsed.models)
       ? parsed.models.filter(model => typeof model === 'string' && model.trim()).map(model => model.trim())
       : fallback.models
+    const models = provider === 'system' && (
+      storedModels.length === 0 || storedModels.includes('系统默认')
+    )
+      ? [...SYSTEM_FALLBACK_MODELS]
+      : [...new Set(storedModels)]
+    const storedSelectedModel = parsed.selectedModel?.trim() || ''
+    const selectedModel = models.includes(storedSelectedModel)
+      ? storedSelectedModel
+      : models[0] || fallback.selectedModel
 
     return {
       ...fallback,
       ...parsed,
       provider,
-      models: models.length ? [...new Set(models)] : fallback.models,
-      selectedModel: parsed.selectedModel?.trim() || models[0] || fallback.selectedModel,
+      models: models.length ? models : fallback.models,
+      selectedModel,
       reasoningEffort: reasoningOptions.some(item => item.value === parsed.reasoningEffort)
         ? parsed.reasoningEffort as ReasoningEffort
         : fallback.reasoningEffort
@@ -136,7 +146,10 @@ export function applyProviderPreset(settings: ModelSettings, provider: ModelProv
 
 export function toModelRequestSettings(settings: ModelSettings) {
   if (settings.provider === 'system') {
-    return { reasoningEffort: settings.reasoningEffort }
+    return {
+      model: settings.selectedModel === '系统默认' ? undefined : settings.selectedModel,
+      reasoningEffort: settings.reasoningEffort
+    }
   }
   return {
     model: settings.selectedModel,

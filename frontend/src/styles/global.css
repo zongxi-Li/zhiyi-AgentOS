@@ -7,37 +7,36 @@
 */
 
 :root {
-  /* Color Palette — Claude Warm (default) */
-  --primary-color: #D97757;
-  --primary-hover: #C15F3C;
-  --primary-active: #A84B2F;
-  --primary-fade: rgba(217, 119, 87, 0.1);
-  --primary-line: rgba(217, 119, 87, 0.24);
+  /* Color Palette — Codex Dark (default) */
+  --primary-color: #A78BFA;
+  --primary-hover: #B8A2FC;
+  --primary-active: #8F73E6;
+  --primary-fade: rgba(167, 139, 250, 0.14);
+  --primary-line: rgba(167, 139, 250, 0.3);
 
-  --accent-color: #B07B4F;
-  --accent-fade: rgba(176, 123, 79, 0.1);
+  --accent-color: #C4B5FD;
+  --accent-fade: rgba(196, 181, 253, 0.12);
 
   /* Backgrounds */
-  --bg-app: #FAF9F5;
-  --bg-sidebar: #F5F3EC;
-  --bg-card: #FFFFFF;
-  --bg-panel: #F5F4EE;
-  --bg-input: #F0EEE6;
-  --bg-glass: rgba(255, 255, 255, 0.7);
-  --app-layout-bg:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(250, 249, 245, 0.98)),
-    var(--bg-app);
-  --sidebar-bg: rgba(245, 243, 236, 0.94);
-  --drawer-bg: rgba(250, 249, 245, 0.97);
-  --sidebar-border: rgba(228, 223, 210, 0.7);
-  --scrollbar-thumb: rgba(217, 119, 87, 0.18);
-  --scrollbar-thumb-hover: rgba(217, 119, 87, 0.28);
+  --bg-app: #1E1F2E;
+  --bg-sidebar: #292A3D;
+  --bg-card: #2D2E42;
+  --bg-panel: #343548;
+  --bg-input: #252638;
+  --bg-glass: rgba(42, 43, 62, 0.86);
+  --app-layout-bg: linear-gradient(180deg, #232435 0%, #1E1F2E 100%);
+  --sidebar-bg: rgba(35, 36, 53, 0.96);
+  --drawer-bg: rgba(35, 36, 53, 0.98);
+  --sidebar-border: rgba(90, 91, 119, 0.42);
+  --scrollbar-thumb: rgba(170, 169, 190, 0.24);
+  --scrollbar-thumb-hover: rgba(196, 181, 253, 0.38);
 
   /* Text Colors */
-  --text-primary: #1F1E1D;
-  --text-regular: #3D3A34;
-  --text-secondary: #73706B;
-  --text-disabled: #ABA79E;
+  --text-primary: #E8E7F0;
+  --text-regular: #D2D1DE;
+  --text-secondary: #AAA9BE;
+  --text-muted: #85859B;
+  --text-disabled: #68697D;
 
   /* Compatibility aliases for older components */
   --text-color-primary: var(--text-primary);
@@ -51,19 +50,19 @@
   --bg: var(--bg-app);
 
   /* Borders */
-  --border-light: #E9E4D8;
-  --border-hover: #D9D2C2;
-  --border-focus: rgba(217, 119, 87, 0.42);
+  --border-light: #414257;
+  --border-hover: #595A73;
+  --border-focus: rgba(167, 139, 250, 0.55);
 
   /* Status Colors */
-  --success: #4A7C59;
-  --warning: #B5852F;
-  --danger: #C0533F;
-  --info: #7A6E5D;
+  --success: #75C69A;
+  --warning: #D9B66F;
+  --danger: #E88787;
+  --info: #8FB4E8;
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
-  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', 'Songti SC', serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 
   /* Spacing & Layout — unified spacing system */
@@ -94,10 +93,10 @@
   --radius-full: 9999px;
 
   /* Effects */
-  --shadow-sm: 0 1px 2px rgba(31, 30, 29, 0.04);
-  --shadow-md: 0 8px 24px rgba(31, 30, 29, 0.06);
-  --shadow-lg: 0 18px 48px rgba(31, 30, 29, 0.08);
-  --shadow-glow: 0 12px 28px rgba(217, 119, 87, 0.16);
+  --shadow-sm: 0 1px 2px rgba(8, 9, 18, 0.22);
+  --shadow-md: 0 10px 26px rgba(8, 9, 18, 0.28);
+  --shadow-lg: 0 20px 52px rgba(8, 9, 18, 0.36);
+  --shadow-glow: 0 12px 30px rgba(167, 139, 250, 0.18);
   --backdrop-blur: blur(20px);
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --transition: background-color 180ms var(--ease-out), border-color 180ms var(--ease-out), color 180ms var(--ease-out), box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out);
@@ -127,9 +126,8 @@ body {
   overflow: hidden;
   height: 100%;
   background-image:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(250, 249, 245, 0.9)),
-    radial-gradient(at 14% 0%, rgba(217, 119, 87, 0.06) 0px, transparent 40%),
-    radial-gradient(at 90% 12%, rgba(191, 141, 92, 0.05) 0px, transparent 38%);
+    radial-gradient(at 50% -20%, rgba(167, 139, 250, 0.08) 0px, transparent 42%),
+    linear-gradient(180deg, #202131 0%, #1E1F2E 100%);
   background-attachment: fixed;
 }
 
@@ -205,7 +203,7 @@ html, body, #app {
 
 /* Buttons */
 .el-button {
-  background: #fff;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   color: var(--text-regular);
   border-radius: var(--radius-md);
@@ -254,8 +252,82 @@ html, body, #app {
 }
 
 .el-input__wrapper:hover, .el-textarea__inner:hover {
-  background-color: #fff !important;
+  background-color: var(--bg-card) !important;
   box-shadow: 0 0 0 1px var(--border-hover) inset !important;
+}
+
+/* Codex Dark — shared component surfaces */
+html[data-color-scheme='codex-dark'] body {
+  background-color: var(--bg-app);
+}
+
+html[data-color-scheme='codex-dark'] ::selection {
+  color: var(--text-primary);
+  background: rgba(167, 139, 250, 0.32);
+}
+
+html[data-color-scheme='codex-dark'] ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+html[data-color-scheme='codex-dark'] ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+html[data-color-scheme='codex-dark'] .el-button,
+html[data-color-scheme='codex-dark'] .el-card,
+html[data-color-scheme='codex-dark'] .el-dialog,
+html[data-color-scheme='codex-dark'] .el-drawer,
+html[data-color-scheme='codex-dark'] .el-message-box,
+html[data-color-scheme='codex-dark'] .el-popover.el-popper,
+html[data-color-scheme='codex-dark'] .el-select__popper.el-popper,
+html[data-color-scheme='codex-dark'] .el-dropdown__popper.el-popper {
+  color: var(--text-regular);
+  background: var(--bg-card);
+  border-color: var(--border-light);
+}
+
+html[data-color-scheme='codex-dark'] .el-input__wrapper,
+html[data-color-scheme='codex-dark'] .el-textarea__inner,
+html[data-color-scheme='codex-dark'] .el-select__wrapper {
+  color: var(--text-primary) !important;
+  background: var(--bg-input) !important;
+  border-color: var(--border-light) !important;
+}
+
+html[data-color-scheme='codex-dark'] .el-input__inner,
+html[data-color-scheme='codex-dark'] .el-textarea__inner,
+html[data-color-scheme='codex-dark'] .el-select__selected-item {
+  color: var(--text-primary) !important;
+}
+
+html[data-color-scheme='codex-dark'] .el-popper__arrow::before {
+  background: var(--bg-card) !important;
+  border-color: var(--border-light) !important;
+}
+
+html[data-color-scheme='codex-dark'] .el-select-dropdown__item,
+html[data-color-scheme='codex-dark'] .el-dropdown-menu__item {
+  color: var(--text-regular);
+}
+
+html[data-color-scheme='codex-dark'] .el-select-dropdown__item.is-hovering,
+html[data-color-scheme='codex-dark'] .el-dropdown-menu__item:not(.is-disabled):focus {
+  color: var(--text-primary);
+  background: var(--bg-panel);
+}
+
+html[data-color-scheme='codex-dark'] .el-collapse,
+html[data-color-scheme='codex-dark'] .el-collapse-item__header,
+html[data-color-scheme='codex-dark'] .el-collapse-item__wrap,
+html[data-color-scheme='codex-dark'] .el-tabs__nav-wrap::after {
+  color: var(--text-regular);
+  background: transparent;
+  border-color: var(--border-light);
+}
+
+html[data-color-scheme='codex-dark'] .el-overlay {
+  background: rgba(8, 9, 18, 0.72);
 }
 
 .el-input__wrapper.is-focus, .el-textarea__inner:focus {
@@ -1198,4 +1270,74 @@ html, body, #app {
   background: var(--primary-fade) !important;
   color: var(--primary-color) !important;
   border-color: var(--primary-line) !important;
+}
+
+/* Codex dark: keep the legacy role workbenches on the same layered palette. */
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: none !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .panel-header {
+  background: linear-gradient(135deg, var(--bg-panel), var(--bg-card)) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .panel-tabs {
+  background: var(--bg-input) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .tab-btn:hover,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .tab-btn.active {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .tab-badge,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .skill-pill,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .risk-pill,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .status-pill,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .federated-btn {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--bg-panel)) !important;
+  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--border-color)) !important;
+  color: var(--text-regular) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .federated-btn.ghost {
+  background: var(--bg-input) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-regular) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .skill-item {
+  background: linear-gradient(135deg, var(--bg-panel), var(--bg-input)) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-regular) !important;
+  box-shadow: none !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .skill-item:hover {
+  border-color: var(--border-focus) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .tab-content::-webkit-scrollbar-thumb {
+  background: var(--border-color) !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .agent-avatar,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .empty-illustration,
+html[data-color-scheme='codex-dark'] .agent-panel .card {
+  background: var(--bg-panel) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: none !important;
+}
+
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .results-tab .el-collapse,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .results-tab .el-collapse-item__header,
+html[data-color-scheme='codex-dark'] .agent-panel .skill-panel .results-tab .el-collapse-item__wrap {
+  background: transparent;
+  color: var(--text-regular);
+  border-color: var(--border-color);
 }

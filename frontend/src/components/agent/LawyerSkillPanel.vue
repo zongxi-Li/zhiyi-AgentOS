@@ -150,9 +150,9 @@ const emit = defineEmits<{
 const activeTab = ref<'skills' | 'trace' | 'results'>('skills')
 
 const tabs = computed(() => [
-  { key: 'skills' as const, label: '技能调用', icon: Operation, count: props.skillsUsed?.length || 0 },
-  { key: 'trace' as const, label: '调用轨迹', icon: Connection, count: props.trace?.length || 0 },
-  { key: 'results' as const, label: '调用结果', icon: Document, count: props.resultCount || 0 }
+  { key: 'skills' as const, label: '活动', icon: Operation, count: props.skillsUsed?.length || 0 },
+  { key: 'trace' as const, label: '轨迹', icon: Connection, count: props.trace?.length || 0 },
+  { key: 'results' as const, label: '结果', icon: Document, count: props.resultCount || 0 }
 ])
 
 const SKILL_VISUAL_MAP: Record<string, SkillVisual> = {

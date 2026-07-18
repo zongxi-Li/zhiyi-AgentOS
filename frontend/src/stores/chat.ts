@@ -297,7 +297,9 @@ export const useChatStore = defineStore('chat', () => {
         body: JSON.stringify({
           text,
           role_id: currentRoleId.value || undefined,
-          model: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.selectedModel,
+          model: runtimeSettings.provider === 'system' && runtimeSettings.selectedModel === '系统默认'
+            ? undefined
+            : runtimeSettings.selectedModel,
           base_url: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.baseUrl,
           api_key: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.apiKey,
           reasoning_effort: runtimeSettings.reasoningEffort

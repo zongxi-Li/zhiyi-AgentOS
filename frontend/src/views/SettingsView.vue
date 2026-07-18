@@ -277,8 +277,8 @@ const tabs = [
 ]
 
 const defaultSettings = (): AppSettings => ({
-  theme: 'light',
-  colorScheme: 'blue-purple',
+  theme: 'dark',
+  colorScheme: 'codex-dark',
   language: 'zh-CN',
   fontSize: 14,
   primaryColor: '#4f46e5',
