@@ -18,7 +18,6 @@ COPY --chown=10003:10003 . .
 COPY --chown=10003:10003 --chmod=0755 docker-entrypoint-dev.sh /usr/local/bin/kinlin-frontend-dev-entrypoint
 
 ENV DEV_BACKEND_PROXY_TARGET=http://backend:8080
-ENV DEV_AI_SERVICE_PROXY_TARGET=http://ai-service:8000
 
 EXPOSE 3000
 

@@ -8,6 +8,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import io.netty.channel.ChannelOption;
+import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 
@@ -21,12 +24,18 @@ public class WebClientConfig {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    @Value("${ai.service.connect-timeout:15000}")
+    private int connectTimeoutMs;
+
     @Bean
     public WebClient.Builder webClientBuilder(
             PythonServiceAuthentication authentication,
             TrustedUserContextForwarder userContextForwarder
     ) {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs);
         return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .baseUrl(aiServiceUrl)
                 .codecs(configurer -> configurer
                         .defaultCodecs()

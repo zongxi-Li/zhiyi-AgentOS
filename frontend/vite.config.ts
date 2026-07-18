@@ -10,9 +10,6 @@ export default defineConfig(({ mode }) => {
   const BACKEND_PROXY_TARGET =
     env.DEV_BACKEND_PROXY_TARGET ||
     'http://localhost:8080'
-  const AI_SERVICE_PROXY_TARGET =
-    env.DEV_AI_SERVICE_PROXY_TARGET ||
-    'http://localhost:8000'
 
   return {
     plugins: [vue()],
@@ -76,9 +73,9 @@ export default defineConfig(({ mode }) => {
             })
           }
         },
-        // 代理 /ai 路径到Python服务（通过Java后端）
+        // 所有 /ai 路径（包括 SSE）只允许进入 Java 安全边界。
         '/ai/chat/text/stream': {
-          target: AI_SERVICE_PROXY_TARGET,
+          target: BACKEND_PROXY_TARGET,
           changeOrigin: true,
           timeout: DEV_PROXY_TIMEOUT_MS,
           proxyTimeout: DEV_PROXY_TIMEOUT_MS,

@@ -54,6 +54,7 @@ spring:
 ai:
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
+    connect-timeout: ${AI_SERVICE_CONNECT_TIMEOUT:15000}
     timeout: ${AI_SERVICE_TIMEOUT:240000}
 
 # 应用配置

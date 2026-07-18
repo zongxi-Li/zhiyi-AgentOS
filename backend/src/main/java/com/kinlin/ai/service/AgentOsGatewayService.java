@@ -101,38 +101,51 @@ public class AgentOsGatewayService {
         response.put("success", false);
         response.put("message", "AgentOS gateway is disabled by configuration.");
         response.put("error", "agent.disabled");
-        response.put("path", path);
         response.put(INTERNAL_HTTP_STATUS_KEY, HttpStatus.SERVICE_UNAVAILABLE.value());
         return response;
     }
 
     private Map<String, Object> errorResponse(Exception e, String path) {
-        log.error("AgentOS gateway request failed. path={}", path, e);
+        log.error("AgentOS gateway request failed. path={}, type={}", path, e.getClass().getSimpleName());
         if (e instanceof WebClientResponseException webClientError) {
             return upstreamErrorResponse(webClientError, path);
         }
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);
         response.put("message", "AgentOS gateway unavailable.");
-        response.put("error", e.getClass().getSimpleName());
-        response.put("path", path);
+        response.put("error", "AGENTOS_UPSTREAM_UNAVAILABLE");
         response.put(INTERNAL_HTTP_STATUS_KEY, HttpStatus.SERVICE_UNAVAILABLE.value());
         return response;
     }
 
     private Map<String, Object> upstreamErrorResponse(WebClientResponseException e, String path) {
-        Map<String, Object> response = parseJsonObject(e.getResponseBodyAsString());
         int upstreamStatus = e.getStatusCode().value();
         int gatewayStatus = e.getStatusCode().is4xxClientError()
                 ? upstreamStatus
                 : HttpStatus.BAD_GATEWAY.value();
-        response.putIfAbsent("success", false);
-        response.putIfAbsent("message", e.getMessage() == null ? "AgentOS upstream request failed." : e.getStatusText());
-        response.putIfAbsent("error", e.getClass().getSimpleName());
-        response.put("path", path);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", e.getStatusCode().is4xxClientError()
+                ? safeUpstreamMessage(e.getResponseBodyAsString(), upstreamStatus)
+                : "AgentOS service returned an error");
+        response.put("error", e.getStatusCode().is4xxClientError()
+                ? "AGENTOS_UPSTREAM_CLIENT_ERROR"
+                : "AGENTOS_UPSTREAM_ERROR");
         response.put("upstreamStatus", upstreamStatus);
         response.put(INTERNAL_HTTP_STATUS_KEY, gatewayStatus);
         return response;
+    }
+
+    private String safeUpstreamMessage(String body, int status) {
+        Map<String, Object> parsed = parseJsonObject(body);
+        for (String key : java.util.List.of("message", "detail", "error")) {
+            Object value = parsed.get(key);
+            if (value instanceof String text && !text.isBlank()) {
+                String sanitized = text.replaceAll("[\\r\\n\\t]", " ").trim();
+                return sanitized.substring(0, Math.min(sanitized.length(), 300));
+            }
+        }
+        return "AgentOS request was rejected (HTTP " + status + ")";
     }
 
     private Map<String, Object> parseJsonObject(String text) {
@@ -144,7 +157,6 @@ public class AgentOsGatewayService {
             });
         } catch (Exception ignored) {
             Map<String, Object> response = new HashMap<>();
-            response.put("upstreamBody", text);
             return response;
         }
     }
@@ -172,18 +184,17 @@ public class AgentOsGatewayService {
     }
 
     private ResponseEntity<String> errorTextResponse(Throwable e, String path) {
-        log.error("AgentOS gateway text request failed. path={}", path, e);
+        log.error("AgentOS gateway text request failed. path={}, type={}", path, e.getClass().getSimpleName());
         if (e instanceof WebClientResponseException webClientError) {
             int status = webClientError.getStatusCode().is4xxClientError()
                     ? webClientError.getStatusCode().value()
                     : HttpStatus.BAD_GATEWAY.value();
-            String message = webClientError.getResponseBodyAsString();
-            if (message == null || message.isBlank()) {
-                message = webClientError.getStatusText();
-            }
+            String message = webClientError.getStatusCode().is4xxClientError()
+                    ? safeUpstreamMessage(webClientError.getResponseBodyAsString(), webClientError.getStatusCode().value())
+                    : "AgentOS service returned an error";
             return ResponseEntity.status(status).body(message);
         }
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body("AgentOS gateway request failed: AgentOS gateway unavailable.\npath=" + path + "\n");
+                .body("AgentOS gateway unavailable.");
     }
 }
