@@ -56,6 +56,9 @@ ai:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     connect-timeout: ${AI_SERVICE_CONNECT_TIMEOUT:15000}
     timeout: ${AI_SERVICE_TIMEOUT:240000}
+  sse:
+    idle-timeout-ms: ${SSE_IDLE_TIMEOUT:240000}
+    max-duration-ms: ${SSE_MAX_DURATION:1800000}
 
 # 应用配置
 app:

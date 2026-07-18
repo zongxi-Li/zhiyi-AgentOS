@@ -45,7 +45,8 @@ public class WebClientConfig {
                     ClientRequest authenticated = ClientRequest.from(request)
                             .headers(headers -> {
                                 authentication.apply(headers);
-                                if (!request.url().getPath().startsWith("/health")) {
+                                if (!request.url().getPath().startsWith("/health")
+                                        && !headers.containsKey(com.kinlin.ai.gateway.AiGatewayHeaders.AUTHENTICATED_USER_ID)) {
                                     userContextForwarder.apply(headers);
                                 }
                             })

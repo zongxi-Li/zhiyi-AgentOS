@@ -72,6 +72,9 @@ ai_service = AIService()
 app.include_router(chat.router, prefix="/ai", tags=["AI"])
 app.include_router(tts.router, prefix="/ai", tags=["TTS"])
 app.include_router(agentos_core.router, prefix="/ai", tags=["AgentOSCore"])
+if settings.SSE_TEST_MODE:
+    from app.api import sse_test
+    app.include_router(sse_test.router, prefix="/ai", tags=["SSETest"])
 
 # 注册静态文件服务（用于访问数字人图像和其他数据文件）
 _data_dir = APP_DATA_DIR

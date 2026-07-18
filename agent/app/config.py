@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
     AI_INTERNAL_TOKEN: str = ""
+    SSE_HEARTBEAT_INTERVAL: float = 15.0
+    SSE_TEST_MODE: bool = False
 
     @field_validator("DEBUG", mode="before")
     @classmethod

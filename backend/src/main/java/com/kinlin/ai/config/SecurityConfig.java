@@ -1,6 +1,7 @@
 package com.kinlin.ai.config;
 
 import com.kinlin.ai.filter.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +32,8 @@ public class SecurityConfig {
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Only the container's continuation of an already-authorized reactive response.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 // 允许OPTIONS预检请求（CORS预检）
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 // 公开接口

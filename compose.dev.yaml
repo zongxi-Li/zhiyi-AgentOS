@@ -6,6 +6,8 @@ services:
     environment:
       ENVIRONMENT: development
       DEBUG: "true"
+      SSE_TEST_MODE: ${KINLIN_SSE_TEST_MODE:-false}
+      SSE_HEARTBEAT_INTERVAL: ${SSE_HEARTBEAT_INTERVAL:-15}
     volumes:
       - ./agent/app:/app/app
       - ./agent/packs:/app/packs
@@ -21,6 +23,8 @@ services:
       KINLIN_SPRING_PROFILE: compose
       SPRING_PROFILES_ACTIVE: compose
       KINLIN_DEV_MODE: "true"
+      SSE_IDLE_TIMEOUT: ${SSE_IDLE_TIMEOUT:-240000}
+      SSE_MAX_DURATION: ${SSE_MAX_DURATION:-1800000}
     volumes:
       - ./backend/src:/app/src
       - ./backend/pom.xml:/app/pom.xml

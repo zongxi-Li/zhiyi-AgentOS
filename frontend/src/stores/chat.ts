@@ -132,6 +132,7 @@ type AgentMode = NonNullable<Message['agentMode']>
 export const useChatStore = defineStore('chat', () => {
   const messages = ref<Message[]>([])
   const loading = ref(false)
+  let activeStreamController: AbortController | null = null
   const contextId = ref<string | null>(null)
   const lawyerSessionId = ref<string | null>(null)
   const teacherSessionId = ref<string | null>(null)
@@ -287,6 +288,8 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const token = localStorage.getItem('token')
+    const streamController = new AbortController()
+    activeStreamController = streamController
     try {
       const resp = await fetch('/ai/chat/text/stream', {
         method: 'POST',
@@ -294,6 +297,7 @@ export const useChatStore = defineStore('chat', () => {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
+        signal: streamController.signal,
         body: JSON.stringify({
           text,
           role_id: currentRoleId.value || undefined,
@@ -315,8 +319,9 @@ export const useChatStore = defineStore('chat', () => {
       if (!reader) { setStreamContent('流式读取失败'); return }
       const decoder = new TextDecoder()
       let buffer = ''
+      let streamComplete = false
 
-      while (true) {
+      streamLoop: while (true) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
@@ -325,7 +330,11 @@ export const useChatStore = defineStore('chat', () => {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
-            if (data === '[DONE]') continue
+            if (data === '[DONE]') {
+              streamComplete = true
+              await reader.cancel()
+              break streamLoop
+            }
             try {
               const parsed = JSON.parse(data)
               if (parsed.delta) {
@@ -337,12 +346,19 @@ export const useChatStore = defineStore('chat', () => {
           }
         }
       }
-      emitHistoryRefresh()
+      if (streamComplete) emitHistoryRefresh()
     } catch (e) {
-      setStreamContent('流式请求失败: ' + (e as Error).message)
+      if ((e as Error).name !== 'AbortError') {
+        setStreamContent('流式请求失败: ' + (e as Error).message)
+      }
     } finally {
+      if (activeStreamController === streamController) activeStreamController = null
       loading.value = false
     }
+  }
+
+  const cancelMessageStream = () => {
+    activeStreamController?.abort()
   }
 
   const sendLawyerMessageStream = async (text: string) => sendMessageStream(text, 'lawyer')
@@ -644,6 +660,7 @@ export const useChatStore = defineStore('chat', () => {
     sendLawyerMessage,
     sendLawyerMessageStream,
     sendMessageStream,
+    cancelMessageStream,
     sendTeacherMessage,
     sendProgrammerMessage,
     sendWriterMessage,

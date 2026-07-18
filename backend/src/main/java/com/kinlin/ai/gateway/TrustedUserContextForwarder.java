@@ -10,8 +10,15 @@ import org.springframework.stereotype.Component;
 public class TrustedUserContextForwarder {
 
     public void apply(HttpHeaders headers) {
-        AuthenticatedUserContext context = AuthenticatedUser.currentContext()
+        apply(headers, requireCurrent());
+    }
+
+    public AuthenticatedUserContext requireCurrent() {
+        return AuthenticatedUser.currentContext()
                 .orElseThrow(() -> new IllegalStateException("authenticated user context is required"));
+    }
+
+    public void apply(HttpHeaders headers, AuthenticatedUserContext context) {
         headers.set(AiGatewayHeaders.AUTHENTICATED_USER_ID, context.userId().toString());
         headers.set(AiGatewayHeaders.AUTHENTICATED_USER_SUBJECT, context.subject());
         headers.set(AiGatewayHeaders.AUTHENTICATED_USER_ROLE, context.role());
