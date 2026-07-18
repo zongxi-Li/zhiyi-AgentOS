@@ -19,6 +19,10 @@ app:
   upload:
     dir: /app/data/uploads
 
+ai:
+  internal:
+    required: true
+
 server:
   forward-headers-strategy: framework
 

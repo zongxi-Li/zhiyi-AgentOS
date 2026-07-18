@@ -21,21 +21,24 @@ import os
 from dotenv import load_dotenv
 
 
-def _load_secret_file(variable: str) -> None:
+def _load_secret_file(variable: str) -> str | None:
     file_path = os.getenv(f"{variable}_FILE", "").strip()
     if not file_path:
-        return
+        return None
     path = Path(file_path)
     if not path.is_file():
         raise RuntimeError(f"secret file for {variable} is missing: {path}")
     value = path.read_text(encoding="utf-8").strip()
     if not value:
         raise RuntimeError(f"secret file for {variable} is empty: {path}")
-    os.environ[variable] = value
+    return value
 
 
-for _secret_variable in ("AI_INTERNAL_TOKEN", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "KYLIN_AI_API_KEY"):
-    _load_secret_file(_secret_variable)
+_secret_file_values = {
+    variable: value
+    for variable in ("AI_INTERNAL_TOKEN", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "KYLIN_AI_API_KEY")
+    if (value := _load_secret_file(variable)) is not None
+}
 
 # 显式加载.env文件（优先检查当前目录，然后检查主目录）
 _config_path = Path(__file__).resolve()
@@ -63,6 +66,7 @@ class Settings(BaseSettings):
     # 应用配置
     APP_NAME: str = "知弈 AI Service"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"
     AI_INTERNAL_TOKEN: str = ""
 
     @field_validator("DEBUG", mode="before")
@@ -150,7 +154,7 @@ class Settings(BaseSettings):
 
 # 初始化配置
 try:
-    settings = Settings()
+    settings = Settings(**_secret_file_values)
     
     # 验证关键配置项是否加载（在Settings初始化后检查）
     if not settings.DASHSCOPE_API_KEY and not settings.QWEN_API_KEY:

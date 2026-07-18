@@ -18,6 +18,10 @@ from app.paths import APP_DATA_DIR
 from app.services.aiservice import AIService
 from app.integrations.model_adapter import configure_model_adapter
 from app.config import settings
+from app.security.internal_auth import (
+    InternalServiceAuthMiddleware,
+    require_valid_internal_token_configuration,
+)
 from app.utils.logger import setup_logger
 from app.middleware.errorhandler import (
     validation_exception_handler,
@@ -32,7 +36,8 @@ configure_model_adapter()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    # 启动时执行 - 简化日志输出
+    if settings.ENVIRONMENT.strip().lower() in {"prod", "production"}:
+        require_valid_internal_token_configuration(settings.AI_INTERNAL_TOKEN)
     yield
     
     # 关闭时执行 - 简化日志输出
@@ -44,6 +49,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+app.add_middleware(InternalServiceAuthMiddleware, token=settings.AI_INTERNAL_TOKEN)
 
 # CORS配置
 app.add_middleware(
