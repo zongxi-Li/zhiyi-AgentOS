@@ -11,6 +11,16 @@
         <button v-if="hasData" class="action-btn" @click="fit" title="适配视图">
           <el-icon><FullScreen /></el-icon>
         </button>
+        <button
+          v-if="collapsible"
+          class="action-btn"
+          type="button"
+          aria-label="收起 ACG 拓扑"
+          title="收起 ACG 拓扑"
+          @click="emit('collapse')"
+        >
+          <el-icon><ArrowDownBold /></el-icon>
+        </button>
       </div>
     </header>
 
@@ -30,7 +40,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Share, FullScreen } from '@element-plus/icons-vue'
+import { ArrowDownBold, FullScreen, Share } from '@element-plus/icons-vue'
 import { DataSet } from 'vis-data'
 import { Network } from 'vis-network'
 import type { AcgBlueprint, AcgNode, AcgEdge } from '@/services/api/agentos'
@@ -38,6 +48,11 @@ import type { AcgBlueprint, AcgNode, AcgEdge } from '@/services/api/agentos'
 const props = defineProps<{
   blueprint: AcgBlueprint | null
   completedStepIds?: string[]
+  collapsible?: boolean
+}>()
+
+const emit = defineEmits<{
+  collapse: []
 }>()
 
 const graphRef = ref<HTMLElement | null>(null)

@@ -59,12 +59,7 @@
           <div v-if="loading" class="typing">AI 正在思考...</div>
         </div>
 
-        <button v-if="showScrollToBottom" class="to-bottom" @click="handleScrollToBottom">
-          <el-icon><ArrowDownBold /></el-icon>
-          <span v-if="pendingMessageCount > 0" class="badge">{{ pendingMessageCount > 9 ? '9+' : pendingMessageCount }}</span>
-        </button>
-
-        <div ref="composerRef" class="composer">
+        <div ref="composerRef" class="composer" :style="{ bottom: composerDockOffset }">
           <div v-if="showAssistTools && currentTemplates.length" class="composer-popover template-row">
             <button v-for="tpl in currentTemplates" :key="tpl" class="template-item" @click="useTemplate(tpl)">
               {{ tpl }}
@@ -208,16 +203,9 @@
             <AcgTopologyGraph
               :blueprint="displayAcgBlueprint"
               :completed-step-ids="displayCompletedStepIds"
+              collapsible
+              @collapse="setWorkflowPanelOpen(false)"
             />
-            <button
-              class="workflow-panel-collapse"
-              type="button"
-              aria-label="收起 ACG 拓扑"
-              title="收起 ACG 拓扑"
-              @click="setWorkflowPanelOpen(false)"
-            >
-              <el-icon><ArrowDownBold /></el-icon>
-            </button>
             <div v-if="acgViewLoading && !activeAcgView" class="workflow-acg-loading">正在加载动态拓扑…</div>
           </section>
         </Transition>
@@ -695,6 +683,11 @@ const workflowPanelHeight = ref(
 )
 const workflowPanelResizing = ref(false)
 const workflowPanelOpen = ref(false)
+const composerDockOffset = computed(() => {
+  if (chatStore.messages.length === 0) return 'auto'
+  if (!isAgentMode.value) return '0px'
+  return workflowPanelOpen.value ? `${workflowPanelHeight.value}px` : '30px'
+})
 const activeWorkflowRunId = ref('')
 const activeWorkflowRun = ref<WorkflowRun | null>(null)
 const activeAcgView = ref<AcgView | null>(null)
@@ -2403,6 +2396,7 @@ onUnmounted(() => {
 }
 
 .chat-main.simple-session .messages {
+  padding-bottom: 180px;
   background:
     radial-gradient(circle at 18% 0%, var(--primary-fade) 0, transparent 32%),
     radial-gradient(circle at 88% 4%, var(--accent-fade) 0, transparent 30%),
@@ -2552,33 +2546,6 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.workflow-panel-collapse {
-  position: absolute;
-  z-index: 9;
-  top: 10px;
-  right: 52px;
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--border-light);
-  border-radius: 7px;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
-}
-
-.workflow-panel-collapse:hover,
-.workflow-panel-collapse:focus-visible {
-  border-color: var(--primary-color);
-  background: var(--primary-fade);
-  color: var(--primary-color);
-  outline: none;
-}
-
 .workflow-acg-dock {
   flex: 0 0 30px;
   width: 100%;
@@ -2655,6 +2622,13 @@ onUnmounted(() => {
   left: 0;
   z-index: 4;
   transform: translateY(-50%);
+}
+
+.chat-panel:not(.hero-mode) .composer {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 5;
 }
 
 .messages {
@@ -2825,61 +2799,6 @@ onUnmounted(() => {
   margin-top: 12px;
   color: var(--text-secondary);
   font-size: 13px;
-}
-
-.to-bottom {
-  position: absolute;
-  right: 18px;
-  bottom: 180px;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 8px;
-  background: var(--primary-color);
-  color: #fff;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.to-bottom:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-glow);
-}
-
-.chat-main.teacher .to-bottom {
-  background: var(--success);
-}
-
-.chat-main.teacher .to-bottom:hover {
-  box-shadow: 0 10px 24px rgba(61, 118, 86, 0.18);
-}
-
-.chat-main.programmer .to-bottom {
-  background: var(--accent-color);
-}
-
-.chat-main.programmer .to-bottom:hover {
-  box-shadow: 0 10px 24px rgba(111, 102, 143, 0.18);
-}
-
-.chat-main.writer .to-bottom {
-  background: var(--warning);
-}
-
-.chat-main.writer .to-bottom:hover {
-  box-shadow: 0 10px 24px rgba(154, 116, 50, 0.18);
-}
-
-.to-bottom .badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  line-height: 16px;
-  font-size: 10px;
-  background: #ef4444;
 }
 
 .template-row {
@@ -3111,10 +3030,21 @@ onUnmounted(() => {
   margin: 0 auto -12px;
   padding: 6px 11px 17px;
   overflow-x: auto;
-  border: 1px solid var(--border-light);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 14%, var(--border-light));
   border-bottom: 0;
   border-radius: 15px 15px 8px 8px;
-  background: var(--bg-sidebar);
+  background:
+    linear-gradient(120deg,
+      color-mix(in srgb, var(--primary-fade) 42%, transparent),
+      color-mix(in srgb, var(--bg-sidebar) 78%, transparent) 28%,
+      color-mix(in srgb, var(--bg-sidebar) 72%, transparent) 72%,
+      color-mix(in srgb, var(--accent-fade) 34%, transparent));
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  box-shadow:
+    0 -10px 28px color-mix(in srgb, var(--primary-fade) 42%, transparent),
+    -18px 8px 34px color-mix(in srgb, var(--bg-app) 48%, transparent),
+    18px 8px 34px color-mix(in srgb, var(--bg-app) 48%, transparent);
 }
 
 .composer-shelf-action {
@@ -3165,10 +3095,22 @@ onUnmounted(() => {
   width: 50%;
   margin: 0 auto;
   overflow: hidden;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 18px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow-md);
+  background:
+    linear-gradient(color-mix(in srgb, var(--bg-card) 82%, transparent), color-mix(in srgb, var(--bg-card) 82%, transparent)) padding-box,
+    linear-gradient(115deg,
+      color-mix(in srgb, var(--primary-color) 26%, var(--border-light)),
+      color-mix(in srgb, var(--border-light) 76%, transparent) 34%,
+      color-mix(in srgb, var(--accent-color) 18%, var(--border-light)) 76%,
+      color-mix(in srgb, var(--primary-color) 30%, var(--border-light))) border-box;
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  box-shadow:
+    0 18px 44px color-mix(in srgb, var(--text-primary) 9%, transparent),
+    0 4px 16px color-mix(in srgb, var(--primary-color) 8%, transparent),
+    -28px 10px 46px color-mix(in srgb, var(--bg-app) 58%, transparent),
+    28px 10px 46px color-mix(in srgb, var(--bg-app) 58%, transparent);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -3207,7 +3149,7 @@ onUnmounted(() => {
 .chat-main.simple-session .composer {
   padding: 18px 24px 22px;
   border-top: 0;
-  background: linear-gradient(to top, #fff 74%, rgba(255, 255, 255, 0));
+  background: transparent;
 }
 
 .chat-main.simple-session .composer-card,
