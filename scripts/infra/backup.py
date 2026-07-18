@@ -38,6 +38,34 @@ def archive_volume(volume: str, output_dir: Path, filename: str) -> None:
     run(["docker", "run", "--rm", "-v", f"{volume}:/source:ro", "-v", f"{output_dir.resolve()}:/backup", "alpine:3.20", "tar", "-C", "/source", "-czf", f"/backup/{filename}", "."], capture=False)
 
 
+def image_inventory(deployment_id: str) -> list[dict]:
+    try:
+        image_output = compose(deployment_id, "images", "--format", "json").stdout.strip()
+        try:
+            parsed = json.loads(image_output) if image_output else []
+            return parsed if isinstance(parsed, list) else [parsed]
+        except json.JSONDecodeError:
+            return [json.loads(line) for line in image_output.splitlines() if line.strip()]
+    except subprocess.CalledProcessError:
+        # Docker Desktop may prune an old manifest-list digest after a local
+        # image tag is rebuilt while a container still references its config
+        # image.  Container inspect remains the authoritative runtime record.
+        container_ids = compose(deployment_id, "ps", "-aq").stdout.split()
+        if not container_ids:
+            raise
+        inspected = json.loads(run(["docker", "inspect", *container_ids]).stdout)
+        return [
+            {
+                "container": item["Name"].lstrip("/"),
+                "service": item.get("Config", {}).get("Labels", {}).get("com.docker.compose.service"),
+                "configuredImage": item.get("Config", {}).get("Image"),
+                "runtimeImageId": item.get("Image"),
+                "source": "container-inspect-fallback",
+            }
+            for item in inspected
+        ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--deployment-id", required=True)
@@ -112,12 +140,7 @@ done'''
     run(["docker", "run", "--rm", "-v", f'{volumes["agentos_data_v11"]}:/data', "-v", f"{output.resolve()}:/backup", "python:3.14-slim", "python", "-c", "import sqlite3,json,pathlib; s=sqlite3.connect('file:/data/agentos/workflows.sqlite3?mode=rw',uri=True); d=sqlite3.connect('/backup/agentos-workflows.sqlite3'); s.backup(d); ok=d.execute('pragma integrity_check').fetchone()[0]; counts={'integrity':ok,'tasks':d.execute('select count(*) from tasks').fetchone()[0],'runs':d.execute('select count(*) from runs').fetchone()[0]}; pathlib.Path('/backup/agentos-sqlite-verification.json').write_text(json.dumps(counts)); d.close(); s.close()"], capture=False)
 
     shutil.copy2(schema_report_path, output / "schema-audit.json")
-    image_output = compose(deployment_id, "images", "--format", "json").stdout.strip()
-    try:
-        parsed_images = json.loads(image_output) if image_output else []
-        images = parsed_images if isinstance(parsed_images, list) else [parsed_images]
-    except json.JSONDecodeError:
-        images = [json.loads(line) for line in image_output.splitlines() if line.strip()]
+    images = image_inventory(deployment_id)
     redis_lines = redis_result.splitlines()
     redis_size = int(next(line.split("=", 1)[1] for line in redis_lines if line.startswith("dbsize=")))
     redis_samples = sum(line.startswith("sample_read_ok ") for line in redis_lines)
