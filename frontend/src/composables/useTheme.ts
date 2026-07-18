@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { getColorScheme, type ColorSchemeId } from '@/themes/presets'
 
-const currentScheme = ref<ColorSchemeId>('tea-green')
+const currentScheme = ref<ColorSchemeId>('blue-purple')
 
 function applySchemeVariables(schemeId: ColorSchemeId): void {
   const scheme = getColorScheme(schemeId)
@@ -23,13 +23,16 @@ export function useTheme() {
 
 export function initTheme(): void {
   const saved = localStorage.getItem('appSettings')
-  if (!saved) return
+  if (!saved) {
+    applySchemeVariables('blue-purple')
+    return
+  }
   try {
     const parsed = JSON.parse(saved)
-    const schemeId: ColorSchemeId = parsed.colorScheme || 'tea-green'
+    const schemeId: ColorSchemeId = parsed.colorScheme || 'blue-purple'
     applySchemeVariables(schemeId)
   } catch {
-    /* fallback to CSS defaults */
+    applySchemeVariables('blue-purple')
   }
 }
 

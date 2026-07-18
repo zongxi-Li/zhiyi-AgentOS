@@ -133,8 +133,8 @@ const bluePurple: ColorScheme = {
   },
 }
 
-export const colorSchemes: ColorScheme[] = [teaGreen, bluePurple]
+export const colorSchemes: ColorScheme[] = [bluePurple, teaGreen]
 
 export function getColorScheme(id: ColorSchemeId): ColorScheme {
-  return colorSchemes.find((s) => s.id === id) || teaGreen
+  return colorSchemes.find((s) => s.id === id) || bluePurple
 }

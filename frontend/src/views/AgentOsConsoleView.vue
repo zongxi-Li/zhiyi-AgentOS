@@ -351,8 +351,10 @@ p {
   display: grid;
   grid-template-columns: minmax(260px, 310px) minmax(0, 1fr) minmax(320px, 390px);
   gap: 16px;
+  height: calc(100dvh - 170px);
+  min-height: 620px;
   align-items: stretch;
-  min-height: min(820px, calc(100vh - 188px));
+  overflow: hidden;
 }
 
 .run-sidebar,
@@ -374,11 +376,39 @@ p {
 .console-main,
 .console-side {
   min-height: 0;
+  overflow: hidden;
 }
 
-.console-main :deep(.checkpoint-panel),
+.console-main {
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-gutter: stable;
+}
+
+.console-main :deep(.workflow-run-panel) {
+  flex: 0 0 auto;
+  gap: 10px;
+  padding: 14px;
+}
+
+.console-main :deep(.workflow-run-panel .meta-grid) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.console-main :deep(.workflow-run-panel .metric-strip) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.console-main :deep(.workflow-step-list) {
+  flex: 0 0 auto;
+}
+
+.console-main :deep(.checkpoint-panel) {
+  flex: 0 0 auto;
+}
+
 .console-side :deep(.trace-event-timeline) {
-  flex: 1 1 auto;
+  flex: 1 1 0;
 }
 
 .console-main :deep(.workflow-run-panel),
@@ -408,6 +438,13 @@ p {
   scrollbar-gutter: stable;
 }
 
+.console-main :deep(.steps),
+.console-main :deep(.checkpoint-list) {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+}
+
 .console-main :deep(.steps) {
   max-height: clamp(260px, 34vh, 460px);
 }
@@ -430,8 +467,8 @@ p {
 
 .console-main :deep(.checkpoint-panel > .empty),
 .console-side :deep(.trace-event-timeline > .empty) {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -594,7 +631,29 @@ input:focus {
 @media (max-width: 1180px) {
   .console-layout {
     grid-template-columns: 1fr;
+    height: auto;
     min-height: 0;
+    overflow: visible;
+  }
+
+  .run-sidebar,
+  .console-main,
+  .console-side {
+    height: auto;
+    overflow: visible;
+  }
+
+  .console-main :deep(.workflow-step-list),
+  .console-main :deep(.checkpoint-panel),
+  .console-side :deep(.trace-event-timeline) {
+    flex: 0 0 auto;
+  }
+
+  .console-main :deep(.steps),
+  .console-main :deep(.checkpoint-list),
+  .console-side :deep(.events),
+  .console-side :deep(.events.is-managed) {
+    max-height: 420px;
   }
 
 }
