@@ -6,6 +6,7 @@ AI服务
 import logging
 from typing import Dict, List, Optional
 from app.ai_engine.kylin_sdk.client import KylinAIClient
+from app.ai_engine.model_runtime import apply_reasoning_instruction, generate_with_runtime_model
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,11 @@ class AIService:
         context: Optional[List[Dict[str, str]]] = None,
         enable_emotion_aware: bool = False,
         audio_features: Optional[Dict] = None,
-        facial_features: Optional[Dict] = None
+        facial_features: Optional[Dict] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        reasoning_effort: str = "off",
     ) -> Dict:
         """
         生成文本回复（支持情感感知）
@@ -55,6 +60,16 @@ class AIService:
             包含text、confidence、emotion、animation等的字典
         """
         try:
+            if model or base_url or api_key:
+                return await generate_with_runtime_model(
+                    text=text,
+                    context=context,
+                    model=model or "",
+                    base_url=base_url or "",
+                    api_key=api_key or "",
+                    reasoning_effort=reasoning_effort,
+                )
+
             # 如果启用情感感知
             if enable_emotion_aware and EMOTION_AWARE_AVAILABLE:
                 # 获取角色配置（简化实现）
@@ -93,6 +108,11 @@ class AIService:
                 }
             else:
                 # 标准文本生成
+                if reasoning_effort != "off":
+                    prompt_messages = apply_reasoning_instruction(
+                        [{"role": "user", "content": text}], reasoning_effort
+                    )
+                    text = "\n".join(item["content"] for item in prompt_messages)
                 response = await self.client.generate_text(
                     text=text,
                     role_id=role_id,
@@ -107,6 +127,8 @@ class AIService:
                 }
         except Exception as e:
             logger.error(f"文本生成失败: {e}", exc_info=True)
+            if model or base_url or api_key:
+                raise
             # 返回默认回复
             return {
                 "text": f"抱歉，我暂时无法处理这个问题。错误: {str(e)}",

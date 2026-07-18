@@ -101,12 +101,29 @@ public class ChatService {
         }
         
         // 调用AI服务获取回复
-        ChatResponse aiResponse = aiService.sendTextMessage(
-                enhancedText,
-                request.getRoleId() != null ? request.getRoleId().toString() : null,
-                context,
-                conversation.getContextId()
-        );
+        boolean hasRuntimeModel = request.getModel() != null
+                || request.getBaseUrl() != null
+                || request.getApiKey() != null;
+        ChatResponse aiResponse;
+        if (hasRuntimeModel) {
+            aiResponse = aiService.sendTextMessage(
+                    enhancedText,
+                    request.getRoleId() != null ? request.getRoleId().toString() : null,
+                    context,
+                    conversation.getContextId(),
+                    request.getModel(),
+                    request.getBaseUrl(),
+                    request.getApiKey(),
+                    request.getReasoningEffort()
+            );
+        } else {
+            aiResponse = aiService.sendTextMessage(
+                    enhancedText,
+                    request.getRoleId() != null ? request.getRoleId().toString() : null,
+                    context,
+                    conversation.getContextId()
+            );
+        }
         
         // 如果角色上下文可用，添加到响应元数据中
         if (roleContext != null && aiResponse.getMetadata() == null) {

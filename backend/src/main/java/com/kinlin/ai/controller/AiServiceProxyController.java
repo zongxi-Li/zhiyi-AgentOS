@@ -6,13 +6,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Mono;
+import reactor.core.Disposable;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -129,6 +133,38 @@ public class AiServiceProxyController {
                     .contentType(JSON_UTF8)
                     .body(createErrorResponse(e, ""));
         }
+    }
+
+    @PostMapping(value = "/chat/text/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter proxyChatStream(@RequestBody(required = false) Object body) {
+        SseEmitter emitter = new SseEmitter((long) timeout);
+        Disposable subscription = getWebClient().post()
+                .uri("/ai/chat/text/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .bodyValue(body != null ? body : new HashMap<>())
+                .retrieve()
+                .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                .subscribe(
+                        event -> {
+                            try {
+                                if (event.data() != null) {
+                                    emitter.send(SseEmitter.event().data(event.data()));
+                                }
+                            } catch (Exception sendError) {
+                                emitter.completeWithError(sendError);
+                            }
+                        },
+                        emitter::completeWithError,
+                        emitter::complete
+                );
+        emitter.onCompletion(subscription::dispose);
+        emitter.onTimeout(() -> {
+            subscription.dispose();
+            emitter.complete();
+        });
+        emitter.onError(error -> subscription.dispose());
+        return emitter;
     }
 
     private boolean isImageRequest(String path) {
