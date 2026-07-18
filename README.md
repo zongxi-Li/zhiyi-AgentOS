@@ -22,6 +22,29 @@ docker compose -f compose.yaml -f compose.dev.yaml up -d --build --wait
 
 生产入口默认只绑定 `127.0.0.1:8080`，Backend、FastAPI、PostgreSQL 和 Redis 均不发布宿主机端口。AgentOS Workflow Store 固定为单 FastAPI 实例、单 Uvicorn Worker 和 SQLite WAL；完成 PostgreSQL Workflow Store 前禁止水平扩容。已有数据库不得直接迁移，必须先执行 Schema 审计，再按审计报告显式 baseline。完整约束、备份恢复流程和已知风险见 [Docker 基础设施重构 RFC v1.1](docs/02-架构设计/07-docker-infrastructure-rfc-v1.1.md) 与 [P0/P1 实施报告](docs/03-开发记录/05-2026-07-18-docker-p0-p1-implementation.md)。
 
+### Windows 11 + Docker Desktop 开发环境
+
+Windows 下先从 `.env.windows.example` 生成仅包含非敏感配置的 `.env.windows`，并为其中的实例 ID 初始化 Secret，然后使用 Windows 专用覆盖层启动：
+
+```powershell
+Copy-Item .env.windows.example .env.windows
+python -m scripts.infra.init_secrets .secrets/kinlin-win-dev-001
+.\scripts\infra\windows\up.ps1
+```
+
+等价的标准 Compose 命令为：
+
+```powershell
+docker compose `
+  -f compose.yaml `
+  -f compose.dev.yaml `
+  -f compose.windows.yaml `
+  --env-file .env.windows `
+  up -d --build
+```
+
+Windows 层仅为 Frontend 增加非 internal 的 `windows-ingress-network`，其他服务仍按 RFC 隔离。默认只可从 `http://127.0.0.1:8080` 访问 Frontend；Backend 和 FastAPI 调试端口只在显式启用 `debug-ports` profile 时绑定回环地址。详细命令证据、热更新时间、网络矩阵和已知边界见 [P1-Windows Docker Desktop 验收报告](docs/03-开发记录/06-2026-07-18-p1-windows-docker-desktop.md)。`P1.5-Linux` 仍为 `BLOCKED_EXTERNAL_ENVIRONMENT`，本地结果不等于麒麟/Linux 生产验收。
+
 ## 项目简介
 
 普通聊天机器人通常把用户输入直接交给模型续写，过程难以拆解、难以审核，也难以在失败后从中间状态恢复。知弈 AgentOS 解决的是另一类问题：把合同审查、法律分析、教学设计、需求分析、写作规划等专业任务，转化为可调度、可追踪、可审核、可恢复的工作流。
@@ -342,19 +365,19 @@ Windows PowerShell:
 ```powershell
 git clone <repo-url>
 cd kinlin_ai
-Copy-Item .env.example .env
-.\dev.ps1 up
+Copy-Item .env.windows.example .env.windows
+python -m scripts.infra.init_secrets .secrets/kinlin-win-dev-001
+.\scripts\infra\windows\up.ps1
 ```
 
 服务地址：
 
 | 服务 | 地址 |
 | --- | --- |
-| 前端 | http://localhost:3000 |
-| Spring Boot Gateway | http://localhost:8080 |
-| Python Agent Runtime | http://localhost:8000 |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
+| Windows Docker Desktop 前端 | http://127.0.0.1:8080 |
+| Windows 默认直连其他服务 | 不可访问；仅 Frontend 发布端口 |
+| Spring Boot Gateway 调试 profile | http://127.0.0.1:18080 |
+| Python Agent Runtime 调试 profile | http://127.0.0.1:18000 |
 
 可选：编辑 `.env` 填入真实模型 key。
 
