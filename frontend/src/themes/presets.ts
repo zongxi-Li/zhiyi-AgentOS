@@ -1,4 +1,4 @@
-export type ColorSchemeId = 'tea-green' | 'blue-purple'
+export type ColorSchemeId = 'claude-warm' | 'tea-green' | 'blue-purple'
 
 export interface ColorScheme {
   id: ColorSchemeId
@@ -7,6 +7,68 @@ export interface ColorScheme {
   previewColor: string
   variables: Record<string, string>
   bodyBackground: string
+}
+
+const claudeWarm: ColorScheme = {
+  id: 'claude-warm',
+  name: 'Claude 暖橙',
+  nameEn: 'Claude Warm',
+  previewColor: '#D97757',
+  bodyBackground:
+    'linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(250, 249, 245, 0.9)), ' +
+    'radial-gradient(at 14% 0%, rgba(217, 119, 87, 0.06) 0px, transparent 40%), ' +
+    'radial-gradient(at 90% 12%, rgba(191, 141, 92, 0.05) 0px, transparent 38%)',
+  variables: {
+    '--primary-color': '#D97757',
+    '--primary-hover': '#C15F3C',
+    '--primary-active': '#A84B2F',
+    '--primary-fade': 'rgba(217, 119, 87, 0.1)',
+    '--primary-line': 'rgba(217, 119, 87, 0.24)',
+
+    '--accent-color': '#B07B4F',
+    '--accent-fade': 'rgba(176, 123, 79, 0.1)',
+
+    '--bg-app': '#FAF9F5',
+    '--bg-sidebar': '#F5F3EC',
+    '--bg-card': '#FFFFFF',
+    '--bg-panel': '#F5F4EE',
+    '--bg-input': '#F0EEE6',
+    '--bg-glass': 'rgba(255, 255, 255, 0.7)',
+    '--app-layout-bg':
+      'linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(250, 249, 245, 0.98)), var(--bg-app)',
+    '--sidebar-bg': 'rgba(245, 243, 236, 0.94)',
+    '--drawer-bg': 'rgba(250, 249, 245, 0.97)',
+    '--sidebar-border': 'rgba(228, 223, 210, 0.7)',
+    '--scrollbar-thumb': 'rgba(217, 119, 87, 0.18)',
+    '--scrollbar-thumb-hover': 'rgba(217, 119, 87, 0.28)',
+
+    '--text-primary': '#1F1E1D',
+    '--text-regular': '#3D3A34',
+    '--text-secondary': '#73706B',
+    '--text-disabled': '#ABA79E',
+
+    '--border-light': '#E9E4D8',
+    '--border-hover': '#D9D2C2',
+    '--border-focus': 'rgba(217, 119, 87, 0.42)',
+
+    '--success': '#4A7C59',
+    '--warning': '#B5852F',
+    '--danger': '#C0533F',
+    '--info': '#7A6E5D',
+
+    '--shadow-sm': '0 1px 2px rgba(31, 30, 29, 0.04)',
+    '--shadow-md': '0 8px 24px rgba(31, 30, 29, 0.06)',
+    '--shadow-lg': '0 18px 48px rgba(31, 30, 29, 0.08)',
+    '--shadow-glow': '0 12px 28px rgba(217, 119, 87, 0.16)',
+
+    '--el-color-primary': '#D97757',
+    '--el-color-primary-light-3': '#E39F87',
+    '--el-color-primary-light-5': '#ECBBA9',
+    '--el-color-primary-light-7': '#F4D7CB',
+    '--el-color-primary-light-8': '#F8E5DC',
+    '--el-color-primary-light-9': '#FCF2ED',
+    '--el-color-primary-dark-2': '#C15F3C',
+  },
 }
 
 const teaGreen: ColorScheme = {
@@ -133,8 +195,8 @@ const bluePurple: ColorScheme = {
   },
 }
 
-export const colorSchemes: ColorScheme[] = [bluePurple, teaGreen]
+export const colorSchemes: ColorScheme[] = [claudeWarm, bluePurple, teaGreen]
 
 export function getColorScheme(id: ColorSchemeId): ColorScheme {
-  return colorSchemes.find((s) => s.id === id) || bluePurple
+  return colorSchemes.find((s) => s.id === id) || claudeWarm
 }

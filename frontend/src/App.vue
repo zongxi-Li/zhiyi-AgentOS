@@ -439,16 +439,15 @@ watch(isSimpleChatMode, active => {
 .logo-icon {
   width: 34px;
   height: 34px;
-  background: #fff;
-  border: 1px solid var(--primary-line);
-  border-radius: 8px;
+  background: var(--primary-fade);
+  border: none;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--primary-color);
   font-weight: bold;
   font-size: 18px;
-  box-shadow: var(--shadow-sm);
 }
 
 .logo-text {
@@ -487,17 +486,48 @@ watch(isSimpleChatMode, active => {
 }
 
 .menu-group-title {
-  padding: 14px 16px 7px;
+  padding: 14px 16px 6px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-disabled);
   letter-spacing: 0;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .sidebar-menu {
   border: none;
   background: transparent;
+}
+
+/* 覆盖 Element Plus 默认激活态：去掉右侧指示条，改左侧橙色条 */
+.sidebar-menu :deep(.el-menu-item) {
+  border-radius: var(--radius-md);
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+  transition: var(--transition);
+  position: relative;
+}
+
+.sidebar-menu :deep(.el-menu-item:hover) {
+  background-color: rgba(217, 119, 87, 0.06);
+  color: var(--text-primary);
+}
+
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background-color: rgba(217, 119, 87, 0.08);
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.sidebar-menu :deep(.el-menu-item.is-active::before) {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary-color);
 }
 
 .sidebar-digital-human {
