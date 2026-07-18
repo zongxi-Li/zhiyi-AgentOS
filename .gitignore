@@ -39,6 +39,9 @@ logs/
 .env
 .env.local
 .env.*.local
+.env.windows
+.env.windows.*
+!.env.windows.example
 
 # Local-only bootstrap/deployment files
 !.env.example
