@@ -31,7 +31,7 @@
   --overlay-backdrop: rgba(8, 9, 18, 0.72);
   --shadow-color: rgba(8, 9, 18, 0.22);
   --on-primary: #FFFFFF;
-  --app-layout-bg: linear-gradient(180deg, #232435 0%, #1E1F2E 100%);
+  --app-layout-bg: var(--bg-app);
   --sidebar-bg: rgba(35, 36, 53, 0.96);
   --drawer-bg: rgba(35, 36, 53, 0.98);
   --sidebar-border: rgba(90, 91, 119, 0.42);

@@ -63,6 +63,7 @@ function applySchemeVariables(schemeId: ColorSchemeId): void {
   root.dataset.colorScheme = scheme.id
   root.style.colorScheme = scheme.id === 'codex-dark' ? 'dark' : 'light'
   document.body.style.backgroundImage = scheme.bodyBackground
+  document.body.style.backgroundColor = scheme.variables['--bg-app']
   currentScheme.value = scheme.id
 }
 

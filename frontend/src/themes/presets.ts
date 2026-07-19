@@ -14,9 +14,7 @@ const codexDark: ColorScheme = {
   name: 'Codex 深色',
   nameEn: 'Codex Dark',
   previewColor: '#A78BFA',
-  bodyBackground:
-    'radial-gradient(at 50% -20%, rgba(167, 139, 250, 0.08) 0px, transparent 42%), ' +
-    'linear-gradient(180deg, #202131 0%, #1E1F2E 100%)',
+  bodyBackground: 'none',
   variables: {
     '--primary-color': '#A78BFA',
     '--primary-hover': '#B8A2FC',
@@ -40,7 +38,7 @@ const codexDark: ColorScheme = {
     '--overlay-backdrop': 'rgba(8, 9, 18, 0.72)',
     '--shadow-color': 'rgba(8, 9, 18, 0.22)',
     '--on-primary': '#FFFFFF',
-    '--app-layout-bg': 'linear-gradient(180deg, #232435 0%, #1E1F2E 100%)',
+    '--app-layout-bg': 'var(--bg-app)',
     '--sidebar-bg': 'rgba(35, 36, 53, 0.96)',
     '--drawer-bg': 'rgba(35, 36, 53, 0.98)',
     '--sidebar-border': 'rgba(90, 91, 119, 0.42)',
@@ -111,10 +109,7 @@ const claudeWarm: ColorScheme = {
   name: 'Claude 暖橙',
   nameEn: 'Claude Warm',
   previewColor: '#D97757',
-  bodyBackground:
-    'linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(250, 249, 245, 0.9)), ' +
-    'radial-gradient(at 14% 0%, rgba(217, 119, 87, 0.06) 0px, transparent 40%), ' +
-    'radial-gradient(at 90% 12%, rgba(191, 141, 92, 0.05) 0px, transparent 38%)',
+  bodyBackground: 'none',
   variables: {
     '--primary-color': '#D97757',
     '--primary-hover': '#C15F3C',
@@ -131,8 +126,7 @@ const claudeWarm: ColorScheme = {
     '--bg-panel': '#F5F4EE',
     '--bg-input': '#F0EEE6',
     '--bg-glass': 'rgba(255, 255, 255, 0.7)',
-    '--app-layout-bg':
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(250, 249, 245, 0.98)), var(--bg-app)',
+    '--app-layout-bg': 'var(--bg-app)',
     '--sidebar-bg': 'rgba(245, 243, 236, 0.94)',
     '--drawer-bg': 'rgba(250, 249, 245, 0.97)',
     '--sidebar-border': 'rgba(228, 223, 210, 0.7)',
@@ -173,10 +167,7 @@ const teaGreen: ColorScheme = {
   name: '茶绿',
   nameEn: 'Tea Green',
   previewColor: '#3f6b63',
-  bodyBackground:
-    'linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 247, 244, 0.96)), ' +
-    'radial-gradient(at 12% 0%, rgba(63, 107, 99, 0.08) 0px, transparent 36%), ' +
-    'radial-gradient(at 92% 16%, rgba(111, 102, 143, 0.08) 0px, transparent 34%)',
+  bodyBackground: 'none',
   variables: {
     '--primary-color': '#3f6b63',
     '--primary-hover': '#345b54',
@@ -193,8 +184,7 @@ const teaGreen: ColorScheme = {
     '--bg-panel': '#fbfcfa',
     '--bg-input': '#f1f3ef',
     '--bg-glass': 'rgba(255, 255, 255, 0.72)',
-    '--app-layout-bg':
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(246, 247, 244, 0.98)), var(--bg-app)',
+    '--app-layout-bg': 'var(--bg-app)',
     '--sidebar-bg': 'rgba(251, 251, 248, 0.92)',
     '--drawer-bg': 'rgba(251, 251, 248, 0.96)',
     '--sidebar-border': 'rgba(227, 230, 223, 0.72)',
@@ -235,10 +225,7 @@ const bluePurple: ColorScheme = {
   name: '蓝紫',
   nameEn: 'Blue Purple',
   previewColor: '#5B5FCF',
-  bodyBackground:
-    'linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(245, 244, 250, 0.96)), ' +
-    'radial-gradient(at 12% 0%, rgba(91, 95, 207, 0.08) 0px, transparent 36%), ' +
-    'radial-gradient(at 92% 16%, rgba(139, 92, 246, 0.08) 0px, transparent 34%)',
+  bodyBackground: 'none',
   variables: {
     '--primary-color': '#5B5FCF',
     '--primary-hover': '#4A4EB8',
@@ -255,8 +242,7 @@ const bluePurple: ColorScheme = {
     '--bg-panel': '#fafafd',
     '--bg-input': '#f0f0f8',
     '--bg-glass': 'rgba(255, 255, 255, 0.72)',
-    '--app-layout-bg':
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(245, 244, 250, 0.98)), var(--bg-app)',
+    '--app-layout-bg': 'var(--bg-app)',
     '--sidebar-bg': 'rgba(250, 250, 255, 0.92)',
     '--drawer-bg': 'rgba(250, 250, 255, 0.96)',
     '--sidebar-border': 'rgba(228, 227, 240, 0.72)',
