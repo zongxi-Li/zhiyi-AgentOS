@@ -25,6 +25,11 @@ $values["KINLIN_DEPLOYMENT_ID"] = $TargetDeploymentId
 $values["KINLIN_SECRETS_DIR"] = $targetSecrets.Replace('\', '/')
 $values["KINLIN_HTTP_PORT"] = [string]$TargetHttpPort
 $values["KINLIN_PUBLIC_ORIGIN"] = "http://127.0.0.1:$TargetHttpPort"
+$networkSlot = 20 + ($TargetHttpPort % 200)
+$values["KINLIN_WEB_SUBNET"] = "10.253.$networkSlot.0/28"
+$values["KINLIN_AGENT_SUBNET"] = "10.253.$networkSlot.16/28"
+$values["KINLIN_DATA_SUBNET"] = "10.253.$networkSlot.32/28"
+$values["KINLIN_INGRESS_SUBNET"] = "10.253.$networkSlot.48/28"
 $lines = @("# Generated non-sensitive restore target; Secret values remain in .secrets/.")
 $lines += $values.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }
 [IO.File]::WriteAllLines([IO.Path]::GetFullPath($targetPath), $lines, [Text.UTF8Encoding]::new($false))

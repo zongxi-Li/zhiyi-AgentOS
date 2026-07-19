@@ -88,6 +88,8 @@ def test_windows_package_compose_is_image_only_and_persistent():
     for service in model["services"].values():
         for mount in service.get("tmpfs", []):
             assert mount.startswith("/"), mount
+    for network in model["networks"].values():
+        assert network["ipam"]["config"][0]["subnet"].endswith("/28")
 
 
 def test_backup_image_inventory_falls_back_to_runtime_container_inspect():

@@ -185,6 +185,18 @@ volumes:
   ai-cache: {name: "${KINLIN_DEPLOYMENT_ID}_ai_cache_v11", labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}}
 
 networks:
-  web-network: {name: "${KINLIN_DEPLOYMENT_ID}_web_network_v11", internal: true, labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}}
-  agent-network: {name: "${KINLIN_DEPLOYMENT_ID}_agent_network_v11", internal: false, labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}}
-  data-network: {name: "${KINLIN_DEPLOYMENT_ID}_data_network_v11", internal: true, labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}}
+  web-network:
+    name: ${KINLIN_DEPLOYMENT_ID}_web_network_v11
+    internal: true
+    ipam: {config: [{subnet: "${KINLIN_WEB_SUBNET:-10.253.10.0/28}"}]}
+    labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}
+  agent-network:
+    name: ${KINLIN_DEPLOYMENT_ID}_agent_network_v11
+    internal: false
+    ipam: {config: [{subnet: "${KINLIN_AGENT_SUBNET:-10.253.10.16/28}"}]}
+    labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}
+  data-network:
+    name: ${KINLIN_DEPLOYMENT_ID}_data_network_v11
+    internal: true
+    ipam: {config: [{subnet: "${KINLIN_DATA_SUBNET:-10.253.10.32/28}"}]}
+    labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}

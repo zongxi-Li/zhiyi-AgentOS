@@ -31,6 +31,9 @@ networks:
   windows-ingress-network:
     name: ${KINLIN_DEPLOYMENT_ID}_windows_ingress_v11
     internal: false
+    ipam:
+      config:
+        - subnet: ${KINLIN_INGRESS_SUBNET:-10.253.10.48/28}
     labels:
       com.kinlin.deployment-id: ${KINLIN_DEPLOYMENT_ID}
       com.kinlin.lifecycle: windows-amd64-deployment
