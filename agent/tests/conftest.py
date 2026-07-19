@@ -1,6 +1,8 @@
 import asyncio
 import inspect
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,11 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENTOS_SRC = PROJECT_ROOT / "agentOS" / "src"
 AGENT_APP_ROOT = PROJECT_ROOT / "agent"
+
+# AgentOS creates its global Chroma client while test modules are imported.
+# Isolate that client before collection so tests never open the tracked database.
+_TEST_CHROMA_DIR = tempfile.TemporaryDirectory(prefix="kinlin-agent-chroma-tests-")
+os.environ["AGENT_CHROMA_PATH"] = _TEST_CHROMA_DIR.name
 
 for path in (PROJECT_ROOT, AGENT_APP_ROOT, AGENTOS_SRC):
     value = str(path)
@@ -41,3 +48,13 @@ def pytest_pyfunc_call(pyfuncitem):
     }
     asyncio.run(test_func(**kwargs))
     return True
+
+
+def pytest_unconfigure(config):
+    chroma_module = sys.modules.get("agentos.adapters.retrieval.chroma_client")
+    if chroma_module is not None:
+        client = getattr(chroma_module.chroma_legal_client, "client", None)
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+    _TEST_CHROMA_DIR.cleanup()
