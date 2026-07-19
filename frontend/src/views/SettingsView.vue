@@ -1,4 +1,4 @@
-<!-- 设置中心页面 — Tab 切换管理主题模式、语言、隐私、对话与语音等偏好设置 -->
+<!-- 设置中心页面 — Tab 切换管理配色、语言、隐私、对话与语音等偏好设置 -->
 <template>
   <div class="settings-view">
     <div class="ambient-glow top-left"></div>
@@ -7,7 +7,7 @@
     <section class="page-header glass-panel">
       <div>
         <h1>设置中心</h1>
-        <p>在这里统一管理主题、隐私、对话与语音设置。</p>
+        <p>在这里统一管理配色、隐私、对话与语音设置。</p>
       </div>
       <div class="status-chip">
         上次保存：{{ lastSavedText }}
@@ -29,14 +29,6 @@
 
     <section class="content-panel glass-panel">
       <div v-if="activeTab === 'general'" class="form-grid">
-        <el-form-item label="主题模式">
-          <el-radio-group v-model="settings.theme">
-            <el-radio-button label="light">明亮</el-radio-button>
-            <el-radio-button label="dark">深色</el-radio-button>
-            <el-radio-button label="auto">跟随系统</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-
         <el-form-item label="语言">
           <el-select v-model="settings.language" @change="handleLanguageChange">
             <el-option label="简体中文" value="zh-CN" />
@@ -249,7 +241,6 @@ import {
 type TabId = 'general' | 'privacy' | 'chat' | 'model' | 'voice'
 
 interface AppSettings {
-  theme: 'light' | 'dark' | 'auto'
   colorScheme: ColorSchemeId
   language: 'zh-CN' | 'en'
   fontSize: number
@@ -277,7 +268,6 @@ const tabs = [
 ]
 
 const defaultSettings = (): AppSettings => ({
-  theme: 'dark',
   colorScheme: 'codex-dark',
   language: 'zh-CN',
   fontSize: 14,
@@ -319,8 +309,9 @@ function loadSettings(): void {
   const saved = localStorage.getItem('appSettings')
   if (!saved) return
   try {
-    const parsed = JSON.parse(saved) as Partial<AppSettings>
-    settings.value = { ...defaultSettings(), ...parsed }
+    const parsed = JSON.parse(saved) as Partial<AppSettings> & { theme?: unknown }
+    const { theme: _legacyTheme, ...savedSettings } = parsed
+    settings.value = { ...defaultSettings(), ...savedSettings }
     locale.value = settings.value.language
     applyTheme()
     inlineHint.value = '已读取本地设置。'
