@@ -27,6 +27,8 @@ agent/.venv/
 agent/venv/
 agent/env/
 agent/data/
+agent/app/data/
+agent/app/static/digital-human/data/
 agent/logs/
 logs/
 data/

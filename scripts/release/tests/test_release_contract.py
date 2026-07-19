@@ -89,3 +89,9 @@ def test_release_compose_removes_builds_and_repoints_migrations():
     assert overlay.count("build: !reset null") == 6
     assert "./migrations:/flyway/sql:ro" in overlay
     assert "KINLIN_FRONTEND_IMAGE is required" in overlay
+
+
+def test_ai_runtime_data_and_generated_static_files_are_excluded_from_build_context():
+    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+    assert "agent/app/data/" in dockerignore
+    assert "agent/app/static/digital-human/data/" in dockerignore

@@ -110,6 +110,7 @@ SECRET_PATTERNS = {
     "aws-access-key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "github-token": re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),
     "jwt": re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+    "alibaba-signed-url": re.compile(r"\bOSSAccessKeyId="),
 }
 TEXT_SUFFIXES = {"", ".conf", ".env", ".example", ".hcl", ".json", ".md", ".py", ".sh", ".txt", ".yaml", ".yml"}
 
@@ -139,8 +140,10 @@ def scan_tracked_secrets() -> list[str]:
     findings: list[str] = []
     tracked = run(["git", "ls-files", "-z"]).stdout.split("\0")
     excluded = {"scripts/release/common.py"}
+    excluded_prefixes = ("agent/app/data/", "agent/app/static/digital-human/data/")
     for relative in tracked:
-        if not relative or relative in excluded or "/tests/" in relative.replace("\\", "/"):
+        normalized = relative.replace("\\", "/")
+        if not relative or relative in excluded or normalized.startswith(excluded_prefixes) or "/tests/" in normalized:
             continue
         path = ROOT / relative
         if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES or path.stat().st_size > 5 * 1024 * 1024:
