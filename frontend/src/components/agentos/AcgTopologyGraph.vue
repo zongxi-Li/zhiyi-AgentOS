@@ -61,6 +61,7 @@ let nodesData: DataSet<any> | null = null
 let edgesData: DataSet<any> | null = null
 let graphStructureKey = ''
 let stabilizationTimer: number | undefined
+let themeObserver: MutationObserver | null = null
 
 const hasData = computed(() => {
   return !!props.blueprint && Array.isArray(props.blueprint.nodes) && props.blueprint.nodes.length > 0
@@ -92,7 +93,46 @@ const EDGE_STYLE: Record<string, { color: string; dashes: boolean | number[] }> 
   execution: { color: '#727c76', dashes: false }
 }
 
+const cssColor = (name: string, fallback: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+
+function applyThemeToGraphStyles() {
+  const primary = cssColor('--primary-color', '#3f6b63')
+  const primaryFade = cssColor('--primary-fade', 'rgba(63, 107, 99, 0.1)')
+  const info = cssColor('--info', '#496b8f')
+  const infoFade = cssColor('--info-fade', 'rgba(73, 107, 143, 0.12)')
+  const accent = cssColor('--accent-color', '#6f668f')
+  const accentFade = cssColor('--accent-fade', 'rgba(111, 102, 143, 0.1)')
+  const warning = cssColor('--warning', '#9a7432')
+  const warningFade = cssColor('--warning-fade', 'rgba(154, 116, 50, 0.12)')
+  const danger = cssColor('--danger', '#b24a4a')
+  const dangerFade = cssColor('--danger-fade', 'rgba(178, 74, 74, 0.12)')
+  const textSecondary = cssColor('--text-secondary', '#5a635e')
+
+  Object.assign(NODE_STYLE, {
+    step: { background: primaryFade, border: primary, shape: 'box' },
+    agent: { background: infoFade, border: info, shape: 'ellipse' },
+    skill: { background: accentFade, border: accent, shape: 'ellipse' },
+    memory: { background: warningFade, border: warning, shape: 'database' },
+    evidence: { background: dangerFade, border: danger, shape: 'diamond' },
+    control: { background: cssColor('--bg-input', '#e2e8e0'), border: textSecondary, shape: 'hexagon' }
+  })
+  Object.assign(EDGE_STYLE, {
+    dependency: { color: primary, dashes: false },
+    communication: { color: info, dashes: [4, 4] },
+    control_flow: { color: warning, dashes: [2, 3] },
+    write: { color: warning, dashes: [6, 3] },
+    read: { color: warning, dashes: [6, 3] },
+    support: { color: danger, dashes: [2, 2] },
+    execution: { color: textSecondary, dashes: false }
+  })
+}
+
 const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
+  applyThemeToGraphStyles()
+  const done = cssColor('--success', '#2f8f5b')
+  const textPrimary = cssColor('--text-primary', '#1d2422')
+  const textSecondary = cssColor('--text-secondary', '#5a635e')
   return nodes.map((node) => {
     const style = NODE_STYLE[node.nodeType] || NODE_STYLE.step
     const isDone = completed.has(node.nodeId)
@@ -104,13 +144,13 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
       shape: style.shape,
       color: {
         background: style.background,
-        border: isDone ? '#2f8f5b' : style.border,
-        highlight: { background: style.background, border: '#2f8f5b' }
+        border: isDone ? done : style.border,
+        highlight: { background: style.background, border: done }
       },
       borderWidth: isDone ? 3 : 1.5,
       // Step 为主干节点（大、醒目）；Agent/Memory/Evidence 为认知卫星节点（小）
       size: isStep ? 26 : 16,
-      font: { size: isStep ? 14 : 11, color: isStep ? '#1d2422' : '#5a635e' },
+      font: { size: isStep ? 14 : 11, color: isStep ? textPrimary : textSecondary },
       mass: isStep ? 3 : 1,
       margin: isStep ? 10 : 6
     }
@@ -118,6 +158,7 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
 }
 
 const buildEdgeRows = (edges: AcgEdge[]) => {
+  const done = cssColor('--success', '#2f8f5b')
   return edges.map((edge, index) => {
     const style = EDGE_STYLE[edge.edgeType] || EDGE_STYLE.dependency
     const isDep = edge.edgeType === 'dependency'
@@ -126,7 +167,7 @@ const buildEdgeRows = (edges: AcgEdge[]) => {
       from: edge.sourceId,
       to: edge.targetId,
       arrows: 'to',
-      color: { color: style.color, highlight: '#2f8f5b' },
+      color: { color: style.color, highlight: done },
       dashes: style.dashes,
       smooth: { enabled: true, type: 'continuous' },
       // 依赖主干边更粗更短（强弹簧），认知关联边更细
@@ -215,9 +256,15 @@ const render = async () => {
 const fit = () => network?.fit({ animation: true })
 
 watch(() => [props.blueprint, props.completedStepIds], () => render(), { deep: true })
-onMounted(render)
+onMounted(() => {
+  themeObserver = new MutationObserver(() => render())
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-color-scheme'] })
+  render()
+})
 onBeforeUnmount(() => {
   stopPhysics()
+  themeObserver?.disconnect()
+  themeObserver = null
   network?.destroy()
   network = null
   nodesData = null
