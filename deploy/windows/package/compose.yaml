@@ -139,7 +139,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: [/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
     networks: [web-network]
     depends_on: {backend: {condition: service_healthy}}
     restart: unless-stopped
@@ -158,6 +159,7 @@ services:
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/${KINLIN_DB_NAME:-kinlin_ai}
       FLYWAY_USER: ${KINLIN_DB_USER:-kinlin_ai}
+      HOME: /tmp
     secrets: [db_password]
     volumes: [./migrations:/flyway/sql:ro]
     tmpfs:

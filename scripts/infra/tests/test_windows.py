@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import yaml
+
 from scripts.infra import backup
 
 
@@ -79,6 +81,11 @@ def test_windows_package_compose_is_image_only_and_persistent():
     assert "agentos-data:/app/data" in compose
     assert "postgres-data:/var/lib/postgresql/data" in compose
     assert "./migrations:/flyway/sql:ro" in compose
+
+    model = yaml.safe_load(compose)
+    for service in model["services"].values():
+        for mount in service.get("tmpfs", []):
+            assert mount.startswith("/"), mount
 
 
 def test_backup_image_inventory_falls_back_to_runtime_container_inspect():
