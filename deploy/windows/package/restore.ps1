@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)][string]$TargetDeploymentId,
     [int]$TargetHttpPort = 8081,
     [string]$SourceEnvFile = ".env",
-    [string]$TargetEnvFile
+    [string]$TargetEnvFile,
+    [string]$TargetSecretsDir
 )
 
 . (Join-Path $PSScriptRoot ".kinlin\common.ps1")
@@ -12,12 +13,16 @@ $source = Read-KinlinPackageEnv $SourceEnvFile
 if (-not $TargetEnvFile) { $TargetEnvFile = ".env.$TargetDeploymentId" }
 $targetPath = if ([IO.Path]::IsPathRooted($TargetEnvFile)) { $TargetEnvFile } else { Join-Path $script:KinlinPackageRoot $TargetEnvFile }
 if (Test-Path -LiteralPath $targetPath) { throw "Target environment file already exists: $targetPath" }
-$targetSecrets = Join-Path $script:KinlinPackageRoot ".secrets\$TargetDeploymentId"
+$targetSecrets = if ($TargetSecretsDir) {
+    if ([IO.Path]::IsPathRooted($TargetSecretsDir)) { [IO.Path]::GetFullPath($TargetSecretsDir) } else { [IO.Path]::GetFullPath((Join-Path $script:KinlinPackageRoot $TargetSecretsDir)) }
+} else {
+    Join-Path $script:KinlinPackageRoot ".secrets\$TargetDeploymentId"
+}
 
 $values = [ordered]@{}
 foreach ($entry in $source.Values.GetEnumerator()) { $values[$entry.Key] = $entry.Value }
 $values["KINLIN_DEPLOYMENT_ID"] = $TargetDeploymentId
-$values["KINLIN_SECRETS_DIR"] = ".secrets/$TargetDeploymentId"
+$values["KINLIN_SECRETS_DIR"] = $targetSecrets.Replace('\', '/')
 $values["KINLIN_HTTP_PORT"] = [string]$TargetHttpPort
 $values["KINLIN_PUBLIC_ORIGIN"] = "http://127.0.0.1:$TargetHttpPort"
 $lines = @("# Generated non-sensitive restore target; Secret values remain in .secrets/.")

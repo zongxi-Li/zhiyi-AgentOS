@@ -70,6 +70,8 @@ def test_windows_deployment_package_has_required_entrypoints_and_no_secret_value
     example = (package / ".env.example").read_text(encoding="utf-8")
     forbidden = re.compile(r"^(?!KINLIN_SECRETS_DIR=).*(PASSWORD|TOKEN|SECRET|API_?KEY|JWT).*=" , re.MULTILINE)
     assert not forbidden.search(example)
+    restore = (package / "restore.ps1").read_text(encoding="utf-8")
+    assert "TargetSecretsDir" in restore
 
 
 def test_windows_package_compose_is_image_only_and_persistent():

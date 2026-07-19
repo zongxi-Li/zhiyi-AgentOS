@@ -18,6 +18,8 @@ This package supports Windows 11, Docker Desktop in Linux-container mode, and `l
 - Backup: `.\backup.ps1 -OutputRoot D:\kinlin-backups`
 - Restore into a new isolated deployment: `.\restore.ps1 -Backup D:\kinlin-backups\<backup> -TargetDeploymentId kinlin-restored-001 -TargetHttpPort 8081`
 
+Use `-TargetEnvFile` and `-TargetSecretsDir` to keep restore runtime configuration outside the package directory.
+
 Backup and restore require Python 3 with the standard library; the required Kinlin modules are included under `.kinlin`. Restore refuses an existing target environment file or existing target volumes and never runs `down -v`.
 
 Do not add real Secret values to `.env`, copy `.secrets` into the package, or reuse a `KINLIN_DEPLOYMENT_ID` for unrelated data.
