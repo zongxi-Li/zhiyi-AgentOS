@@ -269,6 +269,27 @@ html, body, #app {
   box-shadow: 0 0 0 1px var(--border-hover) inset !important;
 }
 
+.el-input-number .el-input__wrapper {
+  background-color: var(--bg-input) !important;
+  box-shadow: 0 0 0 1px var(--border-light) inset !important;
+}
+
+.el-input-number .el-input__inner {
+  color: var(--text-primary) !important;
+}
+
+.el-input-number__increase,
+.el-input-number__decrease {
+  background: var(--bg-panel) !important;
+  color: var(--text-secondary) !important;
+  border-left-color: var(--border-light) !important;
+}
+
+.el-input-number__increase:hover,
+.el-input-number__decrease:hover {
+  color: var(--primary-color) !important;
+}
+
 /* Codex Dark — shared component surfaces */
 html[data-color-scheme='codex-dark'] body {
   background-color: var(--bg-app);

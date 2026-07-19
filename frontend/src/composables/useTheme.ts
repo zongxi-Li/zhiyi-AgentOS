@@ -26,6 +26,40 @@ function applySchemeVariables(schemeId: ColorSchemeId): void {
   root.style.setProperty('--warning-fade', 'color-mix(in srgb, var(--warning) 12%, transparent)')
   root.style.setProperty('--danger-fade', 'color-mix(in srgb, var(--danger) 12%, transparent)')
   root.style.setProperty('--info-fade', 'color-mix(in srgb, var(--info) 12%, transparent)')
+  // Element Plus keeps its own palette. Without these aliases, a palette switch
+  // can leave selects, popovers, and disabled fields on the previous scheme.
+  root.style.setProperty('--el-bg-color', 'var(--bg-card)')
+  root.style.setProperty('--el-bg-color-page', 'var(--bg-app)')
+  root.style.setProperty('--el-bg-color-overlay', 'var(--bg-panel)')
+  root.style.setProperty('--el-fill-color-blank', 'var(--bg-card)')
+  root.style.setProperty('--el-fill-color', 'var(--bg-panel)')
+  root.style.setProperty('--el-fill-color-light', 'var(--bg-input)')
+  root.style.setProperty('--el-fill-color-lighter', 'var(--bg-panel)')
+  root.style.setProperty('--el-fill-color-extra-light', 'var(--bg-input)')
+  root.style.setProperty('--el-fill-color-dark', 'var(--bg-input)')
+  root.style.setProperty('--el-fill-color-darker', 'var(--bg-app)')
+  root.style.setProperty('--el-fill-color-disabled', 'var(--bg-input)')
+  root.style.setProperty('--el-text-color-primary', 'var(--text-primary)')
+  root.style.setProperty('--el-text-color-regular', 'var(--text-regular)')
+  root.style.setProperty('--el-text-color-secondary', 'var(--text-secondary)')
+  root.style.setProperty('--el-text-color-placeholder', 'var(--text-muted)')
+  root.style.setProperty('--el-text-color-disabled', 'var(--text-disabled)')
+  root.style.setProperty('--el-border-color', 'var(--border-light)')
+  root.style.setProperty('--el-border-color-light', 'var(--border-light)')
+  root.style.setProperty('--el-border-color-lighter', 'var(--border-light)')
+  root.style.setProperty('--el-border-color-extra-light', 'var(--border-light)')
+  root.style.setProperty('--el-border-color-dark', 'var(--border-hover)')
+  root.style.setProperty('--el-border-color-darker', 'var(--border-hover)')
+  root.style.setProperty('--el-mask-color', 'var(--overlay-backdrop)')
+  for (const status of ['success', 'warning', 'danger', 'info']) {
+    root.style.setProperty(`--el-color-${status}`, `var(--${status})`)
+    root.style.setProperty(`--el-color-${status}-light-3`, `color-mix(in srgb, var(--${status}) 72%, var(--bg-card))`)
+    root.style.setProperty(`--el-color-${status}-light-5`, `color-mix(in srgb, var(--${status}) 52%, var(--bg-card))`)
+    root.style.setProperty(`--el-color-${status}-light-7`, `color-mix(in srgb, var(--${status}) 30%, var(--bg-card))`)
+    root.style.setProperty(`--el-color-${status}-light-8`, `color-mix(in srgb, var(--${status}) 20%, var(--bg-card))`)
+    root.style.setProperty(`--el-color-${status}-light-9`, `color-mix(in srgb, var(--${status}) 12%, var(--bg-card))`)
+    root.style.setProperty(`--el-color-${status}-dark-2`, `color-mix(in srgb, var(--${status}) 82%, #000000)`)
+  }
   root.dataset.colorScheme = scheme.id
   root.style.colorScheme = scheme.id === 'codex-dark' ? 'dark' : 'light'
   document.body.style.backgroundImage = scheme.bodyBackground
