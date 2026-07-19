@@ -2,6 +2,8 @@
 
 This package supports Windows 11, Docker Desktop in Linux-container mode, and `linux/amd64` only. It does not represent Linux, Kylin, ARM64, or enterprise production acceptance.
 
+The generated package receives the repository's canonical `compose.yaml` plus production and Windows overrides. The template directory intentionally does not keep a second full Compose baseline.
+
 ## Start
 
 1. Copy `.env.example` to `.env` and choose a unique `KINLIN_DEPLOYMENT_ID` and free loopback port.

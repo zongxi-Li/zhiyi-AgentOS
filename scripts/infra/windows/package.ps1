@@ -77,6 +77,8 @@ $template = Join-Path $projectRoot "deploy\windows\package"
 foreach ($item in Get-ChildItem -LiteralPath $template -Force) {
     Copy-Item -LiteralPath $item.FullName -Destination $output -Recurse
 }
+Copy-Item -LiteralPath (Join-Path $projectRoot "compose.yaml") -Destination (Join-Path $output "compose.yaml")
+Copy-Item -LiteralPath (Join-Path $projectRoot "compose.prod.yaml") -Destination (Join-Path $output "compose.prod.yaml")
 Copy-Item -LiteralPath (Join-Path $projectRoot "compose.windows.prod.yaml") -Destination (Join-Path $output "compose.windows.prod.yaml")
 Copy-Item -LiteralPath (Join-Path $projectRoot "backend\src\main\resources\db\migration") -Destination (Join-Path $output "migrations") -Recurse
 

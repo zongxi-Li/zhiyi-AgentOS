@@ -26,6 +26,8 @@ services:
     platform: linux/amd64
     build: !reset null
     image: ${KINLIN_FLYWAY_IMAGE:-kinlin-ai/flyway:windows-amd64}
+    volumes: !override
+      - ./migrations:/flyway/sql:ro
 
 networks:
   windows-ingress-network:

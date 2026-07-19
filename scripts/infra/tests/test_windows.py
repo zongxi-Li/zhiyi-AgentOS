@@ -61,7 +61,7 @@ def test_backend_restart_uses_incremental_compile_by_default():
 def test_windows_deployment_package_has_required_entrypoints_and_no_secret_values():
     package = ROOT / "deploy" / "windows" / "package"
     expected = {
-        "compose.yaml", ".env.example", "start.ps1", "stop.ps1", "status.ps1",
+        ".env.example", "start.ps1", "stop.ps1", "status.ps1",
         "logs.ps1", "backup.ps1", "restore.ps1", "README.md",
     }
 
@@ -74,23 +74,32 @@ def test_windows_deployment_package_has_required_entrypoints_and_no_secret_value
     assert "TargetSecretsDir" in restore
 
 
-def test_windows_package_compose_is_image_only_and_persistent():
-    compose = (ROOT / "deploy" / "windows" / "package" / "compose.yaml").read_text(encoding="utf-8")
+def test_windows_package_uses_the_canonical_compose_baseline():
+    package = ROOT / "deploy" / "windows" / "package"
+    package_script = (ROOT / "scripts" / "infra" / "windows" / "package.ps1").read_text(encoding="utf-8")
+    compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+    windows_production = (ROOT / "compose.windows.prod.yaml").read_text(encoding="utf-8")
 
-    assert "build:" not in compose
-    assert "node_modules" not in compose
+    assert not (package / "compose.yaml").exists()
+    assert 'Join-Path $projectRoot "compose.yaml"' in package_script
+    assert 'Join-Path $output "compose.yaml"' in package_script
+    assert 'Join-Path $projectRoot "compose.prod.yaml"' in package_script
+    assert 'Join-Path $output "compose.prod.yaml"' in package_script
+    assert "build: !reset null" in windows_production
+    assert "./migrations:/flyway/sql:ro" in windows_production
     assert "backend-uploads:/app/data/uploads" in compose
     assert "agentos-data:/app/data" in compose
     assert "postgres-data:/var/lib/postgresql/data" in compose
-    assert "./migrations:/flyway/sql:ro" in compose
+    assert "./backend/src/main/resources/db/migration:/flyway/sql:ro" in compose
 
     model = yaml.safe_load(compose)
     for service in model["services"].values():
         for mount in service.get("tmpfs", []):
             assert mount.startswith("/"), mount
     for network in model["networks"].values():
-        subnet = network["ipam"]["config"][0]["subnet"]
-        assert subnet.endswith("/28") or "/28}" in subnet
+        for config in network.get("ipam", {}).get("config", []):
+            subnet = config["subnet"]
+            assert subnet.endswith("/28") or "/28}" in subnet
 
 
 def test_backup_image_inventory_falls_back_to_runtime_container_inspect():

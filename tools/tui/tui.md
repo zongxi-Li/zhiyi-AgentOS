@@ -8,7 +8,7 @@
 
 版本 0.1.0 — 2026-06-04
 
-当前约定：WebUI 和 TUI 统一使用 Docker 中的 AI 后端。默认 API 地址是 `http://127.0.0.1:8000/ai`，对应 `docker/docker-compose.prod.yml` 里的 `ai-service`。TUI 默认不再自动启动本地 `uvicorn` 后端，避免出现两套服务、两套数据源或行为不一致。
+当前约定：WebUI 和 TUI 统一使用 Docker 中的 AI 后端。默认 API 地址是 `http://127.0.0.1:8000/ai`，由根目录唯一基线 `compose.yaml` 叠加开发和 Windows 覆盖层启动。TUI 默认不再自动启动本地 `uvicorn` 后端，避免出现两套服务、两套数据源或行为不一致。
 
 ## 快速开始
 
@@ -20,7 +20,7 @@
 
 脚本会做三件事：
 
-1. 使用 `docker/docker-compose.prod.yml` 启动或复用 Docker `ai-service`。
+1. 使用 `compose.yaml` + `compose.dev.yaml` + `compose.windows.yaml` 启动或复用 Docker `ai-service`。
 2. 等待 `http://127.0.0.1:8000/health` 可用。
 3. 设置 `AGENTOS_API_URL=http://127.0.0.1:8000/ai` 并启动 TUI。
 
@@ -51,8 +51,8 @@ zhiyi os --api-url http://127.0.0.1:8000/ai
 如果修改了 `agent/app`、`agent/packs` 或其他会被 `agent/Dockerfile` 复制进镜像的后端代码，需要重建 Docker AI 服务，WebUI 和 TUI 才会同时生效：
 
 ```powershell
-docker compose -f docker\docker-compose.prod.yml build ai-service
-docker compose -f docker\docker-compose.prod.yml up -d ai-service
+docker compose -f compose.yaml -f compose.dev.yaml -f compose.windows.yaml --env-file .env.windows --profile debug-ports build ai-service ai-debug-port
+docker compose -f compose.yaml -f compose.dev.yaml -f compose.windows.yaml --env-file .env.windows --profile debug-ports up -d ai-service ai-debug-port
 ```
 
 验证 Docker 后端是否已使用新代码：
@@ -258,7 +258,7 @@ lawyer -> teacher -> programmer -> writer
 1. 确认 Docker `ai-service` 已启动：
 
    ```powershell
-   docker compose -f docker\docker-compose.prod.yml ps ai-service
+   docker compose -f compose.yaml -f compose.dev.yaml -f compose.windows.yaml --env-file .env.windows ps ai-service
    ```
 2. 启动 TUI：
 
@@ -309,8 +309,8 @@ python -m pytest agent\tests\test_agentos_core.py tools\tui\tests -q
 说明当前 `8000` 上的 Docker AI 服务还不是新镜像。重建并重启：
 
 ```powershell
-docker compose -f docker\docker-compose.prod.yml build ai-service
-docker compose -f docker\docker-compose.prod.yml up -d ai-service
+docker compose -f compose.yaml -f compose.dev.yaml -f compose.windows.yaml --env-file .env.windows --profile debug-ports build ai-service ai-debug-port
+docker compose -f compose.yaml -f compose.dev.yaml -f compose.windows.yaml --env-file .env.windows --profile debug-ports up -d ai-service ai-debug-port
 ```
 
 然后用真实接口探测 `trace[0]["action"]` 是否为 `direct_response`。

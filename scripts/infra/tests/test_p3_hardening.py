@@ -28,7 +28,8 @@ def test_windows_production_overlay_is_amd64_image_only_and_loopback_scoped():
     assert "127.0.0.1:${KINLIN_HTTP_PORT:-8080}:8080" in overlay
     assert "windows-ingress-network" in overlay
     assert "command:" not in overlay
-    assert "volumes:" not in overlay
+    assert overlay.count("volumes:") == 1
+    assert "./migrations:/flyway/sql:ro" in overlay
     assert overlay.count("platform: linux/amd64") == 6
     assert overlay.count("build: !reset null") == 6
     assert "windows-amd64" in overlay

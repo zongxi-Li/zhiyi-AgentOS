@@ -10,7 +10,7 @@
 
 ## Docker P0/P1 基线
 
-仓库根目录的 `compose.yaml` 是唯一 Canonical Compose，`compose.dev.yaml` 和 `compose.prod.yaml` 只提供环境差异；`docker/docker-compose*.yml` 仅保留一个发布周期的兼容入口。部署前必须为每个环境选择不同的 `KINLIN_DEPLOYMENT_ID`，生成 Secret，并通过预检：
+仓库根目录的 `compose.yaml` 是唯一 Canonical Compose 基线；`compose.dev.yaml`、`compose.prod.yaml`、`compose.windows.yaml` 等文件只提供环境差异，不重复定义整套服务。部署前必须为每个环境选择不同的 `KINLIN_DEPLOYMENT_ID`，生成 Secret，并通过预检：
 
 ```powershell
 python -m scripts.infra.init_secrets .secrets/kinlin-dev-001

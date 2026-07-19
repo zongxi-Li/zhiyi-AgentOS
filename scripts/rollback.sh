@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 # 联邦智枢 回滚脚本
 # 使用方法: ./rollback.sh [environment] [version]
@@ -27,18 +27,18 @@ echo "环境: $ENVIRONMENT"
 echo "版本: $VERSION"
 echo "=========================================="
 
-# 选择docker-compose文件
+# 唯一基线为根目录 compose.yaml，再按环境叠加差异层。
 if [ "$ENVIRONMENT" = "prod" ]; then
-    COMPOSE_FILE="docker/docker-compose.prod.yml"
+    COMPOSE_FILES=(-f compose.yaml -f compose.prod.yaml)
 else
-    COMPOSE_FILE="docker/docker-compose.dev.yml"
+    COMPOSE_FILES=(-f compose.yaml -f compose.dev.yaml)
 fi
 
 cd "$PROJECT_DIR"
 
 # 停止当前服务
 echo "停止当前服务..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" down
 
 # 如果有指定版本，切换到该版本
 if [ "$VERSION" != "previous" ]; then
@@ -48,8 +48,8 @@ fi
 
 # 重新构建并启动
 echo "重新构建并启动..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" build
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" up -d
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" build
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" up -d
 
 echo "回滚完成"
 

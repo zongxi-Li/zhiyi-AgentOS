@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 # 联邦智枢 部署脚本
 # 使用方法: ./deploy.sh [environment]
@@ -36,12 +36,12 @@ else
     exit 1
 fi
 
-# 选择docker-compose文件
+# 唯一基线为根目录 compose.yaml，再按环境叠加差异层。
 if [ "$ENVIRONMENT" = "prod" ]; then
-    COMPOSE_FILE="docker/docker-compose.prod.yml"
+    COMPOSE_FILES=(-f compose.yaml -f compose.prod.yaml)
     echo "使用生产环境配置"
 else
-    COMPOSE_FILE="docker/docker-compose.dev.yml"
+    COMPOSE_FILES=(-f compose.yaml -f compose.dev.yaml)
     echo "使用开发环境配置"
 fi
 
@@ -50,15 +50,15 @@ cd "$PROJECT_DIR"
 
 # 停止现有容器
 echo "停止现有容器..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" down
 
 # 构建镜像
 echo "构建Docker镜像..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" build --no-cache
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" build --no-cache
 
 # 启动服务
 echo "启动服务..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" up -d
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" up -d
 
 # 等待服务启动
 echo "等待服务启动..."
@@ -66,12 +66,11 @@ sleep 10
 
 # 检查服务状态
 echo "检查服务状态..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" ps
 
 # 显示日志
 echo "显示服务日志（按Ctrl+C退出）..."
-"${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs -f
-
+"${COMPOSE_CMD[@]}" "${COMPOSE_FILES[@]}" logs -f
 
 
 

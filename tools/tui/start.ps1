@@ -11,7 +11,12 @@ $ErrorActionPreference = "Stop"
 $PYTHON = "C:/Users/LZX/AppData/Local/Programs/Python/Python314/python.exe"
 $TUI_SRC = Join-Path $PSScriptRoot "src"
 $REPO_ROOT = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$COMPOSE_FILE = Join-Path $REPO_ROOT "docker\docker-compose.prod.yml"
+$COMPOSE_FILES = @(
+    (Join-Path $REPO_ROOT "compose.yaml"),
+    (Join-Path $REPO_ROOT "compose.dev.yaml"),
+    (Join-Path $REPO_ROOT "compose.windows.yaml")
+)
+$COMPOSE_ENV_FILE = Join-Path $REPO_ROOT ".env.windows"
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
@@ -57,15 +62,20 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 $buildLabel = if ($NoBuild) { "Starting" } else { "Building/restarting" }
 Write-Host "[1/2] $buildLabel Docker ai-service..." -ForegroundColor Yellow
-$composeArgs = @()
-if (Test-Path $COMPOSE_FILE) {
-    $composeArgs += @("-f", $COMPOSE_FILE)
+if (-not (Test-Path -LiteralPath $COMPOSE_ENV_FILE -PathType Leaf)) {
+    throw "Windows Compose environment file does not exist: $COMPOSE_ENV_FILE"
 }
+$composeArgs = @()
+foreach ($composeFile in $COMPOSE_FILES) {
+    $composeArgs += @("-f", $composeFile)
+}
+$composeArgs += @("--env-file", $COMPOSE_ENV_FILE, "--profile", "debug-ports")
+$env:KINLIN_AI_DEBUG_PORT = "$Port"
 $upArgs = @("up", "-d")
 if (-not $NoBuild) {
     $upArgs += "--build"
 }
-$upArgs += "ai-service"
+$upArgs += @("ai-service", "ai-debug-port")
 docker compose @composeArgs @upArgs 2>&1
 
 Write-Host "       Waiting for ai-service..." -NoNewline
@@ -82,7 +92,7 @@ for ($i = 0; $i -lt 90; $i++) {
 }
 if (-not $ok) {
     Write-Host " TIMEOUT" -ForegroundColor Red
-    Write-Host "       Check: docker compose -f $COMPOSE_FILE ps" -ForegroundColor Red
+    Write-Host "       Check the canonical Compose stack with .\scripts\infra\windows\status.ps1" -ForegroundColor Red
     exit 1
 }
 

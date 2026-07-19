@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 # 开发环境快速配置脚本
 # 自动创建.env文件并配置开发环境
@@ -45,7 +45,7 @@ if command -v psql &> /dev/null; then
         echo "✓ PostgreSQL数据库连接正常"
     else
         echo "⚠ PostgreSQL数据库未连接，请确保数据库已启动"
-        echo "  启动命令: docker-compose -f docker/docker-compose.dev.yml up -d postgres"
+        echo "  启动命令: docker compose -f compose.yaml -f compose.dev.yaml up -d postgres"
     fi
 else
     echo "⚠ psql命令未找到，跳过数据库检查"
@@ -59,7 +59,7 @@ if command -v redis-cli &> /dev/null; then
         echo "✓ Redis连接正常"
     else
         echo "⚠ Redis未连接，请确保Redis已启动"
-        echo "  启动命令: docker-compose -f docker/docker-compose.dev.yml up -d redis"
+        echo "  启动命令: docker compose -f compose.yaml -f compose.dev.yaml up -d redis"
     fi
 else
     echo "⚠ redis-cli命令未找到，跳过Redis检查"

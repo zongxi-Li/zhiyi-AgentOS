@@ -1,4 +1,0 @@
-# RFC v1.1 compatibility entry; remove after one release cycle.
-include:
-  - path:
-      - ../compose.yaml

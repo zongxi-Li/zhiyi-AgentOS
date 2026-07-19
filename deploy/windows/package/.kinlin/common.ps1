@@ -36,6 +36,7 @@ function Set-KinlinPackageEnvironment {
     $env:KINLIN_SECRETS_DIR = $Context.SecretsDir
     $env:KINLIN_COMPOSE_FILES = [string]::Join([IO.Path]::PathSeparator, @(
         (Join-Path $script:KinlinPackageRoot "compose.yaml"),
+        (Join-Path $script:KinlinPackageRoot "compose.prod.yaml"),
         (Join-Path $script:KinlinPackageRoot "compose.windows.prod.yaml")
     ))
     $env:PYTHONPATH = Join-Path $script:KinlinPackageRoot ".kinlin"
@@ -43,7 +44,12 @@ function Set-KinlinPackageEnvironment {
 
 function Get-KinlinComposeArguments {
     param($Context)
-    return @("-f", (Join-Path $script:KinlinPackageRoot "compose.yaml"), "-f", (Join-Path $script:KinlinPackageRoot "compose.windows.prod.yaml"), "--env-file", $Context.EnvFile)
+    return @(
+        "-f", (Join-Path $script:KinlinPackageRoot "compose.yaml"),
+        "-f", (Join-Path $script:KinlinPackageRoot "compose.prod.yaml"),
+        "-f", (Join-Path $script:KinlinPackageRoot "compose.windows.prod.yaml"),
+        "--env-file", $Context.EnvFile
+    )
 }
 
 function Invoke-KinlinPackageCompose {
