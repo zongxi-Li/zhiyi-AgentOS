@@ -1,0 +1,159 @@
+# P3 多架构容器与发布实施报告
+
+实施日期：2026-07-19（Asia/Shanghai）
+
+审计基线：`c66800693df67130201816f7831309be88078c24`
+
+审计结论和 65 个问题的逐项回答见 `08-2026-07-19-p3-readonly-audit.md`。本报告记录实施、真实复验和未通过的发布门禁；不重复把设计结论写成验收证据。
+
+## 1. 最终状态
+
+```text
+P3_ACCEPTED_WINDOWS_AMD64: NOT_ACCEPTED
+P3_MULTIARCH_BUILD_ACCEPTED: NOT_ACCEPTED
+P3_PRODUCTION_ACCEPTED: NOT_ACCEPTED
+P3_ARM64_NATIVE_RUNTIME: BLOCKED_EXTERNAL_ENVIRONMENT
+P1.5-Linux: BLOCKED_EXTERNAL_ENVIRONMENT
+```
+
+未接受不是实现未落地，而是 fail-closed 门禁按预期生效：
+
+1. Trivy 取得真实漏洞数据库后发现 Backend 7 个、AI 4 个、PostgreSQL 1 个 Critical；High 也存在且 `security/vulnerability-exceptions.json` 为空。
+2. P3 Flyway 精确多架构基线无法从 Docker Hub 完成构建，本机访问 `auth.docker.io` 时选择不可达 IPv6 地址。
+3. 当前 Buildx builder 仅报告 `linux/amd64`，无 QEMU arm64 或原生 arm64 node。
+4. 无远程原生 arm64 Linux/麒麟环境；不能完成 native runtime、Secret 权限、性能或麒麟兼容验收。
+
+因此不得生成 status=`complete` 的在线 manifest 或离线包，不得声明 Windows amd64、双架构或生产发布验收完成。
+
+## 2. 实施内容
+
+### 2.1 镜像和依赖基线
+
+- `VERSION` 是发布语义版本权威来源，当前为 `1.0.0`。
+- 六个基础镜像记录可读精确版本和 manifest digest；Docker Official Images 改用可达的 Public ECR 镜像源，digest 与官方清单一致。
+- Frontend、Backend、AI 均为多阶段构建。Frontend runtime 无 Node/npm/源码；Backend runtime 无 Maven/JDK/源码；AI runtime 只保留解释执行所需源码和 hash-locked venv，删除 pip、编译器和 Git。
+- Python 使用 `requirements.in` 加 3548 行全哈希 `requirements.lock`，安装固定为 `--require-hashes --only-binary=:all:`。amd64 与 arm64 各下载验证 124 个 wheel，无 sdist 回退。
+- Maven 排除 x86_64/macOS Netty native classifier；重打包 JAR 中无架构相关 Netty JAR。
+- AI 构建上下文排除 `agent/app/data` 和旧数字人生成数据；这些历史文件未修改或删除，生产数据仍只写 `agentos-data:/app/data`。
+
+### 2.2 只读根和权限最小化
+
+- 六个服务生产覆盖均启用 `read_only: true`、`no-new-privileges:true` 和 `cap_drop: ALL`。
+- Frontend 无额外 capability；五个 Secret/降权入口只临时加入 `CHOWN,DAC_OVERRIDE,FOWNER,SETGID,SETUID`。
+- `/run/secrets` 使用 1 MiB tmpfs 作为只读 Secret 文件的可收紧父目录；入口复制后仍把源目录改为业务 UID 不可读。
+- Nginx 只写 `/tmp`；Backend 保留 uploads volume 和 `/tmp`；AI 保留 data/cache volumes 和 `/tmp`；PostgreSQL/Redis 保留原 named volume 与必要 tmpfs。
+- Windows 生产验收使用 `compose.windows.prod.yaml` 增加独立 loopback ingress；不含开发命令、源码挂载，也不改变 Linux/麒麟生产 Compose 网络定义。
+
+### 2.3 Buildx Bake
+
+- 单一 `docker-bake.hcl` 是发布构建定义；运行拓扑继续由 Compose 管理。
+- 目标包括 `frontend`、`backend`、`ai-service`、`postgres`、`redis`、`flyway`、`runtime-dependencies`、`all`、`release-amd64`、`release-arm64`、`release-multiarch`。
+- 三种架构组继承同一服务 Dockerfile。发布目标启用 `type=sbom` 和 `type=provenance,mode=max` attestation，禁止 `latest`。
+- `check_builder.py` 对缺失平台返回 2。当前结果：host=`linux/amd64`、available=`linux/amd64`、missing=`linux/arm64`、arm64Mode=`unavailable`。
+
+当前多架构证据必须写为：
+
+```text
+cross-build: NOT_RUN (builder has no linux/arm64)
+emulated smoke: NOT_RUN (QEMU arm64 unavailable)
+native runtime: UNVERIFIED
+```
+
+### 2.4 在线发布
+
+- registry 和 namespace 由参数提供，推荐 `${registry}/${namespace}/${service}:${version}`，仓库不硬编码正式 registry。
+- 正式发布要求 clean worktree、`v<VERSION>` Git tag 和 amd64/arm64 builder。
+- 先推不可变 `sha-<12>` 多架构标签，取得 digest，逐平台生成 SBOM/漏洞报告并执行 Secret 门禁；全部通过后才用 `imagetools create` 提升语义版本标签。
+- `manifest.json` 最后生成，且明确“只有 complete manifest 表示版本可用”；部分 push 或部分标签存在不构成成功发布。
+- `latest` 在镜像引用、Bake、发布器和测试中均被拒绝。
+
+### 2.5 离线发布
+
+- amd64/arm64 独立包，默认每镜像独立 `docker save` gzip tar，不要求目标麒麟具备 zstd。
+- 包目录包含 VERSION、JSON/shell manifest、SHA256SUMS、六镜像、SPDX、CVE 报告、三份 Compose、migrations、`.env.prod.example`、Secret 初始化说明和 preflight/install/upgrade/rollback/backup/restore/diagnose。
+- release Compose 用 `!reset null` 删除全部 build 段，只接受六个显式镜像引用，并把 Flyway migration 路径重定向到包内目录。
+- preflight 同时核对 `uname -m`、Docker architecture、包 architecture、Docker/Compose 最低版本、10 GiB 空间、deployment ID、升级边界、SHA256 和镜像 ID。
+- 安装/升级固定使用 `up --pull never --no-build`；升级顺序为预检、备份、导入、停止写入服务、Flyway、readiness、smoke、切换 current。
+- 回滚只在 manifest 声明 Schema 兼容时切旧镜像，不反向迁移、不删除卷、不覆盖备份。恢复只允许新 deployment ID、新 Secret 目录和新卷。
+- 备份/恢复 helper 改为复用包内 PostgreSQL、Redis、AI 镜像，不再依赖浮动 Alpine/Python 公网镜像。
+- 四个会在线安装 Docker、使用浮动版本或生成破坏性流程的旧发布入口已退役；旧 `deploy.sh prod` 分支也拒绝执行。
+
+## 3. 构建与测试证据
+
+| 门禁 | 结果 |
+| --- | --- |
+| Agent 全量 | `134 passed, 1 skipped`；tracked Chroma 前后均为 `5EB1A9E3...B3031` |
+| Maven 全量 | 129 tests，0 failures，0 errors，0 skipped |
+| Frontend | `vue-tsc --noEmit` 与 Vite production build 通过；保留既有 Sass/大 chunk 警告 |
+| infra/release | 35 passed；Git Bash `bash -n` 通过 |
+| Compose | canonical prod、Windows prod、release migration 均 `config --quiet` 通过；release 六服务无 build 段 |
+| Bake | 五个可达镜像用基础 Bake 目标构建成功；五个 group `--print` 通过 |
+| P3 Flyway build | FAIL：Docker Hub anonymous token IPv6 网络不可达；失败发生在 Dockerfile 执行前 |
+| amd64 save/load | Frontend、Backend、AI、PostgreSQL、Redis 及旧 Flyway dev 均 save/load 后 image ID 不变 |
+| SBOM | 六镜像均生成 SPDX JSON，大小 49,681 至 578,942 bytes |
+| Secret | 六镜像 Trivy Secret 命中均为 0；运行时已知 Secret/JWT 命中均为 0 |
+
+Frontend npm 构建阶段曾报告 11 High，但 Node 依赖不进入静态 Nginx runtime；最终仍以 runtime 镜像 Trivy 报告为门禁。Frontend runtime 为 Critical 0/High 9，不能因无 Critical 而跳过 High 豁免要求。
+
+## 4. 漏洞门禁结果
+
+Trivy `v0.72.0` 从官方不可变发行版下载：checksum 文件 SHA-256 为 `ebe9d19a...c580`，Windows zip 与官方清单一致，为 `ed3cf122...91b3`。主漏洞库和 Java DB 均从官方 Public ECR 成功取得。
+
+| 镜像 | Critical unique | High unique | 主要 Critical |
+| --- | ---: | ---: | --- |
+| Frontend | 0 | 9 | 无 |
+| Backend | 7 | 42 | Tomcat 10.1.16、PostgreSQL JDBC 42.6.0、Spring Security Web 6.2.0 |
+| AI | 4 | 9 | Debian perl-base 3 项、ChromaDB 1.5.9 1 项；扫描库未给出修复版本 |
+| PostgreSQL | 1 | 16 | 镜像内 gosu Go stdlib |
+| Redis | 0 | 0 | 无 |
+| 旧 Flyway dev（非 P3 制品） | 4 | 22 | EOL Alpine 3.18 libexpat、Derby、PostgreSQL JDBC |
+
+不在容器重构内静默进行 Spring Boot/Spring Security 大版本升级，也不对无修复版本的 Chroma/系统包伪造豁免。因此默认 Critical=0/High 有记录策略正确阻止发布。
+
+## 5. Windows amd64 运行证据
+
+隔离 deployment `p3-hardening-001` 使用五个 `kinlin-ai/*:1.0.0` 镜像和本地旧 Flyway 9.22.3 迁移工具：
+
+- Frontend、Backend、AI、PostgreSQL、Redis 全部 `running/healthy`；仅 Frontend 发布 `127.0.0.1:18090`。
+- PID 1 UID 分别为 10003、10001、10002、70、999；五个进程 `CapEff=0`，根文件系统均只读。
+- Backend/AI 业务 UID 无法读 `/run/secrets` 源文件，但可读各自 `/run/kinlin-secrets` 副本。
+- Frontend health、Backend PostgreSQL/Redis readiness、AI data/packs/workflow readiness 均通过。
+- 普通 AI 网关 smoke 经 Frontend→Java→Python 访问 Workflow metrics，HTTP 200。
+- 生产 OpenAPI 中 `/ai/test/sse` 和 `/ai/test/proxy` 均不存在。
+- P2 的短流、心跳、客户端取消自动化继续由全量测试覆盖；P2 报告中的 267.4 秒真实长流、49 心跳和 `[DONE]` 证据保留引用，本阶段未伪造重复证据。
+
+## 6. 备份恢复证据
+
+- 源 `p3-hardening-001` Schema audit：state=`managed`，fingerprint=`e0a194ff...03d3a`。
+- 维护窗口备份产出 PostgreSQL globals/custom dump、Redis RDB、五卷归档、SQLite online backup、manifest 与 SHA256SUMS。
+- 恢复目标 `p3-restore-final-001` 使用独立 Secret 目录和五个全新 labeled volumes；未删除、覆盖或复用源卷。
+- 恢复结果：checksum verified，PostgreSQL successful migrations=6，Redis persistence=ok，SQLite integrity=ok、tasks=0、runs=0。
+- 恢复后的 PostgreSQL、Redis 均 healthy；源五服务恢复 healthy。
+
+## 7. 外部阻塞与后续要求
+
+1. 修复或升级 Critical/High 依赖并重新生成锁文件、镜像、SBOM 和漏洞报告；无修复项必须由安全责任人给出有期限、有理由的正式策略，Critical 默认不得豁免。
+2. 提供可访问 Docker Hub 的 IPv4/registry mirror，或把经过 digest 验证的 Flyway 9.22.3 多架构镜像导入受控 registry。
+3. 提供含 `linux/arm64` 的 Buildx node；先记录 cross-build，再记录 emulated smoke，两者仍不能替代原生 arm64。
+4. 在原生 arm64 Linux/麒麟完成完整离线安装、read-only/Secret、健康、AI/SSE、备份恢复和漏洞门禁。
+5. 在 rootful Linux/麒麟完成仍阻塞的 P1.5 防火墙、权限和网络边界验收后，才可讨论 `P3_PRODUCTION_ACCEPTED`。
+
+## 8. 提交记录
+
+| Commit | Message |
+| --- | --- |
+| `70555d3` | `docs(infrastructure): 完成 P3 实施前只读审计` |
+| `190856d` | `build(containers): 固定多架构镜像与依赖基线` |
+| `5078a49` | `security(containers): 启用只读根与最小权限运行` |
+| `4b938c9` | `build(release): 增加多架构 Buildx Bake 目标` |
+| `81a173c` | `feat(release): 增加在线发布与镜像安全门禁` |
+| `4b7c66d` | `feat(release): 增加离线发布与升级回滚工具` |
+| `a5edc2e` | `security(ai-image): 排除运行数据与历史签名 URL` |
+
+实现报告提交前 HEAD 为 `a5edc2e4c0d73ea3d19935bc763ea0c160119220`，工作树和暂存区为空。文档提交后的最终 HEAD 与工作区状态在提交后复核。
+
+## 9. 结论
+
+进入 P3 实施是允许的，仓库层实现已经完成且没有触发冻结语义、网络边界、Secret、ARM 支持、权威数据或 Workflow Store 的停止条件。发布验收则被真实安全结果和外部环境正确阻止。
+
+当前只能表述为：P3 implementation completed, release gates not accepted。不得写成 Linux、麒麟、arm64 或生产发布已通过。
