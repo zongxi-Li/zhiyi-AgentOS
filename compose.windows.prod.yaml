@@ -1,0 +1,13 @@
+services:
+  frontend:
+    networks: [web-network, windows-ingress-network]
+    ports: !override
+      - "127.0.0.1:${KINLIN_HTTP_PORT:-8080}:8080"
+
+networks:
+  windows-ingress-network:
+    name: ${KINLIN_DEPLOYMENT_ID}_windows_ingress_v11
+    internal: false
+    labels:
+      com.kinlin.deployment-id: ${KINLIN_DEPLOYMENT_ID}
+      com.kinlin.lifecycle: p3-windows-production-acceptance
