@@ -32,45 +32,6 @@
 
           <!-- Main Navigation -->
           <div class="sidebar-nav" ref="sidebarNav">
-            <div
-              v-if="!mainSidebarCompact"
-              class="workspace-switch"
-              role="tablist"
-              aria-label="工作模式"
-            >
-              <div class="agent-switch-entry">
-                <button
-                  class="workspace-switch-btn"
-                  :class="{ active: workspaceMode === 'agent' }"
-                  type="button"
-                  role="tab"
-                  :aria-selected="workspaceMode === 'agent'"
-                  @click="selectWorkspaceMode('agent')"
-                >
-                  <el-icon><Monitor /></el-icon>
-                  <span>Agent</span>
-                </button>
-                <div class="agent-hover-menu" role="menu">
-                  <button type="button" role="menuitem" @click.stop="openRoleSelection">
-                    <el-icon><User /></el-icon>
-                    <span>选择角色</span>
-                    <el-icon class="agent-hover-arrow"><ArrowRight /></el-icon>
-                  </button>
-                </div>
-              </div>
-              <button
-                class="workspace-switch-btn"
-                :class="{ active: workspaceMode === 'chat' }"
-                type="button"
-                role="tab"
-                :aria-selected="workspaceMode === 'chat'"
-                @click="selectWorkspaceMode('chat')"
-              >
-                <el-icon><ChatDotRound /></el-icon>
-                <span>Chat</span>
-              </button>
-            </div>
-
             <el-menu
               :default-active="activeMenu"
               router
@@ -81,7 +42,6 @@
             >
               <div v-if="!mainSidebarCompact" class="menu-group-title">{{ $t('nav.main') }}</div>
               <div
-                v-if="workspaceMode === 'chat'"
                 class="chat-nav-group"
                 :class="{ active: route.path.startsWith('/chat'), open: chatNavOpen }"
               >
@@ -174,19 +134,43 @@
             >
               <div class="chat-panel-header">
                 <div class="chat-panel-switch" role="tablist" aria-label="工作模式">
-                  <div class="agent-switch-entry">
-                    <button type="button" role="tab" :aria-selected="workspaceMode === 'agent'" @click="selectWorkspaceMode('agent')">
+                  <div class="agent-switch-entry" @mouseenter="ensureSidebarRoles">
+                    <button
+                      :class="{ active: workspaceMode === 'agent' }"
+                      type="button"
+                      role="tab"
+                      :aria-selected="workspaceMode === 'agent'"
+                      @click="selectWorkspaceMode('agent')"
+                    >
                       Agent
                     </button>
-                    <div class="agent-hover-menu" role="menu">
-                      <button type="button" role="menuitem" @click.stop="openRoleSelection">
+                    <div class="agent-hover-menu role-switch-menu" role="menu" aria-label="切换 Agent 角色">
+                      <div v-if="roleStore.loading" class="role-switch-status">正在加载角色…</div>
+                      <button
+                        v-for="role in sidebarRoles"
+                        v-else
+                        :key="role.id"
+                        class="role-switch-item"
+                        :class="{ active: roleStore.currentRole?.id === role.id }"
+                        type="button"
+                        role="menuitemradio"
+                        :aria-checked="roleStore.currentRole?.id === role.id"
+                        @click.stop="selectSidebarRole(role)"
+                      >
                         <el-icon><User /></el-icon>
-                        <span>选择角色</span>
-                        <el-icon class="agent-hover-arrow"><ArrowRight /></el-icon>
+                        <span>{{ role.name }}</span>
+                        <el-icon v-if="roleStore.currentRole?.id === role.id" class="role-switch-check"><Check /></el-icon>
                       </button>
+                      <div v-if="!roleStore.loading && !sidebarRoles.length" class="role-switch-status">暂无可用角色</div>
                     </div>
                   </div>
-                  <button class="active" type="button" role="tab" aria-selected="true">Chat</button>
+                  <button
+                    :class="{ active: workspaceMode === 'chat' }"
+                    type="button"
+                    role="tab"
+                    :aria-selected="workspaceMode === 'chat'"
+                    @click="selectWorkspaceMode('chat')"
+                  >Chat</button>
                 </div>
                 <button class="chat-panel-close" type="button" aria-label="关闭聊天面板" title="关闭聊天面板" @click="closeChatPanel">
                   <el-icon><Close /></el-icon>
@@ -389,10 +373,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
-  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, EditPen, User, Search,
+  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, Check, EditPen, User, Search,
   Clock, Setting, SwitchButton, Connection,
   Monitor, DocumentChecked, Cpu,
   Menu as MenuIcon, Fold, Expand, Close
@@ -401,18 +385,22 @@ import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { authApi } from '@/services/api/auth'
 import { conversationApi, type Conversation } from '@/services/api/conversation'
 import { useChatStore } from '@/stores/chat'
+import { useRoleStore } from '@/stores/role'
+import type { Role } from '@/services/api/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
+const roleStore = useRoleStore()
+const sidebarRoles = computed(() => roleStore.roles)
 const globalError = ref('')
 const simpleNavOpen = ref(false)
 type WorkspaceMode = 'agent' | 'chat'
 const WORKSPACE_MODE_KEY = 'layout.workspace_mode'
 const workspaceMode = ref<WorkspaceMode>(localStorage.getItem(WORKSPACE_MODE_KEY) === 'agent' ? 'agent' : 'chat')
 const CHAT_NAV_OPEN_KEY = 'layout.chat_nav_open'
-const chatNavOpen = ref(localStorage.getItem(CHAT_NAV_OPEN_KEY) === '1')
+const chatNavOpen = ref(route.path.startsWith('/chat') && localStorage.getItem(CHAT_NAV_OPEN_KEY) === '1')
 const CHAT_PANEL_WIDTH_KEY = 'layout.chat_panel_width'
 const CHAT_PANEL_DEFAULT_WIDTH = 300
 const CHAT_PANEL_MIN_WIDTH = 220
@@ -492,7 +480,9 @@ const handleChatNavToggle = () => {
   chatNavOpen.value = !chatNavOpen.value
   localStorage.setItem(CHAT_NAV_OPEN_KEY, chatNavOpen.value ? '1' : '0')
   if (chatNavOpen.value) void loadRecentConversations()
-  if (!route.path.startsWith('/chat')) void router.push('/chat')
+  if (!route.path.startsWith('/chat')) {
+    void router.push({ path: '/chat', query: { workspace: workspaceMode.value } })
+  }
 }
 
 const closeChatPanel = () => {
@@ -502,28 +492,45 @@ const closeChatPanel = () => {
 
 const startNewChat = async () => {
   chatStore.clearMessages()
-  await router.push('/chat')
+  await router.push({ path: '/chat', query: { workspace: workspaceMode.value } })
 }
 
 const openConversation = async (conversation: Conversation) => {
   const contextId = conversation.contextId || conversation.id
-  await router.push({ path: '/chat', query: { contextId } })
+  await router.push({ path: '/chat', query: { contextId, workspace: workspaceMode.value } })
 }
 
 const handleHistoryRefresh = () => {
   if (chatNavOpen.value) void loadRecentConversations()
 }
 
+watch(
+  () => route.path,
+  path => {
+    if (path.startsWith('/chat') || !chatNavOpen.value) return
+    closeChatPanel()
+  }
+)
+
 const selectWorkspaceMode = (mode: WorkspaceMode) => {
   workspaceMode.value = mode
   localStorage.setItem(WORKSPACE_MODE_KEY, mode)
-  if (mode === 'agent') closeChatPanel()
-  void router.push('/chat')
+  chatNavOpen.value = true
+  localStorage.setItem(CHAT_NAV_OPEN_KEY, '1')
+  window.dispatchEvent(new CustomEvent('workspace-mode-change', { detail: { mode } }))
+  void router.replace({
+    path: '/chat',
+    query: { ...route.query, workspace: mode }
+  })
 }
 
-const openRoleSelection = async () => {
-  closeChatPanel()
-  await router.push('/roles')
+const ensureSidebarRoles = () => {
+  if (!roleStore.roles.length) void roleStore.loadRoles()
+}
+
+const selectSidebarRole = async (role: Role) => {
+  await roleStore.setCurrentRole(role)
+  selectWorkspaceMode('agent')
 }
 
 // Immersive mode: only keep login page immersive
@@ -1007,6 +1014,15 @@ onUnmounted(() => {
   transition: opacity 0.14s ease, transform 0.16s var(--ease-out), visibility 0s linear 0.16s;
 }
 
+.agent-hover-menu.role-switch-menu {
+  width: 176px;
+  padding: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+
 .agent-switch-entry:hover .agent-hover-menu,
 .agent-switch-entry:focus-within .agent-hover-menu {
   opacity: 1;
@@ -1034,6 +1050,40 @@ onUnmounted(() => {
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.16s ease, background-color 0.16s ease;
+}
+
+.agent-hover-menu.role-switch-menu > button {
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  box-shadow: none;
+  background: transparent;
+  font-weight: 500;
+}
+
+.agent-hover-menu.role-switch-menu > button.active {
+  color: var(--primary-color);
+  background: var(--primary-fade);
+}
+
+.role-switch-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role-switch-check {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--primary-color);
+}
+
+.role-switch-status {
+  padding: 8px;
+  color: var(--text-disabled);
+  font-size: 11px;
+  text-align: center;
 }
 
 .agent-hover-menu > button:hover {
@@ -1229,6 +1279,7 @@ onUnmounted(() => {
 }
 
 .sidebar-menu {
+  --el-menu-item-font-size: 13px;
   border: none;
   background: transparent;
 }
@@ -1262,6 +1313,9 @@ onUnmounted(() => {
   gap: 10px;
   padding: 0 14px;
   border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.01em;
   transition: var(--transition);
 }
 
@@ -1336,8 +1390,20 @@ onUnmounted(() => {
 }
 
 .new-chat-action {
-  color: var(--text-regular);
-  font-weight: 600;
+  min-height: 38px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  background: color-mix(in srgb, var(--bg-card) 84%, transparent);
+  color: var(--text-primary);
+  font-weight: 650;
+  box-shadow: var(--shadow-sm);
+}
+
+.new-chat-action:hover {
+  border-color: var(--primary-line);
+  background: var(--bg-card);
+  color: var(--primary-color);
 }
 
 .chat-submenu-section-head {
@@ -1345,11 +1411,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 9px 3px;
+  padding: 5px 8px 6px;
   color: var(--text-disabled);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
 }
 
 .chat-project-count {
@@ -1362,13 +1428,52 @@ onUnmounted(() => {
   border-radius: 999px;
   background: var(--bg-panel);
   color: var(--text-disabled);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .chat-project-item .el-icon,
 .chat-submenu-action .el-icon {
   flex: 0 0 auto;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.chat-project-list {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 2px 0 4px 6px;
+}
+
+.chat-project-list::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  bottom: 9px;
+  left: 1px;
+  width: 1px;
+  background: var(--border-light);
+}
+
+.chat-project-item {
+  position: relative;
+  min-height: 34px;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 450;
+}
+
+.chat-project-item::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -6px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  background: var(--bg-card);
+  transform: translate(-50%, -50%);
 }
 
 .chat-project-item span,
@@ -1381,6 +1486,17 @@ onUnmounted(() => {
 
 .chat-project-item.active {
   color: var(--primary-color);
+  background: var(--primary-fade);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.chat-project-item.active::before {
+  width: 7px;
+  height: 7px;
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-fade);
 }
 
 .chat-submenu-loading,
@@ -1391,8 +1507,13 @@ onUnmounted(() => {
 }
 
 .history-action {
-  margin-top: 3px;
-  color: var(--text-secondary);
+  min-height: 36px;
+  margin-top: 7px;
+  padding: 8px 9px 4px;
+  border-top: 1px solid var(--border-light);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item) {
@@ -1408,11 +1529,29 @@ onUnmounted(() => {
 
 /* 覆盖 Element Plus 默认激活态：去掉右侧指示条，改左侧橙色条 */
 .sidebar-menu :deep(.el-menu-item) {
+  height: 44px;
+  margin: 0 0 2px;
+  padding: 0 14px !important;
+  gap: 10px;
   border-radius: var(--radius-md);
-  margin-bottom: 2px;
   color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 450;
+  letter-spacing: -0.01em;
   transition: var(--transition);
   position: relative;
+}
+
+.sidebar-menu :deep(.el-menu-item .el-icon) {
+  flex: 0 0 18px;
+  width: 18px;
+  margin-right: 0;
+  font-size: 18px;
+}
+
+.sidebar-menu :deep(.el-menu-item > span) {
+  font-size: 13px !important;
+  line-height: 1.35;
 }
 
 .sidebar-menu :deep(.el-menu-item:hover) {

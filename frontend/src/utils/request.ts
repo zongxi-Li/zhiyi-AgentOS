@@ -13,10 +13,17 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
-    // 可以在这里添加token等
+    const requestUrl = config.url || ''
+    const isPublicAuthOperation =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/register')
+
+    // 公开认证接口不能携带本地残留的旧令牌，否则 JWT 过滤器会在登录前拒绝请求。
     const token = localStorage.getItem('token')
-    if (token) {
+    if (token && !isPublicAuthOperation) {
       config.headers.Authorization = `Bearer ${token}`
+    } else if (isPublicAuthOperation) {
+      delete config.headers.Authorization
     }
     return config
   },

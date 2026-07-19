@@ -57,6 +57,10 @@ const emit = defineEmits<{
 
 const graphRef = ref<HTMLElement | null>(null)
 let network: Network | null = null
+let nodesData: DataSet<any> | null = null
+let edgesData: DataSet<any> | null = null
+let graphStructureKey = ''
+let stabilizationTimer: number | undefined
 
 const hasData = computed(() => {
   return !!props.blueprint && Array.isArray(props.blueprint.nodes) && props.blueprint.nodes.length > 0
@@ -155,27 +159,57 @@ const options = {
   interaction: { hover: true, dragNodes: true, zoomView: true, navigationButtons: false }
 }
 
+const getStructureKey = (blueprint: AcgBlueprint) => JSON.stringify({
+  nodes: blueprint.nodes.map(node => [node.nodeId, node.nodeType]),
+  edges: blueprint.edges.map(edge => [edge.edgeId, edge.sourceId, edge.targetId, edge.edgeType])
+})
+
+const stopPhysics = () => {
+  if (stabilizationTimer) {
+    window.clearTimeout(stabilizationTimer)
+    stabilizationTimer = undefined
+  }
+  network?.setOptions({ physics: { enabled: false } } as any)
+}
+
 const render = async () => {
   await nextTick()
   if (!graphRef.value || !hasData.value || !props.blueprint) return
   const completed = new Set(props.completedStepIds || [])
+  const nodeRows = buildNodeRows(props.blueprint.nodes, completed)
+  const edgeRows = buildEdgeRows(props.blueprint.edges)
+  const nextStructureKey = getStructureKey(props.blueprint)
+
+  // Polling frequently returns a new object with the same graph structure.
+  // Update labels/status in place so existing positions and user dragging are preserved.
+  if (network && nodesData && edgesData && graphStructureKey === nextStructureKey) {
+    nodesData.update(nodeRows)
+    edgesData.update(edgeRows)
+    network.redraw()
+    return
+  }
+
+  stopPhysics()
   if (network) {
     network.destroy()
     network = null
   }
-  const data = {
-    nodes: new DataSet(buildNodeRows(props.blueprint.nodes, completed)),
-    edges: new DataSet(buildEdgeRows(props.blueprint.edges))
-  }
+  nodesData = new DataSet(nodeRows)
+  edgesData = new DataSet(edgeRows)
+  graphStructureKey = nextStructureKey
+  const data = { nodes: nodesData, edges: edgesData }
   network = new Network(graphRef.value, data as any, options as any)
 
   // 布局展开成形后，完全冻结 physics —— 节点定住不再漂移抖动。
   // physics 关闭后 dragNodes 仍有效：拖动只移动被拖的单个节点，
   // 其余节点保持不动，不会触发整图重新布局/旋转。
   network.once('stabilizationIterationsDone', () => {
-    network?.setOptions({ physics: { enabled: false } } as any)
+    stopPhysics()
     network?.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } })
   })
+  network.once('stabilized', stopPhysics)
+  // Tiny or sparse graphs may not emit the iteration event consistently.
+  stabilizationTimer = window.setTimeout(stopPhysics, 1400)
 }
 
 const fit = () => network?.fit({ animation: true })
@@ -183,8 +217,11 @@ const fit = () => network?.fit({ animation: true })
 watch(() => [props.blueprint, props.completedStepIds], () => render(), { deep: true })
 onMounted(render)
 onBeforeUnmount(() => {
+  stopPhysics()
   network?.destroy()
   network = null
+  nodesData = null
+  edgesData = null
 })
 </script>
 

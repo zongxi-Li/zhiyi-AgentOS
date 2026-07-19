@@ -13,9 +13,119 @@
       ]"
       :style="agentPanelLayoutStyle"
     >
-      <section class="chat-panel" :class="{ 'hero-mode': chatStore.messages.length === 0 }">
+      <section
+        class="chat-panel"
+        :class="{ 'hero-mode': showHeroMode }"
+      >
+        <Transition name="context-panel-slide" @after-leave="finishContextPanelClose">
+          <section
+            v-if="isAgentMode && contextPanelOpen"
+            class="context-panel"
+            :class="{ resizing: contextPanelResizing }"
+            :style="{ height: `${contextPanelHeight}px` }"
+            aria-label="运行上下文"
+          >
+            <header class="context-panel__header">
+              <div class="context-panel__identity">
+                <el-icon><Cpu /></el-icon>
+                <strong>运行上下文</strong>
+                <span>{{ contextObjective }}</span>
+              </div>
+              <div class="context-panel__metrics">
+                <span>{{ contextStepNodes.length }} 步骤</span>
+                <span>{{ contextNodes.length }} 节点</span>
+                <span>{{ contextEdges.length }} 关系</span>
+                <button type="button" title="收起运行上下文" aria-label="收起运行上下文" @click="setContextPanelOpen(false)">
+                  <el-icon><ArrowUp /></el-icon>
+                </button>
+              </div>
+            </header>
+
+            <nav class="context-panel__tabs" aria-label="运行上下文视图">
+              <button
+                v-for="tab in contextTabs"
+                :key="tab.key"
+                type="button"
+                :class="{ active: contextPanelTab === tab.key }"
+                @click="contextPanelTab = tab.key"
+              >
+                {{ tab.label }}
+                <span>{{ tab.count }}</span>
+              </button>
+            </nav>
+
+            <div class="context-panel__body">
+              <div v-if="!contextNodes.length" class="context-panel__empty">
+                启用 Workflow 后，这里会同步展示数据血缘、执行节点和任务步骤。
+              </div>
+
+              <div v-else-if="contextPanelTab === 'lineage'" class="context-lineage">
+                <div v-for="edge in contextEdges" :key="edge.edgeId" class="context-lineage__row">
+                  <span class="context-node-pill">{{ contextNodeLabel(edge.sourceId) }}</span>
+                  <span class="context-edge-label">{{ contextEdgeLabel(edge.edgeType) }}</span>
+                  <span class="context-lineage__arrow">→</span>
+                  <span class="context-node-pill target">{{ contextNodeLabel(edge.targetId) }}</span>
+                </div>
+                <div v-if="!contextEdges.length" class="context-panel__empty">当前蓝图暂无血缘关系。</div>
+              </div>
+
+              <div v-else-if="contextPanelTab === 'nodes'" class="context-node-grid">
+                <article v-for="node in contextNodes" :key="node.nodeId" class="context-node-card">
+                  <span class="context-node-card__type">{{ contextNodeTypeLabel(node.nodeType) }}</span>
+                  <strong>{{ node.name || node.agentName || node.nodeId }}</strong>
+                  <small>{{ node.description || node.capability || node.nodeId }}</small>
+                </article>
+              </div>
+
+              <div v-else class="context-step-list">
+                <article v-for="(step, index) in contextStepNodes" :key="step.nodeId" class="context-step-item">
+                  <span class="context-step-item__index">{{ String(index + 1).padStart(2, '0') }}</span>
+                  <div>
+                    <strong>{{ step.name || step.nodeId }}</strong>
+                    <small>{{ step.agentName || step.capability || '等待分配 Agent' }}</small>
+                  </div>
+                  <span class="context-step-item__status" :class="{ done: displayCompletedStepIds.includes(step.nodeId) }">
+                    {{ displayCompletedStepIds.includes(step.nodeId) ? '已完成' : '待执行' }}
+                  </span>
+                </article>
+                <div v-if="!contextStepNodes.length" class="context-panel__empty">当前蓝图暂无任务步骤。</div>
+              </div>
+            </div>
+
+            <div
+              class="context-panel__resizer"
+              role="separator"
+              aria-label="调整运行上下文面板高度"
+              aria-orientation="horizontal"
+              :aria-valuemin="CONTEXT_PANEL_MIN_HEIGHT"
+              :aria-valuemax="CONTEXT_PANEL_MAX_HEIGHT"
+              :aria-valuenow="contextPanelHeight"
+              tabindex="0"
+              title="拖动调整高度，双击恢复默认"
+              @pointerdown="startContextPanelResize"
+              @keydown="handleContextPanelResizeKeydown"
+              @dblclick="resetContextPanelHeight"
+            ><span aria-hidden="true"></span></div>
+          </section>
+        </Transition>
+
+        <button
+          v-if="isAgentMode && !contextPanelOpen && !contextPanelClosing"
+          class="context-panel-dock"
+          type="button"
+          aria-label="展开运行上下文"
+          @click="setContextPanelOpen(true)"
+        >
+          <span class="context-panel-dock__pulse" aria-hidden="true"></span>
+          <strong>运行上下文</strong>
+          <span>{{ contextStepNodes.length }} 步骤</span>
+          <span>{{ contextNodes.length }} 节点</span>
+          <span>{{ contextEdges.length }} 关系</span>
+          <el-icon><ArrowDownBold /></el-icon>
+        </button>
+
         <div class="messages" ref="messagesRef">
-          <div v-if="chatStore.messages.length === 0" class="empty-state">
+          <div v-if="showHeroMode" class="empty-state">
             <div class="rgb-orb" aria-hidden="true">
               <span class="rgb-orb__aura"></span>
               <span class="rgb-orb__core"></span>
@@ -152,7 +262,11 @@
                 </button>
               </div>
               <div class="right-actions">
-                <ModelRuntimeControls compact />
+                <span v-if="isAgentMode" class="composer-runtime-lock" title="Agent 模式固定通过 ACG Workflow 执行">
+                  <el-icon><Share /></el-icon>
+                  ACG 动态
+                </span>
+                <ModelRuntimeControls v-else compact />
                 <span v-if="inputText.length" class="word-count" :class="{ warning: inputText.length > 500 }">
                   {{ inputText.length }} 字
                 </span>
@@ -634,6 +748,13 @@ const router = useRouter()
 
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
+type WorkspaceMode = 'agent' | 'chat'
+const WORKSPACE_MODE_KEY = 'layout.workspace_mode'
+const workspaceMode = ref<WorkspaceMode>(
+  route.query.workspace === 'agent' || localStorage.getItem(WORKSPACE_MODE_KEY) === 'agent'
+    ? 'agent'
+    : 'chat'
+)
 
 const selectedRoleId = ref<string | null>(null)
 const inputText = ref('')
@@ -667,6 +788,11 @@ const WORKFLOW_PANEL_OPEN_KEY = 'chat.workflow_panel_open'
 const WORKFLOW_PANEL_DEFAULT_HEIGHT = 280
 const WORKFLOW_PANEL_MIN_HEIGHT = 180
 const WORKFLOW_PANEL_MAX_HEIGHT = 560
+const CONTEXT_PANEL_HEIGHT_KEY = 'chat.context_panel_height'
+const CONTEXT_PANEL_OPEN_KEY = 'chat.context_panel_open'
+const CONTEXT_PANEL_DEFAULT_HEIGHT = 250
+const CONTEXT_PANEL_MIN_HEIGHT = 170
+const CONTEXT_PANEL_MAX_HEIGHT = 420
 const agentPanelCollapsed = ref(localStorage.getItem(AGENT_PANEL_COLLAPSED_KEY) === '1')
 const storedAgentPanelWidth = Number(localStorage.getItem(AGENT_PANEL_WIDTH_KEY))
 const agentPanelWidth = ref(
@@ -683,8 +809,21 @@ const workflowPanelHeight = ref(
 )
 const workflowPanelResizing = ref(false)
 const workflowPanelOpen = ref(false)
+const storedContextPanelHeight = Number(localStorage.getItem(CONTEXT_PANEL_HEIGHT_KEY))
+const contextPanelHeight = ref(
+  Number.isFinite(storedContextPanelHeight) && storedContextPanelHeight >= CONTEXT_PANEL_MIN_HEIGHT && storedContextPanelHeight <= CONTEXT_PANEL_MAX_HEIGHT
+    ? storedContextPanelHeight
+    : CONTEXT_PANEL_DEFAULT_HEIGHT
+)
+const contextPanelOpen = ref(localStorage.getItem(CONTEXT_PANEL_OPEN_KEY) === '1')
+const contextPanelClosing = ref(false)
+const contextPanelResizing = ref(false)
+const contextPanelTab = ref<'lineage' | 'nodes' | 'steps'>('lineage')
+const showHeroMode = computed(() => {
+  return chatStore.messages.length === 0 && !contextPanelOpen.value && !contextPanelClosing.value
+})
 const composerDockOffset = computed(() => {
-  if (chatStore.messages.length === 0) return 'auto'
+  if (showHeroMode.value) return 'auto'
   if (!isAgentMode.value) return '0px'
   return workflowPanelOpen.value ? `${workflowPanelHeight.value}px` : '30px'
 })
@@ -692,12 +831,26 @@ const activeWorkflowRunId = ref('')
 const activeWorkflowRun = ref<WorkflowRun | null>(null)
 const activeAcgView = ref<AcgView | null>(null)
 const acgViewLoading = ref(false)
-const agentPanelLayoutStyle = computed(() => ({ '--agent-panel-width': `${agentPanelWidth.value}px` }))
+const composerHeight = ref(180)
+const composerReservedSpace = computed(() => {
+  if (showHeroMode.value) return 0
+  const dockHeight = isAgentMode.value
+    ? (workflowPanelOpen.value ? workflowPanelHeight.value : 30)
+    : 0
+  return Math.ceil(composerHeight.value + dockHeight + 24)
+})
+const agentPanelLayoutStyle = computed(() => ({
+  '--agent-panel-width': `${agentPanelWidth.value}px`,
+  '--composer-clearance': `${composerReservedSpace.value}px`
+}))
 let agentPanelResizeStartX = 0
 let agentPanelResizeStartWidth = AGENT_PANEL_DEFAULT_WIDTH
 let workflowPanelResizeStartY = 0
 let workflowPanelResizeStartHeight = WORKFLOW_PANEL_DEFAULT_HEIGHT
+let contextPanelResizeStartY = 0
+let contextPanelResizeStartHeight = CONTEXT_PANEL_DEFAULT_HEIGHT
 let acgRefreshTimer: number | undefined
+let composerResizeObserver: ResizeObserver | undefined
 
 const workflowRunBlueprint = computed<AcgBlueprint | null>(() => {
   const run = activeWorkflowRun.value
@@ -762,6 +915,38 @@ const displayCompletedStepIds = computed(() => {
     .filter(step => step.status === 'completed')
     .map(step => step.stepId) || []
 })
+const contextNodes = computed(() => displayAcgBlueprint.value?.nodes || [])
+const contextEdges = computed(() => displayAcgBlueprint.value?.edges || [])
+const contextStepNodes = computed(() => contextNodes.value.filter(node => node.nodeType === 'step'))
+const contextObjective = computed(() => {
+  return displayAcgBlueprint.value?.objective || activeWorkflowRun.value?.workflowId || '等待工作流'
+})
+const contextTabs = computed(() => [
+  { key: 'lineage' as const, label: '数据血缘', count: contextEdges.value.length },
+  { key: 'nodes' as const, label: '节点', count: contextNodes.value.length },
+  { key: 'steps' as const, label: '任务步骤', count: contextStepNodes.value.length }
+])
+const contextNodeLabel = (nodeId: string) => {
+  const node = contextNodes.value.find(item => item.nodeId === nodeId)
+  return node?.name || node?.agentName || nodeId
+}
+const contextEdgeLabel = (edgeType: string) => ({
+  dependency: '依赖',
+  communication: '通信',
+  control_flow: '控制流',
+  execution: '执行',
+  write: '写入',
+  read: '读取',
+  support: '支撑'
+}[edgeType] || edgeType)
+const contextNodeTypeLabel = (nodeType: string) => ({
+  step: '步骤',
+  agent: '智能体',
+  skill: '技能',
+  memory: '记忆',
+  evidence: '证据',
+  control: '控制'
+}[nodeType] || nodeType)
 const debouncedInputText = useDebounce(inputText, 350)
 
 const clampAgentPanelWidth = (width: number) => {
@@ -891,6 +1076,94 @@ const handleWorkflowPanelResizeKeydown = (event: KeyboardEvent) => {
   persistWorkflowPanelHeight()
 }
 
+const clampContextPanelHeight = (height: number) => {
+  return Math.min(CONTEXT_PANEL_MAX_HEIGHT, Math.max(CONTEXT_PANEL_MIN_HEIGHT, Math.round(height)))
+}
+
+const persistContextPanelHeight = () => {
+  localStorage.setItem(CONTEXT_PANEL_HEIGHT_KEY, String(contextPanelHeight.value))
+}
+
+const handleContextPanelResizeMove = (event: PointerEvent) => {
+  if (!contextPanelResizing.value) return
+  contextPanelHeight.value = clampContextPanelHeight(
+    contextPanelResizeStartHeight + event.clientY - contextPanelResizeStartY
+  )
+}
+
+const stopContextPanelResize = () => {
+  if (!contextPanelResizing.value) return
+  contextPanelResizing.value = false
+  persistContextPanelHeight()
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', handleContextPanelResizeMove)
+  window.removeEventListener('pointerup', stopContextPanelResize)
+  window.removeEventListener('pointercancel', stopContextPanelResize)
+}
+
+const startContextPanelResize = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  event.preventDefault()
+  contextPanelResizeStartY = event.clientY
+  contextPanelResizeStartHeight = contextPanelHeight.value
+  contextPanelResizing.value = true
+  document.body.style.cursor = 'row-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', handleContextPanelResizeMove)
+  window.addEventListener('pointerup', stopContextPanelResize)
+  window.addEventListener('pointercancel', stopContextPanelResize)
+}
+
+const resetContextPanelHeight = () => {
+  contextPanelHeight.value = CONTEXT_PANEL_DEFAULT_HEIGHT
+  persistContextPanelHeight()
+}
+
+const setContextPanelOpen = (open: boolean) => {
+  if (open) contextPanelClosing.value = false
+  else if (contextPanelOpen.value) contextPanelClosing.value = true
+  contextPanelOpen.value = open
+  localStorage.setItem(CONTEXT_PANEL_OPEN_KEY, open ? '1' : '0')
+}
+
+const finishContextPanelClose = async () => {
+  const previousComposerRect = composerRef.value?.getBoundingClientRect()
+  contextPanelClosing.value = false
+  await nextTick()
+
+  const composer = composerRef.value
+  if (!composer || !previousComposerRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const nextComposerRect = composer.getBoundingClientRect()
+  const deltaY = previousComposerRect.top - nextComposerRect.top
+  if (Math.abs(deltaY) < 1) return
+
+  composer.animate(
+    [
+      { translate: `0 ${deltaY}px`, opacity: 0.82 },
+      { translate: '0 0', opacity: 1 }
+    ],
+    { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+  )
+}
+
+const handleContextPanelResizeKeydown = (event: KeyboardEvent) => {
+  const step = event.shiftKey ? 24 : 8
+  if (event.key === 'Home') {
+    contextPanelHeight.value = CONTEXT_PANEL_MIN_HEIGHT
+  } else if (event.key === 'End') {
+    contextPanelHeight.value = CONTEXT_PANEL_MAX_HEIGHT
+  } else if (event.key === 'ArrowUp') {
+    contextPanelHeight.value = clampContextPanelHeight(contextPanelHeight.value - step)
+  } else if (event.key === 'ArrowDown') {
+    contextPanelHeight.value = clampContextPanelHeight(contextPanelHeight.value + step)
+  } else {
+    return
+  }
+  event.preventDefault()
+  persistContextPanelHeight()
+}
+
 const stopAcgRefresh = () => {
   if (acgRefreshTimer !== undefined) {
     window.clearInterval(acgRefreshTimer)
@@ -945,7 +1218,7 @@ const isWriterMode = computed(() => {
   return name.includes('作家') || name.includes('writer') || name.includes('写作')
 })
 
-const isAgentMode = computed(() => isLawyerMode.value || isTeacherMode.value || isProgrammerMode.value || isWriterMode.value)
+const isAgentMode = computed(() => workspaceMode.value === 'agent')
 
 const chatMainClass = computed(() => {
   if (isLawyerMode.value) return 'lawyer'
@@ -1480,6 +1753,11 @@ const sendMessage = async () => {
     return
   }
 
+  if (isAgentMode.value) {
+    await upgradeChatToWorkflow()
+    return
+  }
+
   loading.value = true
   const userText = inputText.value.trim()
   inputText.value = ''
@@ -1670,6 +1948,30 @@ const handleScrollToBottom = () => {
 }
 
 watch(
+  () => route.query.workspace,
+  workspace => {
+    if (workspace !== 'agent' && workspace !== 'chat') return
+    workspaceMode.value = workspace
+    localStorage.setItem(WORKSPACE_MODE_KEY, workspace)
+  },
+  { immediate: true }
+)
+
+watch(
+  workspaceMode,
+  mode => {
+    if (mode === 'agent') setWorkflowPanelOpen(true)
+  },
+  { immediate: true }
+)
+
+const handleWorkspaceModeChange = (event: Event) => {
+  const mode = (event as CustomEvent<{ mode?: WorkspaceMode }>).detail?.mode
+  if (mode !== 'agent' && mode !== 'chat') return
+  workspaceMode.value = mode
+}
+
+watch(
   () => chatStore.messages.length,
   (newLen, oldLen) => {
     if (newLen <= oldLen) return
@@ -1800,7 +2102,16 @@ watch(hasAgentActivity, active => {
 })
 
 onMounted(async () => {
+  window.addEventListener('workspace-mode-change', handleWorkspaceModeChange)
   await roleStore.loadRoles()
+
+  if (composerRef.value) {
+    composerResizeObserver = new ResizeObserver(entries => {
+      const height = entries[0]?.borderBoxSize?.[0]?.blockSize || entries[0]?.contentRect.height
+      if (height) composerHeight.value = Math.ceil(height)
+    })
+    composerResizeObserver.observe(composerRef.value)
+  }
 
   if (localStorage.getItem(AGENT_PANEL_COLLAPSED_KEY) === null && isAgentMode.value && !hasAgentActivity.value) {
     agentPanelCollapsed.value = true
@@ -1832,8 +2143,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('workspace-mode-change', handleWorkspaceModeChange)
+  composerResizeObserver?.disconnect()
   stopAgentPanelResize()
   stopWorkflowPanelResize()
+  stopContextPanelResize()
   stopAcgRefresh()
   if (messagesRef.value) {
     messagesRef.value.removeEventListener('scroll', checkScrollState)
@@ -2396,7 +2710,8 @@ onUnmounted(() => {
 }
 
 .chat-main.simple-session .messages {
-  padding-bottom: 180px;
+  padding-bottom: var(--composer-clearance, 220px);
+  scroll-padding-bottom: var(--composer-clearance, 220px);
   background:
     radial-gradient(circle at 18% 0%, var(--primary-fade) 0, transparent 32%),
     radial-gradient(circle at 88% 4%, var(--accent-fade) 0, transparent 30%),
@@ -2442,6 +2757,259 @@ onUnmounted(() => {
   border-radius: 0;
   background: var(--bg-app);
 }
+
+.context-panel {
+  position: relative;
+  z-index: 6;
+  flex: 0 0 auto;
+  min-height: 170px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-light);
+  background: color-mix(in srgb, var(--bg-card) 91%, var(--primary-fade));
+  box-shadow: 0 12px 30px rgba(26, 31, 58, 0.035);
+  transition: height 0.22s var(--ease-out);
+}
+
+.context-panel.resizing { transition: none; }
+
+.context-panel__header {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-light) 72%, transparent);
+}
+
+.context-panel__identity,
+.context-panel__metrics,
+.context-panel__tabs,
+.context-panel-dock {
+  display: flex;
+  align-items: center;
+}
+
+.context-panel__identity { min-width: 0; gap: 8px; }
+.context-panel__identity .el-icon { color: var(--primary-color); }
+.context-panel__identity strong { flex: 0 0 auto; font-size: 12px; color: var(--text-primary); }
+.context-panel__identity span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-panel__metrics { flex: 0 0 auto; gap: 6px; }
+.context-panel__metrics > span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--primary-fade);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.context-panel__metrics button {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.context-panel__metrics button:hover { background: var(--primary-fade); color: var(--primary-color); }
+
+.context-panel__tabs {
+  height: 34px;
+  gap: 4px;
+  padding: 4px 12px 0;
+}
+
+.context-panel__tabs button {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.context-panel__tabs button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); }
+.context-panel__tabs button span {
+  min-width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary-fade);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.context-panel__body {
+  height: calc(100% - 76px);
+  padding: 10px 14px 14px;
+  overflow: auto;
+}
+
+.context-panel__empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-disabled);
+  font-size: 11px;
+}
+
+.context-lineage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 7px;
+}
+.context-lineage__row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--border-light) 76%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-card) 68%, transparent);
+}
+.context-node-pill {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-node-pill.target { color: var(--primary-color); }
+.context-edge-label { color: var(--text-muted); font-size: 8px; }
+.context-lineage__arrow { color: var(--primary-color); font-size: 12px; }
+
+.context-node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 8px;
+}
+.context-node-card {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--border-light) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-card) 70%, transparent);
+}
+.context-node-card__type {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--primary-color);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.context-node-card strong,
+.context-node-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.context-node-card strong { color: var(--text-primary); font-size: 10px; }
+.context-node-card small { margin-top: 4px; color: var(--text-muted); font-size: 8px; }
+
+.context-step-list { display: flex; flex-direction: column; gap: 6px; }
+.context-step-item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-card) 66%, transparent);
+}
+.context-step-item__index { color: var(--text-disabled); font-size: 9px; font-variant-numeric: tabular-nums; }
+.context-step-item strong,
+.context-step-item small { display: block; }
+.context-step-item strong { color: var(--text-primary); font-size: 10px; }
+.context-step-item small { margin-top: 2px; color: var(--text-muted); font-size: 8px; }
+.context-step-item__status { color: var(--text-muted); font-size: 9px; }
+.context-step-item__status.done { color: var(--success); }
+
+.context-panel__resizer {
+  position: absolute;
+  z-index: 10;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+  height: 11px;
+  cursor: row-resize;
+  touch-action: none;
+  outline: none;
+}
+.context-panel__resizer::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 5px;
+  left: 0;
+  height: 1px;
+  background: transparent;
+}
+.context-panel__resizer > span {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-light);
+  opacity: 0;
+  transform: translateX(-50%);
+}
+.context-panel__resizer:hover::before,
+.context-panel__resizer:focus-visible::before,
+.context-panel.resizing .context-panel__resizer::before { background: var(--primary-color); }
+.context-panel__resizer:hover > span,
+.context-panel__resizer:focus-visible > span,
+.context-panel.resizing .context-panel__resizer > span { opacity: 1; background: var(--primary-color); }
+
+.context-panel-dock {
+  flex: 0 0 30px;
+  width: 100%;
+  height: 30px;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border-light);
+  background: color-mix(in srgb, var(--bg-card) 94%, var(--primary-fade));
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+.context-panel-dock strong { color: var(--text-secondary); font-size: 10px; }
+.context-panel-dock:hover { background: color-mix(in srgb, var(--bg-card) 88%, var(--primary-fade)); color: var(--primary-color); }
+.context-panel-dock__pulse {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: 0 0 0 4px var(--primary-fade);
+  animation: acg-dock-pulse 1.8s ease-in-out infinite;
+}
+
+.context-panel-slide-enter-active,
+.context-panel-slide-leave-active { transition: opacity 0.2s ease, transform 0.24s var(--ease-out); }
+.context-panel-slide-enter-from,
+.context-panel-slide-leave-to { opacity: 0; transform: translateY(-18px); }
 
 .workflow-acg-panel {
   position: relative;
@@ -2635,7 +3203,8 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 22px 16px;
+  padding: 22px 16px var(--composer-clearance, 220px);
+  scroll-padding-bottom: var(--composer-clearance, 220px);
 }
 
 .messages::-webkit-scrollbar {
@@ -2990,12 +3559,15 @@ onUnmounted(() => {
 .composer {
   flex-shrink: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
   padding: 8px 14px 12px;
   background: transparent;
   will-change: transform;
 }
 
 .composer-popover {
+  order: 0;
   width: 50%;
   margin: 0 auto 7px;
   border: 1px solid var(--border-light);
@@ -3020,19 +3592,20 @@ onUnmounted(() => {
 }
 
 .composer-shelf {
+  order: 2;
   position: relative;
   z-index: 1;
-  width: 50%;
-  min-height: 44px;
+  width: calc(50% - 24px);
+  min-height: 46px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 4px;
-  margin: 0 auto -12px;
-  padding: 6px 11px 17px;
+  margin: -2px auto 0;
+  padding: 7px 14px 6px;
   overflow-x: auto;
   border: 1px solid color-mix(in srgb, var(--primary-color) 14%, var(--border-light));
-  border-bottom: 0;
-  border-radius: 15px 15px 8px 8px;
+  border-top-color: color-mix(in srgb, var(--primary-color) 9%, var(--border-light));
+  border-radius: 0 0 16px 16px;
   background:
     linear-gradient(120deg,
       color-mix(in srgb, var(--primary-fade) 42%, transparent),
@@ -3042,9 +3615,9 @@ onUnmounted(() => {
   backdrop-filter: blur(16px) saturate(1.08);
   -webkit-backdrop-filter: blur(16px) saturate(1.08);
   box-shadow:
-    0 -10px 28px color-mix(in srgb, var(--primary-fade) 42%, transparent),
-    -18px 8px 34px color-mix(in srgb, var(--bg-app) 48%, transparent),
-    18px 8px 34px color-mix(in srgb, var(--bg-app) 48%, transparent);
+    0 12px 30px color-mix(in srgb, var(--text-primary) 6%, transparent),
+    -16px 8px 30px color-mix(in srgb, var(--bg-app) 42%, transparent),
+    16px 8px 30px color-mix(in srgb, var(--bg-app) 42%, transparent);
 }
 
 .composer-shelf-action {
@@ -3090,9 +3663,14 @@ onUnmounted(() => {
 }
 
 .composer-card {
+  order: 1;
   position: relative;
   z-index: 2;
   width: 50%;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   margin: 0 auto;
   overflow: hidden;
   border: 1px solid transparent;
@@ -3121,6 +3699,7 @@ onUnmounted(() => {
 
 .composer-card > .el-textarea,
 .composer-card > .el-input {
+  flex: 1 1 auto;
   display: block;
   width: 100%;
   padding: 13px 16px 0;
@@ -3128,13 +3707,37 @@ onUnmounted(() => {
 }
 
 .composer :deep(.el-textarea__inner) {
-  min-height: 38px !important;
+  min-height: 50px !important;
   padding: 2px 0 0 !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   font-size: 14px;
   line-height: 1.6;
+}
+
+/* Conversation state: collapse the capability composer into a Codex-like input bar. */
+.chat-panel:not(.hero-mode) .composer-shelf {
+  display: none;
+}
+
+.chat-panel:not(.hero-mode) .composer-card {
+  min-height: 76px;
+  border-radius: 18px;
+}
+
+.chat-panel:not(.hero-mode) .composer-card > .el-textarea,
+.chat-panel:not(.hero-mode) .composer-card > .el-input {
+  padding: 9px 14px 0;
+}
+
+.chat-panel:not(.hero-mode) .composer :deep(.el-textarea__inner) {
+  min-height: 28px !important;
+  line-height: 1.45;
+}
+
+.chat-panel:not(.hero-mode) .composer-footer {
+  padding: 2px 9px 7px;
 }
 
 .composer-footer {
@@ -3153,9 +3756,12 @@ onUnmounted(() => {
 }
 
 .chat-main.simple-session .composer-card,
-.chat-main.simple-session .composer-shelf,
 .chat-main.simple-session .composer-popover {
-  width: 50%;
+  width: calc(50% - 24px);
+}
+
+.chat-main.simple-session .composer-shelf {
+  width: calc(50% - 24px);
 }
 
 .left-actions,
@@ -3222,6 +3828,21 @@ onUnmounted(() => {
   background: var(--primary-fade);
   color: var(--primary-color);
   outline: none;
+}
+
+.composer-runtime-lock {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--primary-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary-fade) 72%, transparent);
+  color: var(--primary-color);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .composer-send.el-button {

@@ -1,22 +1,22 @@
-# Domain Models Implementation Plan
+# 领域模型实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **针对智能体工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实施本计划。步骤使用复选框（`- [ ]`）语法进行跟踪。
 
-**Goal:** Implement the `agentos.domain` modules as the canonical core domain model layer.
+**目标：** 实现 `agentos.domain` 模块作为规范的领域模型核心层。
 
-**Architecture:** Keep `agentos.domain` focused on pure domain objects and invariants only. `agentos.core.models.types` continues to serve the runtime today, but domain tests will lock the new layer's behavior so it can become the source of truth later without changing the rest of the system.
+**架构：** 保持 `agentos.domain` 仅关注纯领域对象和不变量。`agentos.core.models.types` 继续为当前运行时提供服务，但领域测试将锁定新层的行为，使其日后能够在不改变系统其他部分的情况下成为 truth 来源。
 
-**Tech Stack:** Python, pytest, existing AgentOS pydantic models or lightweight dataclasses.
+**技术栈：** Python、pytest、现有的 AgentOS Pydantic 模型或轻量级数据类。
 
 ---
 
-### Task 1: Domain Agent Model
+### 任务 1：领域 Agent 模型
 
-**Files:**
-- Create: `agentOS/src/agentos/domain/agent.py`
-- Create: `agentOS/tests/test_domain_models.py`
+**文件：**
+- 创建：`agentOS/src/agentos/domain/agent.py`
+- 创建：`agentOS/tests/test_domain_models.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **步骤 1：编写会失败的测试**
 
 ```python
 from agentos.domain.agent import AgentProfile
@@ -28,12 +28,12 @@ def test_agent_profile_normalizes_name_and_supports_capabilities():
     assert profile.supports("draft") is False
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试确认其失败**
 
-Run: `pytest agentOS/tests/test_domain_models.py::test_agent_profile_normalizes_name_and_supports_capabilities -q`
-Expected: FAIL with `ModuleNotFoundError` or missing attribute.
+运行：`pytest agentOS/tests/test_domain_models.py::test_agent_profile_normalizes_name_and_supports_capabilities -q`
+预期：失败，出现 `ModuleNotFoundError` 或缺失属性。
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
 ```python
 from dataclasses import dataclass, field
@@ -49,26 +49,26 @@ class AgentProfile:
         return capability in self.capabilities
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试确认其通过**
 
-Run: `pytest agentOS/tests/test_domain_models.py::test_agent_profile_normalizes_name_and_supports_capabilities -q`
-Expected: PASS
+运行：`pytest agentOS/tests/test_domain_models.py::test_agent_profile_normalizes_name_and_supports_capabilities -q`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add agentOS/src/agentos/domain/agent.py agentOS/tests/test_domain_models.py
 git commit -m "feat: add domain agent model"
 ```
 
-### Task 2: Step and Workflow Models
+### 任务 2：步骤和工作流模型
 
-**Files:**
-- Create: `agentOS/src/agentos/domain/step.py`
-- Create: `agentOS/src/agentos/domain/workflow.py`
-- Modify: `agentOS/tests/test_domain_models.py`
+**文件：**
+- 创建：`agentOS/src/agentos/domain/step.py`
+- 创建：`agentOS/src/agentos/domain/workflow.py`
+- 修改：`agentOS/tests/test_domain_models.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **步骤 1：编写会失败的测试**
 
 ```python
 from agentos.domain.step import StepDefinition
@@ -91,12 +91,12 @@ def test_workflow_definition_exposes_first_and_next_step_ids():
     assert workflow.next_step_id("draft") is None
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试确认其失败**
 
-Run: `pytest agentOS/tests/test_domain_models.py::test_workflow_definition_exposes_first_and_next_step_ids -q`
-Expected: FAIL with missing module/class.
+运行：`pytest agentOS/tests/test_domain_models.py::test_workflow_definition_exposes_first_and_next_step_ids -q`
+预期：失败，缺少模块/类。
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
 ```python
 from dataclasses import dataclass, field
@@ -126,26 +126,26 @@ class WorkflowDefinition:
     steps: list[StepDefinition] = field(default_factory=list)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试确认其通过**
 
-Run: `pytest agentOS/tests/test_domain_models.py::test_workflow_definition_exposes_first_and_next_step_ids -q`
-Expected: PASS
+运行：`pytest agentOS/tests/test_domain_models.py::test_workflow_definition_exposes_first_and_next_step_ids -q`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add agentOS/src/agentos/domain/step.py agentOS/src/agentos/domain/workflow.py agentOS/tests/test_domain_models.py
 git commit -m "feat: add domain workflow and step models"
 ```
 
-### Task 3: Task Model and Exports
+### 任务 3：任务模型和导出
 
-**Files:**
-- Create: `agentOS/src/agentos/domain/task.py`
-- Update: `agentOS/src/agentos/domain/__init__.py`
-- Update: `agentOS/tests/test_domain_models.py`
+**文件：**
+- 创建：`agentOS/src/agentos/domain/task.py`
+- 更新：`agentOS/src/agentos/domain/__init__.py`
+- 更新：`agentOS/tests/test_domain_models.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **步骤 1：编写会失败的测试**
 
 ```python
 from agentos.domain.task import Task
@@ -157,12 +157,12 @@ def test_task_uses_role_and_task_aliases_without_blank_override():
     assert task.intent == "contract_review"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **步骤 2：运行测试确认其失败**
 
-Run: `pytest agentOS/tests/test_domain_models.py::test_task_uses_role_and_task_aliases_without_blank_override -q`
-Expected: FAIL with missing module/class.
+运行：`pytest agentOS/tests/test_domain_models.py::test_task_uses_role_and_task_aliases_without_blank_override -q`
+预期：失败，缺少模块/类。
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **步骤 3：编写最小实现**
 
 ```python
 from dataclasses import dataclass, field
@@ -178,12 +178,12 @@ class Task:
     task_type: str | None = None
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **步骤 4：运行测试确认其通过**
 
-Run: `pytest agentOS/tests/test_domain_models.py -q`
-Expected: PASS
+运行：`pytest agentOS/tests/test_domain_models.py -q`
+预期：通过
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add agentOS/src/agentos/domain/task.py agentOS/src/agentos/domain/__init__.py agentOS/tests/test_domain_models.py
