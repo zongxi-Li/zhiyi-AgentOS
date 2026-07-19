@@ -59,7 +59,8 @@ function Invoke-KinlinPackageCompose {
 
 function New-KinlinRandomSecret {
     $bytes = [byte[]]::new(48)
-    [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $generator.GetBytes($bytes) } finally { $generator.Dispose() }
     return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 

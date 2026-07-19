@@ -95,7 +95,7 @@ if (-not $SkipImageExport) {
 
 $forbidden = @()
 foreach ($file in Get-ChildItem -LiteralPath $output -Recurse -Force -File) {
-    $relative = [IO.Path]::GetRelativePath($output, $file.FullName).Replace('\', '/')
+    $relative = $file.FullName.Substring($output.TrimEnd('\').Length).TrimStart('\').Replace('\', '/')
     if ($relative -eq ".env.example" -or $relative -eq "images.tar") { continue }
     if ($relative -match '(^|/)(\.env($|\.)|\.secrets|node_modules|target|venv|\.venv|uploads|tests?)(/|$)' -or $relative -match '(?i)\.(db|sqlite|sqlite3|rdb)$') {
         $forbidden += $relative
