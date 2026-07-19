@@ -10,6 +10,22 @@ function applySchemeVariables(schemeId: ColorSchemeId): void {
   for (const [key, value] of Object.entries(scheme.variables)) {
     root.style.setProperty(key, value)
   }
+  // Keep the semantic layer derived from the active scheme, so legacy pages can
+  // consume one vocabulary instead of baking a light-only surface into CSS.
+  const isDark = scheme.id === 'codex-dark'
+  root.style.setProperty('--surface-solid', 'var(--bg-card)')
+  root.style.setProperty('--surface-raised', 'color-mix(in srgb, var(--bg-card) 88%, transparent)')
+  root.style.setProperty('--surface-subtle', 'color-mix(in srgb, var(--bg-panel) 80%, transparent)')
+  root.style.setProperty('--surface-hover', 'var(--bg-panel)')
+  root.style.setProperty('--overlay-backdrop', isDark ? 'rgba(8, 9, 18, 0.72)' : 'rgba(31, 30, 29, 0.42)')
+  root.style.setProperty('--shadow-color', isDark ? 'rgba(8, 9, 18, 0.22)' : 'rgba(31, 30, 29, 0.08)')
+  root.style.setProperty('--on-primary', '#FFFFFF')
+  root.style.setProperty('--border-color', 'var(--border-light)')
+  root.style.setProperty('--color-primary', 'var(--primary-color)')
+  root.style.setProperty('--success-fade', 'color-mix(in srgb, var(--success) 12%, transparent)')
+  root.style.setProperty('--warning-fade', 'color-mix(in srgb, var(--warning) 12%, transparent)')
+  root.style.setProperty('--danger-fade', 'color-mix(in srgb, var(--danger) 12%, transparent)')
+  root.style.setProperty('--info-fade', 'color-mix(in srgb, var(--info) 12%, transparent)')
   root.dataset.colorScheme = scheme.id
   root.style.colorScheme = scheme.id === 'codex-dark' ? 'dark' : 'light'
   document.body.style.backgroundImage = scheme.bodyBackground

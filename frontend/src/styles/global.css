@@ -24,6 +24,13 @@
   --bg-panel: #343548;
   --bg-input: #252638;
   --bg-glass: rgba(42, 43, 62, 0.86);
+  --surface-solid: var(--bg-card);
+  --surface-raised: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  --surface-subtle: color-mix(in srgb, var(--bg-panel) 80%, transparent);
+  --surface-hover: var(--bg-panel);
+  --overlay-backdrop: rgba(8, 9, 18, 0.72);
+  --shadow-color: rgba(8, 9, 18, 0.22);
+  --on-primary: #FFFFFF;
   --app-layout-bg: linear-gradient(180deg, #232435 0%, #1E1F2E 100%);
   --sidebar-bg: rgba(35, 36, 53, 0.96);
   --drawer-bg: rgba(35, 36, 53, 0.98);
@@ -53,12 +60,18 @@
   --border-light: #414257;
   --border-hover: #595A73;
   --border-focus: rgba(167, 139, 250, 0.55);
+  --border-color: var(--border-light);
+  --color-primary: var(--primary-color);
 
   /* Status Colors */
   --success: #75C69A;
   --warning: #D9B66F;
   --danger: #E88787;
   --info: #8FB4E8;
+  --success-fade: color-mix(in srgb, var(--success) 12%, transparent);
+  --warning-fade: color-mix(in srgb, var(--warning) 12%, transparent);
+  --danger-fade: color-mix(in srgb, var(--danger) 12%, transparent);
+  --info-fade: color-mix(in srgb, var(--info) 12%, transparent);
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
@@ -170,11 +183,11 @@ html, body, #app {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* 确保内容区域可以有滚动条 */
@@ -331,7 +344,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 }
 
 .el-input__wrapper.is-focus, .el-textarea__inner:focus {
-  background-color: #fff !important;
+  background-color: var(--surface-solid) !important;
   box-shadow: 0 0 0 1px var(--primary-color) inset !important; /* Thin, elegant focus ring */
 }
 
@@ -460,7 +473,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   flex-shrink: 0;
   padding: var(--page-header-padding-y) var(--page-padding-x);
   border-bottom: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
   backdrop-filter: var(--backdrop-blur);
   border-radius: 8px;
   border: 1px solid var(--border-light);
@@ -589,7 +602,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   gap: var(--space-md);
   padding: var(--space-md) var(--page-padding-x);
   border-top: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
   border-radius: 8px;
   border: 1px solid var(--border-light);
   box-shadow: var(--shadow-sm);
@@ -614,7 +627,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   justify-content: space-between;
   gap: 20px;
   padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--bg-card) 80%, transparent);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
@@ -653,7 +666,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 }
 
 .ui-surface {
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--surface-raised);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
@@ -698,7 +711,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   justify-content: center;
   border-radius: 8px;
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--primary-color);
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
@@ -747,7 +760,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   border: 1px solid var(--border-light);
   color: var(--primary-color);
   box-shadow: var(--shadow-sm);
@@ -769,7 +782,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .skill-panel {
   --agent-tone: var(--primary-color);
   --agent-tone-bg: var(--primary-fade);
-  background: rgba(255, 255, 255, 0.88) !important;
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent) !important;
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
   box-shadow: var(--shadow-sm) !important;
@@ -801,7 +814,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 }
 
 .skill-panel .agent-avatar {
-  background: #fff !important;
+  background: var(--surface-solid) !important;
   border: 1px solid var(--border-light) !important;
   color: var(--agent-tone) !important;
   border-radius: 8px !important;
@@ -828,7 +841,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 }
 
 .skill-panel .panel-tabs {
-  background: #fff !important;
+  background: var(--surface-solid) !important;
   align-items: stretch !important;
 }
 
@@ -870,7 +883,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 }
 
 .skill-panel .federated-btn {
-  background: #fff !important;
+  background: var(--surface-solid) !important;
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
   color: var(--agent-tone) !important;
@@ -938,7 +951,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   margin-bottom: 6px !important;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--agent-tone);
   box-shadow: var(--shadow-sm);
   font-size: 24px;
@@ -952,7 +965,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .agent-panel .card {
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.9) !important;
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent) !important;
   box-shadow: var(--shadow-sm) !important;
 }
 
@@ -976,7 +989,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   justify-content: center;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--primary-color);
   box-shadow: var(--shadow-sm);
   font-size: 22px;
@@ -985,7 +998,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .agent-panel .action-btn {
   border-radius: 8px !important;
   border: 1px solid var(--border-light) !important;
-  background: #fff !important;
+  background: var(--surface-solid) !important;
   color: var(--text-secondary) !important;
   transition: var(--transition) !important;
 }
@@ -1049,7 +1062,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   padding: var(--page-header-padding-y) var(--page-padding-x) !important;
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.82) !important;
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent) !important;
   box-shadow: var(--shadow-sm) !important;
   backdrop-filter: var(--backdrop-blur);
 }
@@ -1074,7 +1087,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   height: 42px !important;
   border-radius: 8px !important;
   border: 1px solid var(--border-light) !important;
-  background: #fff !important;
+  background: var(--surface-solid) !important;
   color: var(--primary-color) !important;
   box-shadow: var(--shadow-sm) !important;
 }
@@ -1139,7 +1152,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .info-view .info-item {
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.86) !important;
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent) !important;
   box-shadow: var(--shadow-sm) !important;
 }
 
@@ -1213,7 +1226,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .settings-view .footer-bar {
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.86) !important;
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent) !important;
   box-shadow: var(--shadow-sm) !important;
 }
 
@@ -1227,7 +1240,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .create-role-view .style-icon {
   border-radius: 8px !important;
   border: 1px solid var(--border-light) !important;
-  background: #fff !important;
+  background: var(--surface-solid) !important;
   color: var(--primary-color) !important;
   box-shadow: var(--shadow-sm) !important;
 }
@@ -1249,7 +1262,7 @@ html[data-color-scheme='codex-dark'] .el-overlay {
 .contract-planner .status-footer {
   border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.86) !important;
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent) !important;
   box-shadow: var(--shadow-sm) !important;
 }
 
