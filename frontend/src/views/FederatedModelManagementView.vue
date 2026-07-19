@@ -559,31 +559,31 @@ const statsConfig = computed(() => [
   {
     label: '模型总数',
     value: totalCount.value,
-    gradient: 'linear-gradient(180deg, #3f6b63, rgba(63, 107, 99, 0.16))',
-    iconBg: 'rgba(63, 107, 99, 0.1)'
+    gradient: 'linear-gradient(180deg, var(--primary-color), var(--primary-fade))',
+    iconBg: 'var(--primary-fade)'
   },
   {
     label: '在线服务',
     value: onlineCount.value,
-    gradient: 'linear-gradient(180deg, #3d7656, rgba(61, 118, 86, 0.16))',
-    iconBg: 'rgba(61, 118, 86, 0.1)'
+    gradient: 'linear-gradient(180deg, var(--success), var(--success-fade))',
+    iconBg: 'var(--success-fade)'
   },
   {
     label: '训练中',
     value: trainingCount.value,
-    gradient: 'linear-gradient(180deg, #9a7432, rgba(154, 116, 50, 0.16))',
-    iconBg: 'rgba(154, 116, 50, 0.1)'
+    gradient: 'linear-gradient(180deg, var(--warning), var(--warning-fade))',
+    iconBg: 'var(--warning-fade)'
   },
   {
     label: '平均精度',
     value: averageAccuracy.value + '%',
-    gradient: 'linear-gradient(180deg, #6f668f, rgba(111, 102, 143, 0.16))',
-    iconBg: 'rgba(111, 102, 143, 0.1)'
+    gradient: 'linear-gradient(180deg, var(--primary-hover), var(--primary-fade))',
+    iconBg: 'var(--primary-fade)'
   }
 ])
 
 function getStatusTag(status: ModelStatus): 'info' | 'success' | 'warning' | 'primary' | 'danger' {
-  if (status === 'online') return 'success'
+  if (status === 'online') return 'primary'
   if (status === 'training') return 'warning'
   if (status === 'ready') return 'primary'
   if (status === 'offline') return 'danger'
@@ -624,18 +624,14 @@ function formatTimeShort(iso: string): string {
 }
 
 function getAccentGradient(status: ModelStatus): string {
-  if (status === 'online') return 'linear-gradient(180deg, #3d7656, rgba(61, 118, 86, 0.14))'
-  if (status === 'training') return 'linear-gradient(180deg, #9a7432, rgba(154, 116, 50, 0.14))'
-  if (status === 'ready') return 'linear-gradient(180deg, #3f6b63, rgba(63, 107, 99, 0.14))'
-  if (status === 'offline') return 'linear-gradient(180deg, var(--danger), rgba(178, 74, 74, 0.14))'
-  return 'linear-gradient(180deg, #a6aca8, rgba(166, 172, 168, 0.14))'
+  if (status === 'online' || status === 'ready') return 'linear-gradient(180deg, var(--primary-color), var(--primary-fade))'
+  if (status === 'training') return 'linear-gradient(180deg, var(--warning), var(--warning-fade))'
+  if (status === 'offline') return 'linear-gradient(180deg, var(--danger), var(--danger-fade))'
+  return 'linear-gradient(180deg, var(--primary-color), var(--primary-fade))'
 }
 
-function getProgressColor(accuracy: number): string {
-  if (accuracy >= 90) return 'linear-gradient(90deg, #3d7656, rgba(61, 118, 86, 0.64))'
-  if (accuracy >= 85) return 'linear-gradient(90deg, #3f6b63, rgba(63, 107, 99, 0.64))'
-  if (accuracy >= 80) return 'linear-gradient(90deg, #6f668f, rgba(111, 102, 143, 0.64))'
-  return 'linear-gradient(90deg, #9a7432, rgba(154, 116, 50, 0.64))'
+function getProgressColor(_accuracy: number): string {
+  return 'linear-gradient(90deg, var(--primary-color), var(--primary-hover))'
 }
 
 function getRuntimeMode(model: ModelCard): string {

@@ -1062,7 +1062,7 @@ onMounted(async () => {
   align-items: center;
   padding: var(--gap-md) 20px;
   border-bottom: 1px solid var(--border);
-  background: rgba(251, 252, 250, 0.92);
+  background: var(--bg-panel);
   flex-shrink: 0;
 }
 
@@ -1237,7 +1237,7 @@ onMounted(async () => {
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: linear-gradient(180deg, #fff, var(--bg-input, #f1f3ef));
+  background: linear-gradient(180deg, var(--bg-card), var(--bg-input));
 }
 
 .privacy-flow span {
@@ -1592,7 +1592,7 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: var(--gap-md) 20px;
-  background: rgba(251, 252, 250, 0.96);
+  background: var(--bg-panel);
   color: var(--text-primary);
   border-bottom: 1px solid var(--border);
 }

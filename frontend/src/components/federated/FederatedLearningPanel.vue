@@ -406,7 +406,7 @@ onMounted(async () => {
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-light, #e3e6df);
-  background: rgba(251, 252, 250, 0.92);
+  background: var(--bg-panel);
 }
 
 .header-left {
