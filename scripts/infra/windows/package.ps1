@@ -21,7 +21,7 @@ $env:CREATED = $created
 if (-not $SkipBuild) {
     Push-Location $projectRoot
     try {
-        & docker buildx bake frontend-amd64 backend-amd64 ai-service-amd64 postgres-amd64 redis-amd64 --load
+        & docker buildx bake -f docker-bake.hcl frontend-amd64 backend-amd64 ai-service-amd64 postgres-amd64 redis-amd64 --load
         if ($LASTEXITCODE -ne 0) { throw "Windows amd64 image build failed" }
     } finally { Pop-Location }
 }
