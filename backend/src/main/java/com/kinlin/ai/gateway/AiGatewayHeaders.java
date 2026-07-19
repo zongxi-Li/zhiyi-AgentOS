@@ -8,6 +8,7 @@ public final class AiGatewayHeaders {
     public static final String AUTHENTICATED_USER_SUBJECT = "X-Authenticated-User-Subject";
     public static final String AUTHENTICATED_USER_ROLE = "X-Authenticated-User-Role";
     public static final String AUTHENTICATED_TENANT_ID = "X-Authenticated-Tenant-Id";
+    public static final String TRACE_ID = "X-Trace-Id";
 
     private AiGatewayHeaders() {
     }

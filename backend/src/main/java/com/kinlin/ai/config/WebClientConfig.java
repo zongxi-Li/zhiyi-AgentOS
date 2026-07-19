@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import io.netty.channel.ChannelOption;
 import reactor.netty.http.client.HttpClient;
+import com.kinlin.ai.observability.TraceContext;
 
 import java.time.Duration;
 
@@ -45,6 +46,9 @@ public class WebClientConfig {
                     ClientRequest authenticated = ClientRequest.from(request)
                             .headers(headers -> {
                                 authentication.apply(headers);
+                                if (!headers.containsKey(TraceContext.HEADER)) {
+                                    headers.set(TraceContext.HEADER, TraceContext.currentTraceId());
+                                }
                                 if (!request.url().getPath().startsWith("/health")
                                         && !headers.containsKey(com.kinlin.ai.gateway.AiGatewayHeaders.AUTHENTICATED_USER_ID)) {
                                     userContextForwarder.apply(headers);

@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import com.kinlin.ai.observability.TraceContext;
 
 /**
  * 安全配置类
@@ -52,7 +53,9 @@ public class SecurityConfig {
             .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, error) -> {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.getWriter().write("{\"error\":\"unauthorized\"}");
+                String traceId = TraceContext.acceptedOrNew(response.getHeader(TraceContext.HEADER));
+                response.setHeader(TraceContext.HEADER, traceId);
+                response.getWriter().write("{\"error\":\"unauthorized\",\"traceId\":\"" + traceId + "\"}");
             }))
             // 添加JWT过滤器（在UsernamePasswordAuthenticationFilter之前）
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

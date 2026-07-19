@@ -13,6 +13,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
+import com.kinlin.ai.observability.TraceContext;
 
 /**
  * 全局异常处理器
@@ -117,7 +118,8 @@ public class GlobalExceptionHandler {
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);
         response.put("message", "服务器内部错误");
-        response.put("error", ex.getMessage());
+        response.put("error", "INTERNAL_SERVER_ERROR");
+        response.put("traceId", TraceContext.currentTraceId());
         
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }

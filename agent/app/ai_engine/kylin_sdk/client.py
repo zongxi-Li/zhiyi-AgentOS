@@ -769,9 +769,7 @@ class KylinAIClient:
         global _api_key_warning_printed
         if not self._qwen_api_key and not self._api_key and not _api_key_warning_printed:
             logger.info("未配置API密钥，将使用模拟响应模式")
-            logger.info("如需使用通义千问大模型，请在主目录的.env文件中设置:")
-            logger.info("DASHSCOPE_API_KEY=sk-your_key")
-            logger.info("配置文件路径: E:\\Project\\Kinlin_AI\\.env")
+            logger.info("如需使用通义千问大模型，请通过对应 Secret 文件配置 API Key")
             logger.info("获取API密钥: https://dashscope.aliyuncs.com/")
             _api_key_warning_printed = True
         

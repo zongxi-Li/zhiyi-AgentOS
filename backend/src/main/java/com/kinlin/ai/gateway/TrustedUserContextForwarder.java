@@ -27,5 +27,8 @@ public class TrustedUserContextForwarder {
         } else {
             headers.remove(AiGatewayHeaders.AUTHENTICATED_TENANT_ID);
         }
+        if (context.traceId() != null && !context.traceId().isBlank()) {
+            headers.set(AiGatewayHeaders.TRACE_ID, context.traceId());
+        }
     }
 }

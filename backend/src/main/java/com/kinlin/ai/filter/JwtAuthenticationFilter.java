@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.UUID;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.slf4j.MDC;
 
 /**
  * JWT认证过滤器
@@ -66,7 +67,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         // 设置用户上下文
                         UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(
-                                        new AuthenticatedUserContext(userId, username, role, null, null),
+                                        new AuthenticatedUserContext(userId, username, role, null, MDC.get("trace_id")),
                                         null,
                                         java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role))
                                 );

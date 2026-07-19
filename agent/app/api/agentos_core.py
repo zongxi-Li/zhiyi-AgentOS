@@ -3,6 +3,7 @@
 
 import json
 import uuid
+import logging
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -15,6 +16,9 @@ from app.execution.runtime import build_default_runtime
 from app.llm.gateway import get_llm_gateway
 from app.llm.schemas import CHAT_ROUTE_DECISION_SCHEMA
 from app.security.internal_auth import current_trusted_user
+from app.observability.context import execution_context
+
+logger = logging.getLogger(__name__)
 
 
 def _input_with_authenticated_actor(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -222,11 +226,14 @@ async def _create_task_and_start(
         task_type=request.task_type,
         workflow_id=request.workflow_id,
     )
-    run = await runtime.start(
-        task_id=task.task_id,
-        workflow_id=request.workflow_id,
-        review_mode=request.review_mode,
-    )
+    with execution_context(workflow_id=request.workflow_id or "", task_id=task.task_id):
+        logger.info("AgentOS task created; starting workflow")
+        run = await runtime.start(
+            task_id=task.task_id,
+            workflow_id=request.workflow_id,
+            review_mode=request.review_mode,
+        )
+        logger.info("AgentOS workflow run started")
     return {"task": _to_json(task), "run": _to_json(run)}
 
 
@@ -1508,6 +1515,8 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
                 role_type=request.role_type,
                 task_type=request.task_type,
             )
+            with execution_context(task_id=task.task_id):
+                logger.info("AgentOS task created")
             return _to_json(task)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1533,11 +1542,13 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
     @router.post("/core/workflows/runs")
     async def start_workflow(request: WorkflowRunCreateRequest):
         try:
-            run = await runtime.start(
-                task_id=request.task_id,
-                workflow_id=request.workflow_id,
-                review_mode=request.review_mode,
-            )
+            with execution_context(workflow_id=request.workflow_id or "", task_id=request.task_id):
+                run = await runtime.start(
+                    task_id=request.task_id,
+                    workflow_id=request.workflow_id,
+                    review_mode=request.review_mode,
+                )
+                logger.info("AgentOS workflow run started")
             return _to_json(run)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

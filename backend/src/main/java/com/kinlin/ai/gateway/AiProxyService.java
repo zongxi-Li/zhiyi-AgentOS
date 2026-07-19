@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.Exceptions;
+import com.kinlin.ai.observability.TraceContext;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -110,14 +111,16 @@ public class AiProxyService {
             return jsonResponse(HttpStatus.valueOf(status), Map.of(
                     "error", "AI_UPSTREAM_CLIENT_ERROR",
                     "message", safeClientMessage(body, status),
-                    "upstreamStatus", status
+                    "upstreamStatus", status,
+                    "traceId", TraceContext.currentTraceId()
             ));
         }
         log.warn("AI upstream server error. upstreamStatus={}", status);
         return jsonResponse(HttpStatus.BAD_GATEWAY, Map.of(
                 "error", "AI_UPSTREAM_ERROR",
                 "message", "AI service returned an error",
-                "upstreamStatus", status
+                "upstreamStatus", status,
+                "traceId", TraceContext.currentTraceId()
         ));
     }
 
@@ -194,6 +197,7 @@ public class AiProxyService {
     private ResponseEntity<byte[]> gatewayError(HttpStatus status, String code) {
         return jsonResponse(status, Map.of(
                 "error", code,
+                "traceId", TraceContext.currentTraceId(),
                 "message", switch (code) {
                     case "AI_UPSTREAM_TIMEOUT" -> "AI service response timed out";
                     case "AI_UPSTREAM_UNAVAILABLE" -> "AI service is unavailable";

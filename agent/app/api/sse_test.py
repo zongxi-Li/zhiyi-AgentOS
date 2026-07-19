@@ -6,9 +6,15 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from app.observability.context import current_trace_id
 
 router = APIRouter()
 request_states: dict[str, str] = {}
+
+
+@router.get("/test/trace")
+async def trace_probe():
+    return {"trace_id": current_trace_id()}
 
 
 @router.post("/test/sse")
@@ -38,7 +44,9 @@ async def deterministic_sse(request: Request, spec: dict[str, Any]):
                 if mode == "heartbeat":
                     yield ": heartbeat\n\n"
                 else:
-                    yield "data: " + json.dumps({"delta": str(sequence)}) + "\n\n"
+                    yield "data: " + json.dumps({
+                        "delta": str(sequence), "trace_id": current_trace_id()
+                    }) + "\n\n"
                     sequence += 1
             yield "data: [DONE]\n\n"
         except asyncio.CancelledError:

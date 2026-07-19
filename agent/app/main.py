@@ -49,6 +49,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+from app.middleware.trace import TraceIdMiddleware
 
 app.add_middleware(InternalServiceAuthMiddleware, token=settings.AI_INTERNAL_TOKEN)
 
@@ -60,6 +61,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(TraceIdMiddleware)
 
 # 注册异常处理器
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

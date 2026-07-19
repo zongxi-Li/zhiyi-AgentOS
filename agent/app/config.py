@@ -50,16 +50,13 @@ _env_file_path = _current_dir_env
 if _current_dir_env.exists():
     # 加载当前目录的.env文件
     result = load_dotenv(dotenv_path=str(_current_dir_env), override=True)
-    print(f"[config] Loaded .env from current directory: {_current_dir_env}")
 else:
     # 回退到主目录的.env文件
     _project_root = _config_path.parent.parent.parent  # 从 agent/app/ 到主目录
     _env_file_path = _project_root / ".env"
     if _env_file_path.exists():
         result = load_dotenv(dotenv_path=str(_env_file_path), override=True)
-        print(f"[config] Loaded .env from project root: {_env_file_path}")
     else:
-        print(f"[config] .env file not found: {_env_file_path}")
         _env_file_path = None
 
 class Settings(BaseSettings):
@@ -157,6 +154,12 @@ class Settings(BaseSettings):
 # 初始化配置
 try:
     settings = Settings(**_secret_file_values)
+    from app.utils.logger import configure_logging
+    import logging
+    configure_logging(
+        json_format=settings.ENVIRONMENT.strip().lower() in {"prod", "production"},
+        level=logging.INFO,
+    )
     
     # 验证关键配置项是否加载（在Settings初始化后检查）
     if not settings.DASHSCOPE_API_KEY and not settings.QWEN_API_KEY:
@@ -166,9 +169,7 @@ try:
         if _env_file_path:
             _warn_logger.warning(f"   配置文件路径: {_env_file_path}")
         _warn_logger.warning(f"   请在.env文件中添加以下配置项之一:")
-        _warn_logger.warning(f"   DASHSCOPE_API_KEY=sk-your_api_key_here")
-        _warn_logger.warning(f"   或")
-        _warn_logger.warning(f"   QWEN_API_KEY=sk-your_api_key_here")
+        _warn_logger.warning("   请通过对应 Secret 文件配置模型 API Key")
         _warn_logger.warning(f"   获取API密钥: https://dashscope.aliyuncs.com/")
     else:
         import logging
@@ -223,25 +224,6 @@ if hasattr(settings, 'QWEN_MODEL_LATEST'):
 
 # 配置加载后的验证和日志
 import logging
-import sys
-
-# 统一配置根logger格式（在导入其他模块之前）
-_root_logger = logging.getLogger()
-_root_logger.setLevel(logging.DEBUG)
-
-# 移除所有现有的handler，避免重复
-for handler in _root_logger.handlers[:]:
-    _root_logger.removeHandler(handler)
-
-# 统一控制台handler格式
-_console_handler = logging.StreamHandler(sys.stdout)
-_console_handler.setLevel(logging.INFO)
-_console_formatter = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-_console_handler.setFormatter(_console_formatter)
-_root_logger.addHandler(_console_handler)
 
 # 使用统一的日志工具（如果可用）
 try:
@@ -278,10 +260,7 @@ if _api_key_configured:
 else:
     _logger.warning("通义千问API密钥未配置")
     _logger.warning(f"   配置文件路径: {_env_file_path_correct}")
-    _logger.warning(f"   请在.env文件中添加以下配置项之一:")
-    _logger.warning(f"   DASHSCOPE_API_KEY=sk-your_api_key_here")
-    _logger.warning(f"   或")
-    _logger.warning(f"   QWEN_API_KEY=sk-your_api_key_here")
+    _logger.warning("   请通过对应 Secret 文件配置模型 API Key")
     _logger.warning(f"   获取API密钥: https://dashscope.aliyuncs.com/")
     _logger.warning(f"   提示: 运行 'python debug_config.py' 可以诊断配置问题")
 
