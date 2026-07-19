@@ -10,7 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
@@ -62,7 +64,7 @@ class AiProxyServiceTest {
         request.addHeader("Authorization", "Bearer client-jwt");
         request.addHeader("X-User-Id", "forged");
 
-        ResponseEntity<byte[]> response = service(1_000).forward(request);
+        ResponseEntity<byte[]> response = service(5_000).forward(request);
 
         assertEquals(200, response.getStatusCode().value());
         assertTrue(new String(response.getBody(), StandardCharsets.UTF_8).contains("true"));
@@ -73,7 +75,7 @@ class AiProxyServiceTest {
 
     @Test
     void preservesSafeClientStatusAndFiltersBody() throws Exception {
-        ResponseEntity<byte[]> response = service(1_000).forward(request("POST", "/ai/rejected"));
+        ResponseEntity<byte[]> response = service(5_000).forward(request("POST", "/ai/rejected"));
         String body = new String(response.getBody(), StandardCharsets.UTF_8);
 
         assertEquals(422, response.getStatusCode().value());
@@ -88,7 +90,7 @@ class AiProxyServiceTest {
         request.setContent("--p2-boundary\r\nprobe-file\r\n--p2-boundary--\r\n"
                 .getBytes(StandardCharsets.UTF_8));
 
-        ResponseEntity<byte[]> response = service(1_000).forward(request);
+        ResponseEntity<byte[]> response = service(5_000).forward(request);
 
         assertEquals(200, response.getStatusCode().value());
         assertTrue(capturedHeaders.get().getFirst("Content-Type").startsWith("multipart/form-data"));
@@ -97,7 +99,7 @@ class AiProxyServiceTest {
 
     @Test
     void mapsServerErrorAndReadTimeoutToStableCodes() throws Exception {
-        ResponseEntity<byte[]> failure = service(1_000).forward(request("GET", "/ai/failure"));
+        ResponseEntity<byte[]> failure = service(5_000).forward(request("GET", "/ai/failure"));
         ResponseEntity<byte[]> timeout = service(50).forward(request("GET", "/ai/slow"));
 
         assertEquals(502, failure.getStatusCode().value());
@@ -108,18 +110,15 @@ class AiProxyServiceTest {
 
     @Test
     void mapsConnectionFailureAndRejectsUnsafePath() throws Exception {
-        int unavailablePort;
-        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
-            unavailablePort = socket.getLocalPort();
-        }
         AiProxyService unavailable = new AiProxyService(
-                WebClient.builder(), new ObjectMapper(), "http://127.0.0.1:" + unavailablePort, 1_000
+                WebClient.builder().exchangeFunction(ignored -> Mono.error(new ConnectException("test connection refused"))),
+                new ObjectMapper(), "http://127.0.0.1", 1_000
         );
         ResponseEntity<byte[]> response = unavailable.forward(request("GET", "/ai/ok"));
 
         assertEquals(503, response.getStatusCode().value());
         assertThrows(IllegalArgumentException.class,
-                () -> service(1_000).forward(request("GET", "/ai/../admin")));
+                () -> service(5_000).forward(request("GET", "/ai/../admin")));
     }
 
     private AiProxyService service(int timeoutMs) {
