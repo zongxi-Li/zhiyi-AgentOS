@@ -5,11 +5,32 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from app.observability.context import current_trace_id
+from app.security.internal_auth import current_trusted_user
 
 router = APIRouter()
 request_states: dict[str, str] = {}
+
+
+@router.api_route("/test/proxy/{status_code}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def deterministic_proxy(status_code: int, request: Request):
+    """Deterministic upstream responses for the protected P2 test profile."""
+    allowed = {200, 400, 401, 403, 404, 409, 422, 500}
+    if status_code not in allowed:
+        raise HTTPException(status_code=400, detail="unsupported test status")
+    actor = current_trusted_user()
+    payload = {
+        "status": status_code,
+        "method": request.method,
+        "trace_id": current_trace_id(),
+        "user_id": actor.user_id if actor else None,
+        "subject": actor.subject if actor else None,
+        "role": actor.role if actor else None,
+    }
+    if status_code == 500:
+        payload["private_detail"] = "test upstream stack must not cross Java"
+    return JSONResponse(status_code=status_code, content=payload)
 
 
 @router.get("/test/trace")
