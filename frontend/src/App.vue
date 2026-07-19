@@ -1484,6 +1484,13 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.chat-project-item > span {
+  flex: 1 1 0;
+  width: 0;
+  max-width: 100%;
+  display: block;
+}
+
 .chat-project-item.active {
   color: var(--primary-color);
   background: var(--primary-fade);

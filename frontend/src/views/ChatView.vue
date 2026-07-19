@@ -14,6 +14,7 @@
       :style="agentPanelLayoutStyle"
     >
       <section
+        ref="chatPanelRef"
         class="chat-panel"
         :class="{ 'hero-mode': showHeroMode }"
       >
@@ -764,6 +765,7 @@ const showFileManager = ref(false)
 const isRecording = ref(false)
 const messagesRef = ref<HTMLElement | null>(null)
 const composerRef = ref<HTMLElement | null>(null)
+const chatPanelRef = ref<HTMLElement | null>(null)
 const teacherUploadInputRef = ref<HTMLInputElement | null>(null)
 const showAssistTools = ref(false)
 const isNearBottom = ref(true)
@@ -847,6 +849,7 @@ let agentPanelResizeStartX = 0
 let agentPanelResizeStartWidth = AGENT_PANEL_DEFAULT_WIDTH
 let workflowPanelResizeStartY = 0
 let workflowPanelResizeStartHeight = WORKFLOW_PANEL_DEFAULT_HEIGHT
+let workflowPanelResizeMaxHeight = WORKFLOW_PANEL_MAX_HEIGHT
 let contextPanelResizeStartY = 0
 let contextPanelResizeStartHeight = CONTEXT_PANEL_DEFAULT_HEIGHT
 let acgRefreshTimer: number | undefined
@@ -1008,8 +1011,19 @@ const handleAgentPanelResizeKeydown = (event: KeyboardEvent) => {
   persistAgentPanelWidth()
 }
 
-const clampWorkflowPanelHeight = (height: number) => {
-  return Math.min(WORKFLOW_PANEL_MAX_HEIGHT, Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.round(height)))
+const getWorkflowPanelHardMaxHeight = () => {
+  const panelHeight = chatPanelRef.value?.clientHeight || window.innerHeight
+  const topPanelHeight = contextPanelOpen.value ? contextPanelHeight.value : 30
+  const availableHeight = Math.max(0, panelHeight - topPanelHeight)
+  return Math.max(
+    WORKFLOW_PANEL_MIN_HEIGHT,
+    Math.min(WORKFLOW_PANEL_MAX_HEIGHT, Math.floor(availableHeight * 0.48))
+  )
+}
+
+const clampWorkflowPanelHeight = (height: number, maxHeight = getWorkflowPanelHardMaxHeight()) => {
+  const safeMaxHeight = Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.min(WORKFLOW_PANEL_MAX_HEIGHT, maxHeight))
+  return Math.min(safeMaxHeight, Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.round(height)))
 }
 
 const persistWorkflowPanelHeight = () => {
@@ -1019,7 +1033,8 @@ const persistWorkflowPanelHeight = () => {
 const handleWorkflowPanelResizeMove = (event: PointerEvent) => {
   if (!workflowPanelResizing.value) return
   workflowPanelHeight.value = clampWorkflowPanelHeight(
-    workflowPanelResizeStartHeight + workflowPanelResizeStartY - event.clientY
+    workflowPanelResizeStartHeight + workflowPanelResizeStartY - event.clientY,
+    workflowPanelResizeMaxHeight
   )
 }
 
@@ -1039,6 +1054,7 @@ const startWorkflowPanelResize = (event: PointerEvent) => {
   event.preventDefault()
   workflowPanelResizeStartY = event.clientY
   workflowPanelResizeStartHeight = workflowPanelHeight.value
+  workflowPanelResizeMaxHeight = getWorkflowPanelHardMaxHeight()
   workflowPanelResizing.value = true
   document.body.style.cursor = 'row-resize'
   document.body.style.userSelect = 'none'
@@ -1048,7 +1064,7 @@ const startWorkflowPanelResize = (event: PointerEvent) => {
 }
 
 const resetWorkflowPanelHeight = () => {
-  workflowPanelHeight.value = WORKFLOW_PANEL_DEFAULT_HEIGHT
+  workflowPanelHeight.value = clampWorkflowPanelHeight(WORKFLOW_PANEL_DEFAULT_HEIGHT)
   persistWorkflowPanelHeight()
 }
 
@@ -1064,9 +1080,12 @@ const handleWorkflowPanelResizeKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Home') {
     workflowPanelHeight.value = WORKFLOW_PANEL_MIN_HEIGHT
   } else if (event.key === 'End') {
-    workflowPanelHeight.value = WORKFLOW_PANEL_MAX_HEIGHT
+    workflowPanelHeight.value = getWorkflowPanelHardMaxHeight()
   } else if (event.key === 'ArrowUp') {
-    workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value + step)
+    workflowPanelHeight.value = clampWorkflowPanelHeight(
+      workflowPanelHeight.value + step,
+      getWorkflowPanelHardMaxHeight()
+    )
   } else if (event.key === 'ArrowDown') {
     workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value - step)
   } else {
@@ -2104,6 +2123,7 @@ watch(hasAgentActivity, active => {
 onMounted(async () => {
   window.addEventListener('workspace-mode-change', handleWorkspaceModeChange)
   await roleStore.loadRoles()
+  workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value)
 
   if (composerRef.value) {
     composerResizeObserver = new ResizeObserver(entries => {
