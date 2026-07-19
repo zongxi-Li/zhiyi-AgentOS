@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -67,10 +68,21 @@ def test_sarif_ids_are_extracted(tmp_path: Path):
 
 
 def test_release_overlay_is_injected_only_when_requested(monkeypatch):
+    monkeypatch.delenv("KINLIN_COMPOSE_FILES", raising=False)
     monkeypatch.delenv("KINLIN_RELEASE_COMPOSE", raising=False)
     assert compose_command("ps") == ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml", "ps"]
     monkeypatch.setenv("KINLIN_RELEASE_COMPOSE", "/release/compose.release.yaml")
     assert compose_command("ps")[-3:] == ["-f", "/release/compose.release.yaml", "ps"]
+
+
+def test_compose_command_accepts_windows_package_files(monkeypatch):
+    monkeypatch.setenv("KINLIN_COMPOSE_FILES", os.pathsep.join(["C:/package/compose.yaml", "C:/package/compose.windows.prod.yaml"]))
+    monkeypatch.delenv("KINLIN_RELEASE_COMPOSE", raising=False)
+
+    assert compose_command("ps") == [
+        "docker", "compose", "-f", "C:/package/compose.yaml",
+        "-f", "C:/package/compose.windows.prod.yaml", "ps",
+    ]
 
 
 def test_offline_scripts_never_pull_build_or_delete_volumes():

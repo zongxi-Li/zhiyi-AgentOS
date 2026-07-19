@@ -67,6 +67,16 @@ def image_inventory(deployment_id: str) -> list[dict]:
         ]
 
 
+def source_commit() -> str:
+    configured = os.environ.get("KINLIN_SOURCE_COMMIT")
+    if configured:
+        return configured
+    try:
+        return run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return "packaged-windows-amd64"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--deployment-id", required=True)
@@ -156,7 +166,7 @@ done'''
         "schemaFingerprint": schema_report["fingerprint"],
         "schemaState": schema_report["state"],
         "volumes": volumes,
-        "gitCommit": run(["git", "rev-parse", "HEAD"]).stdout.strip(),
+        "gitCommit": source_commit(),
         "dockerCompose": run(["docker", "compose", "version", "--short"]).stdout.strip(),
         "images": images,
         "redisClassification": "rebuildable-cache",

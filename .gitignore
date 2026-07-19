@@ -128,6 +128,7 @@ Recommend/agent/models/
 backups/
 .tmp-*
 artifacts/infra-rfc-v1.1/runtime/
+artifacts/windows/
 
 # Playwright CLI runtime snapshots
 .playwright-cli/

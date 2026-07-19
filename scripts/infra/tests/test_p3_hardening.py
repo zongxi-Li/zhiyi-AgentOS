@@ -22,11 +22,13 @@ def test_production_services_use_read_only_roots_and_capability_allowlists():
             assert "cap_add" not in service, name
 
 
-def test_windows_production_overlay_only_adds_loopback_ingress():
+def test_windows_production_overlay_is_amd64_image_only_and_loopback_scoped():
     overlay = (ROOT / "compose.windows.prod.yaml").read_text(encoding="utf-8")
 
     assert "127.0.0.1:${KINLIN_HTTP_PORT:-8080}:8080" in overlay
     assert "windows-ingress-network" in overlay
     assert "command:" not in overlay
     assert "volumes:" not in overlay
-    assert "build:" not in overlay
+    assert overlay.count("platform: linux/amd64") == 6
+    assert overlay.count("build: !reset null") == 6
+    assert "windows-amd64" in overlay

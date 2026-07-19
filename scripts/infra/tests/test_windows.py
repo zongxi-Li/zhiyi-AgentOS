@@ -56,6 +56,31 @@ def test_backend_restart_uses_incremental_compile_by_default():
     assert '[switch]$FullRestart' in script
 
 
+def test_windows_deployment_package_has_required_entrypoints_and_no_secret_values():
+    package = ROOT / "deploy" / "windows" / "package"
+    expected = {
+        "compose.yaml", ".env.example", "start.ps1", "stop.ps1", "status.ps1",
+        "logs.ps1", "backup.ps1", "restore.ps1", "README.md",
+    }
+
+    assert expected.issubset({path.name for path in package.iterdir()})
+    assert "down -v" not in "\n".join(path.read_text(encoding="utf-8").lower() for path in package.glob("*.ps1"))
+    example = (package / ".env.example").read_text(encoding="utf-8")
+    forbidden = re.compile(r"^(?!KINLIN_SECRETS_DIR=).*(PASSWORD|TOKEN|SECRET|API_?KEY|JWT).*=" , re.MULTILINE)
+    assert not forbidden.search(example)
+
+
+def test_windows_package_compose_is_image_only_and_persistent():
+    compose = (ROOT / "deploy" / "windows" / "package" / "compose.yaml").read_text(encoding="utf-8")
+
+    assert "build:" not in compose
+    assert "node_modules" not in compose
+    assert "backend-uploads:/app/data/uploads" in compose
+    assert "agentos-data:/app/data" in compose
+    assert "postgres-data:/var/lib/postgresql/data" in compose
+    assert "./migrations:/flyway/sql:ro" in compose
+
+
 def test_backup_image_inventory_falls_back_to_runtime_container_inspect():
     compose_failure = subprocess.CalledProcessError(1, ["docker", "compose", "images"])
     inspected = '[{"Name":"/demo-backend-1","Image":"sha256:abc","Config":{"Image":"demo:dev","Labels":{"com.docker.compose.service":"backend"}}}]'

@@ -13,7 +13,13 @@ VOLUME_SUFFIXES = ("postgres_data_v11", "redis_data_v11", "agentos_data_v11", "b
 
 
 def compose_command(*args: str) -> list[str]:
-    command = ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml"]
+    configured_files = os.environ.get("KINLIN_COMPOSE_FILES")
+    compose_files = configured_files.split(os.pathsep) if configured_files else ["compose.yaml", "compose.prod.yaml"]
+    command = ["docker", "compose"]
+    for compose_file in compose_files:
+        if not compose_file:
+            raise ValueError("KINLIN_COMPOSE_FILES contains an empty path")
+        command.extend(["-f", compose_file])
     release_overlay = os.environ.get("KINLIN_RELEASE_COMPOSE")
     if release_overlay:
         command.extend(["-f", release_overlay])
