@@ -88,9 +88,19 @@ function Get-KinlinImageReferences {
     return @($defaults.GetEnumerator() | ForEach-Object { if ($Context.Values.ContainsKey($_.Key)) { $Context.Values[$_.Key] } else { $_.Value } })
 }
 
+function Test-KinlinPackageImage {
+    param([string]$Reference)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & docker image inspect $Reference *> $null
+        return $LASTEXITCODE -eq 0
+    } finally { $ErrorActionPreference = $previousPreference }
+}
+
 function Ensure-KinlinPackageImages {
     param($Context)
-    $missing = @(Get-KinlinImageReferences $Context | Where-Object { docker image inspect $_ *> $null; $LASTEXITCODE -ne 0 })
+    $missing = @(Get-KinlinImageReferences $Context | Where-Object { -not (Test-KinlinPackageImage $_) })
     if ($missing.Count -gt 0) {
         $archive = Join-Path $script:KinlinPackageRoot "images.tar"
         if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) { throw "Missing images and images.tar: $($missing -join ', ')" }

@@ -18,6 +18,16 @@ $env:VERSION = "windows-amd64"
 $env:GIT_SHA = $gitSha
 $env:CREATED = $created
 
+function Test-KinlinImage {
+    param([string]$Reference)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & docker image inspect $Reference *> $null
+        return $LASTEXITCODE -eq 0
+    } finally { $ErrorActionPreference = $previousPreference }
+}
+
 if (-not $SkipBuild) {
     Push-Location $projectRoot
     try {
@@ -33,10 +43,8 @@ if (-not $SkipBuild) {
 }
 
 $flyway = "kinlin-ai/flyway:windows-amd64"
-& docker image inspect $flyway *> $null
-if ($LASTEXITCODE -ne 0) {
-    & docker image inspect "kinlin-ai-flyway:dev" *> $null
-    if ($LASTEXITCODE -eq 0) {
+if (-not (Test-KinlinImage $flyway)) {
+    if (Test-KinlinImage "kinlin-ai-flyway:dev") {
         & docker tag "kinlin-ai-flyway:dev" $flyway
     } else {
         Push-Location $projectRoot
