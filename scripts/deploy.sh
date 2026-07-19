@@ -9,6 +9,12 @@ set -e
 ENVIRONMENT=${1:-dev}
 PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
+if [ "$ENVIRONMENT" = prod ]; then
+    echo "Legacy source-tree production deployment is retired." >&2
+    echo "Use scripts.release.publish or an architecture-specific P3 offline package." >&2
+    exit 64
+fi
+
 echo "=========================================="
 echo "联邦智枢 部署脚本"
 echo "环境: $ENVIRONMENT"

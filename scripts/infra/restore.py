@@ -10,7 +10,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from scripts.infra.common import run, validate_deployment_id, verify_checksums, verify_volume_labels, volume_names
+from scripts.infra.common import compose_command, run, validate_deployment_id, verify_checksums, verify_volume_labels, volume_names
 
 
 IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
@@ -18,7 +18,7 @@ IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
 
 def compose(target: str, secrets_dir: Path, *args: str, db_user: str, db_name: str, admin_user: str = "postgres", skip_app_init: bool = False):
     return run(
-        ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml", *args],
+        compose_command(*args),
         env={
             "KINLIN_DEPLOYMENT_ID": target,
             "KINLIN_SECRETS_DIR": str(secrets_dir),
@@ -31,16 +31,18 @@ def compose(target: str, secrets_dir: Path, *args: str, db_user: str, db_name: s
 
 
 def restore_archive(volume: str, backup: Path, filename: str) -> None:
+    helper = os.environ.get("IMAGE_POSTGRES", os.environ.get("KINLIN_POSTGRES_IMAGE", "kinlin-ai-postgres:dev"))
     run([
-        "docker", "run", "--rm", "-v", f"{volume}:/target", "-v", f"{backup}:/backup:ro",
-        "alpine:3.20", "sh", "-ec", f"tar -C /target -xzf /backup/{filename}",
+        "docker", "run", "--rm", "--entrypoint", "tar", "-v", f"{volume}:/target", "-v", f"{backup}:/backup:ro",
+        helper, "-C", "/target", "-xzf", f"/backup/{filename}",
     ], capture=False)
 
 
 def write_deployment_marker(volume: str, deployment_id: str) -> None:
+    helper = os.environ.get("IMAGE_POSTGRES", os.environ.get("KINLIN_POSTGRES_IMAGE", "kinlin-ai-postgres:dev"))
     run([
-        "docker", "run", "--rm", "-v", f"{volume}:/target", "alpine:3.20",
-        "sh", "-ec", "printf '%s\\n' \"$1\" > /target/.kinlin-deployment-id", "sh", deployment_id,
+        "docker", "run", "--rm", "--entrypoint", "sh", "-v", f"{volume}:/target", helper,
+        "-ec", "printf '%s\\n' \"$1\" > /target/.kinlin-deployment-id", "sh", deployment_id,
     ])
 
 
@@ -124,15 +126,16 @@ def main() -> int:
     write_deployment_marker(targets["ai_cache_v11"], target)
     # Replace the archived live database files with the standalone SQLite
     # backup produced by sqlite3_backup(), and discard stale WAL sidecars.
+    python_helper = os.environ.get("IMAGE_AI_SERVICE", os.environ.get("KINLIN_AI_IMAGE", "kinlin-ai-service:dev"))
     run([
-        "docker", "run", "--rm", "-v", f'{targets["agentos_data_v11"]}:/data',
-        "-v", f"{backup}:/backup:ro", "alpine:3.20", "sh", "-ec",
-        "install -m 0640 /backup/agentos-workflows.sqlite3 /data/agentos/workflows.sqlite3 && "
-        "rm -f /data/agentos/workflows.sqlite3-wal /data/agentos/workflows.sqlite3-shm",
+        "docker", "run", "--rm", "--entrypoint", "python", "-v", f'{targets["agentos_data_v11"]}:/data',
+        "-v", f"{backup}:/backup:ro", python_helper, "-c",
+        "import pathlib,shutil; d=pathlib.Path('/data/agentos'); d.mkdir(parents=True,exist_ok=True); shutil.copyfile('/backup/agentos-workflows.sqlite3',d/'workflows.sqlite3'); (d/'workflows.sqlite3').chmod(0o640); [(p.unlink()) for p in (d/'workflows.sqlite3-wal',d/'workflows.sqlite3-shm') if p.exists()]",
     ])
+    redis_helper = os.environ.get("IMAGE_REDIS", os.environ.get("KINLIN_REDIS_IMAGE", "kinlin-ai-redis:dev"))
     run([
-        "docker", "run", "--rm", "-v", f'{targets["redis_data_v11"]}:/data',
-        "-v", f"{backup}:/backup:ro", "alpine:3.20", "cp", "/backup/redis-dump.rdb", "/data/dump.rdb",
+        "docker", "run", "--rm", "--entrypoint", "cp", "-v", f'{targets["redis_data_v11"]}:/data',
+        "-v", f"{backup}:/backup:ro", redis_helper, "/backup/redis-dump.rdb", "/data/dump.rdb",
     ])
 
     bootstrap_env = {
@@ -144,7 +147,7 @@ def main() -> int:
         "KINLIN_SKIP_APP_INIT": "true",
     }
     compose(target, secrets, "up", "-d", "--wait", "postgres", "redis", db_user=db_user, db_name=db_name, admin_user=db_admin, skip_app_init=True)
-    base = ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml", "exec", "-T", "postgres"]
+    base = compose_command("exec", "-T", "postgres")
     restore_globals(
         backup / "postgres-globals.sql",
         [*base, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", db_admin, "-d", "postgres"],
@@ -185,8 +188,8 @@ SQL'''
         raise SystemExit(f"Redis sample count mismatch: expected={manifest['redisSampleReadCount']} actual={restored_samples}")
 
     sqlite_check = run([
-        "docker", "run", "--rm", "-v", f'{targets["agentos_data_v11"]}:/data:ro', "python:3.14-slim",
-        "python", "-c", "import sqlite3,json; c=sqlite3.connect('file:/data/agentos/workflows.sqlite3?mode=ro&immutable=1',uri=True); print(json.dumps({'integrity':c.execute('pragma integrity_check').fetchone()[0],'tasks':c.execute('select count(*) from tasks').fetchone()[0],'runs':c.execute('select count(*) from runs').fetchone()[0]}))",
+        "docker", "run", "--rm", "--entrypoint", "python", "-v", f'{targets["agentos_data_v11"]}:/data:ro', python_helper,
+        "-c", "import sqlite3,json; c=sqlite3.connect('file:/data/agentos/workflows.sqlite3?mode=ro&immutable=1',uri=True); print(json.dumps({'integrity':c.execute('pragma integrity_check').fetchone()[0],'tasks':c.execute('select count(*) from tasks').fetchone()[0],'runs':c.execute('select count(*) from runs').fetchone()[0]}))",
     ]).stdout.strip()
 
     compose(target, secrets, "stop", "postgres", "redis", db_user=db_user, db_name=db_name, admin_user=db_admin, skip_app_init=True)

@@ -12,6 +12,14 @@ DEPLOYMENT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{2,31}$")
 VOLUME_SUFFIXES = ("postgres_data_v11", "redis_data_v11", "agentos_data_v11", "backend_uploads_v11", "ai_cache_v11")
 
 
+def compose_command(*args: str) -> list[str]:
+    command = ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml"]
+    release_overlay = os.environ.get("KINLIN_RELEASE_COMPOSE")
+    if release_overlay:
+        command.extend(["-f", release_overlay])
+    return [*command, *args]
+
+
 def validate_deployment_id(value: str) -> str:
     if not DEPLOYMENT_ID_PATTERN.fullmatch(value or ""):
         raise ValueError("KINLIN_DEPLOYMENT_ID must match ^[a-z0-9][a-z0-9-]{2,31}$")

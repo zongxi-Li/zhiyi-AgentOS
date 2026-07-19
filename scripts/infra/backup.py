@@ -11,13 +11,13 @@ import subprocess
 import shutil
 from pathlib import Path
 
-from scripts.infra.common import run, validate_deployment_id, verify_volume_labels, volume_names, write_checksums, write_json
+from scripts.infra.common import compose_command, run, validate_deployment_id, verify_volume_labels, volume_names, write_checksums, write_json
 
 
 def compose(deployment_id: str, *args: str, capture: bool = True):
     secret_root = os.environ.get("KINLIN_SECRETS_DIR", str((Path(".secrets") / deployment_id).resolve()))
     return run(
-        ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml", *args],
+        compose_command(*args),
         env={"KINLIN_DEPLOYMENT_ID": deployment_id, "KINLIN_SECRETS_DIR": secret_root},
         capture=capture,
     )
@@ -27,7 +27,7 @@ def dump_binary(deployment_id: str, output: Path, command: list[str]) -> None:
     secret_root = os.environ.get("KINLIN_SECRETS_DIR", str((Path(".secrets") / deployment_id).resolve()))
     with output.open("wb") as handle:
         subprocess.run(
-            ["docker", "compose", "-f", "compose.yaml", "-f", "compose.prod.yaml", "exec", "-T", "postgres", *command],
+            compose_command("exec", "-T", "postgres", *command),
             check=True,
             stdout=handle,
             env={**os.environ, "KINLIN_DEPLOYMENT_ID": deployment_id, "KINLIN_SECRETS_DIR": secret_root},
@@ -35,7 +35,8 @@ def dump_binary(deployment_id: str, output: Path, command: list[str]) -> None:
 
 
 def archive_volume(volume: str, output_dir: Path, filename: str) -> None:
-    run(["docker", "run", "--rm", "-v", f"{volume}:/source:ro", "-v", f"{output_dir.resolve()}:/backup", "alpine:3.20", "tar", "-C", "/source", "-czf", f"/backup/{filename}", "."], capture=False)
+    helper = os.environ.get("IMAGE_POSTGRES", os.environ.get("KINLIN_POSTGRES_IMAGE", "kinlin-ai-postgres:dev"))
+    run(["docker", "run", "--rm", "--entrypoint", "tar", "-v", f"{volume}:/source:ro", "-v", f"{output_dir.resolve()}:/backup", helper, "-C", "/source", "-czf", f"/backup/{filename}", "."], capture=False)
 
 
 def image_inventory(deployment_id: str) -> list[dict]:
@@ -137,7 +138,8 @@ done'''
     # The application is stopped before this point.  The backup helper needs a
     # writable source mount so SQLite can create/refresh WAL shared-memory state
     # while its online backup API takes the consistent snapshot.
-    run(["docker", "run", "--rm", "-v", f'{volumes["agentos_data_v11"]}:/data', "-v", f"{output.resolve()}:/backup", "python:3.14-slim", "python", "-c", "import sqlite3,json,pathlib; s=sqlite3.connect('file:/data/agentos/workflows.sqlite3?mode=rw',uri=True); d=sqlite3.connect('/backup/agentos-workflows.sqlite3'); s.backup(d); ok=d.execute('pragma integrity_check').fetchone()[0]; counts={'integrity':ok,'tasks':d.execute('select count(*) from tasks').fetchone()[0],'runs':d.execute('select count(*) from runs').fetchone()[0]}; pathlib.Path('/backup/agentos-sqlite-verification.json').write_text(json.dumps(counts)); d.close(); s.close()"], capture=False)
+    python_helper = os.environ.get("IMAGE_AI_SERVICE", os.environ.get("KINLIN_AI_IMAGE", "kinlin-ai-service:dev"))
+    run(["docker", "run", "--rm", "--entrypoint", "python", "-v", f'{volumes["agentos_data_v11"]}:/data', "-v", f"{output.resolve()}:/backup", python_helper, "-c", "import sqlite3,json,pathlib; s=sqlite3.connect('file:/data/agentos/workflows.sqlite3?mode=rw',uri=True); d=sqlite3.connect('/backup/agentos-workflows.sqlite3'); s.backup(d); ok=d.execute('pragma integrity_check').fetchone()[0]; counts={'integrity':ok,'tasks':d.execute('select count(*) from tasks').fetchone()[0],'runs':d.execute('select count(*) from runs').fetchone()[0]}; pathlib.Path('/backup/agentos-sqlite-verification.json').write_text(json.dumps(counts)); d.close(); s.close()"], capture=False)
 
     shutil.copy2(schema_report_path, output / "schema-audit.json")
     images = image_inventory(deployment_id)
