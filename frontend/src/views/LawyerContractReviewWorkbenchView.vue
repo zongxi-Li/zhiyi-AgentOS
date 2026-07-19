@@ -392,13 +392,29 @@ const activeRole = computed(() => roleTemplateGroups.find(role => role.id === ac
 const activeTemplate = computed(() => templateMap.get(activeTemplateKey.value) || activeRole.value.templates[0])
 const modeConfig = computed(() => activeTemplate.value)
 const currentTemplateLabel = computed(() => `${activeRole.value.name} / ${activeTemplate.value.name}`)
-const roleThemeStyle = computed(() => ({
-  '--role-accent': activeRole.value.accent,
-  '--role-accent-soft': activeRole.value.softAccent
-}))
+const roleThemeStyle = computed(() => {
+  const roleTones: Record<RoleTemplateGroup['id'], [string, string]> = {
+    lawyer: ['var(--info)', 'var(--info-fade)'],
+    teacher: ['var(--success)', 'var(--success-fade)'],
+    programmer: ['var(--accent-color)', 'var(--accent-fade)'],
+    writer: ['var(--warning)', 'var(--warning-fade)']
+  }
+  const [accent, softAccent] = roleTones[activeRole.value.id]
+  return { '--role-accent': accent, '--role-accent-soft': softAccent }
+})
 const roleButtonStyle = (role: RoleTemplateGroup) => ({
-  '--role-local-accent': role.accent,
-  '--role-local-soft': role.softAccent
+  '--role-local-accent': {
+    lawyer: 'var(--info)',
+    teacher: 'var(--success)',
+    programmer: 'var(--accent-color)',
+    writer: 'var(--warning)'
+  }[role.id],
+  '--role-local-soft': {
+    lawyer: 'var(--info-fade)',
+    teacher: 'var(--success-fade)',
+    programmer: 'var(--accent-fade)',
+    writer: 'var(--warning-fade)'
+  }[role.id]
 })
 const taskToneStyle = (step: TemplateStep) => {
   const tone = taskToneStyles[step.tone || 'blue']
@@ -757,11 +773,9 @@ const exportTrace = async () => {
   min-height: 42px;
   min-width: 220px;
   padding: 7px 8px 7px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(242, 248, 246, 0.42)),
-    rgba(255, 255, 255, 0.36);
+  background: var(--surface-raised);
   color: var(--text-primary);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -832,11 +846,8 @@ const exportTrace = async () => {
 }
 
 .liquid-glass {
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  background:
-    radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.92), transparent 30%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(244, 250, 248, 0.76)),
-    rgba(255, 255, 255, 0.74);
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
   box-shadow: 0 26px 80px rgba(27, 47, 45, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(22px) saturate(1.18);
   -webkit-backdrop-filter: blur(22px) saturate(1.18);
@@ -928,10 +939,10 @@ const exportTrace = async () => {
 .switcher-preview,
 .ghost-button,
 .apply-button {
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.48);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  background: var(--bg-panel);
+  box-shadow: none;
 }
 
 .switcher-roles button,
@@ -1064,9 +1075,7 @@ const exportTrace = async () => {
   padding: 9px 10px;
   border: 1px solid color-mix(in srgb, var(--task-accent, var(--role-accent)) 22%, transparent);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.46)),
-    var(--task-soft, var(--role-accent-soft));
+  background: var(--task-soft, var(--role-accent-soft));
   color: var(--task-accent, var(--role-accent));
   font-size: 12px;
   font-weight: 800;
@@ -1082,7 +1091,7 @@ const exportTrace = async () => {
   padding: 10px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--bg-input);
 }
 
 .switcher-footer {
@@ -1144,7 +1153,7 @@ const exportTrace = async () => {
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--bg-panel);
   color: var(--text-secondary);
 }
 
@@ -1181,7 +1190,7 @@ const exportTrace = async () => {
 }
 
 :global(.template-switcher .ghost-button) {
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--bg-panel);
   color: var(--text-secondary);
 }
 
@@ -1456,9 +1465,7 @@ select:focus {
   display: grid;
   gap: 8px;
   border-color: color-mix(in srgb, var(--task-accent, var(--role-accent)) 18%, var(--border-light));
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)),
-    var(--task-soft, var(--bg-panel));
+  background: var(--task-soft, var(--bg-panel));
 }
 
 .preflight-output-item,
@@ -1664,4 +1671,3 @@ dd {
   }
 }
 </style>
-

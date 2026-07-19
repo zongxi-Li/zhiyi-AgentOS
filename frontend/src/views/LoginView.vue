@@ -346,7 +346,7 @@ const handleRegister = async () => {
   z-index: 10;
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-card) 82%, transparent);
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border-light);
   margin: 20px;
 }
 
@@ -354,8 +354,8 @@ const handleRegister = async () => {
 .promo-side {
   flex: 1.1;
   background:
-    linear-gradient(180deg, rgba(63, 107, 99, 0.06) 0%, rgba(255, 255, 255, 0.68) 100%),
-    radial-gradient(at 12% 18%, rgba(63, 107, 99, 0.08) 0px, transparent 44%);
+    linear-gradient(180deg, var(--primary-fade) 0%, var(--bg-panel) 100%),
+    radial-gradient(at 12% 18%, var(--primary-fade) 0px, transparent 44%);
   padding: 40px 60px;
   display: flex;
   flex-direction: column;

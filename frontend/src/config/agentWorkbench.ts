@@ -80,10 +80,10 @@ export type TaskTone = 'blue' | 'green' | 'purple' | 'orange'
 export const taskToneSequence: TaskTone[] = ['blue', 'green', 'purple', 'orange']
 
 export const taskToneStyles: Record<TaskTone, { accent: string; soft: string }> = {
-  blue: { accent: '#496b8f', soft: 'rgba(73, 107, 143, 0.12)' },
-  green: { accent: '#3d7656', soft: 'rgba(61, 118, 86, 0.12)' },
-  purple: { accent: '#6f668f', soft: 'rgba(111, 102, 143, 0.12)' },
-  orange: { accent: '#9a7432', soft: 'rgba(154, 116, 50, 0.12)' }
+  blue: { accent: 'var(--info)', soft: 'var(--info-fade)' },
+  green: { accent: 'var(--success)', soft: 'var(--success-fade)' },
+  purple: { accent: 'var(--accent-color)', soft: 'var(--accent-fade)' },
+  orange: { accent: 'var(--warning)', soft: 'var(--warning-fade)' }
 }
 
 export const templateDisplayPrompts = {

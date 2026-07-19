@@ -127,9 +127,9 @@ const handleDelete = () => {
 <style scoped lang="scss">
 // 变量定义 - 简洁优雅的设计系统
 $primary-color: var(--primary-color);
-$primary-light: rgba(99, 102, 241, 0.08);
-$border-color: rgba(0, 0, 0, 0.08);
-$border-light: rgba(0, 0, 0, 0.05);
+$primary-light: var(--primary-fade);
+$border-color: var(--border-light);
+$border-light: var(--border-light);
 $shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.04);
 $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
 
@@ -148,16 +148,16 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
     transform: translateY(-2px);
     box-shadow: $shadow-hover;
     background: color-mix(in srgb, var(--bg-card) 95%, transparent);
-    border-color: rgba(99, 102, 241, 0.2);
+    border-color: var(--primary-line);
     
     .card-footer {
-      background: rgba(249, 250, 251, 0.8);
+      background: var(--bg-panel);
     }
   }
   
   &.selected {
     border-color: $primary-color;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15), $shadow-hover;
+    box-shadow: 0 0 0 2px var(--primary-line), $shadow-hover;
     background: color-mix(in srgb, var(--bg-card) 95%, transparent);
     
     .status-indicator {
@@ -165,7 +165,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
       
       .dot {
         background: $primary-color;
-        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+        box-shadow: 0 0 0 2px var(--primary-line);
       }
     }
   }
@@ -285,7 +285,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
 .card-footer {
   margin: 0 -20px -20px -20px;
   padding: 14px 20px;
-  background: rgba(249, 250, 251, 0.6);
+  background: var(--bg-panel);
   border-top: 1px solid $border-light;
   display: flex;
   justify-content: space-between;
