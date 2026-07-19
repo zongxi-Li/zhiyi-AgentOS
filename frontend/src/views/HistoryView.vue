@@ -146,7 +146,7 @@ const clearAll = async () => {
 /* 页面头部 */
 .page-header {
   flex-shrink: 0;
-  background: #ffffff;
+  background: var(--surface-solid);
   border-bottom: 1px solid var(--border-light);
   padding: var(--page-header-padding-y) var(--page-padding-x);
 }
@@ -223,7 +223,7 @@ const clearAll = async () => {
 }
 
 .search-box:focus-within {
-  background: #ffffff;
+  background: var(--surface-solid);
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px var(--primary-fade);
 }
@@ -253,7 +253,7 @@ const clearAll = async () => {
   height: 40px;
   padding: 0 20px;
   border: 1px solid var(--border-light);
-  background: #ffffff;
+  background: var(--surface-solid);
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;

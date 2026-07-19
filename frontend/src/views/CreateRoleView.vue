@@ -477,7 +477,7 @@ const handleSubmit = async () => {
 /* Header */
 .header {
   flex-shrink: 0;
-  background: #ffffff;
+  background: var(--surface-solid);
   border-bottom: 1px solid #e5e7eb;
   height: 64px !important;
   display: flex;
@@ -512,11 +512,11 @@ const handleSubmit = async () => {
   border: 1px solid #e5e7eb;
   cursor: pointer;
   transition: all 0.2s;
-  color: #6b7280;
+  color: var(--text-secondary);
 
   &:hover {
     color: var(--primary-color);
-    background: rgba(79, 70, 229, 0.05);
+    background: color-mix(in srgb, var(--primary-color) 5%, transparent);
     border-color: rgba(79, 70, 229, 0.2);
   }
 }
@@ -525,7 +525,7 @@ const handleSubmit = async () => {
   .page-title {
     font-size: 22px;
     font-weight: 600;
-    color: #111827;
+    color: var(--text-primary);
     margin: 0 0 2px 0;
     letter-spacing: -0.02em;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
@@ -533,7 +533,7 @@ const handleSubmit = async () => {
 
   .page-subtitle {
     font-size: 13px;
-    color: #6b7280;
+    color: var(--text-secondary);
     margin: 0;
   }
 }
@@ -600,7 +600,7 @@ const handleSubmit = async () => {
   justify-content: center;
   font-size: 16px;
   font-weight: 600;
-  color: #9ca3af;
+  color: var(--text-disabled);
   transition: all 0.3s;
 }
 
@@ -619,7 +619,7 @@ const handleSubmit = async () => {
 .step-label {
   font-size: 13px;
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--text-disabled);
   transition: color 0.3s;
 }
 
@@ -631,7 +631,7 @@ const handleSubmit = async () => {
 .progress-line {
   width: 100px;
   height: 2px;
-  background: #e5e7eb;
+  background: var(--bg-input);
   margin: 0 16px;
   margin-bottom: 28px;
   transition: background 0.3s;
@@ -673,14 +673,14 @@ const handleSubmit = async () => {
 .step-title {
   font-size: 20px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
   letter-spacing: -0.01em;
 }
 
 .step-desc {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
 }
@@ -690,31 +690,31 @@ const handleSubmit = async () => {
   :deep(.el-form-item__label) {
     font-weight: 500;
     font-size: 14px;
-    color: #374151;
+    color: var(--text-regular);
     padding-bottom: 8px;
     line-height: 1.5;
   }
 
   :deep(.el-input__wrapper) {
-    background-color: #f9fafb;
+    background-color: var(--bg-input);
     border-radius: 10px;
     padding: 12px 16px;
     border: 1px solid transparent;
     transition: all 0.2s;
 
     &:hover {
-      background-color: #ffffff;
+      background-color: var(--surface-solid);
       border-color: #e5e7eb;
     }
 
     &.is-focus {
-      background-color: #ffffff;
+      background-color: var(--surface-solid);
       border-color: var(--primary-color);
     }
   }
 
   :deep(.el-textarea__inner) {
-    background-color: #f9fafb;
+    background-color: var(--bg-input);
     border-radius: 10px;
     padding: 12px 16px;
     border: 1px solid transparent;
@@ -723,12 +723,12 @@ const handleSubmit = async () => {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
 
     &:hover {
-      background-color: #ffffff;
+      background-color: var(--surface-solid);
       border-color: #e5e7eb;
     }
 
     &:focus {
-      background-color: #ffffff;
+      background-color: var(--surface-solid);
       border-color: var(--primary-color);
     }
   }
@@ -777,12 +777,12 @@ const handleSubmit = async () => {
 
   &:hover {
     border-color: var(--primary-color);
-    background: rgba(79, 70, 229, 0.02);
+    background: color-mix(in srgb, var(--primary-color) 2%, transparent);
   }
 
   &.active {
     border-color: var(--primary-color);
-    background: rgba(79, 70, 229, 0.05);
+    background: color-mix(in srgb, var(--primary-color) 5%, transparent);
   }
 }
 
@@ -813,13 +813,13 @@ const handleSubmit = async () => {
 .style-title {
   font-size: 17px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .style-description {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0 0 16px 0;
 }
@@ -836,18 +836,18 @@ const handleSubmit = async () => {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .style-card.active .feature-tag {
-  background: rgba(79, 70, 229, 0.1);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
   color: var(--primary-color);
 }
 
 /* Avatar Config Section */
 .avatar-config-section {
   padding: 24px;
-  background: #f9fafb;
+  background: var(--bg-input);
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   margin-bottom: 32px;
@@ -856,13 +856,13 @@ const handleSubmit = async () => {
 .section-subtitle {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .section-hint {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin: 0 0 20px 0;
 }
 
@@ -876,7 +876,7 @@ const handleSubmit = async () => {
 
 .config-card {
   padding: 24px;
-  background: #f9fafb;
+  background: var(--bg-input);
   border-radius: 12px;
   border: 1px solid #e5e7eb;
 }
@@ -896,12 +896,12 @@ const handleSubmit = async () => {
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .card-hint {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0 0 12px 0;
 }
@@ -916,7 +916,7 @@ const handleSubmit = async () => {
 /* Creation Summary */
 .creation-summary {
   padding: 24px;
-  background: rgba(79, 70, 229, 0.03);
+  background: color-mix(in srgb, var(--primary-color) 3%, transparent);
   border-radius: 12px;
   border: 1px solid rgba(79, 70, 229, 0.1);
   margin-bottom: 32px;
@@ -931,13 +931,13 @@ const handleSubmit = async () => {
 .summary-title {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .summary-hint {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -960,13 +960,13 @@ const handleSubmit = async () => {
 }
 
 .summary-label {
-  color: #6b7280;
+  color: var(--text-secondary);
   font-weight: 500;
   min-width: 100px;
 }
 
 .summary-value {
-  color: #111827;
+  color: var(--text-primary);
   font-weight: 500;
   text-align: right;
   flex: 1;

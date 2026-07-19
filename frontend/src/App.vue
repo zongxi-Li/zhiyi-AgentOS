@@ -1721,7 +1721,7 @@ onUnmounted(() => {
   padding: 0;
   border: 1px solid var(--primary-line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
   color: var(--primary-color);
   font: inherit;
   font-size: 15px;
@@ -1734,7 +1734,7 @@ onUnmounted(() => {
 
 .simple-nav-toggle:hover {
   border-color: var(--border-focus);
-  background: #fff;
+  background: var(--surface-solid);
   transform: translateY(-1px);
 }
 

@@ -146,7 +146,7 @@ strong {
 .citation {
   padding: 8px;
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
 }
 

@@ -303,7 +303,7 @@ onMounted(async () => {
 /* 用户信息头部卡片 */
 .profile-header-card {
   position: relative;
-  background: #ffffff;
+  background: var(--surface-solid);
   border-radius: 20px;
   border: 1px solid var(--border-light);
   overflow: hidden;
@@ -348,7 +348,7 @@ onMounted(async () => {
 }
 
 .user-avatar {
-  border: 4px solid #ffffff;
+  border: 4px solid var(--surface-solid);
   transition: transform 0.3s ease;
 }
 
@@ -364,7 +364,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  border: 3px solid #ffffff;
+  border: 3px solid var(--surface-solid);
   opacity: 0;
   transition: opacity 0.3s ease;
   cursor: pointer;
@@ -424,7 +424,7 @@ onMounted(async () => {
 }
 
 .stat-card {
-  background: #ffffff;
+  background: var(--surface-solid);
   border: 1px solid var(--border-light);
   border-radius: 16px;
   padding: 24px;
@@ -450,7 +450,7 @@ onMounted(async () => {
   flex-shrink: 0;
   
   &.conversations {
-    background: rgba(79, 70, 229, 0.1);
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
     color: var(--primary-color);
   }
   
@@ -492,7 +492,7 @@ onMounted(async () => {
 }
 
 .content-card {
-  background: #ffffff;
+  background: var(--surface-solid);
   border: 1px solid var(--border-light);
   border-radius: 20px;
   overflow: hidden;
@@ -555,12 +555,12 @@ onMounted(async () => {
   
   :deep(.el-input__wrapper:hover) {
     border-color: var(--border-hover);
-    background: #ffffff;
+    background: var(--surface-solid);
   }
   
   :deep(.el-input__wrapper.is-focus) {
     border-color: var(--primary-color);
-    background: #ffffff;
+    background: var(--surface-solid);
     box-shadow: 0 0 0 3px var(--primary-fade);
   }
 }
@@ -601,7 +601,7 @@ onMounted(async () => {
 }
 
 .save-button.secondary {
-  background: #ffffff;
+  background: var(--surface-solid);
   color: var(--primary-color);
   border: 1px solid var(--primary-color);
 }

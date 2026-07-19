@@ -103,7 +103,7 @@ const legalBasisList = computed(() => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -125,7 +125,7 @@ const legalBasisList = computed(() => {
 .status {
   font-size: 12px;
   color: #166534;
-  background: #dcfce7;
+  background: var(--success-fade);
   border: 1px solid #86efac;
   border-radius: 999px;
   padding: 2px 8px;
@@ -133,7 +133,7 @@ const legalBasisList = computed(() => {
 
 .status.expired {
   color: #b91c1c;
-  background: #fee2e2;
+  background: var(--danger-fade);
   border-color: #fecaca;
 }
 
@@ -149,7 +149,7 @@ const legalBasisList = computed(() => {
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 7px 8px;
-  background: #f8fafc;
+  background: var(--bg-input);
 }
 
 .label {

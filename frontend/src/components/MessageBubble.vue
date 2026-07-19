@@ -544,7 +544,7 @@ const formatTime = (date: Date) => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
   border: 1px solid var(--border-light);
   border-radius: 8px;
 }
@@ -609,7 +609,7 @@ const formatTime = (date: Date) => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   padding: 0 4px;
   border-radius: 4px;
-  background: rgba(63, 107, 99, 0.12);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
 .message-text.markdown-body :deep(pre code) {

@@ -250,18 +250,15 @@ onUnmounted(() => {
 
 <style scoped>
 .topology-graph {
-  --primary: #6366f1;
-  --primary-light: #818cf8;
-  --primary-bg: rgba(99, 102, 241, 0.06);
-  --cyan: #22d3ee;
-  --cyan-dark: #0891b2;
-  --purple: #a78bfa;
-  --green: #34d399;
-  --surface: #ffffff;
-  --surface-alt: #f8fafc;
-  --text-primary: #1e293b;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --primary: var(--primary-color);
+  --primary-light: var(--primary-hover);
+  --primary-bg: var(--primary-fade);
+  --cyan: var(--info);
+  --cyan-dark: var(--info);
+  --purple: var(--accent-color);
+  --green: var(--success);
+  --surface: var(--bg-card);
+  --surface-alt: var(--bg-panel);
   --radius-sm: 8px;
   --transition-base: 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 
@@ -409,7 +406,7 @@ onUnmounted(() => {
 }
 
 .legend-dot.inactive {
-  background: #cbd5e1;
+  background: var(--border-light);
 }
 
 .legend-line {

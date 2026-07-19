@@ -155,7 +155,7 @@ const polygonPoints = computed(() => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -188,23 +188,23 @@ const polygonPoints = computed(() => {
   font-size: 12px;
   border-radius: 999px;
   padding: 3px 10px;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-input);
+  color: var(--text-regular);
   font-weight: 600;
 }
 
 .level.high {
-  background: #dcfce7;
+  background: var(--success-fade);
   color: #166534;
 }
 
 .level.medium {
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
 }
 
 .level.low {
-  background: #fee2e2;
+  background: var(--danger-fade);
   color: #b91c1c;
 }
 
@@ -275,14 +275,14 @@ const polygonPoints = computed(() => {
 .progress-track {
   height: 6px;
   border-radius: 999px;
-  background: #ecfdf5;
+  background: var(--success-fade);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #059669, #0d9488);
+  background: linear-gradient(90deg, var(--success), var(--success));
   transition: width 0.6s ease;
 }
 
@@ -292,7 +292,7 @@ const polygonPoints = computed(() => {
   line-height: 1.6;
   color: var(--text-primary);
   padding: 8px 10px;
-  background: #f0fdf4;
+  background: var(--success-fade);
   border-radius: 8px;
   border-left: 3px solid #059669;
 }

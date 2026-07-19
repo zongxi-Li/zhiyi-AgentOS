@@ -2261,7 +2261,7 @@ onUnmounted(() => {
   padding: 0 10px;
   border: 1px solid transparent;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.58);
+  background: color-mix(in srgb, var(--bg-card) 58%, transparent);
   color: var(--text-secondary);
   font: inherit;
   font-size: 12px;
@@ -2314,7 +2314,7 @@ onUnmounted(() => {
   padding: 3px;
   border: 1px solid var(--primary-line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
+  background: color-mix(in srgb, var(--bg-card) 76%, transparent);
   box-shadow: 0 8px 18px rgba(28, 39, 35, 0.06);
   backdrop-filter: blur(12px);
 }
@@ -2410,7 +2410,7 @@ onUnmounted(() => {
   margin-top: 0;
   border: 1.5px solid var(--border-light);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.95);
+  background: color-mix(in srgb, var(--bg-card) 95%, transparent);
   box-shadow: var(--shadow-md), 0 2px 8px rgba(217, 119, 87, 0.06);
   text-align: left;
   transform: translate(-50%, -50%);
@@ -2660,7 +2660,7 @@ onUnmounted(() => {
   padding: 0 12px;
   border: 1px solid var(--primary-line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--bg-card) 78%, transparent);
   color: var(--text-secondary);
   font: inherit;
   font-size: 13px;
@@ -2671,7 +2671,7 @@ onUnmounted(() => {
 
 .simple-session-btn:hover {
   border-color: var(--border-focus);
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--primary-color);
   transform: translateY(-1px);
 }
@@ -2725,7 +2725,7 @@ onUnmounted(() => {
   margin: 0 auto;
   border: 0;
   border-radius: 0;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
   box-shadow: none;
 }
 
@@ -3416,7 +3416,7 @@ onUnmounted(() => {
   padding: 8px 12px;
   border: 1px solid var(--border-light);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
@@ -3502,7 +3502,7 @@ onUnmounted(() => {
 }
 
 .recommendation-panel-wrap::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--border-light);
   border-radius: 999px;
 }
 
@@ -4274,13 +4274,13 @@ onUnmounted(() => {
   margin: 0;
   padding-left: 16px;
   font-size: 13px;
-  color: #374151;
+  color: var(--text-regular);
   line-height: 1.5;
 }
 
 .programmer-meta {
   font-size: 12px;
-  color: #475569;
+  color: var(--text-regular);
 }
 
 .programmer-search-list {
@@ -4313,7 +4313,7 @@ onUnmounted(() => {
 
 .search-head .score {
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 

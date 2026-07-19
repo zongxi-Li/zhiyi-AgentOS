@@ -126,7 +126,7 @@ const handleDelete = () => {
 
 <style scoped lang="scss">
 // 变量定义 - 简洁优雅的设计系统
-$primary-color: #6366f1;
+$primary-color: var(--primary-color);
 $primary-light: rgba(99, 102, 241, 0.08);
 $border-color: rgba(0, 0, 0, 0.08);
 $border-light: rgba(0, 0, 0, 0.05);
@@ -141,13 +141,13 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   border: 1px solid $border-color;
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--bg-card) 85%, transparent);
   backdrop-filter: blur(20px);
   
   &:hover {
     transform: translateY(-2px);
     box-shadow: $shadow-hover;
-    background: rgba(255, 255, 255, 0.95);
+    background: color-mix(in srgb, var(--bg-card) 95%, transparent);
     border-color: rgba(99, 102, 241, 0.2);
     
     .card-footer {
@@ -158,7 +158,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
   &.selected {
     border-color: $primary-color;
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15), $shadow-hover;
-    background: rgba(255, 255, 255, 0.95);
+    background: color-mix(in srgb, var(--bg-card) 95%, transparent);
     
     .status-indicator {
       color: $primary-color;
@@ -213,7 +213,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
         margin: 0;
         font-size: 16px;
         font-weight: 600;
-        color: #1f2937;
+        color: var(--text-primary);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -257,7 +257,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
     
     .role-id {
       font-size: 11px;
-      color: #6b7280;
+      color: var(--text-secondary);
       font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
       font-weight: 400;
       letter-spacing: 0.01em;
@@ -272,7 +272,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
     margin: 0;
     font-size: 13px;
     line-height: 1.6;
-    color: #4b5563;
+    color: var(--text-regular);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -298,14 +298,14 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
     gap: 8px;
     font-size: 12px;
     font-weight: 500;
-    color: #6b7280;
+    color: var(--text-secondary);
     letter-spacing: 0.01em;
     
     .dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #d1d5db;
+      background: var(--border-light);
       transition: all 0.25s;
     }
   }
@@ -320,7 +320,7 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
       border-radius: 8px;
       border: none;
       background: transparent;
-      color: #6b7280;
+      color: var(--text-secondary);
       cursor: pointer;
       display: flex;
       align-items: center;

@@ -97,7 +97,7 @@ const nodeMarker = (level?: number) => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   overflow: hidden;
 }
 
@@ -107,7 +107,7 @@ const nodeMarker = (level?: number) => {
   align-items: center;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
 }
 
 .head-left {
@@ -154,7 +154,7 @@ const nodeMarker = (level?: number) => {
   line-height: 1.7;
   color: var(--text-primary);
   padding: 10px 12px;
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-radius: 0;
 }
 

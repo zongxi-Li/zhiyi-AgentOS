@@ -72,7 +72,7 @@ const legalBasis = computed(() => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -94,7 +94,7 @@ const legalBasis = computed(() => {
 .count {
   font-size: 12px;
   color: #047857;
-  background: #ecfdf5;
+  background: var(--success-fade);
   border: 1px solid #a7f3d0;
   border-radius: 999px;
   padding: 2px 8px;
@@ -114,7 +114,7 @@ const legalBasis = computed(() => {
 
 .evidence-item {
   border: 1px solid #d1fae5;
-  background: #f0fdf4;
+  background: var(--success-fade);
   border-radius: 10px;
   padding: 8px;
   display: flex;

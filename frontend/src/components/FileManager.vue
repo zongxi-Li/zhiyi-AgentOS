@@ -277,7 +277,7 @@ watch(() => props.modelValue, (val) => {
   
   .file-icon {
     font-size: 18px;
-    color: #409eff;
+    color: var(--primary-color);
   }
 }
 

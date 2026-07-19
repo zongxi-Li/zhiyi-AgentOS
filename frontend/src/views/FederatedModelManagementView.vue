@@ -200,7 +200,7 @@
               <div class="detail-metric-item">
                 <span class="detail-metric-label">损失值</span>
                 <div class="detail-progress-track">
-                  <div class="detail-progress-fill" :style="{ width: Math.min(100, activeModel.loss * 50) + '%', background: activeModel.loss > 0.8 ? 'linear-gradient(90deg, #ef4444, #f87171)' : activeModel.loss > 0.5 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #22c55e, #4ade80)' }"></div>
+                  <div class="detail-progress-fill" :style="{ width: Math.min(100, activeModel.loss * 50) + '%', background: activeModel.loss > 0.8 ? 'linear-gradient(90deg, var(--danger), var(--danger))' : activeModel.loss > 0.5 ? 'linear-gradient(90deg, var(--warning), var(--warning))' : 'linear-gradient(90deg, var(--success), var(--success))' }"></div>
                 </div>
                 <span class="detail-metric-value">{{ activeModel.loss.toFixed(2) }}</span>
               </div>
@@ -627,7 +627,7 @@ function getAccentGradient(status: ModelStatus): string {
   if (status === 'online') return 'linear-gradient(180deg, #3d7656, rgba(61, 118, 86, 0.14))'
   if (status === 'training') return 'linear-gradient(180deg, #9a7432, rgba(154, 116, 50, 0.14))'
   if (status === 'ready') return 'linear-gradient(180deg, #3f6b63, rgba(63, 107, 99, 0.14))'
-  if (status === 'offline') return 'linear-gradient(180deg, #b24a4a, rgba(178, 74, 74, 0.14))'
+  if (status === 'offline') return 'linear-gradient(180deg, var(--danger), rgba(178, 74, 74, 0.14))'
   return 'linear-gradient(180deg, #a6aca8, rgba(166, 172, 168, 0.14))'
 }
 
@@ -825,7 +825,7 @@ onMounted(() => {
 <style scoped>
 .model-management-view {
   --primary: var(--primary-color, #3f6b63);
-  --primary-light: #5d817a;
+  --primary-light: var(--primary-hover);
   --primary-bg: var(--primary-fade, rgba(63, 107, 99, 0.1));
   --primary-border: var(--border-light, #e3e6df);
   --cyan: var(--accent-color, #6f668f);
@@ -835,7 +835,7 @@ onMounted(() => {
   --green-dark: var(--success, #3d7656);
   --pink: var(--warning, #9a7432);
   --amber: var(--warning, #9a7432);
-  --surface: #ffffff;
+  --surface: var(--bg-card);
   --surface-alt: var(--bg-input, #f1f3ef);
   --border: var(--border-light, #e3e6df);
   --border-hover: var(--border-hover, #cfd6cd);
@@ -891,7 +891,7 @@ onMounted(() => {
 .glass-panel {
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -918,7 +918,7 @@ onMounted(() => {
   height: 44px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--primary);
   display: flex;
   align-items: center;
@@ -1378,7 +1378,7 @@ onMounted(() => {
 }
 
 .eval-value.success {
-  color: #22c55e;
+  color: var(--success);
 }
 
 .eval-advice {
@@ -1497,7 +1497,7 @@ onMounted(() => {
 
 .runtime-node.running {
   border-color: var(--primary-line, rgba(63, 107, 99, 0.22));
-  background: rgba(63, 107, 99, 0.08);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
 }
 
 .runtime-node.pending .node-dot {
@@ -1510,8 +1510,8 @@ onMounted(() => {
 }
 
 .runtime-node.blocked .node-dot {
-  border-color: #b24a4a;
-  background: #b24a4a;
+  border-color: var(--danger);
+  background: var(--danger);
 }
 
 .runtime-insights {
@@ -1559,7 +1559,7 @@ onMounted(() => {
   padding: var(--gap-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface-solid);
 }
 
 .trace-head,
@@ -1617,7 +1617,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--primary);
-  background: #fff;
+  background: var(--surface-solid);
   font-size: 24px;
 }
 

@@ -194,7 +194,7 @@ const formatAdjustment = (v?: number) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.97);
+  background: color-mix(in srgb, var(--bg-card) 97%, transparent);
   border: 1px solid var(--border-light);
   border-radius: 14px;
   overflow: hidden;
@@ -212,7 +212,7 @@ const formatAdjustment = (v?: number) => {
   gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 40%, #fff7ed 100%);
+  background: linear-gradient(135deg, var(--warning-fade) 0%, var(--warning-fade) 40%, var(--warning-fade) 100%);
 }
 
 .header-left {
@@ -225,7 +225,7 @@ const formatAdjustment = (v?: number) => {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #d97706, #ea580c);
+  background: linear-gradient(135deg, var(--warning), var(--warning));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -265,7 +265,7 @@ const formatAdjustment = (v?: number) => {
   font-size: 11px;
   border-radius: 999px;
   padding: 3px 10px;
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #d97706;
   white-space: nowrap;
   font-weight: 600;
@@ -276,7 +276,7 @@ const formatAdjustment = (v?: number) => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #d97706;
+  background: var(--warning);
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
@@ -288,7 +288,7 @@ const formatAdjustment = (v?: number) => {
 .panel-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-light);
-  background: #fafbfc;
+  background: var(--bg-input);
 }
 
 .tab-btn {
@@ -335,14 +335,14 @@ const formatAdjustment = (v?: number) => {
   line-height: 16px;
   text-align: center;
   border-radius: 999px;
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
   padding: 0 4px;
   font-weight: 700;
 }
 
 .tab-btn.active .tab-badge {
-  background: #d97706;
+  background: var(--warning);
   color: #fff;
 }
 
@@ -368,7 +368,7 @@ const formatAdjustment = (v?: number) => {
 }
 
 .tab-content::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--border-light);
   border-radius: 999px;
 }
 
@@ -400,7 +400,7 @@ const formatAdjustment = (v?: number) => {
 
 .federated-btn {
   border: 1px solid #fcd34d;
-  background: #fffbeb;
+  background: var(--warning-fade);
   color: #b45309;
   border-radius: 999px;
   padding: 4px 10px;
@@ -412,12 +412,12 @@ const formatAdjustment = (v?: number) => {
 
 .federated-btn:hover:not(:disabled) {
   border-color: #d97706;
-  background: #fef3c7;
+  background: var(--warning-fade);
 }
 
 .federated-btn.ghost {
   border-color: #fde68a;
-  background: #fff;
+  background: var(--surface-solid);
   color: #d97706;
 }
 
@@ -435,17 +435,17 @@ const formatAdjustment = (v?: number) => {
 }
 
 .status-pill.on {
-  background: #dcfce7;
+  background: var(--success-fade);
   color: #166534;
 }
 
 .status-pill.off {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-input);
+  color: var(--text-regular);
 }
 
 .status-pill.idle {
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
 }
 
@@ -487,31 +487,31 @@ const formatAdjustment = (v?: number) => {
 }
 
 .skill-item.amber {
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-color: #fcd34d;
   color: #b45309;
 }
 
 .skill-item.orange {
-  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-color: #fdba74;
   color: #c2410c;
 }
 
 .skill-item.warm {
-  background: linear-gradient(135deg, #fffbeb, #fff7ed);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-color: #fed7aa;
   color: #9a3412;
 }
 
 .skill-item.rose {
-  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+  background: linear-gradient(135deg, var(--danger-fade), var(--danger-fade));
   border-color: #fda4af;
   color: #be123c;
 }
 
 .skill-item.teal {
-  background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
+  background: linear-gradient(135deg, var(--success-fade), var(--success-fade));
   border-color: #5eead4;
   color: #0f766e;
 }
@@ -562,7 +562,7 @@ const formatAdjustment = (v?: number) => {
 
 .empty-hint {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--text-disabled);
   text-align: center;
   line-height: 1.4;
 }

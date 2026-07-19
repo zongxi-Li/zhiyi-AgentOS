@@ -874,7 +874,7 @@ const exportTrace = async () => {
   height: 34px;
   border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--bg-card) 50%, transparent);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 22px;
@@ -920,7 +920,7 @@ const exportTrace = async () => {
 .switcher-templates::-webkit-scrollbar-thumb,
 .switcher-preview::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(63, 107, 99, 0.28);
+  background: color-mix(in srgb, var(--primary-color) 28%, transparent);
 }
 
 .switcher-roles button,
@@ -1000,7 +1000,7 @@ const exportTrace = async () => {
 .switcher-roles button.active,
 .switcher-templates button.active {
   border-color: var(--role-local-accent, var(--role-accent));
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
   box-shadow: 0 10px 26px rgba(47, 90, 82, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
@@ -1115,7 +1115,7 @@ const exportTrace = async () => {
   justify-content: center;
   gap: 7px;
   border-color: transparent;
-  background: linear-gradient(135deg, var(--role-accent), color-mix(in srgb, var(--role-accent) 78%, #111 22%));
+  background: linear-gradient(135deg, var(--role-accent), color-mix(in srgb, var(--role-accent) 78%, var(--text-primary) 22%));
   color: #fff;
   font-size: 14px;
   font-weight: 900;
@@ -1150,7 +1150,7 @@ const exportTrace = async () => {
 
 .ghost-button:hover {
   border-color: var(--border-hover);
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
   color: var(--text-primary);
 }
 
@@ -1162,7 +1162,7 @@ const exportTrace = async () => {
   justify-content: center;
   gap: 7px;
   border-color: transparent;
-  background: linear-gradient(135deg, var(--role-accent), color-mix(in srgb, var(--role-accent) 78%, #111 22%));
+  background: linear-gradient(135deg, var(--role-accent), color-mix(in srgb, var(--role-accent) 78%, var(--text-primary) 22%));
   color: #fff;
   font-size: 14px;
   font-weight: 900;
@@ -1208,7 +1208,7 @@ dd {
   height: 36px;
   padding: 0 14px;
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
 }
 
@@ -1324,13 +1324,13 @@ select {
 }
 
 textarea:focus {
-  background: #fff;
+  background: var(--surface-solid);
   border-color: var(--role-accent);
   box-shadow: 0 0 0 3px var(--role-accent-soft);
 }
 
 select:focus {
-  background: #fff;
+  background: var(--surface-solid);
   border-color: var(--role-accent);
   box-shadow: 0 0 0 3px var(--role-accent-soft);
 }
@@ -1347,7 +1347,7 @@ select:focus {
   min-height: 42px;
   padding: 0 18px;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: linear-gradient(135deg, var(--role-accent), color-mix(in srgb, var(--role-accent) 82%, #111 18%));
+  background: linear-gradient(135deg, var(--role-accent), color-mix(in srgb, var(--role-accent) 82%, var(--text-primary) 18%));
   color: #fff;
   font-size: 14px;
   font-weight: 750;
@@ -1369,7 +1369,7 @@ select:focus {
 }
 
 .primary-action:hover:not(:disabled) {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--role-accent) 90%, #fff 10%), color-mix(in srgb, var(--role-accent) 78%, #111 22%));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--role-accent) 90%, #fff 10%), color-mix(in srgb, var(--role-accent) 78%, var(--text-primary) 22%));
   box-shadow: 0 14px 28px color-mix(in srgb, var(--role-accent) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
 }
@@ -1386,7 +1386,7 @@ select:focus {
 
 .primary-action:disabled {
   border-color: rgba(255, 255, 255, 0.34);
-  background: linear-gradient(135deg, #7b84dc, #5f68c9);
+  background: linear-gradient(135deg, var(--accent-color), var(--primary-color));
   color: rgba(255, 255, 255, 0.96);
   box-shadow: 0 8px 18px rgba(95, 104, 201, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   text-shadow: 0 1px 1px rgba(31, 39, 102, 0.22);

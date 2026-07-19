@@ -185,7 +185,7 @@ const formatAdjustment = (v?: number) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.97);
+  background: color-mix(in srgb, var(--bg-card) 97%, transparent);
   border: 1px solid var(--border-light);
   border-radius: 14px;
   overflow: hidden;
@@ -203,7 +203,7 @@ const formatAdjustment = (v?: number) => {
   gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 40%, #e0e7ff 100%);
+  background: linear-gradient(135deg, var(--accent-fade) 0%, var(--accent-fade) 40%, var(--accent-fade) 100%);
 }
 
 .header-left {
@@ -216,7 +216,7 @@ const formatAdjustment = (v?: number) => {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  background: linear-gradient(135deg, var(--accent-color), #6366f1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -256,7 +256,7 @@ const formatAdjustment = (v?: number) => {
   font-size: 11px;
   border-radius: 999px;
   padding: 3px 10px;
-  background: #ede9fe;
+  background: var(--accent-fade);
   color: #7c3aed;
   white-space: nowrap;
   font-weight: 600;
@@ -267,7 +267,7 @@ const formatAdjustment = (v?: number) => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #7c3aed;
+  background: var(--accent-color);
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
@@ -279,7 +279,7 @@ const formatAdjustment = (v?: number) => {
 .panel-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-light);
-  background: #fafbfc;
+  background: var(--bg-input);
 }
 
 .tab-btn {
@@ -326,14 +326,14 @@ const formatAdjustment = (v?: number) => {
   line-height: 16px;
   text-align: center;
   border-radius: 999px;
-  background: #ede9fe;
+  background: var(--accent-fade);
   color: #5b21b6;
   padding: 0 4px;
   font-weight: 700;
 }
 
 .tab-btn.active .tab-badge {
-  background: #7c3aed;
+  background: var(--accent-color);
   color: #fff;
 }
 
@@ -378,7 +378,7 @@ const formatAdjustment = (v?: number) => {
 
 .federated-btn {
   border: 1px solid #c4b5fd;
-  background: #f5f3ff;
+  background: var(--accent-fade);
   color: #6d28d9;
   border-radius: 999px;
   padding: 4px 10px;
@@ -390,12 +390,12 @@ const formatAdjustment = (v?: number) => {
 
 .federated-btn:hover:not(:disabled) {
   border-color: #7c3aed;
-  background: #ede9fe;
+  background: var(--accent-fade);
 }
 
 .federated-btn.ghost {
   border-color: #ddd6fe;
-  background: #fff;
+  background: var(--surface-solid);
   color: #7c3aed;
 }
 
@@ -413,17 +413,17 @@ const formatAdjustment = (v?: number) => {
 }
 
 .status-pill.on {
-  background: #dcfce7;
+  background: var(--success-fade);
   color: #166534;
 }
 
 .status-pill.off {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-input);
+  color: var(--text-regular);
 }
 
 .status-pill.idle {
-  background: #ede9fe;
+  background: var(--accent-fade);
   color: #5b21b6;
 }
 
@@ -465,15 +465,15 @@ const formatAdjustment = (v?: number) => {
 }
 
 .skill-item.violet {
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  background: linear-gradient(135deg, var(--accent-fade), var(--accent-fade));
   border-color: #c4b5fd;
   color: #6d28d9;
 }
 
 .skill-item.indigo {
-  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  background: linear-gradient(135deg, var(--accent-fade), var(--accent-fade));
   border-color: #a5b4fc;
-  color: #4338ca;
+  color: var(--primary-color);
 }
 
 .skill-item.cyan {
@@ -483,7 +483,7 @@ const formatAdjustment = (v?: number) => {
 }
 
 .skill-item.emerald {
-  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  background: linear-gradient(135deg, var(--success-fade), var(--success-fade));
   border-color: #6ee7b7;
   color: #047857;
 }
@@ -529,7 +529,7 @@ const formatAdjustment = (v?: number) => {
 
 .empty-hint {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--text-disabled);
   text-align: center;
   line-height: 1.4;
 }

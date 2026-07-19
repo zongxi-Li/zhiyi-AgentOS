@@ -1026,7 +1026,7 @@ button {
 .panel {
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1102,7 +1102,7 @@ dd,
   padding: 0 13px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
   cursor: pointer;
   transition: var(--transition);
@@ -1162,7 +1162,7 @@ dd,
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-solid);
   transition: var(--transition);
 }
 
@@ -1243,7 +1243,7 @@ dd,
 .role-card:hover,
 .role-card.active {
   border-color: var(--primary-line);
-  background: #fff;
+  background: var(--surface-solid);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1448,7 +1448,7 @@ dd {
 .flow-step:hover,
 .flow-step.active {
   border-color: var(--primary-line);
-  background: #fff;
+  background: var(--surface-solid);
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
@@ -1617,7 +1617,7 @@ dd {
 
 .command-panel input:focus {
   border-color: var(--primary-line);
-  background: #fff;
+  background: var(--surface-solid);
   box-shadow: 0 0 0 3px var(--primary-fade);
 }
 
@@ -1715,7 +1715,7 @@ dd {
   padding: 7px 10px;
   border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--bg-card) 78%, transparent);
 }
 
 @media (max-width: 1280px) {

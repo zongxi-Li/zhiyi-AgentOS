@@ -135,7 +135,7 @@ onUnmounted(() => {
 
 .duration {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 </style>
 

@@ -129,7 +129,7 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -162,7 +162,7 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
 .meta {
   font-size: 12px;
   color: #059669;
-  background: #ecfdf5;
+  background: var(--success-fade);
   border: 1px solid #a7f3d0;
   border-radius: 999px;
   padding: 3px 10px;
@@ -189,7 +189,7 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
   line-height: 1.7;
   color: var(--text-primary);
   padding: 10px 12px;
-  background: linear-gradient(135deg, #f0fdf4, #fefce8);
+  background: linear-gradient(135deg, var(--success-fade), var(--warning-fade));
   border-radius: 10px;
   border: 1px solid #d1fae5;
 }
@@ -234,7 +234,7 @@ const renderedHtml = computed(() => toMarkdownHtml(lessonPlanMarkdown.value))
 
 .markdown-body :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: #ecfdf5;
+  background: var(--success-fade);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 12px;

@@ -28,7 +28,7 @@ withDefaults(defineProps<Props>(), {
   justify-content: center;
   gap: 10px;
   padding: 20px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .is-loading {

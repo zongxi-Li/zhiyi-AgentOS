@@ -345,7 +345,7 @@ const handleRegister = async () => {
   overflow: hidden;
   z-index: 10;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
   border: 1px solid rgba(255, 255, 255, 0.72);
   margin: 20px;
 }
@@ -373,7 +373,7 @@ const handleRegister = async () => {
 .logo-box {
   width: 40px;
   height: 40px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--primary-color);
   display: flex;
   align-items: center;
@@ -468,7 +468,7 @@ const handleRegister = async () => {
 /* Auth Side */
 .auth-side {
   flex: 0.9;
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
   padding: 40px 60px;
   display: flex;
   flex-direction: column;

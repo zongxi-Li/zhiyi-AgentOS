@@ -194,7 +194,7 @@ onUnmounted(() => {
 /* 页面头部 */
 .page-header {
   flex-shrink: 0;
-  background: #ffffff;
+  background: var(--surface-solid);
   border-bottom: 1px solid var(--border-light);
   padding: var(--page-header-padding-y) var(--page-padding-x);
 }
@@ -373,7 +373,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: #ffffff;
+  background: var(--surface-solid);
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 24px;

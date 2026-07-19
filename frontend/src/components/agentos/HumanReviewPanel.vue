@@ -223,7 +223,7 @@ textarea {
 select:focus,
 input:focus,
 textarea:focus {
-  background: #fff;
+  background: var(--surface-solid);
   border-color: var(--primary-line);
   box-shadow: 0 0 0 3px var(--primary-fade);
 }

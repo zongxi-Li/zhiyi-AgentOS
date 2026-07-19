@@ -330,7 +330,7 @@ p {
   padding: 0 14px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
   cursor: pointer;
   transition: var(--transition);
@@ -521,7 +521,7 @@ input {
 
 select:focus,
 input:focus {
-  background: #fff;
+  background: var(--surface-solid);
   border-color: var(--primary-line);
   box-shadow: 0 0 0 3px var(--primary-fade);
 }
@@ -555,7 +555,7 @@ input:focus {
   padding: 12px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
   text-align: left;
   cursor: pointer;
   transition: var(--transition);
@@ -563,7 +563,7 @@ input:focus {
 
 .run-item.active {
   border-color: var(--primary-line);
-  background: #fff;
+  background: var(--surface-solid);
   box-shadow: inset 2px 0 0 var(--primary-color), var(--shadow-sm);
 }
 

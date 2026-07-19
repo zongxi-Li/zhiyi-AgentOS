@@ -83,7 +83,7 @@ defineEmits<{
 .refresh-button {
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-secondary);
   padding: 6px 10px;
   cursor: pointer;
@@ -112,7 +112,7 @@ defineEmits<{
 
 .recommendation-item {
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--surface-solid);
   border-radius: 12px;
   padding: 12px;
   text-align: left;

@@ -62,7 +62,7 @@ pre {
   overflow: auto;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;

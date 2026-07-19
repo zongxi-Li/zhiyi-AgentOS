@@ -132,7 +132,7 @@ button {
   gap: 6px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
   cursor: pointer;
   transition: var(--transition);

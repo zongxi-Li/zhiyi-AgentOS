@@ -149,7 +149,7 @@ const issueTypeLabel = (type?: string) => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   overflow: hidden;
 }
 
@@ -159,7 +159,7 @@ const issueTypeLabel = (type?: string) => {
   align-items: center;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
 }
 
 .head-left {
@@ -187,22 +187,22 @@ const issueTypeLabel = (type?: string) => {
 }
 
 .logic-pill.excellent {
-  background: #dcfce7;
+  background: var(--success-fade);
   color: #166534;
 }
 
 .logic-pill.good {
-  background: #dbeafe;
+  background: var(--primary-fade);
   color: #1e40af;
 }
 
 .logic-pill.fair {
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
 }
 
 .logic-pill.poor {
-  background: #fee2e2;
+  background: var(--danger-fade);
   color: #991b1b;
 }
 
@@ -224,7 +224,7 @@ const issueTypeLabel = (type?: string) => {
 
 .summary-block {
   padding: 10px 12px;
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-bottom: 1px solid #fde68a;
 }
 
@@ -269,14 +269,14 @@ const issueTypeLabel = (type?: string) => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #d97706;
+  background: var(--warning);
   flex-shrink: 0;
 }
 
 .tl-line {
   width: 2px;
   flex: 1;
-  background: #fde68a;
+  background: var(--warning-fade);
   min-height: 8px;
 }
 
@@ -321,17 +321,17 @@ const issueTypeLabel = (type?: string) => {
 }
 
 .issue-item.critical {
-  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  background: linear-gradient(135deg, var(--danger-fade), var(--danger-fade));
   border-color: #fca5a5;
 }
 
 .issue-item.warning {
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-color: #fcd34d;
 }
 
 .issue-item.info {
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
   border-color: #fde68a;
 }
 
@@ -350,23 +350,23 @@ const issueTypeLabel = (type?: string) => {
 }
 
 .issue-type-badge.critical {
-  background: #fee2e2;
+  background: var(--danger-fade);
   color: #991b1b;
 }
 
 .issue-type-badge.warning {
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
 }
 
 .issue-type-badge.info {
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
 }
 
 .issue-location {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .issue-desc {
@@ -381,7 +381,7 @@ const issueTypeLabel = (type?: string) => {
   font-size: 11px;
   color: #92400e;
   padding: 4px 8px;
-  background: #fffbeb;
+  background: var(--warning-fade);
   border-radius: 6px;
   border-left: 3px solid #d97706;
 }

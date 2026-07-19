@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   overflow: hidden;
 }
 
@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  background: linear-gradient(135deg, var(--warning-fade), var(--warning-fade));
 }
 
 .head-left {
@@ -342,7 +342,7 @@ onBeforeUnmount(() => {
 .fullscreen-graph {
   width: 90vw;
   height: 85vh;
-  background: #fff;
+  background: var(--surface-solid);
   border-radius: 8px;
   padding: 20px;
 }

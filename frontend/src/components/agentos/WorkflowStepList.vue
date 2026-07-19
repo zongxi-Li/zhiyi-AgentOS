@@ -116,7 +116,7 @@ p,
 
 .step-card.active {
   border-color: var(--primary-line);
-  background: #fff;
+  background: var(--surface-solid);
   box-shadow: inset 2px 0 0 var(--primary-color), var(--shadow-sm);
 }
 

@@ -338,7 +338,7 @@ pre {
   margin: 8px 0 0;
   padding: 8px;
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface-solid);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 11px;

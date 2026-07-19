@@ -678,7 +678,7 @@ onUnmounted(() => {
   gap: 16px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
   backdrop-filter: blur(12px);
   position: relative;
   z-index: 10;
@@ -868,7 +868,7 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--bg-card) 85%, transparent);
   border: 1px solid rgba(226, 232, 240, 0.8);
   backdrop-filter: blur(4px);
   transition: all 0.3s ease;
@@ -877,7 +877,7 @@ onUnmounted(() => {
 .stage-chip.active {
   color: var(--primary-color);
   border-color: rgba(79, 70, 229, 0.4);
-  background: rgba(79, 70, 229, 0.08);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
   transform: scale(1.02);
 }
 
@@ -990,7 +990,7 @@ onUnmounted(() => {
 
 .message-bubble {
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--surface-solid);
   border-radius: 16px;
   padding: 12px 14px;
   line-height: 1.7;
@@ -1006,7 +1006,7 @@ onUnmounted(() => {
 }
 
 .message-item.user .message-bubble {
-  background: linear-gradient(135deg, var(--primary-color), #4338ca);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-active));
   color: #fff;
   border-color: transparent;
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);

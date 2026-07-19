@@ -135,7 +135,7 @@ onUnmounted(() => window.removeEventListener(MODEL_SETTINGS_EVENT, syncSettings)
   min-height: 28px;
   padding: 0 8px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--bg-card) 78%, transparent);
   box-shadow: 0 0 0 1px var(--border-light) inset;
 }
 

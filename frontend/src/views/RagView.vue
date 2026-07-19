@@ -301,7 +301,7 @@ onMounted(() => {
 /* 页面头部 */
 .page-header {
   flex-shrink: 0;
-  background: #ffffff;
+  background: var(--surface-solid);
   border-bottom: 1px solid var(--border-light);
   padding: var(--page-header-padding-y) var(--page-padding-x);
 }
@@ -482,7 +482,7 @@ onMounted(() => {
 }
 
 .docs-card {
-  background: #ffffff;
+  background: var(--surface-solid);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   overflow: hidden;
@@ -650,7 +650,7 @@ onMounted(() => {
   padding: 12px;
   border-radius: 10px;
   border: 1px solid var(--border-light);
-  background: #ffffff;
+  background: var(--surface-solid);
   transition: all 0.2s ease;
 }
 

@@ -115,7 +115,7 @@ const testStatusIcon = (status?: string) => {
 .card {
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-solid);
   overflow: hidden;
 }
 
@@ -125,7 +125,7 @@ const testStatusIcon = (status?: string) => {
   align-items: center;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  background: linear-gradient(135deg, var(--accent-fade), var(--accent-fade));
 }
 
 .head-left {
@@ -153,17 +153,17 @@ const testStatusIcon = (status?: string) => {
 }
 
 .coverage-pill.high {
-  background: #dcfce7;
+  background: var(--success-fade);
   color: #166534;
 }
 
 .coverage-pill.medium {
-  background: #fef3c7;
+  background: var(--warning-fade);
   color: #92400e;
 }
 
 .coverage-pill.low {
-  background: #fee2e2;
+  background: var(--danger-fade);
   color: #991b1b;
 }
 
@@ -185,7 +185,7 @@ const testStatusIcon = (status?: string) => {
 
 .summary-block {
   padding: 10px 12px;
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  background: linear-gradient(135deg, var(--accent-fade), var(--accent-fade));
   border-bottom: 1px solid #e9e5f5;
 }
 
@@ -215,17 +215,17 @@ const testStatusIcon = (status?: string) => {
 }
 
 .test-item.passed {
-  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  background: linear-gradient(135deg, var(--success-fade), var(--success-fade));
   border-color: #86efac;
 }
 
 .test-item.failed {
-  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  background: linear-gradient(135deg, var(--danger-fade), var(--danger-fade));
   border-color: #fca5a5;
 }
 
 .test-item.pending {
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  background: linear-gradient(135deg, var(--accent-fade), var(--accent-fade));
   border-color: #c4b5fd;
 }
 
@@ -291,12 +291,12 @@ const testStatusIcon = (status?: string) => {
 .coverage-bar-wrap {
   padding: 10px 12px;
   border-top: 1px solid var(--border-light);
-  background: #faf9ff;
+  background: var(--accent-fade);
 }
 
 .coverage-bar-track {
   height: 8px;
-  background: #e9e5f5;
+  background: var(--accent-fade);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -304,7 +304,7 @@ const testStatusIcon = (status?: string) => {
 .coverage-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  background: linear-gradient(90deg, var(--accent-color), var(--accent-color));
   transition: width 0.6s ease;
 }
 

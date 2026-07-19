@@ -68,7 +68,7 @@ const displayTrace = computed(() => {
   padding: 10px;
   border: 1px solid var(--border-light);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-solid);
 }
 
 .step-index {
