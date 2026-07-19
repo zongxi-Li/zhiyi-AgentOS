@@ -1,6 +1,7 @@
 param(
     [string]$EnvFile = ".env.windows",
-    [switch]$DebugPorts
+    [switch]$DebugPorts,
+    [switch]$Build
 )
 
 . (Join-Path $PSScriptRoot "_common.ps1")
@@ -10,6 +11,8 @@ if ($LASTEXITCODE -ne 0) { throw "Windows preflight failed" }
 $env:DOCKER_BUILDKIT = "1"
 $env:COMPOSE_DOCKER_CLI_BUILD = "1"
 Write-KinlinContext $context
-$arguments = @("up", "-d", "--build", "--wait")
+$arguments = @("up", "-d", "--wait")
+if ($Build) { $arguments += "--build" }
 if ($DebugPorts) { $arguments = @("--profile", "debug-ports") + $arguments }
 Invoke-KinlinCompose $context @arguments
+Write-Host "Windows development environment is ready at http://127.0.0.1:$($context.HttpPort)"

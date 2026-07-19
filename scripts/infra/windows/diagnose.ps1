@@ -14,7 +14,11 @@ $composeArgs = Get-KinlinComposeArguments $context
 
 function Save-CommandOutput {
     param([string]$Name, [scriptblock]$Command, [switch]$Sanitize)
-    $lines = & $Command 2>&1 | ForEach-Object { [string]$_ }
+    try {
+        $lines = & $Command 2>&1 | ForEach-Object { [string]$_ }
+    } catch {
+        $lines = @("CHECK_FAILED: $($_.Exception.Message)")
+    }
     if ($Sanitize) {
         $lines = $lines | ForEach-Object { if ($_ -match '(?i)(password|secret|token|api[_-]?key|authorization)') { "[REDACTED SENSITIVE LINE]" } else { $_ } }
     }
@@ -52,7 +56,8 @@ Save-CommandOutput "connectivity.txt" {
             docker compose @composeArgs exec -T ai-service getent hosts $hostName 2>$null
             Write-Output "ai_dns_$hostName`_exit=$LASTEXITCODE (expected nonzero)"
         }
-        docker compose @composeArgs exec -T ai-service python -c "import urllib.request; print('ai_external_https='+str(urllib.request.urlopen('https://www.example.com',timeout=10).status))"
+        Write-Output "External internet connectivity is informational and is not required for local runtime"
+        docker compose @composeArgs exec -T ai-service python -c "import urllib.request; print('ai_external_https='+str(urllib.request.urlopen('https://www.example.com',timeout=10).status))" 2>$null
         Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$($context.HttpPort)/" -TimeoutSec 5 | Select-Object StatusCode
     } finally { Pop-Location }
 }

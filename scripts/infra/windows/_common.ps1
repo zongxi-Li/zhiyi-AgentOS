@@ -103,6 +103,29 @@ function Get-KinlinServiceContainerId {
     }
 }
 
+function Wait-KinlinServiceHealthy {
+    param(
+        $Context,
+        [Parameter(Mandatory = $true)][string]$Service,
+        [int]$TimeoutSeconds = 180
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $containerId = Get-KinlinServiceContainerId $Context $Service
+        $status = (& docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $containerId).Trim()
+        if ($LASTEXITCODE -ne 0) { throw "Unable to inspect service health: $Service" }
+        if ($status -eq "healthy" -or $status -eq "running") {
+            Write-Host "$Service status=$status"
+            return
+        }
+        if ($status -eq "unhealthy" -or $status -eq "exited" -or $status -eq "dead") {
+            throw "$Service entered terminal status=$status"
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "Timed out waiting for $Service after ${TimeoutSeconds}s"
+}
+
 function Get-KinlinWslOutput {
     param([Parameter(Mandatory = $true)][string]$Arguments)
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()

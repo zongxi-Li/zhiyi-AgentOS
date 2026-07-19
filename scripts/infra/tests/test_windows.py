@@ -40,6 +40,22 @@ def test_safe_down_never_deletes_volumes_and_required_scripts_exist():
     assert "--volumes" not in down
 
 
+def test_windows_up_reuses_images_unless_build_is_requested():
+    script = (ROOT / "scripts" / "infra" / "windows" / "up.ps1").read_text(encoding="utf-8")
+
+    assert '[switch]$Build' in script
+    assert 'if ($Build) { $arguments += "--build" }' in script
+    assert '@("up", "-d", "--wait")' in script
+
+
+def test_backend_restart_uses_incremental_compile_by_default():
+    script = (ROOT / "scripts" / "infra" / "windows" / "restart-service.ps1").read_text(encoding="utf-8")
+
+    assert "-DskipTests compile" in script
+    assert "Spring Boot DevTools" in script
+    assert '[switch]$FullRestart' in script
+
+
 def test_backup_image_inventory_falls_back_to_runtime_container_inspect():
     compose_failure = subprocess.CalledProcessError(1, ["docker", "compose", "images"])
     inspected = '[{"Name":"/demo-backend-1","Image":"sha256:abc","Config":{"Image":"demo:dev","Labels":{"com.docker.compose.service":"backend"}}}]'
