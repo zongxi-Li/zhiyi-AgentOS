@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { parseSseDataLine } from '@/utils/sse'
+import { parseChatStreamData, parseSseDataLine, type ChatStreamEvent } from '@/utils/sse'
 import { agentosApi, type WorkflowStartResponse } from '@/services/api/agentos'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import { loadModelSettings, toModelRequestSettings, type ModelSettings } from '@/config/modelSettings'
@@ -101,6 +101,15 @@ export interface Message {
   modelInfo?: string
   thinkingState?: 'thinking' | 'complete' | 'error'
   thinkingDurationMs?: number
+  reasoningContent?: string
+  requestedThinkingMode?: string
+  effectiveThinkingMode?: string
+  effectiveReasoningEffort?: string
+  inputTokens?: number
+  reasoningTokens?: number
+  outputTokens?: number
+  latencyMs?: number
+  executionSummary?: Array<{ stage: string; status: string; description: string }>
   skillsUsed?: string[]
   trace?: AgentTraceStep[]
   federated?: FederatedInfo
@@ -190,6 +199,14 @@ export const useChatStore = defineStore('chat', () => {
         sources: response.sources,
         reasoningPath: response.reasoningPath,
         modelInfo: response.modelInfo,
+        requestedThinkingMode: response.metadata?.requestedThinkingMode,
+        effectiveThinkingMode: response.metadata?.effectiveThinkingMode,
+        effectiveReasoningEffort: response.metadata?.effectiveReasoningEffort,
+        inputTokens: response.metadata?.inputTokens,
+        reasoningTokens: response.metadata?.reasoningTokens,
+        outputTokens: response.metadata?.outputTokens,
+        latencyMs: response.metadata?.latencyMs,
+        executionSummary: response.metadata?.executionSummary,
         agentMode: 'default'
       }
       messages.value.push(assistantMessage)
@@ -277,17 +294,20 @@ export const useChatStore = defineStore('chat', () => {
       modelInfo: runtimeSettings.provider === 'system'
         ? streamModelInfo[agentMode]
         : runtimeSettings.selectedModel,
-      thinkingState: 'thinking',
+      thinkingState: runtimeSettings.thinkingMode === 'disabled' ? undefined : 'thinking',
+      requestedThinkingMode: runtimeSettings.thinkingMode,
+      reasoningContent: '',
       agentMode
     }
     messages.value.push(streamMsg)
     const streamIndex = messages.value.length - 1
     const thinkingStartedAt = Date.now()
-    const finishThinking = (state: 'complete' | 'error') => {
+    const finishThinking = (state: 'complete' | 'error', durationMs?: number) => {
       const message = messages.value[streamIndex]
-      if (!message || message.thinkingState !== 'thinking') return
+      if (!message) return
+      if (!message.thinkingState && message.requestedThinkingMode === 'disabled') return
       message.thinkingState = state
-      message.thinkingDurationMs = Math.max(0, Date.now() - thinkingStartedAt)
+      message.thinkingDurationMs = Math.max(0, durationMs ?? (Date.now() - thinkingStartedAt))
     }
     const setStreamContent = (content: string) => {
       const message = messages.value[streamIndex]
@@ -298,6 +318,51 @@ export const useChatStore = defineStore('chat', () => {
       if (message) {
         finishThinking('complete')
         message.content = (message.content || '') + delta
+      }
+    }
+    const appendReasoningContent = (delta: string) => {
+      const message = messages.value[streamIndex]
+      if (message) message.reasoningContent = (message.reasoningContent || '') + delta
+    }
+    const applyStreamEvent = (event: ChatStreamEvent) => {
+      const message = messages.value[streamIndex]
+      if (!message) return
+      const data = event.data || {}
+      switch (event.event) {
+        case 'reasoning_start':
+          message.thinkingState = 'thinking'
+          message.requestedThinkingMode = data.requestedThinkingMode || message.requestedThinkingMode
+          message.effectiveThinkingMode = data.effectiveThinkingMode
+          message.effectiveReasoningEffort = data.effectiveReasoningEffort
+          break
+        case 'reasoning_delta':
+          if (typeof data.delta === 'string') appendReasoningContent(data.delta)
+          break
+        case 'reasoning_end':
+          finishThinking('complete', typeof data.reasoningPhaseMs === 'number' ? data.reasoningPhaseMs : undefined)
+          break
+        case 'content_delta':
+          if (typeof data.delta === 'string') appendStreamContent(data.delta)
+          break
+        case 'usage':
+          message.inputTokens = data.input_tokens ?? data.inputTokens
+          message.reasoningTokens = data.reasoning_tokens ?? data.reasoningTokens
+          message.outputTokens = data.output_tokens ?? data.outputTokens
+          message.tokensUsed = data.total_tokens ?? data.totalTokens
+          message.latencyMs = data.latencyMs
+          message.modelInfo = data.effectiveModel || message.modelInfo
+          message.requestedThinkingMode = data.requestedThinkingMode || message.requestedThinkingMode
+          message.effectiveThinkingMode = data.effectiveThinkingMode || message.effectiveThinkingMode
+          message.effectiveReasoningEffort = data.effectiveReasoningEffort || message.effectiveReasoningEffort
+          break
+        case 'done':
+          if (typeof data.contextId === 'string' && data.contextId) contextId.value = data.contextId
+          finishThinking(message.content ? 'complete' : 'error')
+          break
+        case 'error':
+          finishThinking('error')
+          if (!message.content) message.content = `Stream request failed: ${data.code || 'AI_STREAM_FAILED'}`
+          break
       }
     }
 
@@ -320,7 +385,8 @@ export const useChatStore = defineStore('chat', () => {
             : runtimeSettings.selectedModel,
           base_url: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.baseUrl,
           api_key: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.apiKey,
-          reasoning_effort: runtimeSettings.reasoningEffort
+          thinking_mode: runtimeSettings.thinkingMode,
+          context_id: contextId.value || undefined
         })
       })
 
@@ -340,7 +406,7 @@ export const useChatStore = defineStore('chat', () => {
       let buffer = ''
       let streamComplete = false
 
-      streamLoop: while (true) {
+      while (true) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
@@ -349,20 +415,12 @@ export const useChatStore = defineStore('chat', () => {
         for (const line of lines) {
           const data = parseSseDataLine(line)
           if (data !== null) {
-            if (data === '[DONE]') {
+            const event = parseChatStreamData(data)
+            if (!event) continue
+            applyStreamEvent(event)
+            if (event.event === 'done') {
               streamComplete = true
-              await reader.cancel()
-              break streamLoop
             }
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.delta) {
-                appendStreamContent(parsed.delta)
-              } else if (parsed.error) {
-                finishThinking('error')
-                setStreamContent(`Stream request failed: ${parsed.error}`)
-              }
-            } catch { /* skip parse errors */ }
           }
         }
       }
@@ -386,7 +444,10 @@ export const useChatStore = defineStore('chat', () => {
         setStreamContent('流式请求失败: ' + (e as Error).message)
       }
     } finally {
-      finishThinking(streamMsg.content ? 'complete' : 'error')
+      const message = messages.value[streamIndex]
+      if (message?.thinkingState === 'thinking') {
+        finishThinking(message.content && !message.content.startsWith('Stream request failed:') ? 'complete' : 'error')
+      }
       if (activeStreamController === streamController) activeStreamController = null
       loading.value = false
     }
@@ -633,6 +694,19 @@ export const useChatStore = defineStore('chat', () => {
         content: msg.content || '',
         createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
         fileUrl: msg.fileUrl,
+        confidence: msg.metadata?.confidence,
+        tokensUsed: msg.metadata?.totalTokens ?? msg.metadata?.tokens_used,
+        modelInfo: msg.metadata?.effectiveModel ?? msg.metadata?.model_info,
+        requestedThinkingMode: msg.metadata?.requestedThinkingMode,
+        effectiveThinkingMode: msg.metadata?.effectiveThinkingMode,
+        effectiveReasoningEffort: msg.metadata?.effectiveReasoningEffort,
+        thinkingDurationMs: msg.metadata?.reasoningPhaseMs,
+        inputTokens: msg.metadata?.inputTokens,
+        reasoningTokens: msg.metadata?.reasoningTokens,
+        outputTokens: msg.metadata?.outputTokens,
+        latencyMs: msg.metadata?.latencyMs,
+        executionSummary: msg.metadata?.executionSummary,
+        thinkingState: msg.metadata?.thinkingEnabled ? 'complete' : undefined,
         agentMode: 'default'
       }))
 

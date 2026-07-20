@@ -163,7 +163,13 @@
                   reasoningPath: msg.reasoningPath,
                   modelInfo: msg.modelInfo,
                   thinkingState: msg.thinkingState,
-                  thinkingDurationMs: msg.thinkingDurationMs
+                  thinkingDurationMs: msg.thinkingDurationMs,
+                  reasoningContent: msg.reasoningContent,
+                  requestedThinkingMode: msg.requestedThinkingMode,
+                  effectiveThinkingMode: msg.effectiveThinkingMode,
+                  effectiveReasoningEffort: msg.effectiveReasoningEffort,
+                  reasoningTokens: msg.reasoningTokens,
+                  executionSummary: msg.executionSummary
                 }"
               />
             </div>

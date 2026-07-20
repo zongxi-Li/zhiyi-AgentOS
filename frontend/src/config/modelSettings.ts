@@ -1,5 +1,5 @@
 export type ModelProviderId = 'system' | 'qwen' | 'deepseek' | 'openai' | 'custom'
-export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high'
+export type ThinkingMode = 'disabled' | 'standard' | 'deep'
 
 export interface ModelProviderPreset {
   id: ModelProviderId
@@ -15,12 +15,12 @@ export interface ModelSettings {
   baseUrl: string
   models: string[]
   selectedModel: string
-  reasoningEffort: ReasoningEffort
+  thinkingMode: ThinkingMode
 }
 
 export const MODEL_SETTINGS_KEY = 'kinlin.model_settings'
 export const MODEL_SETTINGS_EVENT = 'kinlin-model-settings-change'
-export const SYSTEM_FALLBACK_MODELS = ['deepseek-chat', 'deepseek-v4-flash', 'deepseek-v4-pro']
+export const SYSTEM_FALLBACK_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro']
 
 export const modelProviderPresets: ModelProviderPreset[] = [
   {
@@ -42,7 +42,7 @@ export const modelProviderPresets: ModelProviderPreset[] = [
     name: 'DeepSeek',
     description: 'DeepSeek 官方 OpenAI 兼容接口',
     baseUrl: 'https://api.deepseek.com/v1',
-    models: ['deepseek-v4-pro', 'deepseek-v4-flash']
+    models: ['deepseek-v4-flash', 'deepseek-v4-pro']
   },
   {
     id: 'openai',
@@ -60,12 +60,29 @@ export const modelProviderPresets: ModelProviderPreset[] = [
   }
 ]
 
-export const reasoningOptions: Array<{ value: ReasoningEffort; label: string; shortLabel: string }> = [
-  { value: 'off', label: '关闭思考', shortLabel: '关' },
-  { value: 'low', label: '低度思考', shortLabel: '低' },
-  { value: 'medium', label: '中度思考', shortLabel: '中' },
-  { value: 'high', label: '高度思考', shortLabel: '高' }
+export const thinkingOptions: Array<{ value: ThinkingMode; label: string; shortLabel: string }> = [
+  { value: 'disabled', label: '关闭思考', shortLabel: '关' },
+  { value: 'standard', label: '标准思考', shortLabel: '标准' },
+  { value: 'deep', label: '深度思考', shortLabel: '深度' }
 ]
+
+const LEGACY_MODEL_ALIASES: Record<string, string> = {
+  'deepseek-chat': 'deepseek-v4-flash',
+  'deepseek-reasoner': 'deepseek-v4-flash'
+}
+
+function migrateModel(model: string): string {
+  return LEGACY_MODEL_ALIASES[model] || model
+}
+
+function migrateThinkingMode(value: unknown, legacyModel = ''): ThinkingMode {
+  if (value === 'disabled' || value === 'standard' || value === 'deep') return value
+  if (value === 'off') return 'disabled'
+  if (value === 'low' || value === 'medium') return 'standard'
+  if (value === 'high' || value === 'max' || value === 'xhigh') return 'deep'
+  if (legacyModel === 'deepseek-reasoner') return 'standard'
+  return 'disabled'
+}
 
 export function getDefaultModelSettings(): ModelSettings {
   return {
@@ -74,7 +91,7 @@ export function getDefaultModelSettings(): ModelSettings {
     baseUrl: '',
     models: [...SYSTEM_FALLBACK_MODELS],
     selectedModel: SYSTEM_FALLBACK_MODELS[0],
-    reasoningEffort: 'off'
+    thinkingMode: 'disabled'
   }
 }
 
@@ -83,19 +100,22 @@ export function loadModelSettings(): ModelSettings {
   try {
     const raw = localStorage.getItem(MODEL_SETTINGS_KEY)
     if (!raw) return fallback
-    const parsed = JSON.parse(raw) as Partial<ModelSettings>
+    const parsed = JSON.parse(raw) as Partial<ModelSettings> & { reasoningEffort?: unknown }
     const provider = modelProviderPresets.some(item => item.id === parsed.provider)
       ? parsed.provider as ModelProviderId
       : fallback.provider
     const storedModels = Array.isArray(parsed.models)
-      ? parsed.models.filter(model => typeof model === 'string' && model.trim()).map(model => model.trim())
+      ? parsed.models
+        .filter(model => typeof model === 'string' && model.trim())
+        .map(model => migrateModel(model.trim()))
       : fallback.models
     const models = provider === 'system' && (
       storedModels.length === 0 || storedModels.includes('系统默认')
     )
       ? [...SYSTEM_FALLBACK_MODELS]
       : [...new Set(storedModels)]
-    const storedSelectedModel = parsed.selectedModel?.trim() || ''
+    const legacySelectedModel = parsed.selectedModel?.trim() || ''
+    const storedSelectedModel = migrateModel(legacySelectedModel)
     const selectedModel = models.includes(storedSelectedModel)
       ? storedSelectedModel
       : models[0] || fallback.selectedModel
@@ -106,9 +126,7 @@ export function loadModelSettings(): ModelSettings {
       provider,
       models: models.length ? models : fallback.models,
       selectedModel,
-      reasoningEffort: reasoningOptions.some(item => item.value === parsed.reasoningEffort)
-        ? parsed.reasoningEffort as ReasoningEffort
-        : fallback.reasoningEffort
+      thinkingMode: migrateThinkingMode(parsed.thinkingMode ?? parsed.reasoningEffort, legacySelectedModel)
     }
   } catch {
     return fallback
@@ -148,13 +166,13 @@ export function toModelRequestSettings(settings: ModelSettings) {
   if (settings.provider === 'system') {
     return {
       model: settings.selectedModel === '系统默认' ? undefined : settings.selectedModel,
-      reasoningEffort: settings.reasoningEffort
+      thinkingMode: settings.thinkingMode
     }
   }
   return {
     model: settings.selectedModel,
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
-    reasoningEffort: settings.reasoningEffort
+    thinkingMode: settings.thinkingMode
   }
 }

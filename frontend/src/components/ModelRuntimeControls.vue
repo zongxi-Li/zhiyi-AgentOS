@@ -17,14 +17,14 @@
     </el-select>
 
     <el-select
-      v-model="settings.reasoningEffort"
+      v-model="settings.thinkingMode"
       class="reasoning-select"
       aria-label="选择思考程度"
       @change="persistSettings"
     >
       <template #prefix><el-icon><Opportunity /></el-icon></template>
       <el-option
-        v-for="option in reasoningOptions"
+        v-for="option in thinkingOptions"
         :key="option.value"
         :label="compact ? option.shortLabel : option.label"
         :value="option.value"
@@ -40,7 +40,7 @@ import {
   MODEL_SETTINGS_EVENT,
   SYSTEM_FALLBACK_MODELS,
   loadModelSettings,
-  reasoningOptions,
+  thinkingOptions,
   saveModelSettings,
   type ModelSettings
 } from '@/config/modelSettings'
@@ -57,7 +57,6 @@ function persistSettings(): void {
 
 function compactModelLabel(model: string): string {
   const labels: Record<string, string> = {
-    'deepseek-chat': 'Chat',
     'deepseek-v4-flash': 'Flash',
     'deepseek-v4-pro': 'Pro'
   }
@@ -128,7 +127,7 @@ onUnmounted(() => window.removeEventListener(MODEL_SETTINGS_EVENT, syncSettings)
 }
 
 .model-runtime-controls.compact .reasoning-select {
-  width: 68px;
+  width: 82px;
 }
 
 .model-runtime-controls :deep(.el-select__wrapper) {

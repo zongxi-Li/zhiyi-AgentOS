@@ -32,5 +32,8 @@ public class ChatRequest {
 
     private String apiKey;
 
+    private String thinkingMode;
+
+    // Compatibility with clients that still send off/low/medium/high.
     private String reasoningEffort;
 }

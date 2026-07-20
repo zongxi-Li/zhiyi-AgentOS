@@ -5,9 +5,10 @@ from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-import json
 import asyncio
 import logging
+import time
+from uuid import uuid4
 from app.services.aiservice import AIService
 from app.config import settings
 from app.ai_engine.kylin_sdk.client import KylinAIClient
@@ -17,6 +18,7 @@ from app.ai_engine.model_runtime import (
     resolve_system_runtime_config,
     stream_with_runtime_model,
 )
+from app.llm.chat_stream import ChatStreamEvent, ChatStreamEventType
 
 router = APIRouter()
 
@@ -28,11 +30,16 @@ logger = logging.getLogger(__name__)
 class ChatRequest(BaseModel):
     text: str
     role_id: Optional[str] = None
+    context_id: Optional[str] = None
     context: Optional[List[Dict[str, str]]] = None
     model: Optional[str] = None
     base_url: Optional[str] = None
     api_key: Optional[str] = None
-    reasoning_effort: str = "off"
+    thinking_mode: Optional[str] = None
+    reasoning_effort: Optional[str] = None
+
+    def resolved_thinking_mode(self) -> str:
+        return self.thinking_mode or self.reasoning_effort or "disabled"
 
 class ChatResponse(BaseModel):
     text: str
@@ -40,6 +47,7 @@ class ChatResponse(BaseModel):
     tokens_used: int
     animation: Optional[Dict] = None
     model_info: Optional[str] = None
+    metadata: Optional[Dict] = None
 
 
 @router.get("/chat/models")
@@ -50,6 +58,7 @@ async def chat_models():
 @router.post("/chat/text", response_model=ChatResponse)
 async def chat_text(request: ChatRequest):
     """文本对话"""
+    requested_thinking_mode = request.resolved_thinking_mode()
     response = await ai_service.generate_text(
         text=request.text,
         role_id=request.role_id,
@@ -57,7 +66,7 @@ async def chat_text(request: ChatRequest):
         model=request.model,
         base_url=request.base_url,
         api_key=request.api_key,
-        reasoning_effort=request.reasoning_effort,
+        thinking_mode=requested_thinking_mode,
     )
     return ChatResponse(
         text=response.get("text", ""),
@@ -65,12 +74,45 @@ async def chat_text(request: ChatRequest):
         tokens_used=response.get("tokens_used", 0),
         animation=response.get("animation"),
         model_info=response.get("model"),
+        metadata={
+            "requestedModel": response.get("requested_model", response.get("model")),
+            "effectiveModel": response.get("model"),
+            "requestedThinkingMode": response.get("requested_thinking_mode", requested_thinking_mode),
+            "effectiveThinkingMode": response.get("thinking_mode", requested_thinking_mode),
+            "effectiveReasoningEffort": response.get("reasoning_effort"),
+            "inputTokens": response.get("input_tokens"),
+            "reasoningTokens": response.get("reasoning_tokens"),
+            "outputTokens": response.get("output_tokens"),
+            "totalTokens": response.get("total_tokens"),
+            "latencyMs": response.get("latency_ms"),
+            "thinkingEnabled": response.get("thinking_mode", requested_thinking_mode) != "disabled",
+            "executionSummary": [
+                {
+                    "stage": "answer_generation",
+                    "status": "completed",
+                    "description": "模型完成最终回答生成",
+                }
+            ],
+            "fallbackUsed": False,
+            "resolutionReasons": response.get("resolution_reasons", []),
+            "contextRevision": response.get("context_revision"),
+            "contextResetReason": response.get("context_reset_reason"),
+        },
     )
 
-async def _stream_sse_events(chunks, http_request: Request, heartbeat_interval: float):
+async def _stream_sse_events(
+    chunks,
+    http_request: Request,
+    heartbeat_interval: float,
+    *,
+    request_id: str = "anonymous",
+    context_id: Optional[str] = None,
+):
     """Forward model chunks while emitting comments and promptly cancelling the iterator."""
     iterator = chunks.__aiter__()
     pending_chunk = None
+    sequence = 0
+    saw_done = False
     try:
         while True:
             if await http_request.is_disconnected():
@@ -90,18 +132,47 @@ async def _stream_sse_events(chunks, http_request: Request, heartbeat_interval: 
             try:
                 chunk = pending_chunk.result()
             except StopAsyncIteration:
-                yield "data: [DONE]\n\n"
+                if not saw_done:
+                    sequence += 1
+                    done = ChatStreamEvent(
+                        event=ChatStreamEventType.DONE,
+                        request_id=request_id,
+                        sequence=sequence,
+                        data={"status": "completed", "contextId": context_id},
+                    )
+                    yield f"event: {done.event.value}\ndata: {done.sse_data()}\n\n"
                 return
 
-            data = json.dumps({"delta": chunk}, ensure_ascii=False)
-            yield f"data: {data}\n\n"
+            if isinstance(chunk, ChatStreamEvent):
+                stream_event = chunk
+            else:
+                sequence += 1
+                stream_event = ChatStreamEvent(
+                    event=ChatStreamEventType.CONTENT_DELTA,
+                    request_id=request_id,
+                    sequence=sequence,
+                    data={"delta": str(chunk)},
+                )
+            sequence = max(sequence, stream_event.sequence)
+            if stream_event.event == ChatStreamEventType.DONE:
+                saw_done = True
+                if context_id:
+                    stream_event.data.setdefault("contextId", context_id)
+            yield f"event: {stream_event.event.value}\ndata: {stream_event.sse_data()}\n\n"
             pending_chunk = None
     except asyncio.CancelledError:
         logger.info("SSE generation cancelled by downstream")
         raise
     except Exception as error:
         logger.exception("SSE model stream failed. type=%s", type(error).__name__)
-        yield 'event: error\ndata: {"error":"AI_STREAM_FAILED"}\n\n'
+        sequence += 1
+        stream_event = ChatStreamEvent(
+            event=ChatStreamEventType.ERROR,
+            request_id=request_id,
+            sequence=sequence,
+            data={"code": "AI_STREAM_FAILED"},
+        )
+        yield f"event: error\ndata: {stream_event.sse_data()}\n\n"
     finally:
         if pending_chunk is not None and not pending_chunk.done():
             pending_chunk.cancel()
@@ -115,6 +186,7 @@ async def _stream_sse_events(chunks, http_request: Request, heartbeat_interval: 
 async def chat_text_stream(chat_request: ChatRequest, http_request: Request):
     """流式文本对话 (SSE)"""
     async def event_stream():
+        request_id = f"chat_{uuid4().hex}"
         if chat_request.model and not chat_request.base_url and not chat_request.api_key:
             chat_request.model, chat_request.base_url, chat_request.api_key = resolve_system_runtime_config(chat_request.model)
 
@@ -125,22 +197,36 @@ async def chat_text_stream(chat_request: ChatRequest, http_request: Request):
                 model=chat_request.model or "",
                 base_url=chat_request.base_url or "",
                 api_key=chat_request.api_key or "",
-                reasoning_effort=chat_request.reasoning_effort,
+                reasoning_effort=chat_request.resolved_thinking_mode(),
+                request_id=request_id,
             )
         else:
             text = chat_request.text
-            if chat_request.reasoning_effort != "off":
+            thinking_mode = chat_request.resolved_thinking_mode()
+            if thinking_mode != "disabled":
                 messages = apply_reasoning_instruction(
-                    [{"role": "user", "content": text}], chat_request.reasoning_effort
+                    [{"role": "user", "content": text}], thinking_mode
                 )
                 text = "\n".join(item["content"] for item in messages)
-            chunks = stream_client.generate_text_stream(
+            plain_chunks = stream_client.generate_text_stream(
                 text=text,
                 role_id=chat_request.role_id,
                 context=chat_request.context,
+                thinking_mode=thinking_mode,
+            )
+            chunks = _plain_text_stream_events(
+                plain_chunks,
+                request_id=request_id,
+                thinking_mode=thinking_mode,
+                model="system-default",
             )
         async for event in _stream_sse_events(
-                chunks, http_request, max(settings.SSE_HEARTBEAT_INTERVAL, 0.1)):
+                chunks,
+                http_request,
+                max(settings.SSE_HEARTBEAT_INTERVAL, 0.1),
+                request_id=request_id,
+                context_id=chat_request.context_id,
+        ):
             yield event
     return StreamingResponse(
         event_stream(),
@@ -149,6 +235,77 @@ async def chat_text_stream(chat_request: ChatRequest, http_request: Request):
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+async def _plain_text_stream_events(
+    chunks,
+    *,
+    request_id: str,
+    thinking_mode: str,
+    model: str,
+):
+    sequence = 0
+    started = time.perf_counter()
+    reasoning_started = thinking_mode != "disabled"
+    if reasoning_started:
+        sequence += 1
+        yield ChatStreamEvent(
+            event=ChatStreamEventType.REASONING_START,
+            request_id=request_id,
+            sequence=sequence,
+            data={
+                "requestedThinkingMode": thinking_mode,
+                "effectiveThinkingMode": thinking_mode,
+            },
+        )
+    first_content = True
+    async for chunk in chunks:
+        if chunk and first_content and reasoning_started:
+            sequence += 1
+            yield ChatStreamEvent(
+                event=ChatStreamEventType.REASONING_END,
+                request_id=request_id,
+                sequence=sequence,
+                data={"reasoningPhaseMs": int((time.perf_counter() - started) * 1000)},
+            )
+        first_content = False
+        if chunk:
+            sequence += 1
+            yield ChatStreamEvent(
+                event=ChatStreamEventType.CONTENT_DELTA,
+                request_id=request_id,
+                sequence=sequence,
+                data={"delta": str(chunk)},
+            )
+    if first_content and reasoning_started:
+        sequence += 1
+        yield ChatStreamEvent(
+            event=ChatStreamEventType.REASONING_END,
+            request_id=request_id,
+            sequence=sequence,
+            data={"reasoningPhaseMs": int((time.perf_counter() - started) * 1000)},
+        )
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    sequence += 1
+    yield ChatStreamEvent(
+        event=ChatStreamEventType.USAGE,
+        request_id=request_id,
+        sequence=sequence,
+        data={
+            "latencyMs": latency_ms,
+            "requestedModel": model,
+            "effectiveModel": model,
+            "requestedThinkingMode": thinking_mode,
+            "effectiveThinkingMode": thinking_mode,
+        },
+    )
+    sequence += 1
+    yield ChatStreamEvent(
+        event=ChatStreamEventType.DONE,
+        request_id=request_id,
+        sequence=sequence,
+        data={"status": "completed", "latencyMs": latency_ms},
     )
 
 @router.post("/chat/voice")

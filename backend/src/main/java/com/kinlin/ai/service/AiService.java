@@ -65,7 +65,7 @@ public class AiService {
             String model,
             String baseUrl,
             String apiKey,
-            String reasoningEffort
+            String thinkingMode
     ) {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("text", text);
@@ -87,8 +87,8 @@ public class AiService {
         if (apiKey != null && !apiKey.isBlank()) {
             requestBody.put("api_key", apiKey);
         }
-        if (reasoningEffort != null && !reasoningEffort.isBlank()) {
-            requestBody.put("reasoning_effort", reasoningEffort);
+        if (thinkingMode != null && !thinkingMode.isBlank()) {
+            requestBody.put("thinking_mode", thinkingMode);
         }
 
         try {

@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 
@@ -27,9 +28,13 @@ async def test_stream_preserves_data_and_done_format():
 
     events = await collect(_stream_sse_events(chunks(), FakeRequest(), 0.05))
 
-    assert events[0] == 'data: {"delta": "first"}\n\n'
-    assert events[1] == 'data: {"delta": "second"}\n\n'
-    assert events[-1] == "data: [DONE]\n\n"
+    first = json.loads(events[0].split("data: ", 1)[1])
+    second = json.loads(events[1].split("data: ", 1)[1])
+    done = json.loads(events[-1].split("data: ", 1)[1])
+    assert first["event"] == "content_delta"
+    assert first["data"]["delta"] == "first"
+    assert second["data"]["delta"] == "second"
+    assert done["event"] == "done"
 
 
 @pytest.mark.asyncio
@@ -41,7 +46,7 @@ async def test_heartbeat_is_emitted_while_model_is_idle():
     events = await collect(_stream_sse_events(chunks(), FakeRequest(), 0.01))
 
     assert events.count(": heartbeat\n\n") >= 3
-    assert events[-1] == "data: [DONE]\n\n"
+    assert '"event": "done"' in events[-1]
 
 
 @pytest.mark.asyncio
@@ -69,5 +74,6 @@ async def test_model_exception_is_not_reflected_to_client():
 
     events = await collect(_stream_sse_events(chunks(), FakeRequest(), 0.01))
 
-    assert events == ['event: error\ndata: {"error":"AI_STREAM_FAILED"}\n\n']
+    assert len(events) == 1
+    assert "AI_STREAM_FAILED" in events[0]
     assert "private-key-material" not in events[0]

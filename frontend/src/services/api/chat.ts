@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { ReasoningEffort } from '@/config/modelSettings'
+import type { ThinkingMode } from '@/config/modelSettings'
 
 export interface ChatRequest {
   text?: string
@@ -12,7 +12,7 @@ export interface ChatRequest {
   model?: string
   baseUrl?: string
   apiKey?: string
-  reasoningEffort?: ReasoningEffort
+  thinkingMode?: ThinkingMode
 }
 
 export interface Source {
@@ -51,7 +51,7 @@ export const chatApi = {
       model: chatRequest.model,
       baseUrl: chatRequest.baseUrl,
       apiKey: chatRequest.apiKey,
-      reasoningEffort: chatRequest.reasoningEffort
+      thinkingMode: chatRequest.thinkingMode
     })
     return response.data
   },

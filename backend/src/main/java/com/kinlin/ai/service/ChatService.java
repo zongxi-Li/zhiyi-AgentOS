@@ -114,7 +114,9 @@ public class ChatService {
                     request.getModel(),
                     request.getBaseUrl(),
                     request.getApiKey(),
-                    request.getReasoningEffort()
+                    request.getThinkingMode() != null
+                            ? request.getThinkingMode()
+                            : request.getReasoningEffort()
             );
         } else {
             aiResponse = aiService.sendTextMessage(
@@ -126,10 +128,12 @@ public class ChatService {
         }
         
         // 如果角色上下文可用，添加到响应元数据中
-        if (roleContext != null && aiResponse.getMetadata() == null) {
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("role_context", roleContext);
-            aiResponse.setMetadata(metadata);
+        if (roleContext != null) {
+            Map<String, Object> responseMetadata = aiResponse.getMetadata() == null
+                    ? new HashMap<>()
+                    : new HashMap<>(aiResponse.getMetadata());
+            responseMetadata.put("role_context", roleContext);
+            aiResponse.setMetadata(responseMetadata);
         }
 
         // 保存AI回复
@@ -139,6 +143,9 @@ public class ChatService {
         assistantMessage.setContent(aiResponse.getText());
         assistantMessage.setMessageType(Message.MessageType.TEXT);
         Map<String, Object> metadata = new HashMap<>();
+        if (aiResponse.getMetadata() != null) {
+            metadata.putAll(aiResponse.getMetadata());
+        }
         metadata.put("confidence", aiResponse.getConfidence());
         // 添加可解释性信息
         if (aiResponse.getTokensUsed() != null) {

@@ -68,6 +68,21 @@
                 <span class="explanation-value">{{ message.modelInfo }}</span>
               </div>
 
+              <div v-if="message.reasoningContent" class="explanation-item vertical">
+                <span class="explanation-label">思考过程</span>
+                <div class="reasoning-content">{{ message.reasoningContent }}</div>
+              </div>
+
+              <div v-if="message.effectiveThinkingMode" class="explanation-item">
+                <span class="explanation-label">思考强度</span>
+                <span class="explanation-value">{{ thinkingModeLabel }}</span>
+              </div>
+
+              <div v-if="message.reasoningTokens" class="explanation-item">
+                <span class="explanation-label">思考消耗</span>
+                <span class="explanation-value">{{ message.reasoningTokens }} tokens</span>
+              </div>
+
               <div v-if="message.confidence" class="explanation-item">
                 <span class="explanation-label">置信度</span>
                 <div class="explanation-value-row">
@@ -110,6 +125,16 @@
                       <div class="step-title">{{ step.title }}</div>
                       <div class="step-desc">{{ step.description }}</div>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="message.executionSummary && message.executionSummary.length > 0" class="explanation-item vertical">
+                <span class="explanation-label">执行摘要</span>
+                <div class="execution-summary">
+                  <div v-for="item in message.executionSummary" :key="`${item.stage}-${item.status}`" class="execution-summary__item">
+                    <span class="execution-summary__stage">{{ executionStageLabel(item.stage) }}</span>
+                    <span class="execution-summary__description">{{ item.description }}</span>
                   </div>
                 </div>
               </div>
@@ -185,6 +210,12 @@ interface Props {
     modelInfo?: string
     thinkingState?: 'thinking' | 'complete' | 'error'
     thinkingDurationMs?: number
+    reasoningContent?: string
+    requestedThinkingMode?: string
+    effectiveThinkingMode?: string
+    effectiveReasoningEffort?: string
+    reasoningTokens?: number
+    executionSummary?: Array<{ stage: string; status: string; description: string }>
   }
 }
 
@@ -339,6 +370,10 @@ const hasDetails = computed(() => {
     props.message.tokensUsed ||
     (props.message.sources && props.message.sources.length > 0) ||
     (props.message.reasoningPath && props.message.reasoningPath.length > 0) ||
+    props.message.reasoningContent ||
+    props.message.effectiveThinkingMode ||
+    props.message.reasoningTokens ||
+    (props.message.executionSummary && props.message.executionSummary.length > 0) ||
     props.message.modelInfo
   )
 })
@@ -346,7 +381,16 @@ const hasDetails = computed(() => {
 const showThinkingStatus = computed(() => !!props.message.thinkingState || hasDetails.value)
 
 const canExpandDetails = computed(() => {
-  return props.message.thinkingState !== 'thinking' && hasDetails.value
+  return hasDetails.value && (
+    props.message.thinkingState !== 'thinking' || Boolean(props.message.reasoningContent)
+  )
+})
+
+const thinkingModeLabel = computed(() => {
+  const mode = props.message.effectiveThinkingMode || props.message.requestedThinkingMode
+  if (mode === 'deep') return '深度'
+  if (mode === 'standard') return '标准'
+  return '关闭'
 })
 
 const thinkingDurationSeconds = computed(() => {
@@ -367,6 +411,12 @@ const getConfidenceColor = (confidence: number) => {
   if (confidence >= 0.8) return 'var(--success)'
   if (confidence >= 0.6) return 'var(--warning)'
   return 'var(--danger)'
+}
+
+const executionStageLabel = (stage: string) => {
+  if (stage === 'reasoning') return '思考'
+  if (stage === 'answer_generation') return '回答生成'
+  return stage
 }
 
 const isImage = (url: string) => {
@@ -806,6 +856,45 @@ const formatTime = (date: Date) => {
 .value-text {
   font-size: 12px;
   color: var(--text-regular);
+}
+
+.reasoning-content {
+  width: 100%;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-card) 76%, transparent);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.execution-summary {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.execution-summary__item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.execution-summary__stage {
+  color: var(--text-secondary);
+}
+
+.execution-summary__description {
+  color: var(--text-regular);
+  overflow-wrap: anywhere;
 }
 
 .source-tag {
