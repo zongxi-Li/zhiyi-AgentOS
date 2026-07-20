@@ -136,8 +136,8 @@ def test_promote_enriched_injects_cognitive_nodes():
     types = {n.node_type for n in bp.nodes}
     assert NodeType.STEP in types
     assert NodeType.AGENT in types
-    assert NodeType.EVIDENCE in types  # risk/report 含证据关键词
     assert NodeType.MEMORY in types    # risk/report 含记忆关键词
+    assert NodeType.EVIDENCE not in types  # 无真实证据生产步骤，不注入装饰性 Evidence
 
     # 每个 Step 都有执行 Agent 节点
     assert len(bp.step_nodes()) == 3

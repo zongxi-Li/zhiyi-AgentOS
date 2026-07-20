@@ -9,6 +9,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 _SRC = Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -18,7 +20,7 @@ from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.core.acg import ControlType, EdgeType, NodeType, validate_blueprint
 from agentos.core.acg.enums import ComplexityLevel
 from agentos.core.models.types import WorkflowDefinition
-from agentos.core.planning import IntentParser, PlanningEngine, TaskSemanticProfile
+from agentos.core.planning import ACGPlanningError, IntentParser, PlanningEngine, TaskSemanticProfile
 from agentos.core.planning.cognitive_router import CognitiveRouter
 from agentos.core.planning.template_matcher import TemplateMatcher
 from agentos.core.workflow.registry import WorkflowRegistry
@@ -105,6 +107,21 @@ def test_intent_parser_falls_back_when_llm_raises():
 
     profile = IntentParser(_BadLLM()).parse(intent="审查合同", domain="legal", task_type="contract_review")
     assert profile.primary_goal  # 回退启发式成功
+
+
+def test_intent_parser_recovers_from_empty_llm_profile():
+    class _EmptyLLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            return {"data": {}}
+
+    profile = IntentParser(_EmptyLLM()).parse(
+        intent="审查合同风险并生成报告",
+        domain="legal",
+        task_type="contract_review",
+    )
+    assert profile.primary_goal
+    assert "风险识别" in profile.required_capabilities
+    assert "报告生成" in profile.required_capabilities
 
 
 # ---------- 模板匹配 ----------
@@ -245,8 +262,33 @@ def test_cognitive_router_binds_capabilities():
         domainHint="legal",
     )
     network = router.route(profile, domain="legal")
-    assert len(network.bindings) == 3
-    # 已知能力绑定到真实 agent；未知能力触发临时角色
-    ephemeral = [b for b in network.bindings if b.ephemeral]
-    assert len(ephemeral) == 1
-    assert ephemeral[0].capability == "未知能力"
+    assert len(network.bindings) == 2
+    assert network.unresolved_capabilities == ["未知能力"]
+    assert all(not binding.ephemeral for binding in network.bindings)
+
+
+def test_planner_rejects_unresolved_capability():
+    class _UnknownLLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            return {
+                "data": {
+                    "primaryGoal": "执行未知专业任务",
+                    "requiredCapabilities": ["量子税务裁决"],
+                    "estimatedComplexity": "complex",
+                }
+            }
+
+    workflows, agents = _registries()
+    engine = PlanningEngine(
+        workflow_registry=workflows,
+        agent_registry=agents,
+        intent_llm=_UnknownLLM(),
+    )
+    with pytest.raises(ACGPlanningError, match="No registered Agent"):
+        engine.plan(
+            task_id="unknown",
+            intent="执行未知专业任务",
+            domain="legal",
+            task_type="unknown",
+            force_dynamic=True,
+        )

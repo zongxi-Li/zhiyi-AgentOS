@@ -176,3 +176,46 @@ def test_acg_contract_review_api_trace_checkpoint_and_metrics():
 def test_llm_gateway_without_configuration_uses_mock():
     gateway = LLMGateway(config=LLMConfig(provider="openai-compatible", base_url="", api_key="", model=""))
     assert gateway.provider_name == "mock"
+
+
+def test_force_dynamic_contract_review_builds_executable_data_dependencies():
+    async def run_test():
+        runtime = _runtime()
+        task = runtime.create_task(
+            title="动态合同审查",
+            domain="legal",
+            intent="contract_review_acg",
+            input={
+                "contractText": "甲方委托乙方开发 CRM，签署后付款 30%，上线后付款 70%。",
+                "userIntent": (
+                    "解析合同并进行条款分类，识别付款、验收和知识产权风险，"
+                    "检索证据依据，生成修改建议、人工审核要点和最终报告。"
+                ),
+                "usePlanner": True,
+                "forceDynamicPlanning": True,
+            },
+        )
+        run = await runtime.start(
+            task.task_id,
+            workflow_id="legal_contract_review_v1",
+            review_mode="auto",
+        )
+
+        assert run.status == WorkflowStatus.COMPLETED
+        assert run.steps
+        artifacts = run.output["artifacts"]
+        assert artifacts["risk_detect"]["risks"]
+        assert artifacts["legal_evidence_match"]["evidences"]
+        assert artifacts["report_generate"]["report_markdown"]
+        planner = next(
+            event for event in run.trace
+            if event.event_type.value == "task_status_changed" and "Planner" in event.observation
+        )
+        assert planner.payload["strategy"] == "dynamic_generation"
+
+        schedule = [event.payload["batch"] for event in run.trace if event.event_type.value == "step_scheduled"]
+        classify_round = next(index for index, batch in enumerate(schedule) if "clause_classify" in batch)
+        risk_round = next(index for index, batch in enumerate(schedule) if "risk_detect" in batch)
+        assert classify_round < risk_round
+
+    asyncio.run(run_test())

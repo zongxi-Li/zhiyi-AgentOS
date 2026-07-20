@@ -29,6 +29,7 @@ from agentos.core.models.types import (
 )
 from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
+from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 
 class _Agent(BaseAgent):
@@ -217,6 +218,76 @@ def test_acg_checkpoint_resume_keeps_completed_diamond_branch():
     asyncio.run(_run())
 
 
+def test_acg_checkpoint_resume_in_fresh_runtime(tmp_path: Path):
+    class _FailingAgent(_Agent):
+        async def run(self, context):
+            self.calls.append(context.step.step_id)
+            raise RuntimeError("planned process failure")
+
+    def build_runtime(store, calls, *, fail_c):
+        agents = AgentRegistry()
+        for name in "abcd":
+            agent = _FailingAgent(name, calls) if name == "c" and fail_c else _Agent(name, calls)
+            agents.register(agent)
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="persistent_diamond",
+                name="Persistent Diamond",
+                domain="test",
+                intent="demo",
+                runtimeEngine="acg",
+                version="1.0.0",
+                steps=[WorkflowStepDefinition(stepId=node, name=node, agentName=node) for node in "abcd"],
+            )
+        )
+        return WorkflowRuntime(
+            agent_registry=agents,
+            workflow_registry=workflows,
+            workflow_store=store,
+        )
+
+    async def _run():
+        database = tmp_path / "acg-resume.db"
+        calls: list[str] = []
+        runtime = build_runtime(SQLiteWorkflowStore(database), calls, fail_c=True)
+        blueprint = ACGBlueprint(objective="persistent diamond")
+        for node_id in "abcd":
+            blueprint.nodes.append(StepNode(nodeId=node_id, name=node_id, agentName=node_id))
+        blueprint.edges.extend(
+            [
+                ACGEdge(sourceId="a", targetId="b", edgeType=EdgeType.DEPENDENCY),
+                ACGEdge(sourceId="a", targetId="c", edgeType=EdgeType.DEPENDENCY),
+                ACGEdge(sourceId="b", targetId="d", edgeType=EdgeType.DEPENDENCY),
+                ACGEdge(sourceId="c", targetId="d", edgeType=EdgeType.DEPENDENCY),
+            ]
+        )
+        task = runtime.create_task(
+            title="persistent diamond",
+            domain="test",
+            intent="demo",
+            input={"acgBlueprint": blueprint.model_dump(by_alias=True, mode="json")},
+        )
+        failed = await runtime.start(task.task_id, workflow_id="persistent_diamond")
+        checkpoint = next(item for item in failed.checkpoints if item.step_id == "b")
+
+        fresh_runtime = build_runtime(SQLiteWorkflowStore(database), calls, fail_c=False)
+        recovered = await fresh_runtime.resume_from_checkpoint(
+            run_id=failed.run_id,
+            checkpoint_id=checkpoint.checkpoint_id,
+        )
+
+        assert recovered.status == WorkflowStatus.COMPLETED
+        assert recovered.provenance["schemaVersion"] == 2
+        assert recovered.provenance["integrityStatus"] == "valid"
+        assert calls.count("a") == 1
+        assert calls.count("b") == 1
+        assert calls.count("c") == 2
+        assert calls.count("d") == 1
+
+    asyncio.run(_run())
+
+
 def test_workflow_runtime_engine_is_required_and_native_is_rejected(tmp_path: Path):
     with pytest.raises(ValidationError, match="runtimeEngine"):
         WorkflowDefinition.model_validate(
@@ -342,5 +413,168 @@ def test_acg_engine_planner_driven_static_template():
         ]
         assert planner_events
         assert planner_events[0].payload["strategy"] == "static_template"
+
+    asyncio.run(_run())
+
+
+def test_low_entropy_context_is_the_actual_agent_memory():
+    seen: list[dict] = []
+
+    class _Producer(BaseAgent):
+        def __init__(self):
+            super().__init__(AgentProfile(agentName="producer", domain="test", capabilities=["produce"]))
+
+        async def run(self, context):
+            return AgentOutput(output={"wanted": 1, "secret": "must-not-leak"})
+
+    class _Consumer(BaseAgent):
+        def __init__(self):
+            super().__init__(AgentProfile(agentName="consumer", domain="test", capabilities=["consume"]))
+
+        async def run(self, context):
+            seen.append(context.memory.observations)
+            assert context.context_pack is not None
+            return AgentOutput(output={"received": context.context_pack.data})
+
+    async def _run():
+        agents = AgentRegistry()
+        agents.register(_Producer())
+        agents.register(_Consumer())
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="filtered",
+                name="filtered",
+                domain="test",
+                intent="filter",
+                runtimeEngine="acg",
+                steps=[
+                    WorkflowStepDefinition(
+                        stepId="produce",
+                        name="produce",
+                        agentName="producer",
+                        capability="produce",
+                        nextStepId="consume",
+                    ),
+                    WorkflowStepDefinition(
+                        stepId="consume",
+                        name="consume",
+                        agentName="consumer",
+                        capability="consume",
+                        input={
+                            "from": {"produce": ["wanted"]},
+                            "schema": {"type": "object", "required": ["wanted"]},
+                        },
+                    ),
+                ],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        task = runtime.create_task(title="filter", domain="test", intent="filter")
+        run = await runtime.start(task.task_id, workflow_id="filtered")
+
+        assert run.status == WorkflowStatus.COMPLETED
+        assert seen == [{"produce": {"wanted": 1}}]
+        assert run.get_step("consume").resolved_input == {"wanted": 1}
+        assert run.provenance["schemaVersion"] == 2
+        assert len(run.provenance["interactions"]) == 1
+
+    asyncio.run(_run())
+
+
+def test_acg_run_scoped_provenance_isolated_sequentially_and_concurrently():
+    class _PassAgent(BaseAgent):
+        def __init__(self, name):
+            super().__init__(AgentProfile(agentName=name, domain="test", capabilities=[name]))
+            self.name = name
+
+        async def run(self, context):
+            if self.name == "a":
+                return AgentOutput(output={"value": context.task.task_id})
+            return AgentOutput(output={"ok": True})
+
+    async def _run():
+        agents = AgentRegistry()
+        agents.register(_PassAgent("a"))
+        agents.register(_PassAgent("b"))
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="isolated",
+                name="isolated",
+                domain="test",
+                intent="isolated",
+                runtimeEngine="acg",
+                steps=[
+                    WorkflowStepDefinition(stepId="a", name="a", agentName="a", nextStepId="b"),
+                    WorkflowStepDefinition(
+                        stepId="b",
+                        name="b",
+                        agentName="b",
+                        input={"from": {"a": ["value"]}},
+                    ),
+                ],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+
+        async def start_one(index: int):
+            task = runtime.create_task(title=f"t{index}", domain="test", intent="isolated")
+            return await runtime.start(task.task_id, workflow_id="isolated")
+
+        first = await start_one(0)
+        second = await start_one(1)
+        concurrent = await asyncio.gather(start_one(2), start_one(3))
+        for run in [first, second, *concurrent]:
+            assert len(run.provenance["consumptions"]) == 1
+            assert len(run.provenance["interactions"]) == 1
+            assert {event["runId"] for event in run.provenance["productions"]} == {run.run_id}
+            assert {event["runId"] for event in run.provenance["consumptions"]} == {run.run_id}
+
+    asyncio.run(_run())
+
+
+def test_declared_retry_limit_retries_real_agent_failure():
+    class _FailOnceAgent(BaseAgent):
+        def __init__(self):
+            super().__init__(AgentProfile(agentName="retry", domain="test", capabilities=["retry"]))
+            self.failed = False
+
+        async def run(self, context):
+            if not self.failed:
+                self.failed = True
+                raise RuntimeError("transient failure")
+            return AgentOutput(output={"ok": True})
+
+    async def _run():
+        agents = AgentRegistry()
+        agents.register(_FailOnceAgent())
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="retry",
+                name="retry",
+                domain="test",
+                intent="retry",
+                runtimeEngine="acg",
+                steps=[
+                    WorkflowStepDefinition(
+                        stepId="retry",
+                        name="retry",
+                        agentName="retry",
+                        maxRetries=1,
+                    )
+                ],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        task = runtime.create_task(title="retry", domain="test", intent="retry")
+        run = await runtime.start(task.task_id, workflow_id="retry")
+
+        assert run.status == WorkflowStatus.COMPLETED
+        assert run.get_step("retry").attempt == 2
+        assert run.get_step("retry").retry_count == 1
+        assert run.recovery_count == 1
+        assert TraceEventType.RUN_FAILED not in {event.event_type for event in run.trace}
 
     asyncio.run(_run())

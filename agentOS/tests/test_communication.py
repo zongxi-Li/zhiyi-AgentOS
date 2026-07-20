@@ -58,6 +58,7 @@ def test_assembler_precise_delivery_by_fields():
     assert "full_text" not in pack.data
     assert pack.saving_ratio > 0.9
     assert pack.tokens_delivered < pack.tokens_available
+    assert pack.source_data == {"up": {"summary": "短摘要", "risk_count": 3}}
 
 
 def test_assembler_directed_from_map():
@@ -108,3 +109,40 @@ def test_provenance_bidirectional_trace():
     graph = ledger.to_graph()
     assert len(graph["productions"]) == 2
     assert len(graph["consumptions"]) == 2
+
+
+def test_provenance_v2_interaction_hash_chain_roundtrip():
+    ledger = ProvenanceLedger(run_id="run-1", task_id="task-1")
+    ledger.record_production("a", {"wanted": 1, "secret": 2}, 10, agent_name="producer")
+    ledger.record_consumption(
+        "b",
+        ["a"],
+        ["wanted"],
+        consumer_agent_name="consumer",
+        fields_by_producer={"a": ["wanted"]},
+        data={"wanted": 1},
+        tokens_delivered=2,
+        tokens_available=10,
+        saving_ratio=0.8,
+    )
+    ledger.record_interaction(
+        edge_ids=["edge-1"],
+        producer_step_ids=["a"],
+        consumer_step_id="b",
+        producer_agent_names=["producer"],
+        consumer_agent_name="consumer",
+        fields_by_producer={"a": ["wanted"]},
+        tokens_delivered=2,
+        tokens_available=10,
+        saving_ratio=0.8,
+        evidence_refs=[],
+        contract_status="valid",
+        data={"wanted": 1},
+    )
+
+    graph = ledger.to_graph()
+    assert graph["schemaVersion"] == 2
+    assert graph["integrityStatus"] == "valid"
+    assert len(graph["interactions"]) == 1
+    restored = ProvenanceLedger.from_graph(graph, run_id="run-1", task_id="task-1")
+    assert restored.verify_integrity()

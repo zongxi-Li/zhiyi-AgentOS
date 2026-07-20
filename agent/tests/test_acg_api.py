@@ -83,10 +83,17 @@ def test_acg_view_endpoint_exposes_topology_and_provenance():
     # 数据血缘：3 步至少有 2 次消费（b←a, c←b）
     assert len(view["provenance"]["productions"]) == 3
     assert len(view["provenance"]["consumptions"]) >= 2
+    assert view["provenance"]["schemaVersion"] == 2
+    assert view["provenance"]["integrityStatus"] == "valid"
+    assert view["interactions"]
+    assert len(view["stepStates"]) == 3
     # 低熵指标存在
     metrics = view["lowEntropyMetrics"]
     assert "averageSavingRatio" in metrics
+    assert "effectiveSavingRatio" in metrics
     assert "tokensSaved" in metrics
+    assert metrics["interactionCount"] == len(view["interactions"])
+    assert metrics["contractViolationCount"] == 0
     # 调度轨迹存在（就绪集调度可见）
     assert view["scheduleTrace"]
 

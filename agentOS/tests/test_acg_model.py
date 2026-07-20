@@ -136,3 +136,68 @@ def test_blueprint_roundtrip_serialization():
     assert restored.node_count == bp.node_count
     assert isinstance(restored.get_node("par"), ControlNode)
     assert isinstance(restored.get_node("A"), StepNode)
+
+
+def test_validation_rejects_empty_duplicate_and_invalid_edges():
+    with pytest.raises(ACGValidationError, match="at least one Step"):
+        validate_blueprint(ACGBlueprint(objective="empty"))
+
+    duplicate = ACGBlueprint(
+        objective="duplicate",
+        nodes=[
+            StepNode(nodeId="same", name="one", agentName="a"),
+            StepNode(nodeId="same", name="two", agentName="a"),
+        ],
+    )
+    with pytest.raises(ACGValidationError, match="duplicate node"):
+        validate_blueprint(duplicate)
+
+    invalid = ACGBlueprint(
+        objective="invalid edge",
+        nodes=[
+            StepNode(nodeId="a", name="a", agentName="a"),
+            StepNode(nodeId="b", name="b", agentName="b"),
+        ],
+        edges=[ACGEdge(sourceId="a", targetId="b", edgeType=EdgeType.SUPPORT)],
+    )
+    with pytest.raises(ACGValidationError, match="invalid endpoint types"):
+        validate_blueprint(invalid)
+
+
+def test_validation_rejects_unsupported_control_and_unsafe_communication():
+    unsupported = ACGBlueprint(
+        objective="unsupported",
+        nodes=[
+            StepNode(nodeId="a", name="a", agentName="a"),
+            ControlNode(nodeId="loop", controlType=ControlType.LOOP),
+        ],
+    )
+    with pytest.raises(ACGValidationError, match="unsupported control"):
+        validate_blueprint(unsupported)
+
+    unsafe = ACGBlueprint(
+        objective="unsafe communication",
+        nodes=[
+            StepNode(nodeId="a", name="a", agentName="a"),
+            StepNode(nodeId="b", name="b", agentName="b"),
+        ],
+        edges=[ACGEdge(sourceId="a", targetId="b", edgeType=EdgeType.COMMUNICATION)],
+    )
+    with pytest.raises(ACGValidationError, match="no execution dependency path"):
+        validate_blueprint(unsafe)
+
+
+def test_validation_rejects_invalid_contract_schema():
+    blueprint = ACGBlueprint(
+        objective="schema",
+        nodes=[
+            StepNode(
+                nodeId="a",
+                name="a",
+                agentName="a",
+                outputSpec={"type": "definitely-not-a-json-schema-type"},
+            )
+        ],
+    )
+    with pytest.raises(ACGValidationError, match="invalid JSON Schema"):
+        validate_blueprint(blueprint)
