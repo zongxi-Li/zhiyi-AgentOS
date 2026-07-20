@@ -22,7 +22,7 @@ class KylinSDKClient:
     """麒麟AI SDK客户端 - 智能选择SDK策略"""
 
     def __init__(self, api_key: str, api_endpoint: str, timeout: int = 240, qwen_api_key: Optional[str] = None, qwen_model: str = "qwen-plus",
-                 deepseek_api_key: Optional[str] = None, deepseek_model: str = "deepseek-chat"):
+                 deepseek_api_key: Optional[str] = None, deepseek_model: str = "deepseek-v4-flash"):
         """
         初始化客户端
 
@@ -745,7 +745,7 @@ class KylinAIClient:
             self._deepseek_model = settings.DEEPSEEK_MODEL
         except Exception:
             self._deepseek_api_key = ''
-            self._deepseek_model = 'deepseek-chat'
+            self._deepseek_model = 'deepseek-v4-flash'
 
         # 检查通义千问配置（备用引擎 + 图像/语音/多模态）
         try:

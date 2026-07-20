@@ -47,7 +47,7 @@ class AIService:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        reasoning_effort: str = "off",
+        thinking_mode: str = "disabled",
     ) -> Dict:
         """
         生成文本回复（支持情感感知）
@@ -74,7 +74,7 @@ class AIService:
                     model=model or "",
                     base_url=base_url or "",
                     api_key=api_key or "",
-                    reasoning_effort=reasoning_effort,
+                    reasoning_effort=thinking_mode,
                 )
 
             # 如果启用情感感知
@@ -115,9 +115,9 @@ class AIService:
                 }
             else:
                 # 标准文本生成
-                if reasoning_effort != "off":
+                if thinking_mode != "disabled":
                     prompt_messages = apply_reasoning_instruction(
-                        [{"role": "user", "content": text}], reasoning_effort
+                        [{"role": "user", "content": text}], thinking_mode
                     )
                     text = "\n".join(item["content"] for item in prompt_messages)
                 response = await self.client.generate_text(

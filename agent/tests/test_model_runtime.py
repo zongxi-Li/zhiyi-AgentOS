@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 
 from app.ai_engine.model_runtime import (
     apply_reasoning_instruction,
@@ -6,6 +7,7 @@ from app.ai_engine.model_runtime import (
     completion_options,
     resolve_system_runtime_config,
     validate_runtime_config,
+    stream_with_runtime_model,
 )
 
 
@@ -56,6 +58,12 @@ def test_native_reasoning_options_cover_openai_and_qwen():
         "extra_body": {"thinking": {"type": "enabled"}},
     }
 
+    assert completion_options(
+        "deepseek-v4-flash",
+        "https://api.deepseek.com/v1",
+        "disabled",
+    ) == {"extra_body": {"thinking": {"type": "disabled"}}}
+
 
 def test_system_runtime_model_override_reuses_server_credentials(monkeypatch):
     from app.config import settings
@@ -69,3 +77,90 @@ def test_system_runtime_model_override_reuses_server_credentials(monkeypatch):
         "https://api.example.com/v1",
         "server-secret",
     )
+    assert resolve_system_runtime_config() == (
+        "deepseek-v4-flash",
+        "https://api.example.com/v1",
+        "server-secret",
+    )
+
+
+async def test_stream_separates_reasoning_content_and_final_content(monkeypatch):
+    captured = {}
+
+    class FakeStream:
+        def __init__(self):
+            self.items = iter([
+                SimpleNamespace(
+                    choices=[SimpleNamespace(delta=SimpleNamespace(
+                        reasoning_content="private thought",
+                        content=None,
+                    ))],
+                    usage=None,
+                ),
+                SimpleNamespace(
+                    choices=[SimpleNamespace(delta=SimpleNamespace(
+                        reasoning_content=None,
+                        content="final answer",
+                    ))],
+                    usage=None,
+                ),
+                SimpleNamespace(
+                    choices=[],
+                    usage=SimpleNamespace(
+                        prompt_tokens=10,
+                        completion_tokens=20,
+                        total_tokens=30,
+                        reasoning_tokens=12,
+                        completion_tokens_details=None,
+                    ),
+                ),
+            ])
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self.items)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeStream()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr("app.ai_engine.model_runtime.AsyncOpenAI", FakeClient)
+    events = [
+        event
+        async for event in stream_with_runtime_model(
+            text="test",
+            context=None,
+            model="deepseek-v4-pro",
+            base_url="https://api.deepseek.com/v1",
+            api_key="secret",
+            reasoning_effort="deep",
+            request_id="request-test",
+        )
+    ]
+
+    assert [event.event.value for event in events] == [
+        "reasoning_start",
+        "reasoning_delta",
+        "reasoning_end",
+        "content_delta",
+        "usage",
+        "done",
+    ]
+    assert events[1].data["delta"] == "private thought"
+    assert events[3].data["delta"] == "final answer"
+    assert events[4].data["reasoningTokens"] == 12
+    assert captured["reasoning_effort"] == "max"
+    assert "temperature" not in captured

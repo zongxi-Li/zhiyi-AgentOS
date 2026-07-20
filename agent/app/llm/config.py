@@ -58,7 +58,7 @@ def _resolve_provider_fallback() -> tuple[str, str, str, str] | None:
             "openai-compatible",
             (os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com/v1").strip(),
             deepseek_key,
-            (os.getenv("DEEPSEEK_MODEL") or "deepseek-chat").strip(),
+            (os.getenv("DEEPSEEK_MODEL") or "deepseek-v4-flash").strip(),
         )
 
     qwen_key = (os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY") or "").strip()
