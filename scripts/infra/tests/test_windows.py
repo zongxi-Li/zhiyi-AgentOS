@@ -46,16 +46,46 @@ def test_windows_up_reuses_images_unless_build_is_requested():
     script = (ROOT / "scripts" / "infra" / "windows" / "up.ps1").read_text(encoding="utf-8")
 
     assert '[switch]$Build' in script
+    assert '[string]$BuildService' in script
     assert 'if ($Build) { $arguments += "--build" }' in script
+    assert 'Invoke-KinlinCompose $context build $BuildService' in script
     assert '@("up", "-d", "--wait")' in script
+
+
+def test_windows_preflight_accepts_empty_optional_secret_files_on_powershell_51():
+    script = (ROOT / "scripts" / "infra" / "windows" / "preflight.ps1").read_text(encoding="utf-8")
+
+    assert "if ($null -eq $rawSecretValue)" in script
+    assert '"deepseek_api_key", "dashscope_api_key"' in script
 
 
 def test_backend_restart_uses_incremental_compile_by_default():
     script = (ROOT / "scripts" / "infra" / "windows" / "restart-service.ps1").read_text(encoding="utf-8")
 
     assert "-DskipTests compile" in script
+    assert "--user 10001:10001" in script
     assert "Spring Boot DevTools" in script
     assert '[switch]$FullRestart' in script
+
+
+def test_windows_development_uses_locked_dependencies_and_complete_frontend_mounts():
+    compose = (ROOT / "compose.dev.yaml").read_text(encoding="utf-8")
+    ai_dockerfile = (ROOT / "agent" / "Dockerfile.dev").read_text(encoding="utf-8")
+    ai_entrypoint = (ROOT / "agent" / "docker-entrypoint-dev.sh").read_text(encoding="utf-8")
+
+    assert "requirements.lock:/app/requirements.lock:ro" in compose
+    assert "--require-hashes --only-binary=:all:" in ai_dockerfile
+    assert "--require-hashes --only-binary=:all:" in ai_entrypoint
+    for filename in ("index.html", "vite.config.ts", "tsconfig.json", "tsconfig.node.json"):
+        assert f"./frontend/{filename}:/app/{filename}:ro" in compose
+
+
+def test_root_windows_entrypoint_delegates_to_canonical_scripts():
+    script = (ROOT / "dev.ps1").read_text(encoding="utf-8")
+
+    assert r"scripts\infra\windows" in script
+    assert 'Join-Path $windowsScripts "up.ps1"' in script
+    assert "compose.yaml" not in script
 
 
 def test_windows_deployment_package_has_required_entrypoints_and_no_secret_values():
