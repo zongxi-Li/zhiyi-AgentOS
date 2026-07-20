@@ -20,7 +20,7 @@
 | 动态异构拓扑 | ACG 计算图 + 就绪集并行调度（超越线性） | `/acg` 拓扑视图、并行分支 |
 | 低熵通信 | 引擎做唯一中介，按 input_spec 精准投递 | Token 节省率、数据血缘图 |
 | 自愈闭环 | 故障注入→检查点→局部重规划 | 恢复轨迹、recoveryCount |
-| 兼容多模型/可扩展 | LLM 网关回落映射 + Core 双执行路径 | DeepSeek 真实接入、native/acg 并存 |
+| 兼容多模型/可扩展 | LLM 网关回落映射 + ACG Adapter 扩展协议 | DeepSeek 真实接入、ACG 统一调度 |
 
 ## 1. 总体架构
 
@@ -40,7 +40,7 @@ agentOS/src/agentos/core/
 
 **执行引擎三态并存**（通过 `WorkflowDefinition.runtimeEngine` 路由）：
 
-- `native`：既有线性 Step 调度（向下兼容，零改动）
+- 线性 YAML：加载阶段提升为 ACG DEPENDENCY DAG 后统一调度
 - `acg`：★本阶段自研的就绪集并行调度引擎
 
 两条执行路径共享同一套治理设施（Task/Trace/Checkpoint/Review），互不干扰。标准合同审查由 ACG 执行。

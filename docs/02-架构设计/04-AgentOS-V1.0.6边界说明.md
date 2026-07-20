@@ -9,7 +9,7 @@
 - Task / WorkflowRun 生命周期。
 - TraceStore、CheckpointStore、ReviewManager 和 Evaluation。
 - WorkflowRegistry、TaskManager、Orchestrator 和状态机。
-- Native 与 ACG 执行适配协议。
+- ACG 与外部执行引擎的执行适配协议。
 - 通用模型服务协议和注册入口。
 
 Core 不应直接依赖：

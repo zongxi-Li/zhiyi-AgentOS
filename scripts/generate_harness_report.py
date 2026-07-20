@@ -121,8 +121,8 @@ doc.add_paragraph(
     '通过注册机制注入内核。这保证了内核的通用性和可扩展性。'
 )
 doc.add_paragraph(
-    '第二，治理体系（Trace/Review/Checkpoint/Evaluation）与执行路径（native/acg）'
-    '完全解耦。两条执行路径共享同一套治理接口，每种引擎只需实现 ExecutionAdapter 协议'
+    '第二，治理体系（Trace/Review/Checkpoint/Evaluation）与 ACG 调度路径'
+    '完全解耦。内置 ACG 与外部引擎均通过 ExecutionAdapter 协议'
     '的 start() 和 apply_review() 两个方法。这使得执行引擎可以独立演进，治理能力可以'
     '统一升级，互不干扰。'
 )
@@ -202,7 +202,7 @@ doc.add_paragraph(
 )
 constraints = [
     '内核不依赖应用：agentOS/src/agentos/core 不允许直接 import app.* 或行业 Pack。',
-    '引擎可互换：native 与 acg 共享同一套治理接口（Trace/Review/Checkpoint），互不干扰。',
+    '线性 YAML 在加载时提升为 ACG DAG，并共享 Trace/Review/Checkpoint 治理接口。',
     '行业不进内核：法律、教育等具体领域 Agent 和 Workflow 全部放在 agent/packs/ 中，通过注册机制注入。',
     '状态机强约束：Task 和 Step 的状态转换必须通过 StateMachine 验证，禁止非法跳转。',
     '故障注入不污染生产：故障注入通过 task.input.faultInjection 声明式配置，与正常执行逻辑完全解耦。',
@@ -225,7 +225,7 @@ doc.add_paragraph(
 )
 doc.add_paragraph(
     '这一设计思路的具体体现：无论底层使用什么模型（DeepSeek、通义千问、Mock），'
-    '无论使用何种执行路径（native、acg），Trace、Review 和 Checkpoint 始终'
+    '无论工作流采用何种 YAML 表达，Trace、Review 和 Checkpoint 始终'
     '以统一的结构运行。一个任务的执行轨迹不会因为换了模型而变得不可审计，也不会因为'
     '换了执行引擎而失去恢复能力。这种"治理不随执行而变"的设计，是本系统区别于所有'
     '以模型为中心的系统（如 LangChain、AutoGPT）的根本差异。'
@@ -249,7 +249,7 @@ class ExecutionAdapterFactory(Protocol):
 doc.add_paragraph(
     '当一个工作流被启动时，Runtime 根据其 runtimeEngine 字段自动选择适配器。每个适配器'
     '按 {engine}:{implementation_id} 缓存，避免重复构造。这种设计使新引擎的引入不影响'
-    '既有机能，native 与 acg 两条执行路径在同一个系统中和平共存。'
+    '既有机能，线性 YAML 通过提升器进入同一个 ACG 调度系统。'
 )
 
 doc.add_heading('3.3 设计思路三：静态优先、动态补位', level=2)
@@ -363,9 +363,7 @@ add_code_block(doc, '''def _workflow_adapter(self, workflow: WorkflowDefinition)
 
     adapter = self._runtime_adapters.get(adapter_key)
     if adapter is None:
-        if runtime_engine == "native":
-            adapter = NativeWorkflowAdapter(self)       # → _start_native()
-        elif runtime_engine == "acg":
+        if runtime_engine == "acg":
             adapter = ACGWorkflowAdapter(self)           # → _start_acg() + ACGExecutor
         else:
             factory = self.execution_adapter_factories.get(runtime_engine)
@@ -631,7 +629,7 @@ add_code_block(doc, '''async def resume_from_checkpoint(self, *, run_id, checkpo
     run.recovery_count += 1
     # 记录恢复事件
     self.trace_store.append(run, event_type=TraceEventType.RUN_RECOVERED, ...)
-    return await self._run_until_blocked(task, run, workflow)''')
+    return await adapter.executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)''')
 
 doc.add_heading('4.7.3 ReviewManager — 人工审核门控', level=3)
 doc.add_paragraph(
@@ -702,7 +700,7 @@ doc.add_paragraph(
     '系统采用严格的四层架构分离：前端（Vue 3）→ Java 网关（Spring Boot + JWT）→ '
     'Python 应用层（FastAPI + 行业 Pack）→ AgentOS 内核（WorkflowRuntime + ACG + 治理）。'
     '内核不允许引用任何具体行业逻辑（legal pack 等全部在应用层），'
-    '执行引擎通过 ExecutionAdapter 协议实现可插拔（native、acg 两条路径并存），'
+    '所有生产工作流由 ACGExecutor 调度，ExecutionAdapter 保留给已注册的外部引擎，'
     '领域能力通过 Pack Manifest 和 Registry 注入运行时。'
 )
 doc.add_paragraph(

@@ -381,8 +381,8 @@ case_intake
 
 ```text
 WorkflowRuntime.start()
-  -> _run_until_blocked()
-  -> Orchestrator.select_next_step()
+  -> promote_workflow_to_acg()
+  -> ACGExecutor.ready_steps()
   -> Orchestrator.dispatch_agent()
   -> Agent.run()
   -> 写 trace
