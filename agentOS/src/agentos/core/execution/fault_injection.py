@@ -79,5 +79,8 @@ class FaultInjector:
     def triggered_count(self) -> int:
         return self._triggered
 
+    def restore_triggered_count(self, value: int) -> None:
+        self._triggered = max(0, int(value))
+
 
 __all__ = ["FaultType", "InjectedFault", "FaultInjector"]

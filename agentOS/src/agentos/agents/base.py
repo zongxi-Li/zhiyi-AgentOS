@@ -36,6 +36,7 @@ class AgentRunContext(BaseModel):
     workflow: WorkflowDefinition
     step: WorkflowStep
     memory: Any
+    context_pack: Optional[Any] = Field(default=None, alias="contextPack")
 
 
 class BaseAgent(ABC):

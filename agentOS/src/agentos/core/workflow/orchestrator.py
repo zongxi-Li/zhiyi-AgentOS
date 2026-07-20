@@ -29,6 +29,7 @@ class Orchestrator:
         workflow: WorkflowDefinition,
         step: WorkflowStep,
         memory: WorkflowMemory,
+        context_pack=None,
     ) -> Tuple[AgentOutput, int]:
         agent = self.agent_registry.resolve(
             domain=run.domain,
@@ -41,6 +42,7 @@ class Orchestrator:
             workflow=workflow,
             step=step,
             memory=memory,
+            contextPack=context_pack,
         )
         started = perf_counter()
         result = await agent.run(context)

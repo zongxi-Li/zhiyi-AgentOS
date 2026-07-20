@@ -7,7 +7,13 @@ import os
 from typing import Mapping, Optional
 
 from agentos.agents import AgentRegistry
-from agentos.core.acg import ACGBlueprint, promote_workflow_to_acg
+from agentos.core.acg import (
+    ACGBlueprint,
+    AgentNode,
+    EdgeType,
+    SkillNode,
+    promote_workflow_to_acg,
+)
 from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.evaluation import WorkflowEvaluator
@@ -169,8 +175,55 @@ class WorkflowRuntime:
             payload=task.model_dump(by_alias=True, mode="json"),
         )
         blueprint = self._build_acg_blueprint(task, run, workflow)
+        self._validate_blueprint_agents(blueprint, domain=workflow.domain or task.domain)
+        run.execution_state["workflowVersion"] = workflow.version
+        run.execution_state["graphId"] = blueprint.graph_id
+        run.execution_state["graphVersion"] = blueprint.version
         self._sync_run_steps_to_acg(run, blueprint)
         return await executor.run(task=task, run=run, workflow=workflow, blueprint=blueprint)
+
+    def _validate_blueprint_agents(self, blueprint: ACGBlueprint, *, domain: str) -> None:
+        missing: list[str] = []
+        skill_nodes: dict[str, str] = {
+            node.name: node.node_id for node in blueprint.nodes if isinstance(node, SkillNode)
+        }
+        for step in blueprint.step_nodes():
+            try:
+                agent = self.agent_registry.resolve(
+                    domain=domain,
+                    agent_name=step.agent_name,
+                    capability=step.capability,
+                )
+            except KeyError:
+                missing.append(step.agent_name or step.node_id)
+                continue
+
+            execution_edges = blueprint.incoming(step.node_id, EdgeType.EXECUTION)
+            if execution_edges:
+                step.assigned_agent_id = execution_edges[0].source_id
+            for skill_name in agent.profile.allowed_skills:
+                skill_id = skill_nodes.get(skill_name)
+                if skill_id is None:
+                    skill_id = f"skill::{skill_name}"
+                    if blueprint.has_node(skill_id):
+                        skill_id = f"skill::{skill_name}::{len(skill_nodes) + 1}"
+                    blueprint.nodes.append(
+                        SkillNode(
+                            nodeId=skill_id,
+                            name=skill_name,
+                            description=f"Registered skill available to {agent.profile.agent_name}",
+                        )
+                    )
+                    skill_nodes[skill_name] = skill_id
+                if skill_id not in step.skill_ids:
+                    step.skill_ids.append(skill_id)
+                if step.assigned_agent_id:
+                    agent_node = blueprint.get_node(step.assigned_agent_id)
+                    if isinstance(agent_node, AgentNode) and skill_id not in agent_node.skill_ids:
+                        agent_node.skill_ids.append(skill_id)
+        if missing:
+            raise ValueError("ACG references unregistered Agents: " + ", ".join(sorted(set(missing))))
+        blueprint.touch()
 
     def _build_acg_blueprint(
         self,
@@ -206,7 +259,7 @@ class WorkflowRuntime:
                 task_id=task.task_id,
                 intent=intent_text,
                 domain=workflow.domain or task.domain,
-                task_type=workflow.intent or task.intent,
+                task_type=task.intent or workflow.intent,
                 force_dynamic=force_dynamic,
             )
             self.trace_store.append(
@@ -232,16 +285,22 @@ class WorkflowRuntime:
                     agentName=node.agent_name or node.node_id,
                     capability=node.capability,
                     input=dict(node.input_spec),
+                    outputSpec=dict(node.output_spec),
                     reviewRequired=node.review_required,
                     maxRetries=node.retry_limit,
+                    timeout=node.timeout,
+                    priority=node.priority,
                 )
             else:
                 step.name = node.name or step.name
                 step.agent_name = node.agent_name or step.agent_name
                 step.capability = node.capability
                 step.input = dict(node.input_spec)
+                step.output_spec = dict(node.output_spec)
                 step.requires_review = node.review_required
                 step.max_retries = node.retry_limit
+                step.timeout = node.timeout
+                step.priority = node.priority
             synced.append(step)
 
         run.steps = synced
@@ -358,6 +417,11 @@ class WorkflowRuntime:
             raise ValueError("Only acg workflow runs can be resumed from checkpoints")
 
         snapshot = checkpoint.state_snapshot or {}
+        snapshot_workflow_version = snapshot.get("workflowVersion")
+        if snapshot_workflow_version and snapshot_workflow_version != workflow.version:
+            raise ValueError(
+                f"Checkpoint workflow version mismatch: {snapshot_workflow_version} != {workflow.version}"
+            )
         snapshot_steps = snapshot.get("steps")
         if isinstance(snapshot_steps, list):
             run.steps = [WorkflowStep.model_validate(step) for step in snapshot_steps]
@@ -372,6 +436,9 @@ class WorkflowRuntime:
         run.current_step_id = snapshot.get("currentStepId") or checkpoint.step_id
         if "provenance" in snapshot:
             run.provenance = snapshot["provenance"]
+        if isinstance(snapshot.get("executionState"), dict):
+            run.execution_state = dict(snapshot["executionState"])
+        run.active_step_ids = []
         if "output" in snapshot:
             run.output = dict(snapshot["output"] or {})
         blueprint = (
@@ -380,6 +447,18 @@ class WorkflowRuntime:
             else promote_workflow_to_acg(workflow, task_id=task.task_id)
         )
         run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
+        snapshot_graph_id = snapshot.get("graphId")
+        snapshot_graph_version = snapshot.get("graphVersion")
+        if snapshot_graph_id and snapshot_graph_id != blueprint.graph_id:
+            raise ValueError(f"Checkpoint graph mismatch: {snapshot_graph_id} != {blueprint.graph_id}")
+        if snapshot_graph_version is not None and int(snapshot_graph_version) != blueprint.version:
+            raise ValueError(
+                f"Checkpoint graph version mismatch: {snapshot_graph_version} != {blueprint.version}"
+            )
+
+        for step in run.steps:
+            if step.status == StepStatus.RUNNING:
+                step.status = StepStatus.RETRYING
 
         self._transition_run(run, WorkflowStatus.RETRYING)
         run.error = None
@@ -395,7 +474,12 @@ class WorkflowRuntime:
         self.workflow_store.save_run(run)
         adapter = self._workflow_adapter(workflow)
         assert isinstance(adapter, ACGWorkflowAdapter)
-        return await adapter.executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
+        return await adapter.new_executor().resume(
+            task=task,
+            run=run,
+            workflow=workflow,
+            blueprint=blueprint,
+        )
 
     def cancel(self, run_id: str) -> WorkflowRun:
         run = self.workflow_store.get_run(run_id)

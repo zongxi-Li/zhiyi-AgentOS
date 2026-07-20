@@ -48,7 +48,10 @@ class ContextPack(BaseModel):
     objective: str = ""
     step_goal: str = Field(default="", alias="stepGoal")
     data: Dict[str, Any] = Field(default_factory=dict)
+    source_data: Dict[str, Dict[str, Any]] = Field(default_factory=dict, alias="sourceData")
     evidence_refs: List[str] = Field(default_factory=list, alias="evidenceRefs")
+    missing_fields: List[str] = Field(default_factory=list, alias="missingFields")
+    contract_status: str = Field(default="valid", alias="contractStatus")
     # 低熵度量
     tokens_delivered: int = Field(default=0, alias="tokensDelivered")
     tokens_available: int = Field(default=0, alias="tokensAvailable")

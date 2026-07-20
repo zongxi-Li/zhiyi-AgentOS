@@ -9,6 +9,13 @@ class CheckpointStore:
     """创建并查询内存中的工作流检查点。"""
 
     def create(self, run: WorkflowRun, step_id: str) -> Checkpoint:
+        blueprint = run.acg_blueprint or {}
+        graph_version = blueprint.get("version") if isinstance(blueprint, dict) else None
+        graph_id = blueprint.get("graphId") if isinstance(blueprint, dict) else None
+        completed_ids = sorted(
+            set(run.completed_step_ids)
+            | {step.step_id for step in run.steps if step.status.value == "completed"}
+        )
         state_snapshot: Dict[str, Any] = {
             "runId": run.run_id,
             "taskId": run.task_id,
@@ -21,11 +28,16 @@ class CheckpointStore:
             "output": run.output,
             "steps": [step.model_dump(by_alias=True, mode="json") for step in run.steps],
             "acgBlueprint": run.acg_blueprint,
-            "completedStepIds": sorted(
-                set(run.completed_step_ids)
-                | {step.step_id for step in run.steps if step.status.value == "completed"}
+            "completedStepIds": completed_ids,
+            "pendingStepIds": sorted(
+                step.step_id for step in run.steps if step.step_id not in completed_ids
             ),
+            "activeStepIds": list(run.active_step_ids),
             "provenance": run.provenance,
+            "executionState": dict(run.execution_state),
+            "workflowVersion": run.execution_state.get("workflowVersion"),
+            "graphId": graph_id,
+            "graphVersion": graph_version,
         }
         checkpoint = Checkpoint(
             runId=run.run_id,

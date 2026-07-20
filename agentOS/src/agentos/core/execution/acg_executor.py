@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 from agentos.core.acg import (
     ACGBlueprint,
+    AgentNode,
     ControlNode,
     ControlType,
     EdgeType,
@@ -27,7 +28,13 @@ from agentos.core.acg import (
     ready_steps,
     validate_blueprint,
 )
-from agentos.core.communication import ContextAssembler, ProvenanceLedger
+from agentos.core.communication import (
+    ContextAssembler,
+    ContextContractError,
+    ContextPack,
+    ProvenanceLedger,
+    validate_contract_payload,
+)
 from agentos.core.execution.fault_injection import FaultInjector, InjectedFault
 from agentos.core.execution.step_wrapper import (
     StepExecutionTimer,
@@ -71,8 +78,15 @@ class ACGExecutor:
         blueprint: ACGBlueprint,
     ) -> WorkflowRun:
         validate_blueprint(blueprint)
+        self.ledger = ProvenanceLedger(run_id=run.run_id, task_id=task.task_id)
+        self.assembler = ContextAssembler(self.ledger)
         run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
         self.fault_injector = FaultInjector.from_config(task.input.get("faultInjection"))
+        run.execution_state = {
+            **run.execution_state,
+            "scheduleRound": 0,
+            "faultInjectionTriggered": 0,
+        }
         if self.fault_injector.active:
             self.runtime.trace_store.append(
                 run=run,
@@ -110,17 +124,30 @@ class ACGExecutor:
         blueprint: ACGBlueprint,
     ) -> WorkflowRun:
         """人审/检查点之后从当前完成集续跑就绪集，不重置 RUN_STARTED。"""
+        validate_blueprint(blueprint)
+        self.ledger = ProvenanceLedger.from_graph(
+            run.provenance,
+            run_id=run.run_id,
+            task_id=task.task_id,
+        )
+        self.assembler = ContextAssembler(self.ledger)
+        self.fault_injector = FaultInjector.from_config(task.input.get("faultInjection"))
+        self.fault_injector.restore_triggered_count(
+            int(run.execution_state.get("faultInjectionTriggered", 0))
+        )
         return await self._drive(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
     # ------------------------------------------------------------------
     # 主调度循环：每轮计算就绪集 → 并行执行 → 更新完成集
     # ------------------------------------------------------------------
     async def _drive(self, *, task, run, workflow, blueprint: ACGBlueprint) -> WorkflowRun:
-        self.runtime._transition_run(run, WorkflowStatus.RUNNING)
+        self.runtime._transition_run_if_needed(run, WorkflowStatus.RUNNING)
         self.runtime.task_manager.mark_running(task)
         completed: Set[str] = set(run.completed_step_ids)
 
         while True:
+            self.runtime._transition_run_if_needed(run, WorkflowStatus.RUNNING)
+            self.runtime.task_manager.mark_running(task)
             # 1) 先处理已就绪的控制节点（分支/汇聚/起止），可能改变可达性
             self._resolve_control_nodes(blueprint, completed)
 
@@ -135,14 +162,26 @@ class ACGExecutor:
                 return run
 
             # 2) 调度本批就绪集（受并行上限约束）
-            batch = ready[: self.max_parallelism]
+            batch = self._select_batch(blueprint, ready)
+            schedule_round = int(run.execution_state.get("scheduleRound", 0)) + 1
+            run.execution_state["scheduleRound"] = schedule_round
+            batch_id = f"batch_{schedule_round:04d}"
+            run.active_step_ids = list(batch)
+            run.current_step_id = batch[0] if batch else None
             for node_id in batch:
+                step = self._bridge_step(run, blueprint, node_id)
                 self.runtime.trace_store.append(
                     run=run,
                     event_type=TraceEventType.STEP_SCHEDULED,
                     step_id=node_id,
                     observation=f"Step scheduled (ready set size={len(ready)})",
-                    payload={"readySet": ready, "batch": batch},
+                    payload={
+                        "readySet": ready,
+                        "batch": batch,
+                        "batchId": batch_id,
+                        "round": schedule_round,
+                        "attempt": step.attempt + 1,
+                    },
                 )
             self.runtime.workflow_store.save_run(run)
 
@@ -155,36 +194,58 @@ class ACGExecutor:
             )
 
             # 3) 结算本批结果
+            run.active_step_ids = []
             waiting_review = False
-            self_healed = False
+            waiting_review_nodes: List[str] = []
+            recoverable_failure = False
+            fatal_failures: List[tuple[str, Exception]] = []
+            completed_this_batch: List[str] = []
             for node_id, outcome in zip(batch, results):
                 if isinstance(outcome, InjectedFault):
-                    # 可恢复故障：检查点 + 局部重规划，自愈续跑（不置 run 失败）
                     if self._self_heal(run, task, blueprint, node_id, outcome):
-                        self_healed = True
+                        recoverable_failure = True
                         continue
-                    self._mark_step_failed(run, task, node_id, outcome)
-                    self.runtime.workflow_store.save_run(run)
-                    return run
+                    fatal_failures.append((node_id, outcome))
+                    continue
                 if isinstance(outcome, Exception):
-                    self._mark_step_failed(run, task, node_id, outcome)
-                    self.runtime.workflow_store.save_run(run)
-                    return run
+                    if self._schedule_retry(run, task, node_id, outcome):
+                        recoverable_failure = True
+                    else:
+                        fatal_failures.append((node_id, outcome))
+                    continue
                 status = outcome
                 if status == StepStatus.WAITING_REVIEW:
                     waiting_review = True
+                    waiting_review_nodes.append(node_id)
                 elif status == StepStatus.COMPLETED:
                     completed.add(node_id)
+                    completed_this_batch.append(node_id)
 
             run.completed_step_ids = sorted(completed)
             run.provenance = self.ledger.to_graph()
+            run.execution_state["faultInjectionTriggered"] = self.fault_injector.triggered_count
             run.output = self.runtime.orchestrator.compose_final_output(run)
             run.updated_at = utc_now()
+
+            # Checkpoints are created only after the whole batch has settled so snapshots
+            # cannot miss a successful sibling's output/provenance.
+            for node_id in completed_this_batch:
+                self.runtime._create_checkpoint(run, run.get_step(node_id))
+            for node_id in waiting_review_nodes:
+                self.runtime._create_checkpoint(run, run.get_step(node_id))
+
+            if fatal_failures:
+                for node_id, exc in fatal_failures:
+                    self._mark_step_failed(run, task, node_id, exc)
+                self.runtime.workflow_store.save_run(run)
+                return run
             self.runtime.workflow_store.save_run(run)
 
             if waiting_review:
                 # 命中人审中断：保持 waiting_review，等待 apply_review 续跑
                 return run
+            if recoverable_failure:
+                continue
 
     # ------------------------------------------------------------------
     # 就绪集过滤：排除已 RUNNING / WAITING_REVIEW / 已完成的节点
@@ -196,15 +257,34 @@ class ACGExecutor:
             step = self._bridge_step(run, blueprint, node_id)
             if step.status in {StepStatus.PENDING, StepStatus.RETRYING}:
                 eligible.append(node_id)
-        return eligible
+        return sorted(
+            eligible,
+            key=lambda item: (-self._bridge_step(run, blueprint, item).priority, item),
+        )
+
+    def _select_batch(self, blueprint: ACGBlueprint, ready: List[str]) -> List[str]:
+        """Apply global and per-Agent concurrency limits to a ready set."""
+        selected: List[str] = []
+        agent_counts: Dict[str, int] = {}
+        for node_id in ready:
+            execution_edges = blueprint.incoming(node_id, EdgeType.EXECUTION)
+            agent_key = execution_edges[0].source_id if execution_edges else f"step::{node_id}"
+            limit = 1
+            if execution_edges:
+                agent = blueprint.get_node(agent_key)
+                if isinstance(agent, AgentNode):
+                    limit = max(1, agent.max_concurrency)
+            if agent_counts.get(agent_key, 0) >= limit:
+                continue
+            selected.append(node_id)
+            agent_counts[agent_key] = agent_counts.get(agent_key, 0) + 1
+            if len(selected) >= self.max_parallelism:
+                break
+        return selected
 
     def _all_steps_done(self, blueprint: ACGBlueprint, completed: Set[str], run: WorkflowRun) -> bool:
-        for step_node in blueprint.step_nodes():
-            if step_node.node_id not in completed:
-                bridged = self._bridge_step(run, blueprint, step_node.node_id)
-                if bridged.status != StepStatus.WAITING_REVIEW:
-                    return False
-        return True
+        del run
+        return all(step_node.node_id in completed for step_node in blueprint.step_nodes())
 
     # ------------------------------------------------------------------
     # StepNode ↔ WorkflowStep 桥接：复用既有 run.steps / agent dispatch
@@ -222,8 +302,11 @@ class ACGExecutor:
                 agentName=node.agent_name or node.node_id,
                 capability=node.capability,
                 input=dict(node.input_spec),
+                outputSpec=dict(node.output_spec),
                 reviewRequired=node.review_required,
                 maxRetries=node.retry_limit,
+                timeout=node.timeout,
+                priority=node.priority,
             )
             run.steps.append(step)
             return step
@@ -250,7 +333,7 @@ class ACGExecutor:
     ) -> StepStatus:
         step = self._bridge_step(run, blueprint, node_id)
         self.runtime._transition_step(step, StepStatus.RUNNING)
-        run.current_step_id = node_id
+        step.attempt += 1
         run.updated_at = utc_now()
         self.runtime.trace_store.append(
             run=run,
@@ -258,24 +341,64 @@ class ACGExecutor:
             step_id=node_id,
             agent_name=step.agent_name,
             observation=f"Step started: {step.name}",
-            payload={"inputSummary": input_summary(step.input)},
+            payload={"inputSummary": input_summary(step.input), "attempt": step.attempt},
         )
 
         # 低熵通信：按 input_spec 精准装配下游上下文，记录消费血缘与节省率。
         step_node = blueprint.get_node(node_id)
+        source_ids = self._data_sources(blueprint, node_id)
+        if isinstance(step_node, StepNode):
+            spec = step_node.input_spec or {}
+            has_field_contract = isinstance(spec.get("from"), dict) or isinstance(spec.get("fields"), list)
+            if not has_field_contract:
+                source_ids = [
+                    candidate.step_id
+                    for candidate in run.steps
+                    if candidate.step_id != node_id
+                    and candidate.status in {StepStatus.COMPLETED, StepStatus.WAITING_REVIEW}
+                    and candidate.output
+                ]
         upstream_outputs = {
             sid: dict(run.get_step(sid).output)
-            for sid in self._data_sources(blueprint, node_id)
+            for sid in source_ids
             if self._safe_has_step(run, sid)
         }
+        pack: ContextPack | None = None
         if isinstance(step_node, StepNode) and upstream_outputs:
-            pack = self.assembler.assemble(
-                run_id=run.run_id,
-                blueprint=blueprint,
-                step_node=step_node,
-                objective=blueprint.objective,
-                upstream_outputs=upstream_outputs,
-            )
+            producer_agent_names = {
+                source_id: run.get_step(source_id).agent_name
+                for source_id in upstream_outputs
+                if self._safe_has_step(run, source_id)
+            }
+            try:
+                pack = self.assembler.assemble(
+                    run_id=run.run_id,
+                    task_id=task.task_id,
+                    blueprint=blueprint,
+                    step_node=step_node,
+                    objective=blueprint.objective,
+                    upstream_outputs=upstream_outputs,
+                    consumer_agent_name=step.agent_name,
+                    producer_agent_names=producer_agent_names,
+                    attempt=step.attempt,
+                )
+            except ContextContractError as exc:
+                run.provenance = self.ledger.to_graph()
+                self.runtime.trace_store.append(
+                    run=run,
+                    event_type=TraceEventType.CONTRACT_VIOLATION,
+                    step_id=node_id,
+                    agent_name=step.agent_name,
+                    observation=str(exc),
+                    payload={
+                        "direction": exc.direction,
+                        "path": exc.path,
+                        "attempt": step.attempt,
+                    },
+                )
+                raise
+            step.resolved_input = dict(pack.data)
+            run.provenance = self.ledger.to_graph()
             self.runtime.trace_store.append(
                 run=run,
                 event_type=TraceEventType.DATA_CONSUMED,
@@ -291,28 +414,68 @@ class ACGExecutor:
                     "tokensAvailable": pack.tokens_available,
                     "savingRatio": pack.saving_ratio,
                     "evidenceRefs": pack.evidence_refs,
+                    "contractStatus": pack.contract_status,
+                    "attempt": step.attempt,
                 },
             )
 
-        memory = WorkflowMemory.from_run(run)
+        memory = (
+            WorkflowMemory.from_context_pack(run, pack)
+            if pack is not None
+            else WorkflowMemory(run_id=run.run_id, task_input=dict(run.input), observations={})
+        )
         timer = StepExecutionTimer()
         # 故障注入点：在真正调用 Agent 前触发（模拟模型超时/Agent崩溃等）。
         self.fault_injector.fire(node_id)
-        result, _ = await self.runtime.orchestrator.dispatch_agent(
-            task=task, run=run, workflow=workflow, step=step, memory=memory
+        dispatch = self.runtime.orchestrator.dispatch_agent(
+            task=task,
+            run=run,
+            workflow=workflow,
+            step=step,
+            memory=memory,
+            context_pack=pack,
+        )
+        result, _ = (
+            await asyncio.wait_for(dispatch, timeout=step.timeout)
+            if step.timeout > 0
+            else await dispatch
         )
         duration_ms = timer.elapsed_ms()
 
-        step.output = dict(result.output)
+        output = dict(result.output)
+        try:
+            validate_contract_payload(
+                output,
+                step_node.output_spec if isinstance(step_node, StepNode) else {},
+                step_id=node_id,
+                direction="output",
+            )
+        except ContextContractError as exc:
+            self.runtime.trace_store.append(
+                run=run,
+                event_type=TraceEventType.CONTRACT_VIOLATION,
+                step_id=node_id,
+                agent_name=step.agent_name,
+                observation=str(exc),
+                payload={"direction": exc.direction, "path": exc.path, "attempt": step.attempt},
+            )
+            raise
+        step.output = output
         # 数据生产事件：登记产物，供前向追溯与节省率统计。
-        self.assembler.record_production(node_id, step.output)
+        self.assembler.record_production(
+            node_id,
+            step.output,
+            agent_name=step.agent_name,
+            attempt=step.attempt,
+        )
+        run.provenance = self.ledger.to_graph()
         self.runtime.trace_store.append(
             run=run,
             event_type=TraceEventType.DATA_PRODUCED,
             step_id=node_id,
             agent_name=step.agent_name,
             observation=f"Data produced by {node_id}",
-            payload={"fields": sorted(step.output.keys())},
+            payload={"fields": sorted(step.output.keys()), "attempt": step.attempt},
         )
         self.runtime.trace_store.append(
             run=run,
@@ -324,13 +487,12 @@ class ACGExecutor:
             duration_ms=duration_ms,
         )
 
-        # 人审中断：保持 waiting_review，建检查点，等待 apply_review
+        # 人审中断：保持 waiting_review，等待批次统一创建检查点。
         if step.requires_review and run.review_mode != "auto":
             self.runtime._transition_step(step, StepStatus.WAITING_REVIEW)
             self.runtime._transition_run(run, WorkflowStatus.WAITING_REVIEW)
             run.current_step_id = node_id
             self.runtime.task_manager.mark_waiting_review(task)
-            self.runtime._create_checkpoint(run, step)
             self.runtime.trace_store.append(
                 run=run,
                 event_type=TraceEventType.REVIEW_REQUIRED,
@@ -351,7 +513,6 @@ class ACGExecutor:
             payload={"outputSummary": output_summary(step.output)},
             duration_ms=duration_ms,
         )
-        self.runtime._create_checkpoint(run, step)
         return StepStatus.COMPLETED
 
     # ------------------------------------------------------------------
@@ -383,6 +544,52 @@ class ACGExecutor:
             return
         self.runtime._mark_step_failed(run, task, step, exc)
 
+    def _schedule_retry(self, run: WorkflowRun, task, node_id: str, exc: Exception) -> bool:
+        """Schedule an automatic retry when the Step's declared budget allows it."""
+        try:
+            step = run.get_step(node_id)
+        except KeyError:
+            return False
+        if step.retry_count >= step.max_retries:
+            return False
+
+        step.error = str(exc)
+        step.retry_count += 1
+        self.runtime._transition_step(step, StepStatus.RETRYING)
+        self.runtime._transition_run_if_needed(run, WorkflowStatus.RETRYING)
+        self.runtime.task_manager.mark_retrying(task)
+        run.recovery_count += 1
+        run.error = None
+        run.provenance = self.ledger.to_graph()
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.STEP_FAILED,
+            step_id=node_id,
+            agent_name=step.agent_name,
+            observation=str(exc),
+            payload={
+                "recoverable": True,
+                "strategy": "retry",
+                "attempt": step.attempt,
+                "retryCount": step.retry_count,
+                "maxRetries": step.max_retries,
+            },
+        )
+        checkpoint = self.runtime._create_checkpoint(run, step)
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_RECOVERED,
+            step_id=node_id,
+            agent_name=step.agent_name,
+            observation=f"Automatic retry scheduled from checkpoint {checkpoint.checkpoint_id}",
+            payload={
+                "checkpointId": checkpoint.checkpoint_id,
+                "strategy": "retry",
+                "recoveryCount": run.recovery_count,
+            },
+        )
+        return True
+
     def _self_heal(
         self, run: WorkflowRun, task, blueprint: ACGBlueprint, node_id: str, fault: InjectedFault
     ) -> bool:
@@ -396,8 +603,9 @@ class ACGExecutor:
         except KeyError:
             return False
 
-        # 循环保护：单节点自愈重试上限，避免持续故障导致死循环。
-        if step.retry_count >= 3:
+        del blueprint
+        retry_limit = max(1, self.fault_injector.max_triggers, step.max_retries)
+        if step.retry_count >= retry_limit:
             return False
 
         run.recovery_count += 1
@@ -410,13 +618,16 @@ class ACGExecutor:
             observation=f"Injected fault: {fault.fault_type.value}",
             payload={"faultType": fault.fault_type.value, "recoverable": True},
         )
-        # 2) 检查点（保存当前现场，供恢复定位）。直接复位节点状态属于恢复语义，
-        #    恢复时直接重置节点状态，避免无效的 RUNNING→PENDING 状态转换。
-        step.status = StepStatus.PENDING
+        # 2) 进入显式 RETRYING 状态并保存当前现场。
+        self.runtime._transition_step(step, StepStatus.RETRYING)
+        self.runtime._transition_run_if_needed(run, WorkflowStatus.RETRYING)
+        self.runtime.task_manager.mark_retrying(task)
         step.error = None
         step.retry_count += 1
         run.error = None
-        checkpoint = self.runtime.checkpoint_store.create(run, node_id)
+        run.execution_state["faultInjectionTriggered"] = self.fault_injector.triggered_count
+        run.provenance = self.ledger.to_graph()
+        checkpoint = self.runtime._create_checkpoint(run, step)
         # 3) 局部重规划轨迹：声明从检查点恢复、仅重跑该子图
         self.runtime.trace_store.append(
             run=run,

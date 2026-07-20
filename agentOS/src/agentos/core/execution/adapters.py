@@ -34,14 +34,21 @@ class ACGWorkflowAdapter:
     """
 
     def __init__(self, runtime: Any):
+        self.runtime = runtime
+
+    def new_executor(self):
         from agentos.core.execution.acg_executor import ACGExecutor
 
-        self.runtime = runtime
-        self.executor = ACGExecutor(runtime)
+        return ACGExecutor(self.runtime)
 
     async def start(self, *, task: AgentTask, run: WorkflowRun, workflow: WorkflowDefinition) -> WorkflowRun:
-        return await self.runtime._start_acg(task=task, run=run, workflow=workflow, executor=self.executor)
+        return await self.runtime._start_acg(
+            task=task,
+            run=run,
+            workflow=workflow,
+            executor=self.new_executor(),
+        )
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
-        return await self.runtime._apply_acg_review(decision, executor=self.executor)
+        return await self.runtime._apply_acg_review(decision, executor=self.new_executor())
 

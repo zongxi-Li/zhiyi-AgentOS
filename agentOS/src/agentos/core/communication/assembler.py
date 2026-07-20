@@ -22,6 +22,7 @@ from typing import Any, Dict, List
 from agentos.core.acg import ACGBlueprint, EdgeType, StepNode
 from agentos.core.communication.audit import ProvenanceLedger
 from agentos.core.communication.contract import ContextPack, estimate_tokens
+from agentos.core.data_contracts import ContextContractError, validate_contract_payload
 
 
 class ContextAssembler:
@@ -38,6 +39,10 @@ class ContextAssembler:
         step_node: StepNode,
         objective: str,
         upstream_outputs: Dict[str, Dict[str, Any]],
+        task_id: str = "",
+        consumer_agent_name: str = "",
+        producer_agent_names: Dict[str, str] | None = None,
+        attempt: int = 1,
     ) -> ContextPack:
         """为 step_node 装配 ContextPack。
 
@@ -48,15 +53,17 @@ class ContextAssembler:
         comm_sources = [edge.source_id for edge in comm_edges]
         dep_sources = blueprint.dependency_sources(step_node.node_id)
         raw_source_ids = comm_sources or dep_sources
-        source_ids = [sid for sid in raw_source_ids if sid in upstream_outputs] or list(upstream_outputs.keys())
+        source_ids = [sid for sid in raw_source_ids if sid in upstream_outputs]
+        if not raw_source_ids:
+            source_ids = list(upstream_outputs.keys())
 
         # 可获取的 token 总量（若全盘倾倒）
-        tokens_available = sum(estimate_tokens(upstream_outputs[sid]) for sid in source_ids)
-
         # 2) 按 input_spec 精准提取
         spec = step_node.input_spec or {}
         delivered: Dict[str, Any] = {}
+        source_data: Dict[str, Dict[str, Any]] = {}
         consumed_fields: List[str] = []
+        fields_by_producer: Dict[str, List[str]] = {}
 
         from_map = spec.get("from") if isinstance(spec.get("from"), dict) else None
         field_list = spec.get("fields") if isinstance(spec.get("fields"), list) else None
@@ -68,28 +75,43 @@ class ContextAssembler:
                         edge_fields.append(field)
             field_list = edge_fields or None
 
+        # Legacy workflows without a field contract receive all completed upstream
+        # observations. Explicit contracts remain restricted to declared sources.
+        if not from_map and not field_list:
+            source_ids = list(upstream_outputs.keys())
+
+        tokens_available = sum(estimate_tokens(upstream_outputs[sid]) for sid in source_ids)
+
         if from_map:
             for src_id, fields in from_map.items():
                 src_out = upstream_outputs.get(src_id, {})
                 for field in fields or []:
                     if field in src_out:
-                        delivered[field] = src_out[field]
+                        source_data.setdefault(src_id, {})[field] = src_out[field]
+                        if field not in delivered:
+                            delivered[field] = src_out[field]
                         consumed_fields.append(field)
+                        fields_by_producer.setdefault(src_id, []).append(field)
         elif field_list:
             for sid in source_ids:
                 src_out = upstream_outputs.get(sid, {})
                 for field in field_list:
-                    if field in src_out and field not in delivered:
-                        delivered[field] = src_out[field]
+                    if field in src_out:
+                        source_data.setdefault(sid, {})[field] = src_out[field]
+                        if field not in delivered:
+                            delivered[field] = src_out[field]
                         consumed_fields.append(field)
+                        fields_by_producer.setdefault(sid, []).append(field)
         else:
             # 回退：无清单则透传上游输出（兼容旧行为），仍记账
             for sid in source_ids:
                 src_out = upstream_outputs.get(sid, {})
                 for field, value in src_out.items():
+                    source_data.setdefault(sid, {})[field] = value
                     if field not in delivered:
                         delivered[field] = value
                         consumed_fields.append(field)
+                    fields_by_producer.setdefault(sid, []).append(field)
 
         # 3) 聚合证据链
         evidence_refs = self._collect_evidence(source_ids, upstream_outputs)
@@ -100,29 +122,90 @@ class ContextAssembler:
         if tokens_available > 0:
             saving_ratio = round(max(0.0, 1.0 - tokens_delivered / tokens_available), 4)
 
-        # 5) 血缘记账
-        self.ledger.record_consumption(
-            step_id=step_node.node_id,
-            producer_step_ids=source_ids,
-            consumed_fields=consumed_fields,
-        )
+        input_schema = spec.get("schema") if isinstance(spec.get("schema"), dict) else {}
+        required_fields = input_schema.get("required") if isinstance(input_schema, dict) else []
+        missing_fields = [str(field) for field in required_fields or [] if field not in delivered]
+        contract_status = "valid"
+        contract_error: ContextContractError | None = None
+        try:
+            validate_contract_payload(
+                delivered,
+                input_schema,
+                step_id=step_node.node_id,
+                direction="input",
+            )
+        except ContextContractError as exc:
+            contract_status = "invalid"
+            contract_error = exc
 
-        return ContextPack(
+        pack = ContextPack(
             runId=run_id,
             stepId=step_node.node_id,
             objective=objective,
             stepGoal=step_node.goal or step_node.name,
             data=delivered,
+            sourceData=source_data,
             evidenceRefs=evidence_refs,
+            missingFields=missing_fields,
+            contractStatus=contract_status,
             tokensDelivered=tokens_delivered,
             tokensAvailable=tokens_available,
             savingRatio=saving_ratio,
             sourceStepIds=source_ids,
         )
 
-    def record_production(self, step_id: str, output: Dict[str, Any]) -> None:
+        # 5) 血缘与运行时交互记账。即使契约无效也保留装配尝试，便于审计。
+        self.ledger.record_consumption(
+            step_id=step_node.node_id,
+            producer_step_ids=source_ids,
+            consumed_fields=consumed_fields,
+            consumer_agent_name=consumer_agent_name,
+            attempt=attempt,
+            fields_by_producer=fields_by_producer,
+            data=delivered,
+            tokens_delivered=tokens_delivered,
+            tokens_available=tokens_available,
+            saving_ratio=saving_ratio,
+            contract_status=contract_status,
+        )
+        self.ledger.record_interaction(
+            edge_ids=[edge.edge_id for edge in comm_edges],
+            producer_step_ids=source_ids,
+            consumer_step_id=step_node.node_id,
+            producer_agent_names=[
+                (producer_agent_names or {}).get(source_id, "") for source_id in source_ids
+            ],
+            consumer_agent_name=consumer_agent_name,
+            fields_by_producer=fields_by_producer,
+            tokens_delivered=tokens_delivered,
+            tokens_available=tokens_available,
+            saving_ratio=saving_ratio,
+            evidence_refs=evidence_refs,
+            contract_status=contract_status,
+            data=delivered,
+        )
+        if contract_error is not None:
+            raise contract_error
+        return pack
+
+    def record_production(
+        self,
+        step_id: str,
+        output: Dict[str, Any],
+        *,
+        agent_name: str = "",
+        attempt: int = 1,
+    ) -> None:
         """Step 完成后登记数据生产事件（供前向追溯与节省率统计）。"""
-        self.ledger.record_production(step_id, output, estimate_tokens(output))
+        evidence_refs = self._collect_evidence([step_id], {step_id: output})
+        self.ledger.record_production(
+            step_id,
+            output,
+            estimate_tokens(output),
+            agent_name=agent_name,
+            attempt=attempt,
+            evidence_refs=evidence_refs,
+        )
 
     @staticmethod
     def _collect_evidence(source_ids: List[str], upstream_outputs: Dict[str, Dict[str, Any]]) -> List[str]:

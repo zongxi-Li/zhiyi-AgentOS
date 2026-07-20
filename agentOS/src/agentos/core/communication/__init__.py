@@ -11,8 +11,14 @@ from agentos.core.communication.audit import (
     DataConsumptionEvent,
     DataProductionEvent,
     ProvenanceLedger,
+    RuntimeInteraction,
 )
 from agentos.core.communication.contract import ContextPack, estimate_tokens
+from agentos.core.data_contracts import (
+    ContextContractError,
+    check_contract_schema,
+    validate_contract_payload,
+)
 
 __all__ = [
     "ContextAssembler",
@@ -21,4 +27,8 @@ __all__ = [
     "ProvenanceLedger",
     "DataProductionEvent",
     "DataConsumptionEvent",
+    "RuntimeInteraction",
+    "ContextContractError",
+    "check_contract_schema",
+    "validate_contract_payload",
 ]
