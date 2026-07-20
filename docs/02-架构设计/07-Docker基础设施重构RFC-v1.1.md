@@ -1,5 +1,7 @@
 # 知弈 AgentOS Docker 基础设施重构 RFC v1.1
 
+# Zhiyi AgentOS Docker Infrastructure Refactoring RFC v1.1
+
 状态：冻结实施基线。当前实施范围仅为 P0/P1，不再扩展架构。
 
 ## 1. 目标与边界

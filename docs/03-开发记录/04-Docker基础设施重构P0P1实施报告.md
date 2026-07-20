@@ -33,7 +33,7 @@
 | PostgreSQL/Redis | `docker/postgres/Dockerfile`、`docker/postgres/secret-entrypoint.sh`、`docker/postgres/init-app-role.sh`、`docker/redis/Dockerfile`、`docker/redis/entrypoint.sh`、`docker/redis/healthcheck.sh` |
 | Frontend 容器 | `frontend/Dockerfile*`、`frontend/nginx.conf`、`frontend/nginx-main.conf`、`frontend/.dockerignore` |
 | 基础设施脚本 | `scripts/infra/common.py`、`init_secrets.py`、`preflight.py`、`schema_audit.py`、`baseline_existing.py`、`backup.py`、`restore.py`、`firewall.py` 及 `scripts/infra/tests/` |
-| 文档 | `README.md`、`docs/02-架构设计/07-docker-infrastructure-rfc-v1.1.md`、本文档、`.gitignore` |
+| 文档 | `README.md`、`docs/02-架构设计/07-Docker基础设施重构RFC-v1.1.md`、本文档、`.gitignore` |
 
 根目录原有未跟踪 `docker-compose.yml` 没有纳入提交或删除；兼容入口使用已跟踪的 `docker/docker-compose*.yml` 转向 Canonical Compose。
 

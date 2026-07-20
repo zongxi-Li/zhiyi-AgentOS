@@ -1,5 +1,7 @@
 # AgentOS 架构说明
 
+# AgentOS Architecture Overview
+
 本文描述 V1.0-alpha 当前真实架构。历史设计文档中出现的向量库、完整法律 RAG、pgvector、案例库、正式法律知识库等内容属于后续规划，不代表当前已经完成。
 
 ## 核心原则

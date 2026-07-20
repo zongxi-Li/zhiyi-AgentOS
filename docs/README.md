@@ -2,6 +2,39 @@
 
 本目录按 **为什么做 → 做成什么 → 怎么实现 → 如何演示** 的阅读顺序组织。建议新成员从 `01` 开始顺序通读。
 
+文档分为三种性质：
+
+- **当前基线**：描述当前仍然有效的架构、边界和操作方式。
+- **阶段证据**：记录某个阶段实际做了什么、如何验证以及当时的结论；用于审计和追溯，不替代当前基线。
+- **设计归档**：保留早期设想和演进过程，不作为当前能力承诺。
+
+## Docker 基础设施专题导航
+
+Docker 重构文档较多，是因为 P0–P3 分阶段保留了设计、实施、审计、发布与最终收口证据。它们不是多套并行配置：根目录的 `compose.yaml` 是唯一全栈基线，其余 Compose 文件只表达环境差异。
+
+### 当前应该先读什么
+
+| 顺序 | 文档 | 性质 | 用途 |
+| ---: | --- | --- | --- |
+| 1 | [Windows Docker 开发与部署收口记录](03-开发记录/09-Windows-Docker开发与部署收口记录.md) | **当前结论** | 当前已验收范围、启动方式、开发热更新、数据与备份边界 |
+| 2 | [Docker 基础设施重构 RFC v1.1](02-架构设计/07-Docker基础设施重构RFC-v1.1.md) | **架构基线** | 重构目标、网络与数据边界、迁移门禁和安全原则 |
+| 3 | [Windows 部署包说明](../deploy/windows/package/README.md) | **操作手册** | Windows 11 + Docker Desktop 离线部署包的启动、日志、备份与恢复 |
+| 4 | [通用离线部署说明](../deploy/DEPLOYMENT.md) | **操作手册** | 安装、升级、回滚和恢复流程；目标主机仍需独立验收 |
+| 5 | [Secret 初始化说明](../deploy/secrets/README.md) | **安全操作** | 外置 Secret 文件格式、初始化和轮换边界 |
+
+### 重构证据时间线
+
+| 阶段 | 文档 | 结论 | 当前角色 |
+| --- | --- | --- | --- |
+| P0/P1 | [Docker P0/P1 实施报告](03-开发记录/04-Docker基础设施重构P0P1实施报告.md) | 完成数据保护、Canonical Compose、网络、卷和迁移门禁 | 历史实施证据 |
+| P1-Windows | [Windows Docker Desktop 验收报告](03-开发记录/05-Windows-Docker-Desktop本地开发环境验收报告.md) | Windows 11 + Docker Desktop 开发环境通过 | 历史验收证据 |
+| P2 | [AI 网关实施报告](03-开发记录/06-Docker基础设施P2实施报告.md) | Windows 环境下安全代理、SSE、Trace ID 与结构化日志通过 | 网关实施证据 |
+| P3 审计 | [P3 实施前只读审计](03-开发记录/07-P3实施前只读审计.md) | 记录镜像、供应链、安全与发布风险，不代表通过 | 审计输入 |
+| P3 发布 | [P3 容器与发布实施报告](03-开发记录/08-P3多架构容器与发布实施报告.md) | 当时多架构、ARM64 和生产门禁未通过 | 阶段性负向证据 |
+| Windows 收口 | [Windows Docker 开发与部署收口记录](03-开发记录/09-Windows-Docker开发与部署收口记录.md) | Windows 开发与部署范围通过；Linux、麒麟、ARM64、企业安全门禁延后 | **最新范围结论** |
+
+> 若历史报告之间的状态不同，以日期更晚且范围更明确的收口记录为准。例如 P3 报告中的 `NOT_ACCEPTED` 不能被解释为 Windows 开发环境不可用；最终收口只接受 Windows 范围，也没有宣称 Linux、麒麟、ARM64 或企业生产环境已通过。
+
 ## 01-赛题与项目概述
 
 项目的出发点：赛题背景、系统定位、技术路线与竞品对比。
@@ -19,12 +52,13 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [01-agentos-architecture](02-架构设计/01-agentos-architecture.md) | AgentOS 总体架构说明 |
-| [02-core-arch](02-架构设计/02-core-arch.md) | Core / Java / 前端代码层次架构 |
-| [03-agent-structure](02-架构设计/03-agent-structure.md) | 知弈 Agent 应用层结构 |
-| [04-agentos-v1.0.6-boundary](02-架构设计/04-agentos-v1.0.6-boundary.md) | V1.0.6 边界与稳定契约 |
-| [05-acg-engine-technical-design](02-架构设计/05-acg-engine-technical-design.md) | ACG 动态群体智能引擎技术设计 |
-| [06-lawyer-agentos-technical-design](02-架构设计/06-lawyer-agentos-technical-design.md) | 律师 AgentOS 技术设计文档 |
+| [01-AgentOS架构说明](02-架构设计/01-AgentOS架构说明.md) | AgentOS 总体架构说明 |
+| [02-知弈AgentOS-Core代码层次架构图](02-架构设计/02-知弈AgentOS-Core代码层次架构图.md) | Core / Java / 前端代码层次架构 |
+| [03-知弈Agent应用层结构](02-架构设计/03-知弈Agent应用层结构.md) | 知弈 Agent 应用层结构 |
+| [04-AgentOS-V1.0.6边界说明](02-架构设计/04-AgentOS-V1.0.6边界说明.md) | V1.0.6 边界与稳定契约 |
+| [05-ACG动态群体智能引擎技术设计](02-架构设计/05-ACG动态群体智能引擎技术设计.md) | ACG 动态群体智能引擎技术设计 |
+| [06-知弈律师AgentOS技术设计文档](02-架构设计/06-知弈律师AgentOS技术设计文档.md) | 律师 AgentOS 技术设计文档 |
+| [07-Docker基础设施重构RFC-v1.1](02-架构设计/07-Docker基础设施重构RFC-v1.1.md) | Docker 单机部署底座的冻结设计基线 |
 | [figures/](02-架构设计/figures/) | 架构 drawio 源图 |
 
 ## 03-开发记录
@@ -33,11 +67,15 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [02-core-todo](03-开发记录/02-core-todo.md) | Core TODO 与进度摘要 |
-| [03-2026-05-15-console-governance-plan](03-开发记录/03-2026-05-15-console-governance-plan.md) | Console 与治理实现计划 |
-| [04-2026-05-22-domain-models](03-开发记录/04-2026-05-22-domain-models.md) | 领域模型实现计划 |
-| [05-2026-07-18-docker-p0-p1-implementation](03-开发记录/05-2026-07-18-docker-p0-p1-implementation.md) | Docker P0/P1 基础设施实施记录 |
-| [06-2026-07-18-p1-windows-docker-desktop](03-开发记录/06-2026-07-18-p1-windows-docker-desktop.md) | Windows Docker Desktop 开发环境记录 |
+| [01-知弈AgentOS-Core-TODO文档](03-开发记录/01-知弈AgentOS-Core-TODO文档.md) | Core TODO 与进度摘要 |
+| [02-AgentOS控制台与治理实施计划](03-开发记录/02-AgentOS控制台与治理实施计划.md) | Console 与治理实现计划 |
+| [03-领域模型实施计划](03-开发记录/03-领域模型实施计划.md) | 领域模型实现计划 |
+| [04-Docker基础设施重构P0P1实施报告](03-开发记录/04-Docker基础设施重构P0P1实施报告.md) | Docker P0/P1 基础设施实施记录 |
+| [05-Windows-Docker-Desktop本地开发环境验收报告](03-开发记录/05-Windows-Docker-Desktop本地开发环境验收报告.md) | Windows Docker Desktop 开发环境记录 |
+| [06-Docker基础设施P2实施报告](03-开发记录/06-Docker基础设施P2实施报告.md) | P2 AI 网关、安全代理与可观测性实施记录 |
+| [07-P3实施前只读审计](03-开发记录/07-P3实施前只读审计.md) | P3 实施前只读审计与风险清单 |
+| [08-P3多架构容器与发布实施报告](03-开发记录/08-P3多架构容器与发布实施报告.md) | P3 多架构容器与发布实施报告 |
+| [09-Windows-Docker开发与部署收口记录](03-开发记录/09-Windows-Docker开发与部署收口记录.md) | Windows Docker 开发与部署最终收口记录 |
 
 ## 04-演示与交付
 
@@ -56,3 +94,21 @@
 | 文档 | 说明 |
 | --- | --- |
 | [01-初步设计提取稿](05-设计资料归档/01-初步设计提取稿.md) | 从早期设计文档整理出的 Markdown 原始提取稿 |
+
+## 仓库外操作文档
+
+部署脚本附近的 README 属于就地操作手册，保留在 `deploy/`，不迁入 `docs/`，避免文档与实际脚本分离。
+
+| 文档 | 适用范围 |
+| --- | --- |
+| [deploy/DEPLOYMENT.md](../deploy/DEPLOYMENT.md) | 通用离线安装、升级、回滚和恢复 |
+| [deploy/windows/package/README.md](../deploy/windows/package/README.md) | Windows amd64 部署包 |
+| [deploy/secrets/README.md](../deploy/secrets/README.md) | 外置 Secret 初始化与安全边界 |
+
+## 维护约定
+
+1. 架构决策放入 `02-架构设计/`，阶段实施与验收证据放入 `03-开发记录/`。
+2. 面向展示的最终报告和测试样例放入 `04-演示与交付/`，早期原始材料放入 `05-设计资料归档/`。
+3. 阶段报告一旦形成审计证据，不用后续结论覆盖原文；在本索引中标注其历史状态。
+4. 部署操作说明与脚本就近存放在 `deploy/`，本索引只建立入口。
+5. 新增文档时同步更新本索引，并注明日期、适用平台、验证范围和结论状态。

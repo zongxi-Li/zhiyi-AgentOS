@@ -1,5 +1,7 @@
 # 知弈 AgentOS Core 代码层次架构图
 
+# Zhiyi AgentOS Core - Code Layer Architecture
+
 日期：2026-05-14
 
 范围：第一层 `知弈 AgentOS Core`

@@ -1,5 +1,7 @@
 # 知弈 AgentOS · ACG 动态群体智能引擎技术设计
 
+# Zhiyi AgentOS · ACG Dynamic Swarm Intelligence Engine Technical Design
+
 > 面向超长程复杂任务的动态异构群体智能架构 —— Core Native 自研引擎
 > 版本：V1（阶段0–6）｜ 测试基线：agentOS 48 + agent 113，共 161 项全绿
 

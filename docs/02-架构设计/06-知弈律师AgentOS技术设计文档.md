@@ -1,5 +1,7 @@
 # 知弈律师 AgentOS 技术设计文档
 
+# Zhiyi Lawyer AgentOS Technical Design Document
+
 日期：2026-05-17
 
 状态：正式设计草案

@@ -1,5 +1,7 @@
 # 知弈 Agent 应用层结构
 
+# Zhiyi Agent Application Layer Structure
+
 日期：2026-05-21
 
 本文以当前迁移后的结构为准：`agentOS/src/agentos/` 是 AgentOS Core 的 canonical 包路径；`agent/` 是 Python 应用服务层；`agent/packs/` 承载具体领域 Pack。

@@ -1,5 +1,7 @@
 # AgentOS V1.0.6 边界说明
 
+# AgentOS V1.0.6 Boundary Specification
+
 本文记录 V1.0.6 后的真实代码边界，用于后续进入 V1.0-beta 前校准架构口径。
 
 ## 1. Core 边界
