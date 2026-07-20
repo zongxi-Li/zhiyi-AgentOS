@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Callable, Dict, List
 
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
@@ -335,7 +336,7 @@ class RiskDetectAgent(BaseAgent):
         llm_output, llm = _llm_json_or_fallback(
             node_name="risk_detect",
             prompt=render_risk_detect_prompt(
-                contract_text=_contract_text(context),
+                contract_text=json.dumps(artifacts, ensure_ascii=False, default=str),
                 state={"artifacts": artifacts},
             ),
             schema=RISK_DETECT_SCHEMA,

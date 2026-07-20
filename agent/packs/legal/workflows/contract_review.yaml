@@ -18,6 +18,7 @@
       "name": "合同文本解析",
       "agentName": "contract_parse",
       "capability": "contract_parse",
+      "outputSpec": { "type": "object", "required": ["contract_summary", "contract_type", "parties"] },
       "nextStepId": "classify_clauses"
     },
     {
@@ -25,7 +26,11 @@
       "name": "条款分类",
       "agentName": "clause_classify",
       "capability": "clause_classify",
-      "input": { "fields": ["contract_type", "scope", "payment_terms"] },
+      "input": {
+        "from": { "parse_contract": ["contract_type", "scope", "payment_terms", "acceptance_terms", "ip_terms", "dispute_resolution"] },
+        "schema": { "type": "object", "required": ["contract_type"] }
+      },
+      "outputSpec": { "type": "object", "required": ["clauses"] },
       "nextStepId": "risk_detect"
     },
     {
@@ -33,7 +38,14 @@
       "name": "风险识别",
       "agentName": "risk_detect",
       "capability": "risk_detect",
-      "input": { "fields": ["clauses"] },
+      "input": {
+        "from": {
+          "parse_contract": ["contract_summary", "payment_terms", "acceptance_terms", "ip_terms"],
+          "classify_clauses": ["clauses"]
+        },
+        "schema": { "type": "object", "required": ["clauses"] }
+      },
+      "outputSpec": { "type": "object", "required": ["risks", "risk_level", "risk_score"] },
       "nextStepId": "legal_evidence_match"
     },
     {
@@ -41,7 +53,14 @@
       "name": "Evidence 依据匹配",
       "agentName": "legal_evidence_match",
       "capability": "legal_evidence_match",
-      "input": { "fields": ["risks", "risk_level"] },
+      "input": {
+        "from": {
+          "parse_contract": ["contract_type"],
+          "risk_detect": ["risks", "risk_level", "risk_score"]
+        },
+        "schema": { "type": "object", "required": ["risks"] }
+      },
+      "outputSpec": { "type": "object", "required": ["evidences", "citations"] },
       "nextStepId": "suggestion_generate"
     },
     {
@@ -49,7 +68,14 @@
       "name": "修改建议生成",
       "agentName": "revision_suggest",
       "capability": "revision_suggest",
-      "input": { "fields": ["risks", "evidences"] },
+      "input": {
+        "from": {
+          "risk_detect": ["risks", "risk_summary"],
+          "legal_evidence_match": ["evidences", "citations"]
+        },
+        "schema": { "type": "object", "required": ["risks", "evidences"] }
+      },
+      "outputSpec": { "type": "object", "required": ["revision_suggestions", "manual_review_focus"] },
       "nextStepId": "human_review"
     },
     {
@@ -57,6 +83,14 @@
       "name": "人工审核",
       "agentName": "human_review",
       "capability": "human_review_gate",
+      "input": {
+        "from": {
+          "risk_detect": ["risks", "risk_summary"],
+          "suggestion_generate": ["revision_suggestions", "manual_review_focus"]
+        },
+        "schema": { "type": "object", "required": ["risks", "manual_review_focus"] }
+      },
+      "outputSpec": { "type": "object", "required": ["review_status", "review_focus"] },
       "reviewRequired": true,
       "nextStepId": "report_generate"
     },
@@ -64,8 +98,18 @@
       "stepId": "report_generate",
       "name": "审查报告生成",
       "agentName": "report_generate",
-      "capability": "report_generate"
-      ,"input": { "fields": ["risks", "evidences", "revision_suggestions"] }
+      "capability": "report_generate",
+      "input": {
+        "from": {
+          "parse_contract": ["contract_type", "parties", "scope"],
+          "risk_detect": ["risks", "risk_summary"],
+          "legal_evidence_match": ["evidences"],
+          "suggestion_generate": ["revision_suggestions", "manual_review_focus"],
+          "human_review": ["review_status", "review_focus"]
+        },
+        "schema": { "type": "object", "required": ["contract_type", "risks", "evidences", "revision_suggestions"] }
+      },
+      "outputSpec": { "type": "object", "required": ["report_markdown"] }
     }
   ]
 }
