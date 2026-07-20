@@ -49,7 +49,7 @@ services:
       - redis-data:/data
     tmpfs:
       - /run/kinlin-secrets:mode=0700
-    networks: [data-network]
+    networks: [data-network, provider-state-network]
     restart: unless-stopped
     stop_grace_period: 30s
     logging: *default-logging
@@ -81,13 +81,17 @@ services:
       XDG_CACHE_HOME: /app/.cache
       ANONYMIZED_TELEMETRY: "False"
       CHROMA_TELEMETRY_ENABLED: "false"
-    secrets: [ai_internal_token, deepseek_api_key, dashscope_api_key]
+      PROVIDER_STATE_ENABLED: ${PROVIDER_STATE_ENABLED:-true}
+      PROVIDER_STATE_REDIS_URL: redis://redis:6379/0
+      PROVIDER_STATE_TTL_SECONDS: ${PROVIDER_STATE_TTL_SECONDS:-3600}
+      REDIS_PASSWORD_FILE: /run/kinlin-secrets/redis_password
+    secrets: [ai_internal_token, deepseek_api_key, dashscope_api_key, redis_password]
     volumes:
       - agentos-data:/app/data
       - ai-cache:/app/.cache
     tmpfs:
       - /run/kinlin-secrets:mode=0700
-    networks: [agent-network]
+    networks: [agent-network, provider-state-network]
     restart: unless-stopped
     stop_grace_period: 60s
     logging: *default-logging
@@ -222,5 +226,9 @@ networks:
     labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}
   data-network:
     name: ${KINLIN_DEPLOYMENT_ID}_data_network_v11
+    internal: true
+    labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}
+  provider-state-network:
+    name: ${KINLIN_DEPLOYMENT_ID}_provider_state_network_v11
     internal: true
     labels: {com.kinlin.deployment-id: "${KINLIN_DEPLOYMENT_ID}"}

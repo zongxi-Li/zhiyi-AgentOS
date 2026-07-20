@@ -17,6 +17,7 @@ copy_secret() {
 copy_secret /run/secrets/ai_internal_token ai_internal_token
 copy_secret /run/secrets/deepseek_api_key deepseek_api_key false
 copy_secret /run/secrets/dashscope_api_key dashscope_api_key false
+copy_secret /run/secrets/redis_password redis_password false
 chmod 0700 /run/secrets
 
 su-exec 10002:10002 test -r "$target/ai_internal_token"

@@ -41,7 +41,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # 关闭时执行 - 简化日志输出
-    pass
+    from app.llm.provider_conversation import close_configured_provider_conversation_store
+
+    await close_configured_provider_conversation_store()
 
 app = FastAPI(
     title="知弈 AI Service",
@@ -173,13 +175,23 @@ async def readiness_check():
 @app.get("/health/dependencies")
 async def dependency_check():
     configured = bool(settings.DEEPSEEK_API_KEY or settings.DASHSCOPE_API_KEY or settings.QWEN_API_KEY or settings.KYLIN_AI_API_KEY)
+    provider_state = {"status": "DISABLED", "affectsReadiness": False}
+    if settings.PROVIDER_STATE_ENABLED:
+        try:
+            from app.llm.provider_conversation import configured_provider_conversation_manager
+
+            manager = configured_provider_conversation_manager()
+            provider_state["status"] = "UP" if manager and await manager.ping() else "DOWN"
+        except Exception:
+            provider_state["status"] = "DOWN"
     return {
-        "status": "UP" if configured else "DEGRADED",
+        "status": "UP" if configured and provider_state["status"] != "DOWN" else "DEGRADED",
         "dependencies": {
             "modelProvider": {
                 "status": "CONFIGURED" if configured else "UNCONFIGURED",
                 "affectsReadiness": False,
-            }
+            },
+            "providerConversationState": provider_state,
         },
     }
 

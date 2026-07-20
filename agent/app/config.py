@@ -38,7 +38,14 @@ def _load_secret_file(variable: str, *, allow_empty: bool = False) -> str | None
 
 _secret_file_values = {
     variable: value
-    for variable in ("AI_INTERNAL_TOKEN", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "KYLIN_AI_API_KEY")
+    for variable in (
+        "AI_INTERNAL_TOKEN",
+        "DEEPSEEK_API_KEY",
+        "DASHSCOPE_API_KEY",
+        "QWEN_API_KEY",
+        "KYLIN_AI_API_KEY",
+        "REDIS_PASSWORD",
+    )
     if (value := _load_secret_file(variable, allow_empty=variable != "AI_INTERNAL_TOKEN")) is not None
 }
 
@@ -69,6 +76,10 @@ class Settings(BaseSettings):
     AI_INTERNAL_TOKEN: str = ""
     SSE_HEARTBEAT_INTERVAL: float = 15.0
     SSE_TEST_MODE: bool = False
+    PROVIDER_STATE_ENABLED: bool = False
+    PROVIDER_STATE_REDIS_URL: str = "redis://redis:6379/0"
+    PROVIDER_STATE_TTL_SECONDS: int = 3600
+    REDIS_PASSWORD: str = ""
 
     @field_validator("DEBUG", mode="before")
     @classmethod
@@ -101,7 +112,7 @@ class Settings(BaseSettings):
     # DeepSeek 配置（文本生成主引擎，速度快）
     DEEPSEEK_API_KEY: str = ""  # DeepSeek API密钥，从 https://platform.deepseek.com/ 获取
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"  # DeepSeek API基础URL
-    DEEPSEEK_MODEL: str = "deepseek-chat"  # DeepSeek模型名称
+    DEEPSEEK_MODEL: str = "deepseek-v4-flash"  # DeepSeek模型名称
     DEEPSEEK_ENABLED: bool = True  # 是否启用DeepSeek
 
     # 文本生成引擎选择: "deepseek" | "qwen" | "auto"
