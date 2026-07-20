@@ -1720,10 +1720,24 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
 
         # 低熵指标聚合：平均节省率、累计可获取/投递 token
         consumed = [e for e in events if e.event_type.value == "data_consumed"]
-        ratios = [float(e.payload.get("savingRatio", 0.0)) for e in consumed if e.payload]
         tokens_available = sum(int(e.payload.get("tokensAvailable", 0)) for e in consumed if e.payload)
         tokens_delivered = sum(int(e.payload.get("tokensDelivered", 0)) for e in consumed if e.payload)
-        avg_saving = round(sum(ratios) / len(ratios), 4) if ratios else 0.0
+        effective_saving = (
+            round(max(0.0, 1.0 - tokens_delivered / tokens_available), 4)
+            if tokens_available > 0
+            else 0.0
+        )
+        provenance = run.provenance or {
+            "schemaVersion": 2,
+            "productions": [],
+            "consumptions": [],
+            "interactions": [],
+            "integrityStatus": "valid",
+        }
+        interactions = provenance.get("interactions") if isinstance(provenance, dict) else []
+        if not isinstance(interactions, list):
+            interactions = []
+        contract_violations = _by_type("contract_violation")
 
         # 交付物：把每个步骤的实际产出（风险/证据/建议/报告等）汇总，
         # 供前端「审查结论」面板展示真正交付给用户的成果，而非仅引擎内部视角。
@@ -1756,17 +1770,34 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             "engine": run.runtime_engine,
             "acgBlueprint": run.acg_blueprint,
             "completedStepIds": run.completed_step_ids,
-            "provenance": run.provenance or {"productions": [], "consumptions": []},
+            "activeStepIds": run.active_step_ids,
+            "stepStates": [
+                {
+                    "stepId": step.step_id,
+                    "status": step.status.value if hasattr(step.status, "value") else str(step.status),
+                    "agentName": step.agent_name,
+                    "attempt": step.attempt,
+                    "retryCount": step.retry_count,
+                }
+                for step in run.steps
+            ],
+            "provenance": provenance,
+            "interactions": interactions,
+            "contractViolations": contract_violations,
             "recoveryTrace": _by_type("step_failed", "run_recovered"),
             "scheduleTrace": _by_type("step_scheduled"),
             "deliverables": deliverables,
             "finalReport": final_report,
             "lowEntropyMetrics": {
-                "averageSavingRatio": avg_saving,
+                "averageSavingRatio": effective_saving,
+                "effectiveSavingRatio": effective_saving,
                 "tokensAvailable": tokens_available,
                 "tokensDelivered": tokens_delivered,
                 "tokensSaved": max(0, tokens_available - tokens_delivered),
                 "recoveryCount": run.recovery_count,
+                "interactionCount": len(interactions),
+                "contractViolationCount": len(contract_violations),
+                "integrityStatus": provenance.get("integrityStatus", "legacy_or_invalid"),
             },
         }
 
