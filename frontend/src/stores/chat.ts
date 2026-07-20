@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { parseSseDataLine } from '@/utils/sse'
 import { agentosApi, type WorkflowStartResponse } from '@/services/api/agentos'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import { loadModelSettings, toModelRequestSettings, type ModelSettings } from '@/config/modelSettings'
@@ -98,6 +99,8 @@ export interface Message {
   sources?: any[]
   reasoningPath?: any[]
   modelInfo?: string
+  thinkingState?: 'thinking' | 'complete' | 'error'
+  thinkingDurationMs?: number
   skillsUsed?: string[]
   trace?: AgentTraceStep[]
   federated?: FederatedInfo
@@ -274,17 +277,28 @@ export const useChatStore = defineStore('chat', () => {
       modelInfo: runtimeSettings.provider === 'system'
         ? streamModelInfo[agentMode]
         : runtimeSettings.selectedModel,
+      thinkingState: 'thinking',
       agentMode
     }
     messages.value.push(streamMsg)
     const streamIndex = messages.value.length - 1
+    const thinkingStartedAt = Date.now()
+    const finishThinking = (state: 'complete' | 'error') => {
+      const message = messages.value[streamIndex]
+      if (!message || message.thinkingState !== 'thinking') return
+      message.thinkingState = state
+      message.thinkingDurationMs = Math.max(0, Date.now() - thinkingStartedAt)
+    }
     const setStreamContent = (content: string) => {
       const message = messages.value[streamIndex]
       if (message) message.content = content
     }
     const appendStreamContent = (delta: string) => {
       const message = messages.value[streamIndex]
-      if (message) message.content = (message.content || '') + delta
+      if (message) {
+        finishThinking('complete')
+        message.content = (message.content || '') + delta
+      }
     }
 
     const token = localStorage.getItem('token')
@@ -311,12 +325,17 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       if (!resp.ok) {
+        finishThinking('error')
         setStreamContent(`Stream request failed: HTTP ${resp.status}`)
         return
       }
 
       const reader = resp.body?.getReader()
-      if (!reader) { setStreamContent('流式读取失败'); return }
+      if (!reader) {
+        finishThinking('error')
+        setStreamContent('流式读取失败')
+        return
+      }
       const decoder = new TextDecoder()
       let buffer = ''
       let streamComplete = false
@@ -328,8 +347,8 @@ export const useChatStore = defineStore('chat', () => {
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
+          const data = parseSseDataLine(line)
+          if (data !== null) {
             if (data === '[DONE]') {
               streamComplete = true
               await reader.cancel()
@@ -340,18 +359,34 @@ export const useChatStore = defineStore('chat', () => {
               if (parsed.delta) {
                 appendStreamContent(parsed.delta)
               } else if (parsed.error) {
+                finishThinking('error')
                 setStreamContent(`Stream request failed: ${parsed.error}`)
               }
             } catch { /* skip parse errors */ }
           }
         }
       }
-      if (streamComplete) emitHistoryRefresh()
+      if (streamComplete) {
+        if (!streamMsg.content) {
+          finishThinking('error')
+          setStreamContent('AI 返回了空响应，请重试')
+        } else {
+          finishThinking('complete')
+        }
+        emitHistoryRefresh()
+      } else if (!streamMsg.content) {
+        finishThinking('error')
+        setStreamContent('流式响应意外结束，请重试')
+      }
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') {
+      finishThinking('error')
+      if ((e as Error).name === 'AbortError') {
+        if (!streamMsg.content) setStreamContent('已停止生成')
+      } else {
         setStreamContent('流式请求失败: ' + (e as Error).message)
       }
     } finally {
+      finishThinking(streamMsg.content ? 'complete' : 'error')
       if (activeStreamController === streamController) activeStreamController = null
       loading.value = false
     }

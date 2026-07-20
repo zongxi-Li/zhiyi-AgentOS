@@ -21,7 +21,7 @@ import os
 from dotenv import load_dotenv
 
 
-def _load_secret_file(variable: str) -> str | None:
+def _load_secret_file(variable: str, *, allow_empty: bool = False) -> str | None:
     file_path = os.getenv(f"{variable}_FILE", "").strip()
     if not file_path:
         return None
@@ -30,6 +30,8 @@ def _load_secret_file(variable: str) -> str | None:
         raise RuntimeError(f"secret file for {variable} is missing: {path}")
     value = path.read_text(encoding="utf-8").strip()
     if not value:
+        if allow_empty:
+            return None
         raise RuntimeError(f"secret file for {variable} is empty: {path}")
     return value
 
@@ -37,7 +39,7 @@ def _load_secret_file(variable: str) -> str | None:
 _secret_file_values = {
     variable: value
     for variable in ("AI_INTERNAL_TOKEN", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "KYLIN_AI_API_KEY")
-    if (value := _load_secret_file(variable)) is not None
+    if (value := _load_secret_file(variable, allow_empty=variable != "AI_INTERNAL_TOKEN")) is not None
 }
 
 # 显式加载.env文件（优先检查当前目录，然后检查主目录）
@@ -162,10 +164,10 @@ try:
     )
     
     # 验证关键配置项是否加载（在Settings初始化后检查）
-    if not settings.DASHSCOPE_API_KEY and not settings.QWEN_API_KEY:
+    if not settings.DEEPSEEK_API_KEY and not settings.DASHSCOPE_API_KEY and not settings.QWEN_API_KEY:
         import logging
         _warn_logger = logging.getLogger(__name__)
-        _warn_logger.warning(f"通义千问API密钥未配置")
+        _warn_logger.warning("未配置可用的模型 API Key")
         if _env_file_path:
             _warn_logger.warning(f"   配置文件路径: {_env_file_path}")
         _warn_logger.warning(f"   请在.env文件中添加以下配置项之一:")
@@ -174,7 +176,9 @@ try:
     else:
         import logging
         _info_logger = logging.getLogger(__name__)
-        if settings.DASHSCOPE_API_KEY:
+        if settings.DEEPSEEK_API_KEY:
+            _info_logger.info("DeepSeek API key loaded from config.")
+        elif settings.DASHSCOPE_API_KEY:
             _info_logger.info("DashScope API key loaded from config.")
         else:
             _info_logger.info("Qwen API key loaded from config.")
@@ -242,17 +246,22 @@ _env_file_path_correct = Path(".env")
 # 从环境变量和settings双重检查（确保配置正确加载）
 _dashscope_key_env = os.getenv('DASHSCOPE_API_KEY', '') or ''
 _qwen_key_env = os.getenv('QWEN_API_KEY', '') or ''
+_deepseek_key_env = os.getenv('DEEPSEEK_API_KEY', '') or ''
 _dashscope_key_raw = settings.DASHSCOPE_API_KEY or _dashscope_key_env or ''
 _qwen_key_raw = settings.QWEN_API_KEY or _qwen_key_env or ''
+_deepseek_key_raw = settings.DEEPSEEK_API_KEY or _deepseek_key_env or ''
 _dashscope_key = _clean_config_value(_dashscope_key_raw)
 _qwen_key = _clean_config_value(_qwen_key_raw)
-_api_key_configured = bool(_dashscope_key or _qwen_key)
+_deepseek_key = _clean_config_value(_deepseek_key_raw)
+_api_key_configured = bool(_deepseek_key or _dashscope_key or _qwen_key)
 
 # 更新settings中的值（如果从环境变量读取到了，或需要清理）
 if _dashscope_key and _dashscope_key != settings.DASHSCOPE_API_KEY:
     object.__setattr__(settings, 'DASHSCOPE_API_KEY', _dashscope_key)
 if _qwen_key and _qwen_key != settings.QWEN_API_KEY:
     object.__setattr__(settings, 'QWEN_API_KEY', _qwen_key)
+if _deepseek_key and _deepseek_key != settings.DEEPSEEK_API_KEY:
+    object.__setattr__(settings, 'DEEPSEEK_API_KEY', _deepseek_key)
 
 if _api_key_configured:
     # 配置正常时不输出详细信息，只在未配置时输出警告

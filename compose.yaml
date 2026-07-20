@@ -76,12 +76,12 @@ services:
       AGENTOS_SQLITE_BUSY_TIMEOUT_MS: ${AGENTOS_SQLITE_BUSY_TIMEOUT_MS:-5000}
       UVICORN_WORKERS: "1"
       AI_INTERNAL_TOKEN_FILE: /run/kinlin-secrets/ai_internal_token
-      DEEPSEEK_API_KEY_FILE: ${DEEPSEEK_API_KEY_FILE:-}
-      DASHSCOPE_API_KEY_FILE: ${DASHSCOPE_API_KEY_FILE:-}
+      DEEPSEEK_API_KEY_FILE: /run/kinlin-secrets/deepseek_api_key
+      DASHSCOPE_API_KEY_FILE: /run/kinlin-secrets/dashscope_api_key
       XDG_CACHE_HOME: /app/.cache
       ANONYMIZED_TELEMETRY: "False"
       CHROMA_TELEMETRY_ENABLED: "false"
-    secrets: [ai_internal_token]
+    secrets: [ai_internal_token, deepseek_api_key, dashscope_api_key]
     volumes:
       - agentos-data:/app/data
       - ai-cache:/app/.cache
@@ -189,6 +189,10 @@ secrets:
     file: ${KINLIN_SECRETS_DIR:?KINLIN_SECRETS_DIR is required}/jwt_secret
   ai_internal_token:
     file: ${KINLIN_SECRETS_DIR:?KINLIN_SECRETS_DIR is required}/ai_internal_token
+  deepseek_api_key:
+    file: ${KINLIN_SECRETS_DIR:?KINLIN_SECRETS_DIR is required}/deepseek_api_key
+  dashscope_api_key:
+    file: ${KINLIN_SECRETS_DIR:?KINLIN_SECRETS_DIR is required}/dashscope_api_key
 
 volumes:
   postgres-data:

@@ -30,46 +30,63 @@
           :file-name="'image.png'"
         />
 
-        <!-- 文本内容 -->
-        <div
-          v-if="message.content"
-          class="message-text markdown-body"
-          v-html="renderedMessageHtml"
-        />
-        
-        <!-- 可解释性信息（仅AI回复显示） -->
-        <div v-if="message.role === 'assistant' && hasExplanation" class="message-explanation">
-          <el-collapse v-model="activeCollapse" class="explanation-collapse">
-            <el-collapse-item name="explanation">
-              <template #title>
-                <div class="explanation-toggle">
-                  <el-icon><InfoFilled /></el-icon>
-                  <span>AI 思考过程与详情</span>
-                </div>
-              </template>
-              
-              <!-- 置信度 -->
+        <!-- DeepSeek 风格的内联思考状态；仅展示真实状态和已有运行详情 -->
+        <section
+          v-if="message.role === 'assistant' && showThinkingStatus"
+          class="thinking-status"
+          :class="{ 'is-thinking': message.thinkingState === 'thinking' }"
+          aria-label="AI 思考状态"
+        >
+          <button
+            v-if="canExpandDetails"
+            type="button"
+            class="thinking-status__trigger"
+            :aria-expanded="detailsOpen"
+            :aria-controls="detailsId"
+            @click="detailsOpen = !detailsOpen"
+          >
+            <span class="thinking-status__identity">
+              <el-icon class="thinking-status__icon"><Cpu /></el-icon>
+              <span>{{ thinkingLabel }}</span>
+            </span>
+            <el-icon class="thinking-status__chevron" :class="{ open: detailsOpen }"><ArrowDown /></el-icon>
+          </button>
+          <div v-else class="thinking-status__summary" role="status" aria-live="polite">
+            <span class="thinking-status__identity">
+              <el-icon class="thinking-status__icon"><Cpu /></el-icon>
+              <span>{{ thinkingLabel }}</span>
+            </span>
+            <span v-if="message.thinkingState === 'thinking'" class="thinking-status__dots" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </span>
+          </div>
+
+          <Transition name="thinking-details">
+            <div v-if="detailsOpen && canExpandDetails" :id="detailsId" class="thinking-status__details">
+              <div v-if="message.modelInfo" class="explanation-item">
+                <span class="explanation-label">模型</span>
+                <span class="explanation-value">{{ message.modelInfo }}</span>
+              </div>
+
               <div v-if="message.confidence" class="explanation-item">
                 <span class="explanation-label">置信度</span>
                 <div class="explanation-value-row">
                   <el-progress
                     :percentage="(message.confidence * 100)"
                     :color="getConfidenceColor(message.confidence)"
-                    :stroke-width="6"
+                    :stroke-width="5"
                     :show-text="false"
-                    style="width: 100px;"
+                    style="width: 96px;"
                   />
                   <span class="value-text">{{ (message.confidence * 100).toFixed(1) }}%</span>
                 </div>
               </div>
-              
-              <!-- Token使用 -->
+
               <div v-if="message.tokensUsed" class="explanation-item">
                 <span class="explanation-label">消耗</span>
                 <span class="explanation-value">{{ message.tokensUsed }} tokens</span>
               </div>
-              
-              <!-- 答案来源（RAG） -->
+
               <div v-if="message.sources && message.sources.length > 0" class="explanation-item vertical">
                 <span class="explanation-label">参考来源</span>
                 <div class="sources-list">
@@ -83,9 +100,8 @@
                   </div>
                 </div>
               </div>
-              
-              <!-- 推理路径 -->
-              <div v-if="message.reasoningPath" class="explanation-item vertical">
+
+              <div v-if="message.reasoningPath && message.reasoningPath.length > 0" class="explanation-item vertical">
                 <span class="explanation-label">推理路径</span>
                 <div class="reasoning-path">
                   <div v-for="(step, index) in message.reasoningPath" :key="index" class="reasoning-step">
@@ -97,13 +113,20 @@
                   </div>
                 </div>
               </div>
-            </el-collapse-item>
-          </el-collapse>
-        </div>
+            </div>
+          </Transition>
+        </section>
+
+        <!-- 文本内容 -->
+        <div
+          v-if="message.content"
+          class="message-text markdown-body"
+          v-html="renderedMessageHtml"
+        />
       </div>
 
       <!-- Message Actions Area -->
-      <div class="message-actions">
+      <div v-if="message.content" class="message-actions">
         <el-tooltip content="复制" placement="top">
           <div class="action-item" @click="handleAction('copy')"><el-icon><CopyDocument /></el-icon></div>
         </el-tooltip>
@@ -132,7 +155,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Document, InfoFilled, Link, CopyDocument, ChatLineSquare, Delete, Microphone, Download, FullScreen } from '@element-plus/icons-vue'
+import { ArrowDown, Cpu, Document, Link, CopyDocument, ChatLineSquare, Delete, Microphone, Download, FullScreen } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ImageViewer from '@/components/common/ImageViewer.vue'
 
@@ -160,13 +183,16 @@ interface Props {
     sources?: Source[]
     reasoningPath?: ReasoningStep[]
     modelInfo?: string
+    thinkingState?: 'thinking' | 'complete' | 'error'
+    thinkingDurationMs?: number
   }
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits(['copy', 'quote', 'delete', 'tts', 'export'])
-const activeCollapse = ref<string[]>([])
+const detailsOpen = ref(false)
 const imageViewerVisible = ref(false)
+const detailsId = computed(() => `thinking-details-${String(props.message.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`)
 
 const openImageViewer = () => {
   imageViewerVisible.value = true
@@ -307,7 +333,7 @@ const renderedMessageHtml = computed(() => {
   return escapeHtml(content).replace(/\n/g, '<br />')
 })
 
-const hasExplanation = computed(() => {
+const hasDetails = computed(() => {
   return !!(
     props.message.confidence ||
     props.message.tokensUsed ||
@@ -315,6 +341,26 @@ const hasExplanation = computed(() => {
     (props.message.reasoningPath && props.message.reasoningPath.length > 0) ||
     props.message.modelInfo
   )
+})
+
+const showThinkingStatus = computed(() => !!props.message.thinkingState || hasDetails.value)
+
+const canExpandDetails = computed(() => {
+  return props.message.thinkingState !== 'thinking' && hasDetails.value
+})
+
+const thinkingDurationSeconds = computed(() => {
+  if (props.message.thinkingDurationMs === undefined) return null
+  return Math.max(1, Math.ceil(props.message.thinkingDurationMs / 1000))
+})
+
+const thinkingLabel = computed(() => {
+  const seconds = thinkingDurationSeconds.value
+  const duration = seconds === null ? '' : `（用时 ${seconds} 秒）`
+  if (props.message.thinkingState === 'thinking') return '思考中'
+  if (props.message.thinkingState === 'complete') return `已思考${duration}`
+  if (props.message.thinkingState === 'error') return `思考已中断${duration}`
+  return '运行详情'
 })
 
 const getConfidenceColor = (confidence: number) => {
@@ -623,50 +669,112 @@ const formatTime = (date: Date) => {
   word-break: break-all;
 }
 
-/* Explanation Section */
-.message-explanation {
-  margin-top: 12px;
-  border-top: 1px solid rgba(29, 36, 34, 0.06);
-  padding-top: 8px;
+/* Inline thinking status — compact, borderless and theme-token driven */
+.thinking-status {
+  width: 100%;
+  margin: 0 0 14px;
+  color: var(--text-secondary);
 }
 
-.message-bubble.user .message-explanation {
-  border-top-color: rgba(255,255,255,0.18);
-}
-
-.explanation-toggle {
-  display: flex;
+.thinking-status__trigger,
+.thinking-status__summary {
+  min-height: 28px;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  
-  &:hover {
-    color: var(--primary-color);
-  }
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-.explanation-collapse {
-  --el-collapse-header-height: 32px;
-  --el-collapse-border-color: transparent;
-  
-  :deep(.el-collapse-item__header) {
-    background: transparent;
-    border: none;
-    font-size: 13px;
-  }
-  
-  :deep(.el-collapse-item__content) {
-    background: transparent;
-    padding-bottom: 0;
-  }
+.thinking-status__trigger {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 180ms var(--ease-out);
+}
+
+.thinking-status__trigger:hover {
+  color: var(--primary-color);
+}
+
+.thinking-status__trigger:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
+}
+
+.thinking-status__identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.thinking-status__icon {
+  flex: 0 0 auto;
+  color: var(--primary-color);
+  font-size: 16px;
+}
+
+.thinking-status.is-thinking .thinking-status__icon {
+  animation: thinkingPulse 1.5s ease-in-out infinite;
+}
+
+.thinking-status__chevron {
+  margin-left: 1px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: transform 180ms var(--ease-out), color 180ms var(--ease-out);
+}
+
+.thinking-status__chevron.open {
+  transform: rotate(180deg);
+}
+
+.thinking-status__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 1px;
+}
+
+.thinking-status__dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  animation: thinkingDot 1.2s ease-in-out infinite;
+}
+
+.thinking-status__dots i:nth-child(2) { animation-delay: 140ms; }
+.thinking-status__dots i:nth-child(3) { animation-delay: 280ms; }
+
+.thinking-status__details {
+  width: min(100%, 720px);
+  margin: 8px 0 2px 7px;
+  padding: 4px 0 2px 16px;
+  border-left: 1px solid color-mix(in srgb, var(--primary-color) 32%, var(--border-light));
+  color: var(--text-secondary);
+}
+
+.thinking-details-enter-active,
+.thinking-details-leave-active {
+  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+}
+
+.thinking-details-enter-from,
+.thinking-details-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .explanation-item {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
   gap: 12px;
   font-size: 13px;
   
@@ -681,6 +789,12 @@ const formatTime = (date: Date) => {
   color: var(--text-secondary);
   font-weight: 500;
   min-width: 60px;
+}
+
+.explanation-value {
+  min-width: 0;
+  color: var(--text-regular);
+  overflow-wrap: anywhere;
 }
 
 .explanation-value-row {
@@ -699,18 +813,18 @@ const formatTime = (date: Date) => {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background-color: var(--bg-input);
-  border-radius: 4px;
+  background-color: var(--primary-fade);
+  border-radius: 6px;
   font-size: 12px;
   color: var(--text-regular);
   margin-right: 4px;
   margin-bottom: 4px;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--primary-line);
 }
 
 .reasoning-path {
   padding-left: 8px;
-  border-left: 2px solid var(--border-color-light);
+  border-left: 1px solid var(--border-light);
   margin-left: 4px;
 }
 
@@ -729,7 +843,7 @@ const formatTime = (date: Date) => {
     top: 6px;
     width: 8px;
     height: 8px;
-    background-color: var(--border-color-base);
+    background-color: var(--primary-color);
     border-radius: 50%;
   }
   
@@ -749,5 +863,28 @@ const formatTime = (date: Date) => {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes thinkingPulse {
+  0%, 100% { opacity: 0.58; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes thinkingDot {
+  0%, 60%, 100% { opacity: 0.28; transform: translateY(0); }
+  30% { opacity: 0.9; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-status__icon,
+  .thinking-status__dots i {
+    animation: none !important;
+  }
+
+  .thinking-details-enter-active,
+  .thinking-details-leave-active,
+  .thinking-status__chevron {
+    transition: none;
+  }
 }
 </style>

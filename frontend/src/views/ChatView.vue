@@ -161,13 +161,13 @@
                   tokensUsed: msg.tokensUsed,
                   sources: msg.sources,
                   reasoningPath: msg.reasoningPath,
-                  modelInfo: msg.modelInfo
+                  modelInfo: msg.modelInfo,
+                  thinkingState: msg.thinkingState,
+                  thinkingDurationMs: msg.thinkingDurationMs
                 }"
               />
             </div>
           </div>
-
-          <div v-if="loading" class="typing">AI 正在思考...</div>
         </div>
 
         <div ref="composerRef" class="composer" :style="{ bottom: composerDockOffset }">
@@ -2761,12 +2761,6 @@ onUnmounted(() => {
   height: 56px;
 }
 
-.chat-main.simple-session .typing {
-  width: min(100%, 940px);
-  margin: 8px auto 0;
-  padding: 0 28px;
-}
-
 .chat-panel {
   min-height: 0;
   display: flex;
@@ -3382,12 +3376,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 26px;
-}
-
-.typing {
-  margin-top: 12px;
-  color: var(--text-secondary);
-  font-size: 13px;
 }
 
 .template-row {
