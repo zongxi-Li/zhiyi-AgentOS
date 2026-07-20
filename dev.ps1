@@ -13,15 +13,15 @@ $windowsScripts = Join-Path $PSScriptRoot "scripts\infra\windows"
 
 function Invoke-WindowsUp {
     param([switch]$ForceBuild)
-    $arguments = @("-EnvFile", $EnvFile)
-    if ($DebugPorts) { $arguments += "-DebugPorts" }
+    $parameters = @{ EnvFile = $EnvFile }
+    if ($DebugPorts) { $parameters.DebugPorts = $true }
     if ($BuildService) {
         if ($Build) { throw "Use either -Build or -BuildService, not both" }
-        $arguments += @("-BuildService", $BuildService)
+        $parameters.BuildService = $BuildService
     } elseif ($Build -or $ForceBuild) {
-        $arguments += "-Build"
+        $parameters.Build = $true
     }
-    & (Join-Path $windowsScripts "up.ps1") @arguments
+    & (Join-Path $windowsScripts "up.ps1") @parameters
 }
 
 switch ($Action) {
