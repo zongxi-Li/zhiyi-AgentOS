@@ -1,9 +1,6 @@
 <!-- 设置中心页面 — Tab 切换管理配色、语言、隐私、对话与语音等偏好设置 -->
 <template>
   <div class="settings-view">
-    <div class="ambient-glow top-left"></div>
-    <div class="ambient-glow bottom-right"></div>
-
     <section class="page-header glass-panel">
       <div>
         <h1>设置中心</h1>
@@ -224,10 +221,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Setting, Lock, ChatDotRound, Microphone, InfoFilled, Cpu, Check } from '@element-plus/icons-vue'
-import { useTheme } from '@/composables/useTheme'
+import { applyFontSize, useTheme } from '@/composables/useTheme'
 import { colorSchemes, type ColorSchemeId } from '@/themes/presets'
 import {
   applyProviderPreset,
@@ -296,9 +293,12 @@ const lastSavedText = computed(() => {
 
 function applyTheme(): void {
   applyColorScheme(settings.value.colorScheme)
-  const root = document.documentElement
-  root.style.setProperty('--font-size-base', `${settings.value.fontSize}px`)
+  applyFontSize(settings.value.fontSize)
 }
+
+watch(() => settings.value.fontSize, (fontSize) => {
+  applyFontSize(fontSize)
+})
 
 function handleLanguageChange(newLang: 'zh-CN' | 'en'): void {
   locale.value = newLang
@@ -381,28 +381,6 @@ function ensureSelectedModel(models: string[]): void {
   color: var(--text-primary);
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-.ambient-glow {
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.2;
-  pointer-events: none;
-}
-
-.ambient-glow.top-left {
-  top: -120px;
-  left: 0;
-  background: var(--primary-color);
-}
-
-.ambient-glow.bottom-right {
-  right: 0;
-  bottom: 0;
-  background: var(--accent-color);
 }
 
 .glass-panel {

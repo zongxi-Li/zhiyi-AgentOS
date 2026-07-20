@@ -4,6 +4,18 @@ import { getColorScheme, type ColorSchemeId } from '@/themes/presets'
 const currentScheme = ref<ColorSchemeId>('codex-dark')
 const CODEX_DARK_MIGRATION_KEY = 'theme.codex_dark_v1'
 
+export function applyFontSize(fontSize: number): void {
+  const normalizedSize = Math.min(20, Math.max(12, Number.isFinite(fontSize) ? fontSize : 14))
+  const root = document.documentElement
+
+  root.style.setProperty('--font-size-base', `${normalizedSize}px`)
+  root.style.setProperty('--el-font-size-base', `${normalizedSize}px`)
+  root.style.setProperty('--el-font-size-large', `${normalizedSize + 2}px`)
+  root.style.setProperty('--el-font-size-small', `${Math.max(11, normalizedSize - 2)}px`)
+  root.style.setProperty('--el-font-size-extra-small', `${Math.max(10, normalizedSize - 3)}px`)
+  root.style.fontSize = `${normalizedSize}px`
+}
+
 function applySchemeVariables(schemeId: ColorSchemeId): void {
   const scheme = getColorScheme(schemeId)
   const root = document.documentElement
@@ -80,6 +92,7 @@ export function initTheme(): void {
   if (!saved) {
     localStorage.setItem(CODEX_DARK_MIGRATION_KEY, '1')
     applySchemeVariables('codex-dark')
+    applyFontSize(14)
     return
   }
   try {
@@ -91,8 +104,10 @@ export function initTheme(): void {
     }
     const schemeId: ColorSchemeId = parsed.colorScheme || 'codex-dark'
     applySchemeVariables(schemeId)
+    applyFontSize(Number(parsed.fontSize) || 14)
   } catch {
     applySchemeVariables('codex-dark')
+    applyFontSize(14)
   }
 }
 
