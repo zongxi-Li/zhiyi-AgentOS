@@ -10,6 +10,19 @@
         </div>
       </div>
       <div class="hero-right">
+        <div v-if="acgView" class="run-context">
+          <span class="run-id" :title="acgView.runId">
+            <span>RUN</span>
+            <code>{{ acgView.runId }}</code>
+          </span>
+          <el-button circle size="small" title="复制 Run ID" aria-label="复制 Run ID" @click="copyRunId">
+            <el-icon><CopyDocument /></el-icon>
+          </el-button>
+          <el-button size="small" title="在 AgentOS 运维页查看" @click="openInConsole">
+            <el-icon><Monitor /></el-icon>
+            运维查看
+          </el-button>
+        </div>
         <el-tag v-if="acgView" :type="statusTagType" effect="dark">{{ statusLabel }}</el-tag>
         <el-tag v-if="acgView" type="info" effect="plain">engine: {{ acgView.engine }}</el-tag>
       </div>
@@ -63,14 +76,18 @@
     <!-- 主区：拓扑 + 指标/血缘 -->
     <div class="acg-grid" v-if="acgView">
       <div class="grid-main">
-        <AcgTopologyGraph :blueprint="acgView.acgBlueprint" :completed-step-ids="acgView.completedStepIds" />
+        <AcgTopologyGraph
+          :blueprint="acgView.acgBlueprint"
+          :completed-step-ids="acgView.completedStepIds"
+          :step-states="acgView.stepStates"
+        />
         <AcgDeliverables :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
         <div class="schedule-strip ui-surface" v-if="scheduleBatches.length">
           <h4>就绪集调度轨迹（动态拓扑）</h4>
           <div class="batch-row">
-            <div v-for="(b, i) in scheduleBatches" :key="i" class="batch">
-              <span class="batch-idx">第{{ i + 1 }}轮</span>
-              <span v-for="sid in b" :key="sid" class="batch-node">{{ sid }}</span>
+            <div v-for="b in scheduleBatches" :key="b.id" class="batch">
+              <span class="batch-idx">第{{ b.round }}轮</span>
+              <span v-for="sid in b.nodes" :key="sid" class="batch-node">{{ sid }}</span>
             </div>
           </div>
         </div>
@@ -79,22 +96,27 @@
         <AcgLowEntropyMetrics :metrics="acgView.lowEntropyMetrics" />
         <AcgProvenancePanel
           :consumptions="acgView.provenance.consumptions"
+          :interactions="acgView.interactions"
           :recovery-trace="acgView.recoveryTrace"
+          :contract-violations="acgView.contractViolations"
+          @export-json="exportAudit('json')"
+          @export-csv="exportAudit('csv')"
         />
       </div>
     </div>
 
     <div v-else class="ui-surface ui-surface--pad placeholder">
-      <el-icon class="ph-icon"><Cpu /></el-icon>
-      <p>启动一个 ACG 引擎工作流，实时观察动态拓扑、Token 节省率、数据血缘与故障自愈。</p>
+      <el-icon class="ph-icon" :class="{ restoring: loading.restore }"><Cpu /></el-icon>
+      <p>{{ loading.restore ? '正在恢复 ACG 运行上下文...' : '启动一个 ACG 引擎工作流，观察动态拓扑、Token 节省率、数据血缘与故障自愈。' }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import { Cpu } from '@element-plus/icons-vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { CopyDocument, Cpu, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import {
   workflowApi,
   type AcgDeliverable,
@@ -106,9 +128,11 @@ import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
 import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
+import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 
 const WORKFLOW_ID = 'legal_contract_review_v1'
-const faultStepOptions = ['parse_contract', 'classify_clauses', 'risk_detect', 'legal_evidence_match', 'suggestion_generate', 'human_review', 'report_generate']
+const TEMPLATE_FAULT_STEPS = ['parse_contract', 'classify_clauses', 'risk_detect', 'legal_evidence_match', 'suggestion_generate', 'human_review', 'report_generate']
+const DYNAMIC_FAULT_STEPS = ['contract_parse', 'clause_classify', 'risk_detect', 'legal_evidence_match', 'revision_suggest', 'human_review', 'report_generate']
 
 const contractText = ref(`甲方：星河科技有限公司。乙方：知弈软件工作室。甲方委托乙方开发客户关系管理 CRM 系统，乙方负责需求梳理、原型设计、系统开发、测试部署和上线支持。
 
@@ -132,9 +156,19 @@ const planningMode = ref<'template' | 'planner' | 'dynamic'>('dynamic')
 const faultEnabled = ref(false)
 const faultStep = ref('risk_detect')
 const faultType = ref<'timeout' | 'crash' | 'empty_evidence'>('timeout')
+const faultStepOptions = computed(() =>
+  planningMode.value === 'dynamic' ? DYNAMIC_FAULT_STEPS : TEMPLATE_FAULT_STEPS
+)
+
+watch(planningMode, () => {
+  if (!faultStepOptions.value.includes(faultStep.value)) faultStep.value = 'risk_detect'
+})
 
 const acgView = ref<AcgView | null>(null)
-const loading = reactive({ start: false })
+const loading = reactive({ start: false, restore: false })
+const route = useRoute()
+const router = useRouter()
+const loadedRunId = ref('')
 
 const STABLE: WorkflowStatus[] = ['completed', 'failed', 'cancelled', 'waiting_review']
 
@@ -159,19 +193,18 @@ const planningModeHint = computed(() => {
 })
 
 // 从调度 trace 还原"每轮就绪集批次"，可视化并行调度
-const scheduleBatches = computed<string[][]>(() => {
+const scheduleBatches = computed(() => {
   const events = acgView.value?.scheduleTrace || []
-  const seen = new Set<string>()
-  const batches: string[][] = []
+  const batches = new Map<string, { id: string; round: number; nodes: string[] }>()
   for (const e of events) {
     const batch = (e.payload?.batch as string[]) || (e.stepId ? [e.stepId] : [])
-    const key = batch.join(',')
-    if (batch.length && !seen.has(key)) {
-      seen.add(key)
-      batches.push(batch)
+    const round = Number(e.payload?.round || batches.size + 1)
+    const id = String(e.payload?.batchId || `${round}:${e.eventId}`)
+    if (batch.length && !batches.has(id)) {
+      batches.set(id, { id, round, nodes: batch })
     }
   }
-  return batches
+  return Array.from(batches.values()).sort((a, b) => a.round - b.round)
 })
 
 const hasStepOutput = (output?: Record<string, any>) => {
@@ -227,6 +260,73 @@ const hydrateAcgView = (view: AcgView, run: WorkflowRun): AcgView => {
   }
 }
 
+const restoreRun = async (runId: string) => {
+  if (!runId || (loadedRunId.value === runId && acgView.value)) return
+  loading.restore = true
+  try {
+    const [run, view] = await Promise.all([
+      workflowApi.getRun(runId),
+      workflowApi.getAcgView(runId)
+    ])
+    acgView.value = hydrateAcgView(view, run)
+    loadedRunId.value = runId
+  } catch (err: any) {
+    acgView.value = null
+    loadedRunId.value = ''
+    ElMessage.error(`恢复运行失败：${err?.message || err}`)
+  } finally {
+    loading.restore = false
+  }
+}
+
+watch(
+  () => route.query.runId,
+  (value) => {
+    if (typeof value === 'string' && value.trim()) void restoreRun(value.trim())
+  },
+  { immediate: true }
+)
+
+const copyRunId = async () => {
+  if (!acgView.value) return
+  try {
+    await navigator.clipboard.writeText(acgView.value.runId)
+    ElMessage.success('Run ID 已复制')
+  } catch {
+    ElMessage.warning('浏览器未授权剪贴板，请直接选择 Run ID')
+  }
+}
+
+const openInConsole = () => {
+  if (!acgView.value) return
+  void router.push({ path: '/agentos-console', query: { runId: acgView.value.runId } })
+}
+
+const downloadText = (content: string, filename: string, type: string) => {
+  const blob = new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const exportAudit = (format: 'json' | 'csv') => {
+  if (!acgView.value) return
+  const filename = `acg-audit-${acgView.value.runId}.${format}`
+  if (format === 'json') {
+    downloadText(
+      JSON.stringify(buildAcgAuditExport(acgView.value), null, 2),
+      filename,
+      'application/json;charset=utf-8'
+    )
+  } else {
+    downloadText(`\ufeff${buildAcgAuditCsv(acgView.value)}`, filename, 'text/csv;charset=utf-8')
+  }
+  ElMessage.success(`ACG 审计 ${format.toUpperCase()} 已导出`)
+}
+
 const startRun = async () => {
   if (!contractText.value.trim()) {
     ElMessage.warning('请输入合同文本')
@@ -256,6 +356,8 @@ const startRun = async () => {
     const latest = await pollUntilStable(res.run.runId)
     const view = await workflowApi.getAcgView(res.run.runId)
     acgView.value = hydrateAcgView(view, latest)
+    loadedRunId.value = res.run.runId
+    await router.replace({ query: { ...route.query, runId: res.run.runId } })
     ElMessage.success('ACG 引擎执行完成')
   } catch (err: any) {
     ElMessage.error(`启动失败：${err?.message || err}`)
@@ -281,7 +383,14 @@ const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
 .hero-left { display: flex; align-items: center; gap: var(--space-md); }
 .ui-hero h1 { margin: 0; font-size: 20px; font-weight: 800; color: var(--text-primary); }
 .hero-sub { margin: 2px 0 0; font-size: 12px; color: var(--text-secondary); }
-.hero-right { display: flex; gap: 8px; align-items: center; }
+.hero-right { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.run-context { display: flex; align-items: center; gap: 6px; }
+.run-id {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 5px 8px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--bg-input); color: var(--text-secondary); font-size: 10px;
+}
+.run-id code { color: var(--text-primary); font-size: 11px; white-space: nowrap; }
 
 .control-bar { display: flex; flex-direction: column; gap: var(--space-md); }
 .ctrl-row { display: flex; flex-direction: column; gap: 6px; }
@@ -298,9 +407,9 @@ const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
 .contract-textarea :deep(.el-textarea__inner) { min-height: 132px !important; }
 .intent-textarea :deep(.el-textarea__inner) { min-height: 132px !important; }
 
-.acg-grid { display: grid; grid-template-columns: 1fr 380px; gap: var(--space-lg); align-items: stretch; }
-.grid-main { display: flex; flex-direction: column; gap: var(--space-lg); }
-.grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-height: 0; }
+.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-lg); align-items: stretch; min-width: 0; }
+.grid-main { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
+.grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; min-height: 0; }
 .grid-side :deep(.acg-provenance) { flex: 1 1 auto; min-height: 0; }
 
 .schedule-strip { padding: var(--space-md); }
@@ -312,8 +421,22 @@ const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
 
 .placeholder { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: 48px; text-align: center; color: var(--text-secondary); }
 .ph-icon { font-size: 40px; color: var(--primary-color); opacity: .5; }
+.ph-icon.restoring { animation: restore-pulse 1s ease-in-out infinite alternate; }
+
+@keyframes restore-pulse {
+  to { opacity: 1; }
+}
 
 @media (max-width: 1160px) {
-  .acg-grid { grid-template-columns: 1fr; }
+  .acg-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .ui-hero { flex-wrap: wrap; align-items: flex-start; }
+  .hero-left { width: 100%; }
+  .hero-right { justify-content: flex-start; width: 100%; }
+  .run-context { width: 100%; flex-wrap: wrap; }
+  .run-id { max-width: 100%; }
+  .run-id code { overflow: hidden; text-overflow: ellipsis; }
 }
 </style>

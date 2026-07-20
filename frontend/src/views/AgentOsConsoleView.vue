@@ -116,6 +116,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { Monitor, Refresh, Search } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
 import CheckpointPanel from '@/components/agentos/CheckpointPanel.vue'
 import HumanReviewPanel from '@/components/agentos/HumanReviewPanel.vue'
 import TraceEventTimeline from '@/components/agentos/TraceEventTimeline.vue'
@@ -132,6 +133,8 @@ const checkpoints = ref<Checkpoint[]>([])
 const reviews = ref<ReviewRecord[]>([])
 const metrics = ref<EvaluationRun | null>(null)
 const errorMessage = ref('')
+const route = useRoute()
+const router = useRouter()
 
 const filters = reactive<WorkflowRunQuery>({
   status: '',
@@ -175,6 +178,15 @@ const loadRuns = async () => {
     const page = await workflowApi.listRuns(cleanQuery(filters))
     runs.value = page.items || []
     totalRuns.value = page.total || 0
+    const requestedRunId = typeof route.query.runId === 'string' ? route.query.runId.trim() : ''
+    if (requestedRunId && requestedRunId !== selectedRunId.value) {
+      await selectRun(requestedRunId, false)
+      if (selectedRun.value?.runId === requestedRunId && !runs.value.some(run => run.runId === requestedRunId)) {
+        runs.value.unshift(selectedRun.value)
+      }
+      if (selectedRun.value?.runId === requestedRunId) return
+      selectedRunId.value = ''
+    }
     if (!selectedRunId.value && runs.value[0]) {
       await selectRun(runs.value[0].runId)
     }
@@ -185,8 +197,11 @@ const loadRuns = async () => {
   }
 }
 
-const selectRun = async (runId: string) => {
+const selectRun = async (runId: string, syncRoute = true) => {
   selectedRunId.value = runId
+  if (syncRoute && route.query.runId !== runId) {
+    await router.replace({ query: { ...route.query, runId } })
+  }
   await refreshSelectedRun()
 }
 

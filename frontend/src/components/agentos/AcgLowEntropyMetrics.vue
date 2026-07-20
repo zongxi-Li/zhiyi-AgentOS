@@ -25,6 +25,17 @@
         <span class="metric-value">{{ metrics.recoveryCount }}</span>
         <span class="metric-label">自愈恢复次数</span>
       </div>
+      <div class="metric-card">
+        <span class="metric-value">{{ metrics.interactionCount }}</span>
+        <span class="metric-label">运行时交互</span>
+      </div>
+      <div class="metric-card" :class="{ danger: metrics.contractViolationCount > 0 }">
+        <span class="metric-value">{{ metrics.contractViolationCount }}</span>
+        <span class="metric-label">契约异常</span>
+      </div>
+    </div>
+    <div class="ledger-status" :class="{ invalid: metrics.integrityStatus !== 'valid' }">
+      审计账本：{{ metrics.integrityStatus === 'valid' ? '校验通过' : '旧版或校验异常' }}
     </div>
 
     <div class="bar-wrap" v-if="metrics.tokensAvailable > 0">
@@ -49,14 +60,18 @@ const props = withDefaults(defineProps<{
 }>(), {
   metrics: () => ({
     averageSavingRatio: 0,
+    effectiveSavingRatio: 0,
     tokensAvailable: 0,
     tokensDelivered: 0,
     tokensSaved: 0,
-    recoveryCount: 0
+    recoveryCount: 0,
+    interactionCount: 0,
+    contractViolationCount: 0,
+    integrityStatus: 'valid'
   })
 })
 
-const savingPercent = computed(() => `${(props.metrics.averageSavingRatio * 100).toFixed(1)}%`)
+const savingPercent = computed(() => `${((props.metrics.effectiveSavingRatio ?? props.metrics.averageSavingRatio) * 100).toFixed(1)}%`)
 
 const deliveredPercent = computed(() => {
   const { tokensAvailable, tokensDelivered } = props.metrics
@@ -87,6 +102,7 @@ const formatNum = (n: number) => {
 }
 .metric-card.highlight { background: var(--primary-fade); border-color: var(--primary-color); }
 .metric-card.warn { background: rgba(154, 116, 50, 0.1); border-color: var(--warning); }
+.metric-card.danger { background: var(--danger-fade); border-color: var(--danger); }
 .metric-value { font-size: 20px; font-weight: 800; color: var(--text-primary); line-height: 1.1; }
 .metric-card.highlight .metric-value { color: var(--primary-color); }
 .metric-label { font-size: 11px; color: var(--text-secondary); }
@@ -96,4 +112,6 @@ const formatNum = (n: number) => {
 .bar-fill { height: 100%; background: var(--primary-color); border-radius: 6px; transition: width .4s ease; }
 .bar-caption { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--text-secondary); }
 .bar-caption .saved { color: var(--success); font-weight: 600; }
+.ledger-status { margin-top: 8px; font-size: 11px; color: var(--success); font-weight: 600; }
+.ledger-status.invalid { color: var(--warning); }
 </style>

@@ -24,8 +24,62 @@
       </div>
     </header>
 
+    <div v-if="hasData" class="graph-toolbar">
+      <div class="view-mode" aria-label="拓扑视图模式">
+        <button type="button" :class="{ active: !focusMainPath }" @click="setFocusMainPath(false)">全图</button>
+        <button type="button" :class="{ active: focusMainPath }" @click="setFocusMainPath(true)">
+          <el-icon><Aim /></el-icon>
+          主执行链
+        </button>
+      </div>
+      <div v-if="!focusMainPath" class="edge-filters" aria-label="边类型筛选">
+        <label v-for="item in EDGE_TYPES" :key="item.value" :class="{ checked: selectedEdgeTypes.includes(item.value) }">
+          <input v-model="selectedEdgeTypes" type="checkbox" :value="item.value" />
+          <i :style="{ backgroundColor: edgeColor(item.value) }" />
+          {{ item.label }}
+        </label>
+      </div>
+    </div>
+
     <div v-if="!hasData" class="empty">暂无 ACG 拓扑数据，请先运行一个 ACG 引擎工作流</div>
-    <div v-else ref="graphRef" class="graph-canvas" />
+    <div v-else class="graph-stage" :class="{ 'has-detail': selectedNode }">
+      <div ref="graphRef" class="graph-canvas" />
+      <aside v-if="selectedNode" class="node-detail" aria-label="节点详情">
+        <header>
+          <div>
+            <span>{{ nodeTypeLabel(selectedNode.nodeType) }}</span>
+            <h5>{{ selectedNode.name || selectedNode.nodeId }}</h5>
+          </div>
+          <button type="button" title="关闭节点详情" aria-label="关闭节点详情" @click="clearSelection">
+            <el-icon><Close /></el-icon>
+          </button>
+        </header>
+        <dl>
+          <div><dt>节点 ID</dt><dd><code>{{ selectedNode.nodeId }}</code></dd></div>
+          <div v-if="selectedNodeStatus"><dt>运行状态</dt><dd class="node-status" :class="selectedNodeStatus">{{ selectedNodeStatus }}</dd></div>
+          <div v-if="selectedNode.agentName"><dt>Agent</dt><dd>{{ selectedNode.agentName }}</dd></div>
+          <div v-if="selectedNode.capability"><dt>能力</dt><dd>{{ selectedNode.capability }}</dd></div>
+          <div v-if="selectedNode.controlType"><dt>控制类型</dt><dd>{{ selectedNode.controlType }}</dd></div>
+        </dl>
+        <p v-if="selectedNode.goal || selectedNode.description" class="node-description">
+          {{ selectedNode.goal || selectedNode.description }}
+        </p>
+        <div class="connection-group">
+          <strong>输入关系 · {{ incomingConnections.length }}</strong>
+          <span v-if="!incomingConnections.length">无</span>
+          <button v-for="edge in incomingConnections" :key="edge.edgeId" type="button" @click="selectRelatedNode(edge.sourceId)">
+            <small>{{ edgeTypeLabel(edge.edgeType) }}</small>{{ edge.sourceId }}
+          </button>
+        </div>
+        <div class="connection-group">
+          <strong>输出关系 · {{ outgoingConnections.length }}</strong>
+          <span v-if="!outgoingConnections.length">无</span>
+          <button v-for="edge in outgoingConnections" :key="edge.edgeId" type="button" @click="selectRelatedNode(edge.targetId)">
+            <small>{{ edgeTypeLabel(edge.edgeType) }}</small>{{ edge.targetId }}
+          </button>
+        </div>
+      </aside>
+    </div>
 
     <div v-if="hasData" class="legend">
       <span class="legend-item"><i class="dot step"></i>步骤</span>
@@ -34,20 +88,24 @@
       <span class="legend-item"><i class="dot evidence"></i>证据</span>
       <span class="legend-item"><i class="dot control"></i>控制</span>
       <span class="legend-item"><i class="ring done"></i>已完成</span>
+      <span class="legend-item"><i class="ring running"></i>执行中</span>
+      <span class="legend-item"><i class="ring waiting"></i>待审核/重试</span>
+      <span class="legend-item"><i class="ring failed"></i>失败</span>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowDownBold, FullScreen, Share } from '@element-plus/icons-vue'
+import { Aim, ArrowDownBold, Close, FullScreen, Share } from '@element-plus/icons-vue'
 import { DataSet } from 'vis-data'
 import { Network } from 'vis-network'
-import type { AcgBlueprint, AcgNode, AcgEdge } from '@/services/api/agentos'
+import type { AcgBlueprint, AcgNode, AcgEdge, AcgStepState } from '@/services/api/agentos'
 
 const props = defineProps<{
   blueprint: AcgBlueprint | null
   completedStepIds?: string[]
+  stepStates?: AcgStepState[]
   collapsible?: boolean
 }>()
 
@@ -56,6 +114,8 @@ const emit = defineEmits<{
 }>()
 
 const graphRef = ref<HTMLElement | null>(null)
+const selectedNodeId = ref('')
+const focusMainPath = ref(false)
 let network: Network | null = null
 let nodesData: DataSet<any> | null = null
 let edgesData: DataSet<any> | null = null
@@ -63,13 +123,66 @@ let graphStructureKey = ''
 let stabilizationTimer: number | undefined
 let themeObserver: MutationObserver | null = null
 
+const EDGE_TYPES: Array<{ value: AcgEdge['edgeType']; label: string }> = [
+  { value: 'dependency', label: '依赖' },
+  { value: 'communication', label: '通信' },
+  { value: 'execution', label: '执行' },
+  { value: 'write', label: '写入' },
+  { value: 'read', label: '读取' },
+  { value: 'support', label: '证据' },
+  { value: 'control_flow', label: '控制流' }
+]
+const selectedEdgeTypes = ref<AcgEdge['edgeType'][]>(EDGE_TYPES.map(item => item.value))
+
 const hasData = computed(() => {
   return !!props.blueprint && Array.isArray(props.blueprint.nodes) && props.blueprint.nodes.length > 0
 })
 
+const visibleBlueprint = computed<AcgBlueprint | null>(() => {
+  if (!props.blueprint) return null
+  if (focusMainPath.value) {
+    const nodes = props.blueprint.nodes.filter(node => node.nodeType === 'step' || node.nodeType === 'control')
+    const nodeIds = new Set(nodes.map(node => node.nodeId))
+    const edges = props.blueprint.edges.filter(edge =>
+      (edge.edgeType === 'dependency' || edge.edgeType === 'control_flow')
+      && nodeIds.has(edge.sourceId)
+      && nodeIds.has(edge.targetId)
+    )
+    return { ...props.blueprint, nodes, edges }
+  }
+
+  const selected = new Set(selectedEdgeTypes.value)
+  const edges = props.blueprint.edges.filter(edge => selected.has(edge.edgeType))
+  if (selected.size === EDGE_TYPES.length) return props.blueprint
+  const connectedNodeIds = new Set(edges.flatMap(edge => [edge.sourceId, edge.targetId]))
+  const nodes = props.blueprint.nodes.filter(node => node.nodeType === 'step' || connectedNodeIds.has(node.nodeId))
+  return { ...props.blueprint, nodes, edges }
+})
+
+const selectedNode = computed(() =>
+  props.blueprint?.nodes.find(node => node.nodeId === selectedNodeId.value) || null
+)
+const stateByStep = computed(() =>
+  new Map<string, string>((props.stepStates || []).map(item => [item.stepId, item.status]))
+)
+const selectedNodeStatus = computed(() => {
+  if (!selectedNode.value) return ''
+  return stateByStep.value.get(selectedNode.value.nodeId)
+    || ((props.completedStepIds || []).includes(selectedNode.value.nodeId) ? 'completed' : '')
+})
+const incomingConnections = computed(() =>
+  visibleBlueprint.value?.edges.filter(edge => edge.targetId === selectedNodeId.value) || []
+)
+const outgoingConnections = computed(() =>
+  visibleBlueprint.value?.edges.filter(edge => edge.sourceId === selectedNodeId.value) || []
+)
+
 const stats = computed(() => {
-  if (!props.blueprint) return ''
-  return `${props.blueprint.nodes.length} 节点 / ${props.blueprint.edges.length} 边`
+  if (!props.blueprint || !visibleBlueprint.value) return ''
+  const visible = `${visibleBlueprint.value.nodes.length} 节点 / ${visibleBlueprint.value.edges.length} 边`
+  if (visibleBlueprint.value.nodes.length === props.blueprint.nodes.length
+    && visibleBlueprint.value.edges.length === props.blueprint.edges.length) return visible
+  return `${visible}（全图 ${props.blueprint.nodes.length} / ${props.blueprint.edges.length}）`
 })
 
 // 节点类型 → 配色（沿用项目色板）
@@ -92,6 +205,18 @@ const EDGE_STYLE: Record<string, { color: string; dashes: boolean | number[] }> 
   support: { color: '#b24a4a', dashes: [2, 2] },
   execution: { color: '#727c76', dashes: false }
 }
+
+const edgeColor = (edgeType: AcgEdge['edgeType']) => EDGE_STYLE[edgeType]?.color || '#727c76'
+const edgeTypeLabel = (edgeType: AcgEdge['edgeType']) =>
+  EDGE_TYPES.find(item => item.value === edgeType)?.label || edgeType
+const nodeTypeLabel = (nodeType: AcgNode['nodeType']) => ({
+  step: '步骤',
+  agent: '智能体',
+  skill: '技能',
+  memory: '记忆',
+  evidence: '证据',
+  control: '控制'
+}[nodeType] || nodeType)
 
 const cssColor = (name: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
@@ -128,29 +253,44 @@ function applyThemeToGraphStyles() {
   })
 }
 
-const buildNodeRows = (nodes: AcgNode[], completed: Set<string>) => {
+const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<string, string>) => {
   applyThemeToGraphStyles()
   const done = cssColor('--success', '#2f8f5b')
   const textPrimary = cssColor('--text-primary', '#1d2422')
   const textSecondary = cssColor('--text-secondary', '#5a635e')
+  const info = cssColor('--info', '#496b8f')
+  const warning = cssColor('--warning', '#9a7432')
+  const danger = cssColor('--danger', '#b24a4a')
   return nodes.map((node) => {
     const style = NODE_STYLE[node.nodeType] || NODE_STYLE.step
-    const isDone = completed.has(node.nodeId)
+    const status = states.get(node.nodeId) || (completed.has(node.nodeId) ? 'completed' : '')
+    const isDone = status === 'completed'
+    const statusBorder = isDone
+      ? done
+      : status === 'running'
+        ? info
+        : status === 'waiting_review' || status === 'retrying'
+          ? warning
+          : status === 'failed'
+            ? danger
+            : style.border
     const label = node.name || node.nodeId
     const isStep = node.nodeType === 'step'
     return {
       id: node.nodeId,
       label,
+      title: `${node.nodeId}\n${node.nodeType}${status ? `\n${status}` : ''}`,
       shape: style.shape,
       color: {
         background: style.background,
-        border: isDone ? done : style.border,
-        highlight: { background: style.background, border: done }
+        border: statusBorder,
+        highlight: { background: style.background, border: statusBorder }
       },
-      borderWidth: isDone ? 3 : 1.5,
+      borderWidth: status ? 3 : 1.5,
+      shadow: status === 'running' ? { enabled: true, color: info, size: 8, x: 0, y: 0 } : false,
       // Step 为主干节点（大、醒目）；Agent/Memory/Evidence 为认知卫星节点（小）
       size: isStep ? 26 : 16,
-      font: { size: isStep ? 14 : 11, color: isStep ? textPrimary : textSecondary },
+      font: { size: isStep ? (focusMainPath.value ? 15 : 14) : 12, color: isStep ? textPrimary : textSecondary },
       mass: isStep ? 3 : 1,
       margin: isStep ? 10 : 6
     }
@@ -215,11 +355,16 @@ const stopPhysics = () => {
 
 const render = async () => {
   await nextTick()
-  if (!graphRef.value || !hasData.value || !props.blueprint) return
+  const blueprint = visibleBlueprint.value
+  if (!graphRef.value || !hasData.value || !blueprint) return
+  if (selectedNodeId.value && !blueprint.nodes.some(node => node.nodeId === selectedNodeId.value)) {
+    selectedNodeId.value = ''
+  }
   const completed = new Set(props.completedStepIds || [])
-  const nodeRows = buildNodeRows(props.blueprint.nodes, completed)
-  const edgeRows = buildEdgeRows(props.blueprint.edges)
-  const nextStructureKey = getStructureKey(props.blueprint)
+  const states = new Map<string, string>((props.stepStates || []).map(item => [item.stepId, item.status]))
+  const nodeRows = buildNodeRows(blueprint.nodes, completed, states)
+  const edgeRows = buildEdgeRows(blueprint.edges)
+  const nextStructureKey = getStructureKey(blueprint)
 
   // Polling frequently returns a new object with the same graph structure.
   // Update labels/status in place so existing positions and user dragging are preserved.
@@ -240,6 +385,12 @@ const render = async () => {
   graphStructureKey = nextStructureKey
   const data = { nodes: nodesData, edges: edgesData }
   network = new Network(graphRef.value, data as any, options as any)
+  network.on('selectNode', params => {
+    selectedNodeId.value = String(params.nodes[0] || '')
+  })
+  network.on('deselectNode', () => {
+    selectedNodeId.value = ''
+  })
 
   // 布局展开成形后，完全冻结 physics —— 节点定住不再漂移抖动。
   // physics 关闭后 dragNodes 仍有效：拖动只移动被拖的单个节点，
@@ -255,7 +406,28 @@ const render = async () => {
 
 const fit = () => network?.fit({ animation: true })
 
-watch(() => [props.blueprint, props.completedStepIds], () => render(), { deep: true })
+const clearSelection = () => {
+  selectedNodeId.value = ''
+  network?.unselectAll()
+}
+
+const selectRelatedNode = (nodeId: string) => {
+  if (!visibleBlueprint.value?.nodes.some(node => node.nodeId === nodeId)) return
+  selectedNodeId.value = nodeId
+  network?.selectNodes([nodeId])
+  network?.focus(nodeId, { scale: 1.2, animation: true })
+}
+
+const setFocusMainPath = (value: boolean) => {
+  focusMainPath.value = value
+  clearSelection()
+}
+
+watch(
+  () => [props.blueprint, props.completedStepIds, props.stepStates, selectedEdgeTypes.value, focusMainPath.value],
+  () => render(),
+  { deep: true }
+)
 onMounted(() => {
   themeObserver = new MutationObserver(() => render())
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-color-scheme'] })
@@ -276,6 +448,8 @@ onBeforeUnmount(() => {
 .acg-topology {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 .panel-head {
   display: flex;
@@ -294,8 +468,64 @@ onBeforeUnmount(() => {
   border-radius: 6px; cursor: pointer; transition: all .2s ease;
 }
 .action-btn:hover { background: var(--primary-color); color: #fff; }
+.graph-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 0 0 var(--space-sm); margin-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+.view-mode { display: inline-flex; padding: 2px; background: var(--bg-input); border-radius: 6px; }
+.view-mode button {
+  min-height: 28px; display: inline-flex; align-items: center; gap: 4px; padding: 0 9px;
+  border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary);
+  font-size: 11px; cursor: pointer;
+}
+.view-mode button.active { background: var(--primary-color); color: #fff; }
+.edge-filters { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.edge-filters label {
+  min-height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 7px;
+  border: 1px solid var(--border-light); border-radius: 6px; color: var(--text-disabled);
+  font-size: 10px; cursor: pointer; transition: border-color .18s ease, color .18s ease;
+}
+.edge-filters label.checked { color: var(--text-secondary); border-color: var(--border-strong); }
+.edge-filters input { position: absolute; opacity: 0; pointer-events: none; }
+.edge-filters i { width: 12px; height: 2px; border-radius: 1px; opacity: .35; }
+.edge-filters label.checked i { opacity: 1; }
 .empty { padding: 32px 12px; text-align: center; color: var(--text-secondary); font-size: 13px; }
-.graph-canvas { width: 100%; height: 420px; min-height: 320px; }
+.graph-stage { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 420px; }
+.graph-stage.has-detail { grid-template-columns: minmax(0, 1fr) 280px; }
+.graph-canvas { width: 100%; max-width: 100%; min-width: 0; height: 420px; min-height: 320px; }
+.node-detail {
+  height: 420px; min-width: 0; overflow-y: auto; padding: 12px;
+  border-left: 1px solid var(--border-light); background: var(--bg-panel);
+}
+.node-detail header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.node-detail header span { font-size: 10px; color: var(--primary-color); font-weight: 700; }
+.node-detail h5 { margin: 2px 0 0; font-size: 14px; color: var(--text-primary); overflow-wrap: anywhere; }
+.node-detail header button {
+  width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center;
+  border: 0; border-radius: 6px; background: var(--bg-input); color: var(--text-secondary); cursor: pointer;
+}
+.node-detail dl { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; }
+.node-detail dl div { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; }
+.node-detail dt { font-size: 10px; color: var(--text-disabled); }
+.node-detail dd { margin: 0; min-width: 0; font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.node-detail code { color: var(--text-primary); }
+.node-status { font-weight: 700; }
+.node-status.completed { color: var(--success); }
+.node-status.running { color: var(--info); }
+.node-status.waiting_review, .node-status.retrying { color: var(--warning); }
+.node-status.failed { color: var(--danger); }
+.node-description { margin: 0 0 14px; font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
+.connection-group { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+.connection-group strong { font-size: 11px; color: var(--text-primary); }
+.connection-group > span { font-size: 10px; color: var(--text-disabled); }
+.connection-group button {
+  display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 7px;
+  border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-input);
+  color: var(--text-secondary); font: 10px monospace; text-align: left; cursor: pointer; overflow-wrap: anywhere;
+}
+.connection-group button:hover { border-color: var(--primary-color); color: var(--text-primary); }
+.connection-group small { flex: 0 0 auto; color: var(--primary-color); font: 9px sans-serif; }
 .legend {
   display: flex; flex-wrap: wrap; gap: 12px; padding-top: var(--space-sm);
   border-top: 1px solid var(--border-light); margin-top: var(--space-sm);
@@ -308,4 +538,13 @@ onBeforeUnmount(() => {
 .dot.evidence { background: #f6dede; border: 1.5px solid #b24a4a; transform: rotate(45deg); }
 .dot.control { background: #e2e8e0; border: 1.5px solid #727c76; }
 .ring { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 3px solid #2f8f5b; }
+.ring.running { border-color: var(--info); }
+.ring.waiting { border-color: var(--warning); }
+.ring.failed { border-color: var(--danger); }
+
+@media (max-width: 760px) {
+  .graph-stage.has-detail { grid-template-columns: 1fr; }
+  .node-detail { height: auto; max-height: 320px; border-left: 0; border-top: 1px solid var(--border-light); }
+  .meta { display: none; }
+}
 </style>
