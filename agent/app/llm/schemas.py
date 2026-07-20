@@ -61,11 +61,10 @@ REPORT_GENERATE_SCHEMA: Dict[str, Any] = {
 
 CHAT_ROUTE_DECISION_SCHEMA: Dict[str, Any] = {
     "type": "object",
-    "required": ["decision", "workflow_id", "use_langgraph", "reason", "confidence", "direct_answer_type"],
+    "required": ["decision", "workflow_id", "reason", "confidence", "direct_answer_type"],
     "properties": {
         "decision": {"type": "string", "enum": ["direct", "workflow"]},
         "workflow_id": {"type": "string"},
-        "use_langgraph": {"type": "boolean"},
         "reason": {"type": "string"},
         "confidence": {"type": "number"},
         "direct_answer_type": {

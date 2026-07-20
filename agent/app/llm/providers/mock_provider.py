@@ -23,7 +23,6 @@ class MockLLMProvider:
                 return {
                     "decision": "direct",
                     "workflow_id": "none",
-                    "use_langgraph": False,
                     "reason": "用户询问底层模型或系统身份，不需要启动工作流。",
                     "confidence": 0.96,
                     "direct_answer_type": "model_intro",
@@ -32,7 +31,6 @@ class MockLLMProvider:
                 return {
                     "decision": "direct",
                     "workflow_id": "none",
-                    "use_langgraph": False,
                     "reason": "用户是在问候或询问智能体角色，不需要启动工作流。",
                     "confidence": 0.96,
                     "direct_answer_type": "role_intro",
@@ -41,7 +39,6 @@ class MockLLMProvider:
                 return {
                     "decision": "direct",
                     "workflow_id": "none",
-                    "use_langgraph": False,
                     "reason": "用户提出一般法律咨询，不需要合同审查图流程。",
                     "confidence": 0.9,
                     "direct_answer_type": "general_question",
@@ -50,15 +47,13 @@ class MockLLMProvider:
                 return {
                     "decision": "workflow",
                     "workflow_id": "legal_contract_review_v1",
-                    "use_langgraph": True,
-                    "reason": "用户明确要求审查合同，需要进入 LangGraph 合同审查流程。",
+                    "reason": "用户明确要求审查合同，需要进入标准合同审查流程。",
                     "confidence": 0.92,
                     "direct_answer_type": "none",
                 }
             return {
                 "decision": "workflow",
                 "workflow_id": "legacy_default",
-                "use_langgraph": False,
                 "reason": "用户提出需要专业 Agent 处理的任务。",
                 "confidence": 0.72,
                 "direct_answer_type": "none",

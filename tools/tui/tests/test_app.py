@@ -50,13 +50,12 @@ class RoutingClient(FakeClient):
             "sessionId": "session-route",
             "workflowId": "legal_contract_review_v1",
             "workflowRunId": "run-route-1",
-            "runtimeEngine": "langgraph",
+            "runtimeEngine": "acg",
             "routing": {
                 "decision": "workflow",
                 "source": "llm",
                 "confidence": 0.92,
                 "workflowId": "legal_contract_review_v1",
-                "useLangGraph": True,
                 "reason": "用户明确要求审查合同。",
             },
             "trace": [
@@ -185,7 +184,7 @@ def test_chat_renders_routing_and_trace_metadata() -> None:
         assert "Route:" in rendered_text
         assert "workflow" in rendered_text
         assert "via llm" in rendered_text
-        assert "engine=langgraph" in rendered_text
+        assert "engine=acg" in rendered_text
         assert "workflow=legal_contract_review_v1" in rendered_text
         assert "run=run-route-1" in rendered_text
         assert "Trace:" in rendered_text

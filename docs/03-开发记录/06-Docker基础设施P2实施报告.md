@@ -246,7 +246,7 @@ Backend 只监听 web-network 地址 `192.168.48.2:8080`，因此 FastAPI 即使
 | canonical/legacy Nginx `nginx -t` | 0 | 三种配置分别 PASS |
 | Frontend production image build | 0 | PASS，只有 Sass/大 chunk 警告 |
 
-测试警告主要是 Pydantic class Config、Python 3.14 asyncio、LangGraph 和 Sass legacy API 弃用警告；没有测试失败被忽略。
+测试警告主要是 Pydantic class Config、Python 3.14 asyncio 和 Sass legacy API 弃用警告；没有测试失败被忽略。
 
 ## 11. Git 提交
 

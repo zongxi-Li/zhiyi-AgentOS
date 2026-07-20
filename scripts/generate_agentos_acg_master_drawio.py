@@ -611,7 +611,7 @@ for cell_id, y, title, subtitle, status in scheduler_cards:
     vertex(cell_id, html_text(title, subtitle, status), 185, y, 198, 36, card_style(status, font_size=9))
 
 dispatcher_cards = [
-    ("dispatch_adapter", 522, "Execution Adapter", "native / acg / langgraph", "done"),
+    ("dispatch_adapter", 522, "Execution Adapter", "native / acg", "done"),
     ("dispatch_agent", 579, "Agent / Skill 分派", "能力匹配 · Orchestrator", "done"),
 ]
 for cell_id, y, title, subtitle, status in dispatcher_cards:
@@ -620,7 +620,7 @@ for cell_id, y, title, subtitle, status in dispatcher_cards:
 executor_cards = [
     ("exec_native", 635, "Native", "线性 YAML", "done"),
     ("exec_acg", 751, "ACGExecutor", "ready_steps<br>async gather", "done"),
-    ("exec_langgraph", 867, "LangGraph", "StateGraph<br>Projector", "done"),
+    ("exec_governance", 867, "治理闭环", "Trace / Review<br>Checkpoint", "done"),
     ("exec_io", 983, "Agent / Tool / RAG", "LLM Gateway<br>Evidence / Data", "done"),
 ]
 for cell_id, x, title, subtitle, status in executor_cards:

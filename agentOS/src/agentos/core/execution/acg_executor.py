@@ -9,7 +9,7 @@
   每个 StepNode 仍映射到 run.steps 里的一个 WorkflowStep，从而无缝复用
   现有 Pack 智能体、Trace、Checkpoint 与前端展示。
 - 与线性 _run_until_blocked 并存，作为 runtime_engine="acg" 的新执行路径，
-  不影响 native / langgraph 既有行为。
+  不影响 native 既有行为。
 - 节点级统一 Trace（step_started/agent_called/step_succeeded/step_failed）。
 """
 
@@ -179,6 +179,7 @@ class ACGExecutor:
 
             run.completed_step_ids = sorted(completed)
             run.provenance = self.ledger.to_graph()
+            run.output = self.runtime.orchestrator.compose_final_output(run)
             run.updated_at = utc_now()
             self.runtime.workflow_store.save_run(run)
 

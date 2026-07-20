@@ -377,7 +377,7 @@ def _should_use_legal_case_workflow(text: str) -> bool:
     )
 
 
-def _should_use_legal_contract_review_langgraph(text: str) -> bool:
+def _is_contract_review_intent(text: str) -> bool:
     normalized = _compact_chat_text(text)
     explicit_markers = [
         "合同审查",
@@ -494,14 +494,12 @@ def _direct_agent_response(
     routing = {
         "decision": "direct",
         "workflowRequired": False,
-        "useLangGraph": False,
         "reason": observation,
     }
     if route_decision:
         routing.update(route_decision)
         routing["decision"] = "direct"
         routing["workflowRequired"] = False
-        routing["useLangGraph"] = False
 
     response: Dict[str, Any] = {
         "success": True,
@@ -523,10 +521,6 @@ def _direct_agent_response(
     return response
 
 
-def _workflow_uses_langgraph(workflow_id: str) -> bool:
-    return workflow_id == "legal_contract_review_v1"
-
-
 def _allowed_legacy_workflow_ids(role: str, role_config: Dict[str, Any]) -> set[str]:
     workflow_ids = {str(role_config["workflow_id"])}
     if role == "lawyer":
@@ -540,18 +534,16 @@ def _fallback_route_decision(role: str, role_config: Dict[str, Any], text: str) 
         return {
             "decision": "direct",
             "workflowRequired": False,
-            "useLangGraph": False,
             "reason": "smalltalk_or_capability_intro",
             "directAnswerType": direct_answer_type,
             "source": "rules",
             "confidence": 0.9,
         }
 
-    if role == "lawyer" and _is_general_legal_question(text) and not _should_use_legal_contract_review_langgraph(text):
+    if role == "lawyer" and _is_general_legal_question(text) and not _is_contract_review_intent(text):
         return {
             "decision": "direct",
             "workflowRequired": False,
-            "useLangGraph": False,
             "reason": "general_legal_question",
             "directAnswerType": "general_question",
             "source": "rules",
@@ -563,7 +555,6 @@ def _fallback_route_decision(role: str, role_config: Dict[str, Any], text: str) 
         "decision": "workflow",
         "workflowRequired": True,
         "workflowId": workflow_id,
-        "useLangGraph": _workflow_uses_langgraph(workflow_id),
         "reason": "professional_task",
         "directAnswerType": "none",
         "source": "rules",
@@ -575,7 +566,6 @@ def _route_prompt(role: str, role_config: Dict[str, Any], text: str) -> str:
     workflow_options = [
         {
             "workflow_id": role_config["workflow_id"],
-            "engine": "native",
             "when_to_use": "专业任务需要该角色的常规多步骤技能链处理。",
         }
     ]
@@ -583,7 +573,6 @@ def _route_prompt(role: str, role_config: Dict[str, Any], text: str) -> str:
         workflow_options.append(
             {
                 "workflow_id": "legal_contract_review_v1",
-                "engine": "langgraph",
                 "when_to_use": "用户明确要求审查、修改、评估合同条款，或提供了合同文本需要条款风险识别。",
             }
         )
@@ -596,14 +585,14 @@ def _route_prompt(role: str, role_config: Dict[str, Any], text: str) -> str:
             "1. 问候、身份/能力/底层模型介绍、寒暄，decision=direct。",
             "2. 普通问答若不需要多步骤工具/工作流，decision=direct。",
             "3. 明确需要专业产物、检索、分析链、合同审查、课程设计、需求分析、提纲生成等，decision=workflow。",
-            "4. 只有明确合同审查/条款修改/合同文本风险识别时，才选择 legal_contract_review_v1 并 use_langgraph=true。",
+            "4. 只有明确合同审查/条款修改/合同文本风险识别时，才选择 legal_contract_review_v1。",
             "5. 不要因为出现“合同”“交付”“付款”等单个词就选择合同审查图；诉讼风险、违约咨询通常走律师常规案件分析。",
             "",
             f"当前角色：{role}",
             f"可选工作流：{json.dumps(workflow_options, ensure_ascii=False)}",
             f"用户输入：{text}",
             "",
-            "JSON 字段：decision, workflow_id, use_langgraph, reason, confidence, direct_answer_type。",
+            "JSON 字段：decision, workflow_id, reason, confidence, direct_answer_type。",
             "direct_answer_type 可选 smalltalk、role_intro、model_intro、general_question、none。",
             "direct 时 workflow_id 填 none；常规角色工作流可填 legacy_default 或具体 workflow_id。",
         ]
@@ -646,7 +635,6 @@ def _normalise_route_decision(
         route["model"] = model
 
     if decision == "direct":
-        route["useLangGraph"] = False
         return route
 
     workflow_id = str(raw.get("workflow_id") or raw.get("workflowId") or "").strip()
@@ -656,11 +644,9 @@ def _normalise_route_decision(
     if workflow_id not in _allowed_legacy_workflow_ids(role, role_config):
         return None
 
-    use_langgraph = _workflow_uses_langgraph(workflow_id)
     route.update(
         {
             "workflowId": workflow_id,
-            "useLangGraph": use_langgraph,
         }
     )
     return route
@@ -697,7 +683,7 @@ def _classify_legacy_chat_route(role: str, role_config: Dict[str, Any], text: st
 
 
 def _legacy_workflow_id_for_chat(role: str, role_config: Dict[str, Any], text: str) -> str:
-    if role == "lawyer" and _should_use_legal_contract_review_langgraph(text):
+    if role == "lawyer" and _is_contract_review_intent(text):
         return "legal_contract_review_v1"
     return str(role_config["workflow_id"])
 
@@ -749,7 +735,7 @@ def _direct_agent_chat_response(
 
         if role == "lawyer" and (
             direct_answer_type == "general_question"
-            or (_is_general_legal_question(text) and not _should_use_legal_contract_review_langgraph(text))
+            or (_is_general_legal_question(text) and not _is_contract_review_intent(text))
         ):
             return _direct_agent_response(
                 role=role,
@@ -923,7 +909,7 @@ def _legacy_contract_review_answer(artifacts: Dict[str, Any]) -> str:
     lines = [
         f"## 合同审查摘要：{contract_type}",
         "",
-        "已进入 LangGraph 合同审查流程，并完成合同解析、条款分类、风险识别、依据匹配和修改建议生成。",
+        "已进入 ACG 合同审查流程，并完成合同解析、条款分类、风险识别、依据匹配和修改建议生成。",
         "",
         "### 1. 主要风险",
     ]
@@ -1492,7 +1478,6 @@ def _legacy_response(role: str, role_config: Dict[str, Any], request: LegacyAgen
         "decision": "workflow",
         "workflowRequired": True,
         "workflowId": run.workflow_id,
-        "useLangGraph": _workflow_uses_langgraph(run.workflow_id),
         "runtimeEngine": getattr(run, "runtime_engine", None),
         "implementationId": getattr(run, "implementation_id", None),
     }
@@ -1634,7 +1619,6 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             response = _legacy_response(role_key, role_config, request, run)
             response["routing"].update(route_decision)
             response["routing"]["workflowId"] = run.workflow_id
-            response["routing"]["useLangGraph"] = _workflow_uses_langgraph(run.workflow_id)
             return response
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

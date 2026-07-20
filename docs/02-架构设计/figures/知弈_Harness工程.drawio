@@ -52,7 +52,7 @@
                 <mxCell id="h_store" value="WorkflowStore&#xa;Memory / SQLite&#xa;保存 WorkflowRun&#xa;steps&#xa;trace&#xa;checkpoints&#xa;provenance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="965" y="421" width="185" height="125" as="geometry"/>
                 </mxCell>
-                <mxCell id="h_adapter_selector" value="ExecutionAdapter 选择&#xa;workflow.effective_runtime_engine&#xa;native / acg / langgraph&#xa;adapterKey = engine:implementationId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="h_adapter_selector" value="ExecutionAdapter 选择&#xa;workflow.effective_runtime_engine&#xa;native / acg&#xa;adapterKey = engine:implementationId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="748" y="602" width="395" height="120" as="geometry"/>
                 </mxCell>
                 <mxCell id="h_planning" value="规划与蓝图构建&#xa;_build_acg_blueprint()&#xa;1. 外部 acgBlueprint&#xa;2. PlanningEngine: 静态优选 / 动态补位&#xa;3. promote_workflow_to_acg()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
@@ -64,7 +64,7 @@
                 <mxCell id="h_acg_exec" value="ACGWorkflowAdapter + ACGExecutor&#xa;validate_blueprint()&#xa;ready_steps() 计算就绪集&#xa;asyncio.gather 并行执行 batch&#xa;ContextAssembler 低熵装配&#xa;FaultInjector 自愈入口" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#c67c00;fontSize=14;fontStyle=1;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="1490" y="190" width="195" height="175" as="geometry"/>
                 </mxCell>
-                <mxCell id="h_langgraph" value="LangGraphAdapter&#xa;应用层 StateGraph 桥接&#xa;Projector 投影回 WorkflowRun&#xa;Trace&#xa;Checkpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="h_acg_projection" value="ACG 运行态回写&#xa;WorkflowRun steps / artifacts&#xa;Provenance 数据血缘&#xa;Trace&#xa;Checkpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="1265" y="335" width="200" height="115" as="geometry"/>
                 </mxCell>
                 <mxCell id="h_orchestrator" value="Orchestrator + AgentRegistry&#xa;dispatch_agent(task, run, workflow, step, memory)&#xa;行业 Pack: legal / education / programmer / writer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
@@ -141,7 +141,7 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="h_e_adapter_langgraph" value="langgraph" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=14;strokeWidth=2;align=center;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" parent="1" source="h_adapter_selector" edge="1">
+                <mxCell id="h_e_acg_projection" value="治理回写" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=14;strokeWidth=2;align=center;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" parent="1" source="h_acg_exec" target="h_acg_projection" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="1218" y="692"/>

@@ -379,7 +379,7 @@ python -m pytest agent/tests -q
 | 状态 | 能力 |
 | --- | --- |
 | **已实现并有测试** | ACG 数据结构与图算法、工作流升格、JIT 混合规划、就绪集并行执行、字段级低熵通信与 ProvenanceLedger、Trace、Review、Checkpoint、故障注入与自愈恢复、合同审查 Pack、ACG API 与前端拓扑可视化面板 |
-| **实验性实现** | 联邦学习训练闭环（FedAvg、梯度裁剪、差分隐私、模型版本治理）、联邦 RAG 参数聚合、LangGraph 适配器、部分多模型与知识库能力、调度器 ResourceProfile 与多目标效用评分 |
+| **实验性实现** | 联邦学习训练闭环（FedAvg、梯度裁剪、差分隐私、模型版本治理）、联邦 RAG 参数聚合、部分多模型与知识库能力、调度器 ResourceProfile 与多目标效用评分 |
 | **后续工程化** | 端-边-云异构资源调度执行链路、完整四级记忆体系（情节/语义/Memory Capsule）、生产级多租户与 RBAC、统一遥测与 OpenTelemetry、高可用 Workflow Store、系统化安全审计与合规验收、国产化环境（银河麒麟 OS + 麒麟 AI SDK）部署验证 |
 
 **需要诚实地承认的边界：**
@@ -471,7 +471,7 @@ agentOS/src/agentos/core/governance/
     checkpoint.py        检查点生成与恢复
     review.py            人工审核管理
     evaluation.py        质量评估与验证
-agent/app/graphs/contract_review/    合同审查 LangGraph 实现
+agent/packs/legal/agents/contract_review_migration.py    合同审查 ACG 业务逻辑
 agent/packs/legal/                    法律领域 Agent Pack
 frontend/src/components/agentos/     AgentOS 与 ACG 交互组件
 ```

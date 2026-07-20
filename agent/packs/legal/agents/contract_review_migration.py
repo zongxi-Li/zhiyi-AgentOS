@@ -1,13 +1,160 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
+from app.llm.gateway import get_llm_gateway
+from app.llm.prompts import render_parse_contract_prompt, render_report_generate_prompt, render_risk_detect_prompt
+from app.llm.schemas import PARSE_CONTRACT_SCHEMA, REPORT_GENERATE_SCHEMA, RISK_DETECT_SCHEMA
+from app.rag import LegalEvidenceRetriever
+from app.rag.legal_evidence_schema import normalize_evidence
 from packs.legal.agents.common import case_text
 
 
 def _contract_text(context) -> str:
     return case_text(context.task.input) or str(context.task.input.get("contractText") or "").strip()
+
+
+def _observation(context, *step_ids: str) -> Dict[str, Any]:
+    """Read an upstream artifact by stable public step ID or its former ACG demo ID."""
+    observations = context.memory.observations
+    for step_id in step_ids:
+        value = observations.get(step_id)
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _llm_json_or_fallback(
+    *,
+    node_name: str,
+    prompt: str,
+    schema: Dict[str, Any],
+    fallback: Dict[str, Any],
+    validator: Callable[[Dict[str, Any]], Dict[str, Any]],
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """Preserve the former graph's JSON guard and deterministic fallback behavior."""
+    gateway = get_llm_gateway()
+    try:
+        response = gateway.generate_json(prompt, schema)
+        output = validator(response.get("data", {}))
+        provider = str(response.get("provider") or gateway.provider_name)
+        return output, {
+            "node_name": node_name,
+            "provider": provider,
+            "model": str(response.get("model") or gateway.model),
+            "source": "mock" if provider == "mock" else "llm",
+            "success": True,
+            "latency_ms": int(response.get("latency_ms") or 0),
+        }
+    except Exception as exc:
+        return fallback, {
+            "node_name": node_name,
+            "provider": getattr(gateway, "provider_name", "unknown"),
+            "model": getattr(gateway, "model", "unknown"),
+            "source": "mock_fallback",
+            "success": False,
+            "error": str(exc)[:240],
+        }
+
+
+def _validate_parse_contract(data: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(data, dict) or not isinstance(data.get("parties"), list):
+        raise ValueError("parse_contract output must contain a parties list")
+    return {
+        "contract_summary": str(data.get("summary") or ""),
+        "contract_title": str(data.get("contract_title") or "unknown"),
+        "parties": [
+            {"name": str(item.get("name") or "unknown"), "role": str(item.get("role") or "unknown")}
+            for item in data["parties"] if isinstance(item, dict)
+        ],
+        "contract_type": str(data.get("contract_type") or "unknown"),
+        "key_dates": data.get("key_dates") if isinstance(data.get("key_dates"), list) else [],
+        "amounts": data.get("amounts") if isinstance(data.get("amounts"), list) else [],
+        "obligations": data.get("obligations") if isinstance(data.get("obligations"), list) else [],
+    }
+
+
+def _validate_risks(data: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(data, dict) or not isinstance(data.get("risks"), list) or not data["risks"]:
+        raise ValueError("risk_detect output must contain a non-empty risks list")
+    risks = []
+    for index, item in enumerate(data["risks"], start=1):
+        if not isinstance(item, dict):
+            continue
+        level = str(item.get("level") or "medium").lower()
+        risks.append({
+            "id": str(item.get("id") or f"risk-{index:02d}"),
+            "title": str(item.get("title") or "unnamed risk"),
+            "level": level if level in {"high", "medium", "low"} else "medium",
+            "clause": str(item.get("clause") or ""),
+            "reason": str(item.get("reason") or ""),
+            "consequence": str(item.get("consequence") or ""),
+            "suggestion": str(item.get("suggestion") or ""),
+            "evidenceIds": list(item.get("evidenceIds") or []),
+        })
+    if not risks:
+        raise ValueError("risk_detect output has no valid risks")
+    return {"risks": risks}
+
+
+def _validate_report(data: Dict[str, Any]) -> Dict[str, Any]:
+    report = data.get("report_markdown") if isinstance(data, dict) else None
+    if not isinstance(report, str) or not report.strip():
+        raise ValueError("report_generate output must contain report_markdown")
+    report = report.strip()
+    disclaimer = "当前报告未接入正式法律法规 RAG，法律依据部分仅为演示或待补充；本报告不构成最终法律意见，需律师复核。"
+    if "本报告不构成最终法律意见" not in report:
+        report = f"{report.rstrip()}\n\n## 免责声明\n{disclaimer}\n"
+    return {"report_markdown": report}
+
+
+def _fallback_evidence_for_risk(risk: Dict[str, Any], index: int) -> Dict[str, Any]:
+    templates = _evidence_items()
+    item = dict(templates[(index - 1) % len(templates)])
+    item["riskId"] = str(risk.get("id") or f"risk-{index:02d}")
+    item["sourceType"] = "mock"
+    item["sourceName"] = "演示依据，待正式法律知识库校验"
+    item["metadata"] = {"demo": True}
+    return item
+
+
+def _append_evidence_appendix(report: str, evidences: List[Dict[str, Any]]) -> str:
+    if not evidences:
+        return report
+    citations = [str(item.get("citationText") or "") for item in evidences]
+    if "Evidence 依据链" in report and any(citation and citation in report for citation in citations):
+        return report
+    lines = ["", "## Evidence 依据链"]
+    for index, item in enumerate(evidences, start=1):
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        marker = "（演示依据 / 待正式法律知识库校验）" if item.get("sourceType") == "mock" or metadata.get("demo") else ""
+        lines.append(
+            f"{index}. [{item.get('sourceType')}] {item.get('sourceName')} {marker}：{item.get('citationText')}"
+        )
+    return f"{report.rstrip()}\n" + "\n".join(lines) + "\n"
+
+
+def _latest_human_review(context) -> Dict[str, Any]:
+    for event in reversed(context.run.trace):
+        event_type = getattr(event.event_type, "value", event.event_type)
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        if event_type == "review_decided" and (payload.get("stepId") or event.step_id) == "human_review":
+            return payload
+    return {}
+
+
+def _append_review_result(report: str, review: Dict[str, Any]) -> str:
+    if not review:
+        return report
+    reviewer = str(review.get("reviewer") or "system")
+    comment = str(review.get("comment") or "").strip()
+    if reviewer in report and (not comment or comment in report):
+        return report
+    lines = ["", "## 人工审核记录", f"- 审核人：{reviewer}", "- 审核结论：approved"]
+    if comment:
+        lines.append(f"- 审核意见：{comment}")
+    return f"{report.rstrip()}\n" + "\n".join(lines) + "\n"
 
 
 def _risk_items() -> List[Dict[str, Any]]:
@@ -120,6 +267,20 @@ class ContractParseAgent(BaseAgent):
             "dispute_resolution": "建议补充管辖、仲裁或诉讼条款。",
             "original_preview": text[:120],
         }
+        output, llm = _llm_json_or_fallback(
+            node_name="parse_contract",
+            prompt=render_parse_contract_prompt(text),
+            schema=PARSE_CONTRACT_SCHEMA,
+            fallback=output,
+            validator=_validate_parse_contract,
+        )
+        output["parties"] = [
+            f"{item.get('name', 'unknown')}：{item.get('role', 'unknown')}"
+            if isinstance(item, dict) else str(item)
+            for item in output.get("parties", [])
+        ]
+        output["original_preview"] = text[:120]
+        output["_llm"] = llm
         return AgentOutput(output=output, summary="Contract text parsed into structured fields.")
 
 
@@ -136,7 +297,7 @@ class ClauseClassifyAgent(BaseAgent):
         )
 
     async def run(self, context):
-        parsed = context.memory.observations.get("contract_parse", {})
+        parsed = _observation(context, "parse_contract", "contract_parse")
         categories = [
             {"category": "主体信息", "content": parsed.get("parties", []), "attention": "确认签约主体和授权代表。"},
             {"category": "项目范围", "content": parsed.get("scope", ""), "attention": "范围应与交付物清单、排期和验收标准联动。"},
@@ -166,18 +327,40 @@ class RiskDetectAgent(BaseAgent):
         )
 
     async def run(self, context):
-        risks = _risk_items()
+        fallback = {"risks": _risk_items()}
+        artifacts = {
+            "parse_contract": _observation(context, "parse_contract", "contract_parse"),
+            "classify_clauses": _observation(context, "classify_clauses", "clause_classify"),
+        }
+        llm_output, llm = _llm_json_or_fallback(
+            node_name="risk_detect",
+            prompt=render_risk_detect_prompt(
+                contract_text=_contract_text(context),
+                state={"artifacts": artifacts},
+            ),
+            schema=RISK_DETECT_SCHEMA,
+            fallback=fallback,
+            validator=_validate_risks,
+        )
+        risks = llm_output["risks"]
         counts = _risk_counts(risks)
+        risk_level = "high" if counts["high"] else "medium" if counts["medium"] else "low"
+        risk_score = 82 if counts["high"] else 60 if counts["medium"] else 30
         output = {
             "risks": risks,
             "risk_summary": {
                 **counts,
                 "conclusion": "付款、验收和知识产权条款需要在签署前补强。",
             },
-            "risk_level": "high" if counts["high"] else "medium",
-            "risk_score": 82,
+            "risk_level": risk_level,
+            "risk_score": risk_score,
+            "_llm": llm,
         }
-        return AgentOutput(output=output, summary="Detected 3 contract risk item(s).", riskLevel="high")
+        return AgentOutput(
+            output=output,
+            summary=f"Detected {len(risks)} contract risk item(s).",
+            riskLevel=risk_level,
+        )
 
 
 class LegalEvidenceMatchAgent(BaseAgent):
@@ -193,11 +376,37 @@ class LegalEvidenceMatchAgent(BaseAgent):
         )
 
     async def run(self, context):
-        evidences = _evidence_items()
+        risk_output = _observation(context, "risk_detect")
+        parsed = _observation(context, "parse_contract", "contract_parse")
+        risks = risk_output.get("risks") or []
+        evidences: List[Dict[str, Any]] = []
+        fallback = False
+        errors: List[str] = []
+        retriever = LegalEvidenceRetriever()
+        for index, risk in enumerate(risks or _risk_items(), start=1):
+            try:
+                results = retriever.retrieve(
+                    risk=risk,
+                    contract_type=str(parsed.get("contract_type") or ""),
+                    top_k=2,
+                )
+                if results:
+                    evidences.extend(results)
+                    continue
+            except Exception as exc:
+                errors.append(str(exc)[:240])
+            fallback = True
+            evidences.append(_fallback_evidence_for_risk(risk, index))
+        evidences = [normalize_evidence(item, risk_id=str(item.get("riskId") or "")) for item in evidences]
         return AgentOutput(
             output={
                 "evidences": evidences,
                 "citations": [item["citationText"] for item in evidences],
+                "retrieval": {
+                    "fallback": fallback,
+                    "result_count": len(evidences),
+                    "errors": errors,
+                },
             },
             summary=f"Matched {len(evidences)} evidence item(s) to contract risks.",
         )
@@ -216,7 +425,7 @@ class RevisionSuggestAgent(BaseAgent):
         )
 
     async def run(self, context):
-        risk_output = context.memory.observations.get("risk_detect", {})
+        risk_output = _observation(context, "risk_detect")
         risks = risk_output.get("risks") or []
         suggestions = [
             {
@@ -250,8 +459,8 @@ class HumanReviewGateAgent(BaseAgent):
         )
 
     async def run(self, context):
-        risk_output = context.memory.observations.get("risk_detect", {})
-        revision_output = context.memory.observations.get("revision_suggest", {})
+        risk_output = _observation(context, "risk_detect")
+        revision_output = _observation(context, "suggestion_generate", "revision_suggest")
         output = {
             "review_status": "pending",
             "reviewer": "demo.lawyer",
@@ -277,11 +486,12 @@ class ReportGenerateAgent(BaseAgent):
 
     async def run(self, context):
         observations = context.memory.observations
-        parsed = observations.get("contract_parse", {})
+        parsed = _observation(context, "parse_contract", "contract_parse")
         risks = observations.get("risk_detect", {}).get("risks", [])
         risk_summary = observations.get("risk_detect", {}).get("risk_summary", {})
         evidences = observations.get("legal_evidence_match", {}).get("evidences", [])
-        revisions = observations.get("revision_suggest", {}).get("revision_suggestions", [])
+        revisions = _observation(context, "suggestion_generate", "revision_suggest").get("revision_suggestions", [])
+        review = _latest_human_review(context)
 
         risk_lines = "\n".join(
             f"{index}. {risk.get('title')}：{risk.get('reason')}\n   建议：{risk.get('suggestion')}"
@@ -320,9 +530,21 @@ class ReportGenerateAgent(BaseAgent):
 ## 六、审核状态
 人工审核已通过，报告进入最终审查。
 """
+        report_result, llm = _llm_json_or_fallback(
+            node_name="report_generate",
+            prompt=render_report_generate_prompt(
+                {"artifacts": observations, "risks": risks, "evidences": evidences, "review": review}
+            ),
+            schema=REPORT_GENERATE_SCHEMA,
+            fallback={"report_markdown": report_markdown},
+            validator=_validate_report,
+        )
+        report_markdown = _append_evidence_appendix(report_result["report_markdown"], evidences)
+        report_markdown = _append_review_result(report_markdown, review)
         output = {
             "final_answer": report_markdown,
             "report_markdown": report_markdown,
+            "_llm": llm,
             "report": {
                 "contractInfo": {
                     "name": "软件开发服务合同",
@@ -362,7 +584,7 @@ class ContractFinalReviewAgent(BaseAgent):
         return AgentOutput(
             output={
                 "final_answer": final_answer,
-                "review_notes": ["LangGraph 节点语义已迁移到 AgentOS WorkflowRun", "人工审核节点已通过", "报告结构完整"],
+                "review_notes": ["ACG 合同审查步骤已完成", "人工审核节点已通过", "报告结构完整"],
             },
             summary="Migrated contract review workflow finalized.",
         )

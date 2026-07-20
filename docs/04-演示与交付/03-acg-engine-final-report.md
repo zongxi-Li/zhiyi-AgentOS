@@ -21,7 +21,7 @@
 ```
 
 整个引擎以 **ACG（Agentic Computation Graph）** 为统一计算模型，作为
-`runtimeEngine=acg` 的新执行路径与既有 native / langgraph 引擎并存，
+`runtimeEngine=acg` 的执行路径与既有 native 路径并存，
 共享同一套治理设施（Task / Trace / Checkpoint / Review），存量工作流零改动接入。
 
 **交付规模**：6 个核心提交，37 文件，+3774 行；新增 23 个 Core 引擎模块文件；
@@ -37,7 +37,7 @@
 | 动态异构拓扑与稀疏路由 | ACG 计算图 + 就绪集并行调度（超越线性） | 菱形图 B/C 并行、`/acg` 拓扑视图 |
 | 低熵通信 | 引擎作唯一中介，按 input_spec 精准投递 | Token 节省率 21.7%、数据血缘图 |
 | 超长程上下文连续性 | Memory 节点注入 + 证据链聚合 + 检查点 | 赋能节点注入、证据回填 |
-| 端云异构/可扩展 | LLM 网关回落映射 + Adapter 多引擎 | DeepSeek 真实接入、三引擎并存 |
+| 端云异构/可扩展 | LLM 网关回落映射 + Core 双执行路径 | DeepSeek 真实接入、native/acg 并存 |
 | 自愈闭环（异常注入） | 故障注入→检查点→局部重规划 | 三类故障自愈、recoveryCount |
 | 可视化与可解释 | ACG 拓扑/血缘/恢复轨迹/低熵指标面板 | 前端面板 + `/acg` 聚合端点 |
 
@@ -189,7 +189,7 @@ def drive(run, blueprint):
 
 ### 真实运行验证（合同审查 ACG 工作流）
 
-以 `legal_contract_review_acg_v1` 工作流（复用 legal pack 真实 Agent）实测：
+以 `legal_contract_review_v1` 工作流（复用 legal pack 真实 Agent）实测：
 
 - **正常执行**：6 节点全完成，5 次数据消费血缘，状态 completed
 - **低熵通信**：下游步骤按 `input.fields` 精准投递，平均 Token 节省率 **21.7%**
@@ -248,4 +248,3 @@ def drive(run, blueprint):
 **领域无关**的动态异构群体智能内核。所有能力以测试与真实运行证据支撑，
 未夸大未落地部分。引擎作为新执行路径与既有引擎并存，治理设施共享，
 为后续多场景扩展与深度协同推理奠定了架构基础。
-

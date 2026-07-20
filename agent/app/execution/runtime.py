@@ -6,27 +6,11 @@ import logging
 import os
 from typing import Any, Dict
 
-from agentos.core.models.types import WorkflowDefinition
 from agentos.core.runtime import WorkflowRuntime, build_default_runtime as build_core_default_runtime
 
-from app.execution.langgraph_adapter import LangGraphAdapter
-from app.execution.langgraph_registry import get_default_langgraph_registry
 from app.execution.instance_lock import acquire_workflow_instance_lock
 
 logger = logging.getLogger(__name__)
-
-
-def build_langgraph_adapter(
-    *,
-    runtime: Any,
-    workflow: WorkflowDefinition,
-    implementation_id: str,
-):
-    return LangGraphAdapter(
-        runtime=runtime,
-        implementation_id=implementation_id,
-        registry=get_default_langgraph_registry(),
-    )
 
 
 class _GatewayIntentLLM:
@@ -42,8 +26,7 @@ class _GatewayIntentLLM:
         return get_llm_gateway().generate_json(prompt, schema, **kwargs)
 
 
-def configure_execution_adapters(runtime: WorkflowRuntime) -> WorkflowRuntime:
-    runtime.register_execution_adapter("langgraph", build_langgraph_adapter)
+def configure_runtime(runtime: WorkflowRuntime) -> WorkflowRuntime:
     # 注入真实 LLM 意图解析（规划器认知决策走 DeepSeek）。
     try:
         runtime.set_intent_llm(_GatewayIntentLLM())
@@ -56,4 +39,4 @@ def build_default_runtime() -> WorkflowRuntime:
     workflow_db_path = os.getenv("AGENTOS_WORKFLOW_DB_PATH", "").strip()
     if workflow_db_path:
         acquire_workflow_instance_lock(workflow_db_path)
-    return configure_execution_adapters(build_core_default_runtime())
+    return configure_runtime(build_core_default_runtime())

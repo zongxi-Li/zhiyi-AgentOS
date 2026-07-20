@@ -89,10 +89,10 @@
         <mxCell id="layerA" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6faf8;strokeColor=#496b8f;arcSize=4;" value="" vertex="1">
           <mxGeometry height="40" width="787" x="20" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="layerAt" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#496b8f;" value="agent 应用服务层：FastAPI 入口 · LLM 网关(DeepSeek/Qwen 回落映射) · LangGraph 适配 · 意图LLM 注入" vertex="1">
+        <mxCell id="layerAt" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#496b8f;" value="agent 应用服务层：FastAPI 入口 · LLM 网关(DeepSeek/Qwen 回落映射) · 行业 Pack · 意图LLM 注入" vertex="1">
           <mxGeometry height="40" width="500" x="28" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="layerAe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe0f0;strokeColor=#496b8f;fontSize=9;arcSize=18;" value="三引擎并存：native · acg · langgraph" vertex="1">
+        <mxCell id="layerAe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe0f0;strokeColor=#496b8f;fontSize=9;arcSize=18;" value="双执行路径：native · acg" vertex="1">
           <mxGeometry height="26" width="239" x="560" y="297" as="geometry" />
         </mxCell>
         <mxCell id="layerP" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6faf8;strokeColor=#9a7432;arcSize=4;" value="" vertex="1">
@@ -290,7 +290,7 @@
         <mxCell id="inv4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcefd6;strokeColor=#9a7432;fontSize=9;arcSize=14;align=left;spacingLeft=8;" value="④ 故障可规划的自愈闭环&#xa;检查点+局部重规划，全程可审计" vertex="1">
           <mxGeometry height="50" width="193" x="614" y="954" as="geometry" />
         </mxCell>
-        <mxCell id="foot" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3f6b63;fontColor=#ffffff;fontSize=9;align=center;arcSize=10;" value="Core Native 自研引擎 · 三引擎并存(native/acg/langgraph) · DeepSeek 接入 · 治理设施(Task/Trace/Checkpoint/Review)共享" vertex="1">
+        <mxCell id="foot" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3f6b63;fontColor=#ffffff;fontSize=9;align=center;arcSize=10;" value="Core Native ACG 自研引擎 · 双执行路径(native/acg) · DeepSeek 接入 · 治理设施(Task/Trace/Checkpoint/Review)共享" vertex="1">
           <mxGeometry height="30" width="787" x="20" y="1014" as="geometry" />
         </mxCell>
       </root>

@@ -1,148 +1,95 @@
 # AgentOS V1.0.6 边界说明
 
-# AgentOS V1.0.6 Boundary Specification
-
-本文记录 V1.0.6 后的真实代码边界，用于后续进入 V1.0-beta 前校准架构口径。
+本文记录当前代码边界，用于后续版本校准架构口径。
 
 ## 1. Core 边界
 
-`agentOS/src/agentos/` 是 AgentOS Core 与通用框架层。Core 的职责是治理主线，而不是具体业务实现：
+`agentOS/src/agentos/` 是 AgentOS Core 与通用框架层，负责：
 
-- `WorkflowRuntime` 负责 Task / WorkflowRun 生命周期推进。
-- `TraceStore`、`CheckpointStore`、`ReviewManager` 负责治理对象。
-- `WorkflowRegistry`、`TaskManager`、`Orchestrator` 负责 native workflow 控制面。
-- `ExecutionAdapter` 协议定义外部执行引擎如何接入 Core。
-- `ModelAdapter` 只保留模型服务协议、注册入口和兼容代理。
+- Task / WorkflowRun 生命周期。
+- TraceStore、CheckpointStore、ReviewManager 和 Evaluation。
+- WorkflowRegistry、TaskManager、Orchestrator 和状态机。
+- Native 与 ACG 执行适配协议。
+- 通用模型服务协议和注册入口。
 
-Core 不应直接依赖以下内容：
+Core 不应直接依赖：
 
 - `app.*`
 - `app.services.*`
-- `app.graphs.*`
-- `langgraph`
-- 具体业务 workflow 或具体 StateGraph
+- 法律、教育等具体 Pack
+- 具体业务 Workflow
 
-## 2. LangGraph 接入位置
+## 2. ACG 执行边界
 
-LangGraph 不在 AgentOS Core 内。当前 LangGraph 接入位于应用层：
-
-```text
-agent/app/execution/
-  langgraph_adapter.py
-  langgraph_registry.py
-  runtime.py
-```
-
-`LangGraphAdapter` 负责把 `runtimeEngine: langgraph` 的 workflow 交给应用层 StateGraph runtime。`LangGraphImplementationRegistry` 负责将 `implementationId` 映射到具体实现：
+ACG 是 Core Native 自研执行引擎，主要组件位于：
 
 ```text
-legal_contract_review_stategraph_v1
-  -> LegalContractReviewStateGraphRuntime
-```
-
-## 3. 合同审查 StateGraph 结构
-
-合同审查业务图已经拆分为独立包：
-
-```text
-agent/app/graphs/contract_review/
-  graph.py
-  state.py
-  runtime.py
-  projector.py
-  artifacts.py
-  mock_data.py
-  nodes/
-    parse_contract.py
-    classify_clauses.py
-    risk_detect.py
-    legal_evidence_match.py
-    suggestion_generate.py
-    human_review.py
-    report_generate.py
+agentOS/src/agentos/core/acg/
+agentOS/src/agentos/core/execution/acg_executor.py
+agentOS/src/agentos/core/planning/
+agentOS/src/agentos/core/communication/
 ```
 
 职责划分：
 
-- `graph.py` 只负责 StateGraph 拓扑：`add_node`、`add_edge`、`compile(checkpointer, interrupt_before=["report_generate"])`。
-- `state.py` 只负责 `ContractReviewState`、`WORKFLOW_ID` 和步骤序列。
-- `nodes/*` 负责各节点业务逻辑、能力调用、artifact 写入和 trace/step 更新。
-- `artifacts.py` 负责 artifact key 和路径契约。
-- `projector.py` 负责将 LangGraph State 投影回 AgentOS 标准 `WorkflowRun`，同步 steps、`run.output`、Trace、Checkpoint。
-- `runtime.py` 负责把合同审查 StateGraph 暴露成 AgentOS 可调用的 runtime，并保持 Human Review 行为。
-- `mock_data.py` 保留本地 fallback 数据。
-- `legal_contract_review_stategraph.py` 只是兼容 shim，不再承载主体逻辑。
+- ACG Blueprint 描述 Step、Control、Memory 和依赖/通信边。
+- ACGExecutor 根据就绪集调度节点并复用 Orchestrator 分派 Agent。
+- ContextAssembler 按 `input.fields` 精准投递上游数据。
+- ProvenanceLedger 记录数据生产与消费血缘。
+- Review、Checkpoint、Trace 和 Evaluation 继续由 Core 统一治理。
 
-## 4. 稳定契约
+## 3. 合同审查业务边界
 
-对外 canonical workflow id 保持不变：
+标准合同审查位于法律 Pack：
 
 ```text
-legal_contract_review_v1
+agent/packs/legal/workflows/contract_review.yaml
+agent/packs/legal/agents/contract_review_migration.py
+agent/app/llm/prompts/contract_review_prompts.py
+agent/app/rag/
 ```
 
-内部 implementation id 保持不变：
+公开契约：
 
 ```text
-legal_contract_review_stategraph_v1
-```
+workflowId: legal_contract_review_v1
+runtimeEngine: acg
 
-兼容 aliases 保持不变：
-
-```text
-legal_contract_review_stategraph_v1
-legal_contract_review_langgraph_v1
-```
-
-artifact 路径保持不变：
-
-```text
 risks:     output.artifacts.risk_detect.risks
 evidences: output.artifacts.legal_evidence_match.evidences
 report:    output.artifacts.report_generate.report_markdown
 ```
 
-Human Review 行为保持不变：
+Human Review 行为：
 
 ```text
-approved       -> resume 到 report_generate，并生成 report_markdown
-rejected       -> run failed，不生成 report_markdown
-need_more_info -> 保持 waiting_review，不生成 report_markdown
+approved       -> 恢复 report_generate 并完成报告
+rejected       -> WorkflowRun failed
+need_more_info -> 保持 waiting_review
+cancelled      -> WorkflowRun cancelled
 ```
 
-## 5. 模型适配边界
+## 4. 应用层注入边界
 
-`agentOS/src/agentos/adapters/model_adapter.py` 不再懒加载 `app.services.aiservice`。Core 侧只保留：
+`agent/app/execution/runtime.py` 只负责应用运行时配置：
 
-- `ModelService` Protocol
-- `ModelServiceFactory`
-- `register_model_service_factory`
-- `clear_model_service_factory`
-- 兼容代理 `AIService`
-- 薄包装 `ModelAdapter`
+- 注入真实 Intent LLM Gateway。
+- 获取 Workflow Store 实例锁。
+- 构建默认 WorkflowRuntime。
 
-应用层通过以下文件注册具体实现：
+`agent/app/integrations/model_adapter.py` 注册具体模型服务。Pack 可以使用 Core 暴露的模型协议，但 Core 不反向 import 应用服务。
 
-```text
-agent/app/integrations/model_adapter.py
-```
-
-FastAPI 应用启动模块会调用 `configure_model_adapter()`，将 `app.services.aiservice.AIService` 注册给 AgentOS 的模型代理。这样 Pack skill 仍可继续使用 `agentos.adapters.model_adapter.AIService()`，但 Core 不再反向依赖 app 层。
-
-## 6. 当前演示链路
+## 5. 当前演示链路
 
 ```text
 律师合同审查工作台
   -> Spring Boot Gateway
   -> Python AgentOS Core API
-  -> WorkflowRuntime 启动 legal_contract_review_v1
-  -> app.execution.LangGraphAdapter
-  -> LangGraphImplementationRegistry
-  -> legal_contract_review_stategraph_v1
-  -> contract_review StateGraph
-  -> Human Review
-  -> approved 后生成 report_markdown
-  -> AgentOS Console 查看 WorkflowRun / Trace / Checkpoint / Review
+  -> WorkflowRuntime
+  -> ACGExecutor
+  -> Legal Pack agents
+  -> Human Review / Checkpoint
+  -> Report / Trace / Provenance / Metrics
 ```
 
-当前仍是演示级闭环：不接 Chroma、pgvector、真实法律库或生产级 citation 校验；mock fallback 必须保留。
+当前法律检索和 fallback 仍以演示闭环为主，正式法规库、案例库、生产级 citation 校验和高可用 Workflow Store 属于后续工程化范围。

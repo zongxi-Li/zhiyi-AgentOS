@@ -234,7 +234,7 @@
           </div>
           <div class="runtime-block">
             <div class="runtime-block-head">
-              <h4>LangGraph 运行编排</h4>
+              <h4>ACG 运行编排</h4>
               <span class="runtime-badge">{{ getRuntimeMode(activeModel) }}</span>
             </div>
 
@@ -272,7 +272,7 @@
               </div>
               <div class="trace-list">
                 <div class="trace-row">
-                  <span>StateGraph</span>
+                  <span>ACG</span>
                   <strong>{{ activeModel.federated ? 'federated_model_graph' : 'local_model_graph' }}</strong>
                 </div>
                 <div class="trace-row">
@@ -635,9 +635,9 @@ function getProgressColor(_accuracy: number): string {
 }
 
 function getRuntimeMode(model: ModelCard): string {
-  if (model.status === 'training') return 'StateGraph / 训练中'
-  if (model.federated) return 'StateGraph / 联邦聚合'
-  return 'StateGraph / 本地适配'
+  if (model.status === 'training') return 'ACG / 训练中'
+  if (model.federated) return 'ACG / 联邦聚合'
+  return 'ACG / 本地适配'
 }
 
 function getRuntimeNodes(model: ModelCard): RuntimeNode[] {

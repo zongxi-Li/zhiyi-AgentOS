@@ -274,7 +274,6 @@ class ChatScreen(Screen):
                     "decision": "direct",
                     "source": "legacy",
                     "reason": "legacy backend response; rebuild or restart ai-service",
-                    "useLangGraph": False,
                 }
             else:
                 return []
@@ -288,7 +287,6 @@ class ChatScreen(Screen):
         engine = (
             routing.get("runtimeEngine")
             or result.get("runtimeEngine")
-            or ("langgraph" if routing.get("useLangGraph") else None)
         )
 
         parts = [f"[dim]Route:[/] [bold]{decision}[/]"]

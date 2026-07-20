@@ -46,10 +46,10 @@
                 <mxCell id="sys_runtime" value="AgentOS Core Runtime&#xa;TaskManager / WorkflowRuntime / Orchestrator&#xa;TraceStore / CheckpointStore / ReviewManager&#xa;WorkflowStore: memory 或 SQLite" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="850" y="315" width="380" height="115" as="geometry"/>
                 </mxCell>
-                <mxCell id="sys_execution" value="执行适配器 runtimeEngine&#xa;native: 线性 YAML 工作流&#xa;acg: Core Native ACG 就绪集并行调度&#xa;langgraph: 应用层 LangGraphAdapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="sys_execution" value="执行适配器 runtimeEngine&#xa;native: 线性 YAML 工作流&#xa;acg: Core Native ACG 就绪集并行调度&#xa;共享 Trace / Review / Checkpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="850" y="465" width="380" height="105" as="geometry"/>
                 </mxCell>
-                <mxCell id="sys_packs" value="行业能力 Pack&#xa;legal / education / programmer / writer&#xa;agents + skills + workflows + prompts + data&#xa;合同审查 ACG: legal_contract_review_acg_v1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="sys_packs" value="行业能力 Pack&#xa;legal / education / programmer / writer&#xa;agents + skills + workflows + prompts + data&#xa;合同审查 ACG: legal_contract_review_v1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="850" y="605" width="380" height="105" as="geometry"/>
                 </mxCell>
                 <mxCell id="sys_llm_gateway" value="LLM Gateway / Model Adapter&#xa;OpenAI-compatible Provider&#xa;Mock fallback / DeepSeek / Qwen" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c67c00;fontSize=14;align=center;spacingLeft=12;" parent="1" vertex="1">

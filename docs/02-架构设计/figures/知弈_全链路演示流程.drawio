@@ -31,16 +31,16 @@
                 <mxCell id="runtime_core" value="WorkflowRuntime (Harness 核心)&#xa;create_task() → AgentTask&#xa;start() → WorkflowRun&#xa;_workflow_adapter() 按 runtimeEngine 选执行引擎&#xa;统一持有 Trace / Review / Checkpoint / Store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d5b;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="415" y="555" width="255" height="130" as="geometry"/>
                 </mxCell>
-                <mxCell id="adapter_select" value="ExecutionAdapter 三引擎&#xa;native：线性 YAML 流程&#xa;acg：Core Native ACG 就绪集调度&#xa;langgraph：应用层 StateGraph 桥接&#xa;三者共享治理对象" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="adapter_select" value="ExecutionAdapter 双执行路径&#xa;native：线性 YAML 流程&#xa;acg：Core Native ACG 就绪集调度&#xa;两者共享治理对象" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="705" y="555" width="255" height="130" as="geometry"/>
                 </mxCell>
-                <mxCell id="langgraph_flow" value="合同审查标准流程：runtimeEngine=langgraph&#xa;parse_contract → classify_clauses → risk_detect&#xa;→ legal_evidence_match → suggestion_generate&#xa;→ human_review → report_generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="acg_contract_flow" value="合同审查标准流程：runtimeEngine=acg&#xa;parse_contract → classify_clauses → risk_detect&#xa;→ legal_evidence_match → suggestion_generate&#xa;→ human_review → report_generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="120" y="720" width="390" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="review_gate" value="Human Review 关口&#xa;LangGraph interrupt_before=[report_generate]&#xa;运行进入 waiting_review&#xa;审核 approved 后 Command(update=review) 恢复执行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="review_gate" value="Human Review 关口&#xa;ACG reviewRequired=true&#xa;运行进入 waiting_review 并创建 Checkpoint&#xa;审核 approved 后按就绪集恢复 report_generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="550" y="720" width="410" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="projector" value="ContractReviewRunProjector.project()&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; LangGraph state → AgentOS 治理对象&lt;br&gt;WorkflowRun.steps / output.artifacts / Trace / Checkpoint&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;status = waiting_review 或 completed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="projector" value="ACGExecutor 统一回写 AgentOS 治理对象&#xa;WorkflowRun.steps / output.artifacts / Trace / Checkpoint / Provenance&#xa;status = waiting_review 或 completed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d5b;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="120" y="855" width="840" height="50" as="geometry"/>
                 </mxCell>
                 <mxCell id="stage3_band" value="第三段演示：Console 治理视角" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#fff8e8;strokeColor=#c67c00;fontSize=15;fontStyle=1;arcSize=4;" parent="1" vertex="1">
@@ -61,7 +61,7 @@
                 <mxCell id="stage4_band" value="第四段演示：ACG 动态群体智能引擎" style="swimlane;html=1;startSize=36;rounded=1;horizontal=1;fillColor=#f7f3ff;strokeColor=#7e57c2;fontSize=15;fontStyle=1;arcSize=4;" parent="1" vertex="1">
                     <mxGeometry x="80" y="1330" width="920" height="560" as="geometry"/>
                 </mxCell>
-                <mxCell id="acg_page" value="页面 3：/agentos/acg&#xa;输入合同文本&#xa;Workflow: legal_contract_review_acg_v1&#xa;可勾选 usePlanner&#xa;勾选 faultInjection 演示自愈" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
+                <mxCell id="acg_page" value="页面 3：/agentos/acg&#xa;输入合同文本&#xa;Workflow: legal_contract_review_v1&#xa;可勾选 usePlanner&#xa;勾选 faultInjection 演示自愈" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
                     <mxGeometry x="120" y="1385" width="255" height="125" as="geometry"/>
                 </mxCell>
                 <mxCell id="acg_blueprint" value="ACGBlueprint&#xa;6 类节点：Step / Agent / Skill / Memory / Evidence / Control&#xa;7 类边：Dependency / Communication / ControlFlow / Execution / Read / Write / Support&#xa;promote_workflow_to_acg() 可将线性工作流升格为图 IR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7e57c2;fontSize=12;align=left;spacingLeft=12;" parent="1" vertex="1">
@@ -111,7 +111,7 @@
                 <mxCell id="e_3" value="选择执行器" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;strokeWidth=2;" parent="1" source="runtime_core" target="adapter_select" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e_4" value="langgraph 路径" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" parent="1" source="adapter_select" target="langgraph_flow" edge="1">
+                <mxCell id="e_4" value="acg 路径" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" parent="1" source="adapter_select" target="acg_contract_flow" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="833" y="700"/>
@@ -119,10 +119,10 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e_5" value="人审暂停" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" parent="1" source="langgraph_flow" target="review_gate" edge="1">
+                <mxCell id="e_5" value="人审暂停" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;" parent="1" source="acg_contract_flow" target="review_gate" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e_6" value="投影回 AgentOS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" parent="1" source="review_gate" target="projector" edge="1">
+                <mxCell id="e_6" value="治理对象同步" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d5b;fontSize=11;" parent="1" source="review_gate" target="projector" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e_7" value="治理视角" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#c67c00;fontSize=11;strokeWidth=2;" parent="1" source="projector" target="console_page" edge="1">

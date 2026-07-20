@@ -107,8 +107,8 @@ import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
 import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
 
-const WORKFLOW_ID = 'legal_contract_review_acg_v1'
-const faultStepOptions = ['contract_parse', 'clause_classify', 'risk_detect', 'legal_evidence_match', 'revision_suggest', 'report_generate']
+const WORKFLOW_ID = 'legal_contract_review_v1'
+const faultStepOptions = ['parse_contract', 'classify_clauses', 'risk_detect', 'legal_evidence_match', 'suggestion_generate', 'human_review', 'report_generate']
 
 const contractText = ref(`甲方：星河科技有限公司。乙方：知弈软件工作室。甲方委托乙方开发客户关系管理 CRM 系统，乙方负责需求梳理、原型设计、系统开发、测试部署和上线支持。
 

@@ -9,8 +9,7 @@ import pytest
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents import AgentRegistry
 from agentos.core.execution import NativeWorkflowAdapter
-from app.execution.langgraph_adapter import LangGraphAdapter
-from app.execution.runtime import configure_execution_adapters
+from app.execution.runtime import configure_runtime
 from packs.legal import register_pack as register_legal_pack
 from agentos.core.workflow.state_machine import InvalidStateTransition, StateMachine
 from agentos.core.models.types import (
@@ -89,7 +88,7 @@ def _runtime_with_legal_pack():
     agent_registry = AgentRegistry()
     workflow_registry = WorkflowRegistry()
     register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    return configure_execution_adapters(
+    return configure_runtime(
         WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
     )
 
@@ -253,9 +252,8 @@ async def _test_legal_demo_pack_registers_agents_and_workflow():
     assert task.recommended_workflow == "legal_contract_review_v1"
     assert run.status == WorkflowStatus.WAITING_REVIEW
     assert run.current_step_id == "human_review"
-    assert run.runtime_engine == "langgraph"
-    assert run.implementation_id == "legal_contract_review_stategraph_v1"
-    assert any(isinstance(adapter, LangGraphAdapter) for adapter in runtime._runtime_adapters.values())
+    assert run.runtime_engine == "acg"
+    assert run.implementation_id == "legal_contract_review_v1"
     assert run.get_step("parse_contract").output["contract_type"]
     assert run.output["artifacts"]["risk_detect"]["risks"]
 
@@ -307,8 +305,8 @@ def test_agentos_core_api_task_run_review_flow():
     run_payload = run_response.json()
     assert run_payload["status"] == "waiting_review"
     assert run_payload["currentStepId"] == "human_review"
-    assert run_payload["runtimeEngine"] == "langgraph"
-    assert run_payload["implementationId"] == "legal_contract_review_stategraph_v1"
+    assert run_payload["runtimeEngine"] == "acg"
+    assert run_payload["implementationId"] == "legal_contract_review_v1"
 
     review_response = client.post(
         f"/ai/core/workflows/runs/{run_payload['runId']}/reviews",
@@ -392,7 +390,7 @@ def test_workbench_can_start_workflow_in_one_request():
     assert payload["task"]["recommendedWorkflow"] == "legal_contract_review_v1"
     assert payload["run"]["status"] == "waiting_review"
     assert payload["run"]["currentStepId"] == "human_review"
-    assert payload["run"]["runtimeEngine"] == "langgraph"
+    assert payload["run"]["runtimeEngine"] == "acg"
     assert payload["run"]["input"]["caseText"] == "供应商逾期交付，合同约定违约金。"
 
 
@@ -529,7 +527,7 @@ def test_legacy_lawyer_agent_chat_vpn_question_is_not_contract_template():
     assert payload["routing"]["decision"] == "direct"
 
 
-def test_legacy_lawyer_agent_chat_contract_review_routes_to_langgraph_trace():
+def test_legacy_lawyer_agent_chat_contract_review_routes_to_acg_trace():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
@@ -554,15 +552,15 @@ def test_legacy_lawyer_agent_chat_contract_review_routes_to_langgraph_trace():
     assert payload["success"] is True
     assert payload["sessionId"] == "session_contract_review"
     assert payload["workflowId"] == "legal_contract_review_v1"
-    assert payload["runtimeEngine"] == "langgraph"
+    assert payload["runtimeEngine"] == "acg"
     assert payload["routing"]["decision"] == "workflow"
     assert payload["routing"]["workflowRequired"] is True
-    assert payload["routing"]["runtimeEngine"] == "langgraph"
+    assert payload["routing"]["runtimeEngine"] == "acg"
     assert "合同审查摘要" in payload["answer"]
-    assert "LangGraph 合同审查流程" in payload["answer"]
+    assert "ACG 合同审查流程" in payload["answer"]
     assert "risk_detect" in payload["skillsUsed"]
     actions = {step["action"] for step in payload["trace"]}
-    assert {"parse_contract", "risk_detect", "legal_evidence_match", "suggestion_generate"}.issubset(actions)
+    assert {"contract_parse", "risk_detect", "legal_evidence_match", "revision_suggest"}.issubset(actions)
 
 
 def test_legacy_lawyer_agent_chat_respects_llm_route_before_graph_fallback():
@@ -583,7 +581,6 @@ def test_legacy_lawyer_agent_chat_respects_llm_route_before_graph_fallback():
             return {
                 "decision": "workflow",
                 "workflow_id": "legal_case_analysis_v1",
-                "use_langgraph": False,
                 "reason": "这是围绕违约和诉讼风险的案件分析，不是合同条款审查。",
                 "confidence": 0.94,
                 "direct_answer_type": "none",
@@ -606,10 +603,10 @@ def test_legacy_lawyer_agent_chat_respects_llm_route_before_graph_fallback():
         payload = response.json()
         assert payload["success"] is True
         assert payload["workflowId"] == "legal_case_analysis_v1"
-        assert payload["runtimeEngine"] != "langgraph"
+        assert payload["runtimeEngine"] != "acg"
         assert payload["routing"]["source"] == "llm"
         assert payload["routing"]["provider"] == "route-test-provider"
-        assert payload["routing"]["useLangGraph"] is False
+        assert payload["routing"]["workflowId"] == "legal_case_analysis_v1"
         assert "合同审查摘要" not in payload["answer"]
         assert payload["trace"][0]["action"] == "case_understanding"
     finally:

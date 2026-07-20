@@ -20,7 +20,6 @@ export interface FederatedInfo {
 export interface AgentRoutingInfo {
   decision?: 'direct' | 'workflow' | string
   workflowRequired?: boolean
-  useLangGraph?: boolean
   reason?: string
   confidence?: number
   source?: string

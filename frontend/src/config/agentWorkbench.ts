@@ -266,7 +266,7 @@ export const roleTemplateGroups: RoleTemplateGroup[] = [
           intent: 'contract_review',
           workflowId: 'legal_contract_review_v1',
           workflowLabel: '合同审查标准流程',
-          runtimeLabel: 'LangGraph 已接入',
+          runtimeLabel: 'ACG 已接入',
           executionMode: 'backend',
           reviewMode: 'human_in_loop',
           inputKey: 'contractText',

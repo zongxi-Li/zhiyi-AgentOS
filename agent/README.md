@@ -8,21 +8,17 @@
 - AgentOS Core API：`agent/app/api/agentos_core.py`
 - Legal Pack：`agent/packs/legal/`
 - 合同审查 workflow definition：`agent/packs/legal/workflows/contract_review.yaml`
-- LangGraph 合同审查实现：`agent/app/graphs/contract_review/`（`legal_contract_review_stategraph.py` 仅保留兼容 shim）
+- ACG 合同审查实现：`agent/packs/legal/agents/contract_review_migration.py`
 - LLM Gateway：`agent/app/llm/`
 - keyword Evidence Retriever：`agent/app/rag/providers/keyword_retriever.py`
 
-AgentOS Core 不是 LangGraph。当前 Runtime 会根据 workflow definition 的 `runtimeEngine` 选择 Execution Adapter，合同审查通过 `LangGraphAdapter` 执行。
+AgentOS Core 提供任务、运行记录、Trace、Review、Checkpoint 与通用执行协议；合同审查由 Core Native ACG 执行。
 
 ## 当前 Workflow
 
 ```text
 id: legal_contract_review_v1
-runtimeEngine: langgraph
-implementationId: legal_contract_review_stategraph_v1
-aliases:
-  - legal_contract_review_stategraph_v1
-  - legal_contract_review_langgraph_v1
+runtimeEngine: acg
 ```
 
 artifacts 契约：
@@ -83,11 +79,7 @@ POST /ai/core/workflows/runs/{runId}/cancel
 
 ## V1.0.6 代码边界
 
-- AgentOS Core 不直接 import `app.*`、`app.graphs.*` 或 `langgraph`。
-- `LangGraphAdapter` 位于应用层 `agent/app/execution/`。
-- `LangGraphImplementationRegistry` 负责将 `implementationId` 映射到具体 StateGraph runtime。
-- 合同审查 StateGraph 主体位于 `agent/app/graphs/contract_review/`。
-- `graph.py` 只负责图拓扑，`nodes/*` 负责节点逻辑，`projector.py` 负责投影回 AgentOS `WorkflowRun`。
-- `artifacts.py` 负责稳定 artifact 路径契约。
-- `agent/app/graphs/legal_contract_review_stategraph.py` 仅作为兼容 shim 保留。
+- AgentOS Core 不直接 import 应用层业务模块。
+- ACG 通过就绪集调度执行 Pack agents，并保留 Trace、Review、Checkpoint、数据血缘和自愈。
+- 合同审查业务逻辑位于 `agent/packs/legal/agents/contract_review_migration.py`，artifact 路径由标准 workflow 契约定义。
 - Core 侧 `model_adapter.py` 只保留模型协议和注册入口，具体 `app.services.aiservice.AIService` 由 `agent/app/integrations/model_adapter.py` 注册。
