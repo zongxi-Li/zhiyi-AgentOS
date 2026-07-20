@@ -21,6 +21,7 @@ def _workflow() -> WorkflowDefinition:
         name="Legal Contract Review",
         domain="legal",
         intent="contract_review",
+        runtimeEngine="acg",
         steps=[
             WorkflowStepDefinition(stepId="risk", name="Risk", agentName="risk"),
             WorkflowStepDefinition(stepId="review", name="Review", agentName="review", reviewRequired=True),
@@ -41,6 +42,7 @@ def test_progress_calculator_counts_run_step_statuses_and_percentage():
         taskId=task.task_id,
         workflowId=workflow.workflow_id,
         domain="legal",
+        runtimeEngine="acg",
         status=WorkflowStatus.WAITING_REVIEW,
         currentStepId="review",
         steps=[

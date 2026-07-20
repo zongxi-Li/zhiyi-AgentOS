@@ -2,7 +2,7 @@
 
 
 from time import perf_counter
-from typing import Optional, Tuple
+from typing import Tuple
 
 from agentos.agents.base import AgentOutput, AgentRunContext
 from agentos.agents import AgentRegistry
@@ -21,17 +21,6 @@ class Orchestrator:
 
     def __init__(self, agent_registry: AgentRegistry):
         self.agent_registry = agent_registry
-
-    def select_next_step(self, run: WorkflowRun) -> Optional[WorkflowStep]:
-        if run.current_step_id:
-            step = run.get_step(run.current_step_id)
-            if step.status in {StepStatus.PENDING, StepStatus.RETRYING}:
-                return step
-
-        for step in run.steps:
-            if step.status in {StepStatus.PENDING, StepStatus.RETRYING}:
-                return step
-        return None
 
     async def dispatch_agent(
         self,

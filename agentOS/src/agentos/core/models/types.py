@@ -107,7 +107,7 @@ class WorkflowDefinition(CoreModel):
     intent: str = "general"
     version: str = "1.0.0"
     description: str = ""
-    runtime_engine: str = Field(default="native", alias="runtimeEngine")
+    runtime_engine: str = Field(alias="runtimeEngine")
     executor_type: Optional[str] = Field(default=None, alias="executorType")
     implementation_id: Optional[str] = Field(default=None, alias="implementationId")
     aliases: List[str] = Field(default_factory=list)
@@ -122,13 +122,11 @@ class WorkflowDefinition(CoreModel):
                 data["workflowId"] = data["id"]
             if "id" not in data and ("workflowId" in data or "workflow_id" in data):
                 data["id"] = data.get("workflowId") or data.get("workflow_id")
-            if "runtimeEngine" not in data and "runtime_engine" not in data and "executorType" in data:
-                data["runtimeEngine"] = data["executorType"]
         return data
 
     @property
     def effective_runtime_engine(self) -> str:
-        return (self.executor_type or self.runtime_engine or "native").strip().lower()
+        return self.runtime_engine.strip().lower()
 
     @property
     def effective_implementation_id(self) -> str:
@@ -142,21 +140,6 @@ class WorkflowDefinition(CoreModel):
             if step.step_id == step_id:
                 return step
         raise KeyError(f"workflow step not found: {step_id}")
-
-    def next_step_id(self, step_id: str) -> Optional[str]:
-        definition = self.get_step_definition(step_id)
-        if definition.next_step_id in ("", "done", "completed", None):
-            if definition.next_step_id in ("done", "completed"):
-                return None
-        if definition.next_step_id:
-            return definition.next_step_id
-
-        for index, step in enumerate(self.steps):
-            if step.step_id == step_id:
-                next_index = index + 1
-                return self.steps[next_index].step_id if next_index < len(self.steps) else None
-        return None
-
 
 class WorkflowStep(CoreModel):
     step_id: str = Field(alias="stepId")
@@ -213,7 +196,7 @@ class WorkflowRun(CoreModel):
     task_id: str = Field(alias="taskId")
     workflow_id: str = Field(alias="workflowId")
     domain: str
-    runtime_engine: str = Field(default="native", alias="runtimeEngine")
+    runtime_engine: str = Field(alias="runtimeEngine")
     implementation_id: Optional[str] = Field(default=None, alias="implementationId")
     status: WorkflowStatus = WorkflowStatus.PENDING
     current_step_id: Optional[str] = Field(default=None, alias="currentStepId")

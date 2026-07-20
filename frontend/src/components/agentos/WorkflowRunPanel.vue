@@ -38,7 +38,7 @@
         </div>
         <div>
           <small>Engine</small>
-          <strong>{{ run.runtimeEngine || 'native' }}</strong>
+          <strong>{{ run.runtimeEngine || 'unknown' }}</strong>
         </div>
         <div>
           <small>Implementation</small>

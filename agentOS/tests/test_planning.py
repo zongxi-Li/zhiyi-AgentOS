@@ -40,6 +40,7 @@ def _registries():
             name="合同审查",
             domain="legal",
             intent="contract_review",
+            runtimeEngine="acg",
             description="标准合同审查流程：解析、风险、证据、报告",
             steps=[
                 {"stepId": "parse", "name": "解析", "agentName": "parse", "nextStepId": "risk"},

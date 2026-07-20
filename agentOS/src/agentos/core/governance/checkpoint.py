@@ -20,6 +20,12 @@ class CheckpointStore:
             "input": run.input,
             "output": run.output,
             "steps": [step.model_dump(by_alias=True, mode="json") for step in run.steps],
+            "acgBlueprint": run.acg_blueprint,
+            "completedStepIds": sorted(
+                set(run.completed_step_ids)
+                | {step.step_id for step in run.steps if step.status.value == "completed"}
+            ),
+            "provenance": run.provenance,
         }
         checkpoint = Checkpoint(
             runId=run.run_id,

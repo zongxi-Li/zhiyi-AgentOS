@@ -8,8 +8,7 @@
 - 复用既有 Orchestrator.dispatch_agent / AgentRegistry / WorkflowMemory，
   每个 StepNode 仍映射到 run.steps 里的一个 WorkflowStep，从而无缝复用
   现有 Pack 智能体、Trace、Checkpoint 与前端展示。
-- 与线性 _run_until_blocked 并存，作为 runtime_engine="acg" 的新执行路径，
-  不影响 native 既有行为。
+- 线性 YAML 在加载时提升为 DEPENDENCY 图边，所有生产工作流均由 ACG 调度。
 - 节点级统一 Trace（step_started/agent_called/step_succeeded/step_failed）。
 """
 
@@ -412,7 +411,7 @@ class ACGExecutor:
             payload={"faultType": fault.fault_type.value, "recoverable": True},
         )
         # 2) 检查点（保存当前现场，供恢复定位）。直接复位节点状态属于恢复语义，
-        #    与 native resume 一致地绕过状态机（无 RUNNING→PENDING 合法转换）。
+        #    恢复时直接重置节点状态，避免无效的 RUNNING→PENDING 状态转换。
         step.status = StepStatus.PENDING
         step.error = None
         step.retry_count += 1

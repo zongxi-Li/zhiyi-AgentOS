@@ -21,6 +21,7 @@ def test_sqlite_workflow_store_persists_tasks_and_runs(tmp_path):
         taskId=task.task_id,
         workflowId="legal_contract_review_v1",
         domain="legal",
+        runtimeEngine="acg",
         currentStepId="case_intake",
         input={"caseText": "合同逾期交付"},
         steps=[
@@ -76,6 +77,7 @@ def test_sqlite_workflow_store_queries_tasks_and_runs_with_filters_and_paginatio
         taskId=chat_task.task_id,
         workflowId="legal_case_analysis_v1",
         domain="legal",
+        runtimeEngine="acg",
         input={"source": "chat", "caseText": "聊天升级"},
     )
     chat_run.status = WorkflowStatus.COMPLETED
@@ -87,6 +89,7 @@ def test_sqlite_workflow_store_queries_tasks_and_runs_with_filters_and_paginatio
         taskId=workbench_task.task_id,
         workflowId="legal_contract_review_v1",
         domain="legal",
+        runtimeEngine="acg",
         input={"source": "workbench", "caseText": "工作台发起"},
     )
     workbench_run.status = WorkflowStatus.RUNNING

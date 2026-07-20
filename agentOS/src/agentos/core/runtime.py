@@ -8,7 +8,7 @@ from typing import Mapping, Optional
 
 from agentos.agents import AgentRegistry
 from agentos.core.acg import ACGBlueprint, promote_workflow_to_acg
-from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory, NativeWorkflowAdapter
+from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.evaluation import WorkflowEvaluator
 from agentos.core.workflow.orchestrator import Orchestrator
@@ -32,7 +32,6 @@ from agentos.core.models.types import (
     WorkflowStep,
     utc_now,
 )
-from agentos.memory.workflow_memory import WorkflowMemory
 from agentos.packs.registry import register_installed_packs
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
@@ -99,7 +98,7 @@ class WorkflowRuntime:
 
     def register_execution_adapter(self, runtime_engine: str, factory: ExecutionAdapterFactory) -> None:
         engine = self._normalize_runtime_engine(runtime_engine)
-        if engine in {"native", "acg"}:
+        if engine == "acg":
             raise ValueError(f"{engine} runtime engine is built into AgentOS Core")
         self.execution_adapter_factories[engine] = factory
 
@@ -153,23 +152,6 @@ class WorkflowRuntime:
         adapter = self._workflow_adapter(workflow)
         self._transition_run(run, WorkflowStatus.RUNNING)
         return await adapter.start(task=task, run=run, workflow=workflow)
-
-    async def _start_native(self, *, task: AgentTask, run: WorkflowRun, workflow: WorkflowDefinition) -> WorkflowRun:
-        self._transition_run(run, WorkflowStatus.RUNNING)
-        self.trace_store.append(
-            run=run,
-            event_type=TraceEventType.TASK_CREATED,
-            observation=f"Task created: {task.title}",
-            payload=task.model_dump(by_alias=True, mode="json"),
-        )
-        self.trace_store.append(
-            run=run,
-            event_type=TraceEventType.RUN_STARTED,
-            observation=f"Workflow started: {workflow.workflow_id}",
-            payload={"workflowId": workflow.workflow_id, "reviewMode": run.review_mode},
-        )
-        self.workflow_store.save_run(run)
-        return await self._run_until_blocked(task, run, workflow)
 
     async def _start_acg(
         self,
@@ -367,64 +349,39 @@ class WorkflowRuntime:
         adapter = self._workflow_adapter(workflow)
         return await adapter.apply_review(decision)
 
-    async def _apply_native_review(self, decision: ReviewDecision) -> WorkflowRun:
-        run = self.workflow_store.get_run(decision.run_id)
-        task = self.task_manager.get_task(run.task_id)
-        workflow = self.workflow_registry.get(run.workflow_id)
-        step = run.get_step(decision.step_id)
-
-        self.review_manager.record(run, decision)
-        if decision.decision == ReviewDecisionType.APPROVED:
-            self._transition_step(step, StepStatus.COMPLETED)
-            run.current_step_id = workflow.next_step_id(step.step_id)
-            if run.current_step_id is None:
-                self._complete_run(task, run)
-                self.workflow_store.save_run(run)
-                return run
-
-            self._transition_run(run, WorkflowStatus.RUNNING)
-            self.task_manager.mark_running(task)
-            self.workflow_store.save_run(run)
-            return await self._run_until_blocked(task, run, workflow)
-
-        if decision.decision == ReviewDecisionType.RERUN:
-            step.retry_count += 1
-            self._transition_step(step, StepStatus.RETRYING)
-            self._transition_run(run, WorkflowStatus.RETRYING)
-            run.current_step_id = step.step_id
-            self.task_manager.mark_retrying(task)
-            self.workflow_store.save_run(run)
-            return await self._run_until_blocked(task, run, workflow)
-
-        if decision.decision == ReviewDecisionType.CANCELLED:
-            return self.cancel(run.run_id)
-
-        self._transition_step(step, StepStatus.FAILED)
-        self._transition_run(run, WorkflowStatus.FAILED)
-        run.error = decision.comment or "Review rejected workflow step."
-        self.task_manager.mark_failed(task)
-        self.trace_store.append(
-            run=run,
-            event_type=TraceEventType.RUN_FAILED,
-            step_id=step.step_id,
-            observation=run.error,
-        )
-        self.workflow_store.save_run(run)
-        return run
-
     async def resume_from_checkpoint(self, *, run_id: str, checkpoint_id: str) -> WorkflowRun:
         run = self.workflow_store.get_run(run_id)
         task = self.task_manager.get_task(run.task_id)
         workflow = self.workflow_registry.get(run.workflow_id)
         checkpoint = self.checkpoint_store.find(run, checkpoint_id)
+        if run.runtime_engine != "acg" or workflow.effective_runtime_engine != "acg":
+            raise ValueError("Only acg workflow runs can be resumed from checkpoints")
 
         snapshot = checkpoint.state_snapshot or {}
         snapshot_steps = snapshot.get("steps")
         if isinstance(snapshot_steps, list):
             run.steps = [WorkflowStep.model_validate(step) for step in snapshot_steps]
+        run.acg_blueprint = snapshot.get("acgBlueprint") or run.acg_blueprint
+        completed = snapshot.get("completedStepIds")
+        if isinstance(completed, list):
+            run.completed_step_ids = sorted({str(step_id) for step_id in completed})
+        else:
+            run.completed_step_ids = sorted(
+                step.step_id for step in run.steps if step.status == StepStatus.COMPLETED
+            )
+        run.current_step_id = snapshot.get("currentStepId") or checkpoint.step_id
+        if "provenance" in snapshot:
+            run.provenance = snapshot["provenance"]
+        if "output" in snapshot:
+            run.output = dict(snapshot["output"] or {})
+        blueprint = (
+            ACGBlueprint.model_validate(run.acg_blueprint)
+            if run.acg_blueprint
+            else promote_workflow_to_acg(workflow, task_id=task.task_id)
+        )
+        run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
 
         self._transition_run(run, WorkflowStatus.RETRYING)
-        run.current_step_id = self._next_pending_step_id(run)
         run.error = None
         run.recovery_count += 1
         self.task_manager.mark_retrying(task)
@@ -436,7 +393,9 @@ class WorkflowRuntime:
             payload=checkpoint.model_dump(by_alias=True, mode="json"),
         )
         self.workflow_store.save_run(run)
-        return await self._run_until_blocked(task, run, workflow)
+        adapter = self._workflow_adapter(workflow)
+        assert isinstance(adapter, ACGWorkflowAdapter)
+        return await adapter.executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
     def cancel(self, run_id: str) -> WorkflowRun:
         run = self.workflow_store.get_run(run_id)
@@ -467,9 +426,7 @@ class WorkflowRuntime:
         adapter_key = f"{runtime_engine}:{implementation_id}"
         adapter = self._runtime_adapters.get(adapter_key)
         if adapter is None:
-            if runtime_engine == "native":
-                adapter = NativeWorkflowAdapter(self)
-            elif runtime_engine == "acg":
+            if runtime_engine == "acg":
                 adapter = ACGWorkflowAdapter(self)
             else:
                 factory = self.execution_adapter_factories.get(runtime_engine)
@@ -486,82 +443,6 @@ class WorkflowRuntime:
     @staticmethod
     def _normalize_runtime_engine(runtime_engine: str) -> str:
         return (runtime_engine or "").strip().lower()
-
-    async def _run_until_blocked(
-        self,
-        task: AgentTask,
-        run: WorkflowRun,
-        workflow: WorkflowDefinition,
-    ) -> WorkflowRun:
-        self._transition_run(run, WorkflowStatus.RUNNING)
-        self.task_manager.mark_running(task)
-
-        while True:
-            step = self.orchestrator.select_next_step(run)
-            if step is None:
-                self._complete_run(task, run)
-                self.workflow_store.save_run(run)
-                return run
-
-            run.current_step_id = step.step_id
-            self._transition_step(step, StepStatus.RUNNING)
-            run.updated_at = utc_now()
-            self.trace_store.append(
-                run=run,
-                event_type=TraceEventType.STEP_STARTED,
-                step_id=step.step_id,
-                agent_name=step.agent_name,
-                observation=f"Step started: {step.name}",
-            )
-            self.workflow_store.save_run(run)
-
-            memory = WorkflowMemory.from_run(run)
-            try:
-                result, duration_ms = await self.orchestrator.dispatch_agent(
-                    task=task,
-                    run=run,
-                    workflow=workflow,
-                    step=step,
-                    memory=memory,
-                )
-            except Exception as exc:
-                self._mark_step_failed(run, task, step, exc)
-                return run
-
-            step.output = dict(result.output)
-            memory.record(step.step_id, step.output)
-            self.trace_store.append(
-                run=run,
-                event_type=TraceEventType.AGENT_CALLED,
-                step_id=step.step_id,
-                agent_name=step.agent_name,
-                observation=result.summary or f"Agent completed: {step.agent_name}",
-                payload=step.output,
-                duration_ms=duration_ms,
-            )
-
-            if step.requires_review and run.review_mode != "auto":
-                self._transition_step(step, StepStatus.WAITING_REVIEW)
-                self._transition_run(run, WorkflowStatus.WAITING_REVIEW)
-                run.current_step_id = step.step_id
-                self.task_manager.mark_waiting_review(task)
-                self._create_checkpoint(run, step)
-                self.trace_store.append(
-                    run=run,
-                    event_type=TraceEventType.REVIEW_REQUIRED,
-                    step_id=step.step_id,
-                    agent_name=step.agent_name,
-                    observation=f"Review required for step: {step.step_id}",
-                    payload=step.output,
-                )
-                self.workflow_store.save_run(run)
-                return run
-
-            self._transition_step(step, StepStatus.COMPLETED)
-            self._create_checkpoint(run, step)
-            run.current_step_id = workflow.next_step_id(step.step_id)
-            run.updated_at = utc_now()
-            self.workflow_store.save_run(run)
 
     def _mark_step_failed(
         self,
@@ -597,14 +478,6 @@ class WorkflowRuntime:
             observation=str(exc),
         )
         self.workflow_store.save_run(run)
-
-    def _next_pending_step_id(self, run: WorkflowRun) -> Optional[str]:
-        for step in run.steps:
-            if step.status in {StepStatus.PENDING, StepStatus.RETRYING, StepStatus.FAILED}:
-                if step.status == StepStatus.FAILED:
-                    self._transition_step(step, StepStatus.RETRYING)
-                return step.step_id
-        return None
 
     def _transition_run(self, run: WorkflowRun, status: WorkflowStatus) -> None:
         run.status = self.state_machine.transition(run.status, status)

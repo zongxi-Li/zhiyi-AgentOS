@@ -8,7 +8,7 @@ import pytest
 
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents import AgentRegistry
-from agentos.core.execution import NativeWorkflowAdapter
+from agentos.core.execution import ACGWorkflowAdapter
 from app.execution.runtime import configure_runtime
 from packs.legal import register_pack as register_legal_pack
 from agentos.core.workflow.state_machine import InvalidStateTransition, StateMachine
@@ -75,6 +75,7 @@ def _runtime_with_workflow(steps, agents):
             domain="test",
             intent="case_analysis",
             version="1.0.0",
+            runtimeEngine="acg",
             steps=steps,
         )
     )
@@ -144,7 +145,7 @@ async def _test_runtime_runs_registered_workflow_with_trace_and_checkpoints():
     assert TraceEventType.AGENT_CALLED in event_types
     assert TraceEventType.CHECKPOINT_CREATED in event_types
     assert TraceEventType.RUN_COMPLETED in event_types
-    assert any(isinstance(adapter, NativeWorkflowAdapter) for adapter in runtime._runtime_adapters.values())
+    assert any(isinstance(adapter, ACGWorkflowAdapter) for adapter in runtime._runtime_adapters.values())
 
 
 def test_runtime_waits_for_review_and_continues_after_approval():
@@ -229,7 +230,9 @@ async def _test_runtime_recovers_from_checkpoint_after_step_failure():
 
     assert recovered.status == WorkflowStatus.COMPLETED
     assert recovered.recovery_count == 1
+    assert recovered.runtime_engine == "acg"
     assert recovered.get_step("risk").status == StepStatus.COMPLETED
+    assert [call["agent"] for call in calls] == ["intake", "risk", "risk"]
     event_types = [event.event_type for event in recovered.trace]
     assert TraceEventType.RUN_RECOVERED in event_types
 
@@ -603,7 +606,7 @@ def test_legacy_lawyer_agent_chat_respects_llm_route_before_graph_fallback():
         payload = response.json()
         assert payload["success"] is True
         assert payload["workflowId"] == "legal_case_analysis_v1"
-        assert payload["runtimeEngine"] != "acg"
+        assert payload["runtimeEngine"] == "acg"
         assert payload["routing"]["source"] == "llm"
         assert payload["routing"]["provider"] == "route-test-provider"
         assert payload["routing"]["workflowId"] == "legal_case_analysis_v1"

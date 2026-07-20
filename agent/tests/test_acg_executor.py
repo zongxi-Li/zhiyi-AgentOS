@@ -10,8 +10,10 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
@@ -135,6 +137,9 @@ def test_acg_engine_human_review_interrupt_and_resume():
 
         assert run.status == WorkflowStatus.WAITING_REVIEW
         assert "z" not in calls  # 报告步骤尚未执行
+        checkpoint = run.checkpoints[-1]
+        assert checkpoint.state_snapshot["acgBlueprint"]
+        assert checkpoint.state_snapshot["completedStepIds"] == ["a"]
 
         resumed = await runtime.apply_review(
             ReviewDecision(runId=run.run_id, stepId="gate", decision=ReviewDecisionType.APPROVED)
@@ -143,6 +148,102 @@ def test_acg_engine_human_review_interrupt_and_resume():
         assert "z" in calls
 
     asyncio.run(_run())
+
+
+def test_acg_checkpoint_resume_keeps_completed_diamond_branch():
+    class _FailOnceAgent(_Agent):
+        def __init__(self, name, calls, *, fail_once=False):
+            super().__init__(name, calls)
+            self.fail_once = fail_once
+            self.failed = False
+
+        async def run(self, context):
+            if self.fail_once and not self.failed:
+                self.failed = True
+                self.calls.append(context.step.step_id)
+                raise RuntimeError("planned failure")
+            return await super().run(context)
+
+    async def _run():
+        calls: list[str] = []
+        agents = AgentRegistry()
+        for name, fail_once in [("a", False), ("b", False), ("c", True), ("d", False)]:
+            agents.register(_FailOnceAgent(name, calls, fail_once=fail_once))
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="diamond",
+                name="Diamond",
+                domain="test",
+                intent="demo",
+                runtimeEngine="acg",
+                steps=[WorkflowStepDefinition(stepId=node, name=node, agentName=node) for node in "abcd"],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        blueprint = ACGBlueprint(objective="diamond")
+        for node_id in "abcd":
+            blueprint.nodes.append(StepNode(nodeId=node_id, name=node_id, agentName=node_id))
+        blueprint.edges.extend(
+            [
+                ACGEdge(sourceId="a", targetId="b", edgeType=EdgeType.DEPENDENCY),
+                ACGEdge(sourceId="a", targetId="c", edgeType=EdgeType.DEPENDENCY),
+                ACGEdge(sourceId="b", targetId="d", edgeType=EdgeType.DEPENDENCY),
+                ACGEdge(sourceId="c", targetId="d", edgeType=EdgeType.DEPENDENCY),
+            ]
+        )
+        task = runtime.create_task(
+            title="diamond",
+            domain="test",
+            intent="demo",
+            input={"acgBlueprint": blueprint.model_dump(by_alias=True, mode="json")},
+        )
+        failed = await runtime.start(task.task_id, workflow_id="diamond")
+
+        assert failed.status == WorkflowStatus.FAILED
+        checkpoint = next(item for item in failed.checkpoints if item.step_id == "b")
+        recovered = await runtime.resume_from_checkpoint(
+            run_id=failed.run_id,
+            checkpoint_id=checkpoint.checkpoint_id,
+        )
+
+        assert recovered.status == WorkflowStatus.COMPLETED
+        assert recovered.runtime_engine == "acg"
+        assert calls.count("a") == 1
+        assert calls.count("b") == 1
+        assert calls.count("c") == 2
+        assert calls.count("d") == 1
+
+    asyncio.run(_run())
+
+
+def test_workflow_runtime_engine_is_required_and_native_is_rejected(tmp_path: Path):
+    with pytest.raises(ValidationError, match="runtimeEngine"):
+        WorkflowDefinition.model_validate(
+            {
+                "workflowId": "missing_engine",
+                "name": "Missing",
+                "domain": "test",
+                "steps": [{"stepId": "a", "name": "A", "agentName": "a"}],
+            }
+        )
+
+    workflow_file = tmp_path / "missing-engine.yaml"
+    workflow_file.write_text(
+        '{"workflowId":"missing_engine","name":"Missing","domain":"test","steps":[{"stepId":"a","name":"A","agentName":"a"}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValidationError, match="runtimeEngine"):
+        WorkflowRegistry().load_file(workflow_file)
+
+    runtime, _ = _runtime(
+        [WorkflowStepDefinition(stepId="a", name="A", agentName="a")],
+        ["a"],
+        engine="native",
+    )
+    task = runtime.create_task(title="native", domain="test", intent="demo")
+    with pytest.raises(ValueError, match="Unsupported workflow runtime engine: native"):
+        asyncio.run(runtime.start(task.task_id, workflow_id="acg_wf"))
 
 
 def test_acg_engine_emits_unified_step_trace():

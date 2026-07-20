@@ -40,8 +40,9 @@ def _linear_workflow(step_count: int = 3) -> WorkflowDefinition:
         {
             "workflowId": "wf_linear",
             "name": "linear",
-            "domain": "general",
-            "description": "linear demo",
+                "domain": "general",
+                "runtimeEngine": "acg",
+                "description": "linear demo",
             "steps": steps,
         }
     )
@@ -88,8 +89,9 @@ def test_promote_without_explicit_next_uses_declaration_order():
         {
             "workflowId": "wf_noexplicit",
             "name": "noexplicit",
-            "domain": "general",
-            "steps": [
+                "domain": "general",
+                "runtimeEngine": "acg",
+                "steps": [
                 {"stepId": "a", "name": "a", "agentName": "x"},
                 {"stepId": "b", "name": "b", "agentName": "x"},
                 {"stepId": "c", "name": "c", "agentName": "x"},
@@ -118,8 +120,9 @@ def test_promote_enriched_injects_cognitive_nodes():
         {
             "workflowId": "wf_enrich",
             "name": "enrich",
-            "domain": "legal",
-            "steps": [
+                "domain": "legal",
+                "runtimeEngine": "acg",
+                "steps": [
                 {"stepId": "parse", "name": "解析", "agentName": "parser", "capability": "parse"},
                 {"stepId": "risk", "name": "风险识别", "agentName": "risker", "capability": "risk_detect"},
                 {"stepId": "report", "name": "报告生成", "agentName": "reporter", "capability": "report_generate"},
