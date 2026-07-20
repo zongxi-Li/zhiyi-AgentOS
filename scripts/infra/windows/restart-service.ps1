@@ -12,7 +12,7 @@ Write-KinlinContext $context
 if ($Service -eq "backend" -and -not $FullRestart) {
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     Write-Host "Compiling Backend without tests; Spring Boot DevTools will restart the application"
-    Invoke-KinlinCompose $context exec -T backend mvn -B -ntp -DskipTests compile
+    Invoke-KinlinCompose $context exec -T --user 10001:10001 backend mvn -B -ntp -DskipTests compile
     Start-Sleep -Seconds 2
     Wait-KinlinServiceHealthy $context backend -TimeoutSeconds 120
     $stopwatch.Stop()
