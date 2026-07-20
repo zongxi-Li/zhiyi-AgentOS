@@ -177,6 +177,34 @@
         </div>
 
         <div ref="composerRef" class="composer" :style="{ bottom: composerDockOffset }">
+          <div
+            v-if="isAgentMode && activeWorkflowRunId"
+            class="workflow-run-strip"
+            :class="activeWorkflowStatus"
+          >
+            <span class="workflow-run-strip__state">
+              <span class="workflow-run-strip__dot" aria-hidden="true"></span>
+              {{ activeWorkflowStatusLabel }}
+            </span>
+            <code :title="activeWorkflowRunId">{{ activeWorkflowRunId }}</code>
+            <span class="workflow-run-strip__workflow">{{ activeWorkflowRun?.workflowId || 'WorkflowRun' }}</span>
+            <div class="workflow-run-strip__actions">
+              <button
+                v-if="activeWorkflowStatus === 'waiting_review'"
+                type="button"
+                :disabled="workflowReviewSubmitting || !activeReviewStepId"
+                @click="approveActiveWorkflow"
+              >
+                <el-icon><Check /></el-icon>
+                <span>{{ workflowReviewSubmitting ? '提交中' : (!activeReviewStepId ? '加载审核节点' : '审核并继续') }}</span>
+              </button>
+              <button type="button" @click="openActiveWorkflowOperations">
+                <span>在运维页查看</span>
+                <el-icon><DArrowRight /></el-icon>
+              </button>
+            </div>
+          </div>
+
           <div v-if="showAssistTools && currentTemplates.length" class="composer-popover template-row">
             <button v-for="tpl in currentTemplates" :key="tpl" class="template-item" @click="useTemplate(tpl)">
               {{ tpl }}
@@ -260,8 +288,9 @@
                   class="composer-acg-toggle"
                   :class="{ active: workflowPanelOpen }"
                   type="button"
+                  :disabled="!hasActiveWorkflow"
                   :aria-pressed="workflowPanelOpen"
-                  :title="workflowPanelOpen ? '收起 ACG 拓扑' : '展开 ACG 拓扑'"
+                  :title="!hasActiveWorkflow ? '专业任务启动后可查看 ACG 拓扑' : (workflowPanelOpen ? '收起 ACG 拓扑' : '展开 ACG 拓扑')"
                   @click="toggleWorkflowPanel"
                 >
                   <el-icon><Share /></el-icon>
@@ -269,9 +298,9 @@
                 </button>
               </div>
               <div class="right-actions">
-                <span v-if="isAgentMode" class="composer-runtime-lock" title="Agent 模式固定通过 ACG Workflow 执行">
+                <span v-if="isAgentMode" class="composer-runtime-lock" title="简单问答直接响应，专业任务自动进入 ACG Workflow">
                   <el-icon><Share /></el-icon>
-                  ACG 动态
+                  ACG 路由
                 </span>
                 <ModelRuntimeControls v-else compact />
                 <span v-if="inputText.length" class="word-count" :class="{ warning: inputText.length > 500 }">
@@ -299,7 +328,7 @@
 
         <Transition name="workflow-acg-slide">
           <section
-            v-if="isAgentMode && workflowPanelOpen"
+            v-if="isAgentMode && hasActiveWorkflow && workflowPanelOpen"
             class="workflow-acg-panel"
             :class="{ resizing: workflowPanelResizing }"
             :style="{ height: `${workflowPanelHeight}px` }"
@@ -331,7 +360,7 @@
           </section>
         </Transition>
         <button
-          v-if="isAgentMode && !workflowPanelOpen"
+          v-if="isAgentMode && hasActiveWorkflow && !workflowPanelOpen"
           class="workflow-acg-dock"
           type="button"
           aria-label="展开 ACG 动态拓扑"
@@ -792,7 +821,7 @@ const AGENT_PANEL_DEFAULT_WIDTH = 340
 const AGENT_PANEL_MIN_WIDTH = 280
 const AGENT_PANEL_MAX_WIDTH = 520
 const WORKFLOW_PANEL_HEIGHT_KEY = 'chat.workflow_panel_height'
-const WORKFLOW_PANEL_OPEN_KEY = 'chat.workflow_panel_open'
+const WORKFLOW_PANEL_OPEN_KEY = 'chat.workflow_panel_open_v2'
 const WORKFLOW_PANEL_DEFAULT_HEIGHT = 280
 const WORKFLOW_PANEL_MIN_HEIGHT = 180
 const WORKFLOW_PANEL_MAX_HEIGHT = 560
@@ -816,7 +845,7 @@ const workflowPanelHeight = ref(
     : WORKFLOW_PANEL_DEFAULT_HEIGHT
 )
 const workflowPanelResizing = ref(false)
-const workflowPanelOpen = ref(false)
+const workflowPanelOpen = ref(localStorage.getItem(WORKFLOW_PANEL_OPEN_KEY) === '1')
 const storedContextPanelHeight = Number(localStorage.getItem(CONTEXT_PANEL_HEIGHT_KEY))
 const contextPanelHeight = ref(
   Number.isFinite(storedContextPanelHeight) && storedContextPanelHeight >= CONTEXT_PANEL_MIN_HEIGHT && storedContextPanelHeight <= CONTEXT_PANEL_MAX_HEIGHT
@@ -827,22 +856,24 @@ const contextPanelOpen = ref(localStorage.getItem(CONTEXT_PANEL_OPEN_KEY) === '1
 const contextPanelClosing = ref(false)
 const contextPanelResizing = ref(false)
 const contextPanelTab = ref<'lineage' | 'nodes' | 'steps'>('lineage')
+const activeWorkflowRunId = ref('')
+const activeWorkflowRun = ref<WorkflowRun | null>(null)
+const activeAcgView = ref<AcgView | null>(null)
+const acgViewLoading = ref(false)
+const workflowReviewSubmitting = ref(false)
+const hasActiveWorkflow = computed(() => Boolean(activeWorkflowRunId.value))
 const showHeroMode = computed(() => {
   return chatStore.messages.length === 0 && !contextPanelOpen.value && !contextPanelClosing.value
 })
 const composerDockOffset = computed(() => {
   if (showHeroMode.value) return 'auto'
-  if (!isAgentMode.value) return '0px'
+  if (!isAgentMode.value || !hasActiveWorkflow.value) return '0px'
   return workflowPanelOpen.value ? `${workflowPanelHeight.value}px` : '30px'
 })
-const activeWorkflowRunId = ref('')
-const activeWorkflowRun = ref<WorkflowRun | null>(null)
-const activeAcgView = ref<AcgView | null>(null)
-const acgViewLoading = ref(false)
 const composerHeight = ref(180)
 const composerReservedSpace = computed(() => {
   if (showHeroMode.value) return 0
-  const dockHeight = isAgentMode.value
+  const dockHeight = isAgentMode.value && hasActiveWorkflow.value
     ? (workflowPanelOpen.value ? workflowPanelHeight.value : 30)
     : 0
   return Math.ceil(composerHeight.value + dockHeight + 24)
@@ -930,6 +961,27 @@ const contextStepNodes = computed(() => contextNodes.value.filter(node => node.n
 const contextObjective = computed(() => {
   return displayAcgBlueprint.value?.objective || activeWorkflowRun.value?.workflowId || '等待工作流'
 })
+const activeWorkflowStatus = computed(() => (
+  activeWorkflowRun.value?.status
+  || activeAcgView.value?.status
+  || [...chatStore.messages].reverse().find(message => message.workflowRunId === activeWorkflowRunId.value)?.workflowStatus
+  || 'pending'
+))
+const activeWorkflowStatusLabel = computed(() => ({
+  pending: '等待规划',
+  planning: '规划中',
+  running: '运行中',
+  waiting_review: '等待人工审核',
+  retrying: '正在重试',
+  failed: '运行失败',
+  completed: '运行完成',
+  cancelled: '已取消'
+}[activeWorkflowStatus.value] || activeWorkflowStatus.value))
+const activeReviewStepId = computed(() => (
+  activeWorkflowRun.value?.steps.find(step => step.status === 'waiting_review')?.stepId
+  || activeWorkflowRun.value?.currentStepId
+  || ''
+))
 const contextTabs = computed(() => [
   { key: 'lineage' as const, label: '数据血缘', count: contextEdges.value.length },
   { key: 'nodes' as const, label: '节点', count: contextNodes.value.length },
@@ -1075,6 +1127,7 @@ const resetWorkflowPanelHeight = () => {
 }
 
 const setWorkflowPanelOpen = (open: boolean) => {
+  if (open && !hasActiveWorkflow.value) return
   workflowPanelOpen.value = open
   localStorage.setItem(WORKFLOW_PANEL_OPEN_KEY, open ? '1' : '0')
 }
@@ -1218,6 +1271,58 @@ const startAcgRefresh = () => {
   stopAcgRefresh()
   void loadActiveAcgView()
   acgRefreshTimer = window.setInterval(() => void loadActiveAcgView(), 2500)
+}
+
+const syncWorkflowMessageStatus = (run: WorkflowRun) => {
+  chatStore.messages.forEach(message => {
+    if (message.workflowRunId === run.runId) message.workflowStatus = run.status
+  })
+}
+
+const openActiveWorkflowOperations = () => {
+  if (!activeWorkflowRunId.value) return
+  void router.push({ path: '/agentos-console', query: { runId: activeWorkflowRunId.value } })
+}
+
+const approveActiveWorkflow = async () => {
+  if (!activeWorkflowRunId.value || !activeReviewStepId.value || workflowReviewSubmitting.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确认通过步骤 ${activeReviewStepId.value} 并继续执行？`,
+      '人工审核',
+      {
+        confirmButtonText: '通过并继续',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  workflowReviewSubmitting.value = true
+  try {
+    const run = await agentosApi.applyWorkflowReview(activeWorkflowRunId.value, {
+      stepId: activeReviewStepId.value,
+      decision: 'approved',
+      reviewer: 'chat_operator',
+      comment: '从聊天工作台审核通过'
+    })
+    activeWorkflowRun.value = run
+    syncWorkflowMessageStatus(run)
+    if (['completed', 'failed', 'cancelled'].includes(run.status)) {
+      stopAcgRefresh()
+    } else {
+      startAcgRefresh()
+    }
+    await loadActiveAcgView()
+    ElMessage.success(run.status === 'completed' ? '工作流已完成' : '审核已提交，工作流继续执行')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '提交审核失败')
+  } finally {
+    workflowReviewSubmitting.value = false
+  }
 }
 
 const roles = computed(() => roleStore.roles)
@@ -1763,6 +1868,50 @@ const animateComposerToConversation = async (startRect: DOMRect) => {
   }
 }
 
+const sendAgentWorkspaceMessage = async () => {
+  const userText = inputText.value.trim()
+  if (!userText) return
+
+  loading.value = true
+  inputText.value = ''
+  const composerStartRect = chatStore.messages.length === 0
+    ? composerRef.value?.getBoundingClientRect()
+    : undefined
+
+  try {
+    let response: any
+    if (isLawyerMode.value) {
+      response = await chatStore.sendLawyerMessage(userText)
+    } else if (isTeacherMode.value) {
+      response = await chatStore.sendTeacherMessage(userText)
+    } else if (isProgrammerMode.value) {
+      response = await chatStore.sendProgrammerMessage(userText)
+    } else if (isWriterMode.value) {
+      response = await chatStore.sendWriterMessage(userText)
+    } else {
+      loading.value = false
+      inputText.value = userText
+      await upgradeChatToWorkflow()
+      return
+    }
+
+    if (composerStartRect) await animateComposerToConversation(composerStartRect)
+    if (response?.workflowRunId) {
+      activeWorkflowRunId.value = response.workflowRunId
+      activeWorkflowRun.value = null
+      activeAcgView.value = null
+      startAcgRefresh()
+      ElMessage.success(`专业任务已进入 ACG：${response.workflowRunId}`)
+    }
+    scrollToBottom()
+  } catch (error: any) {
+    inputText.value = userText
+    ElMessage.error(error?.message || '发送消息失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const sendMessage = async () => {
   if (loading.value) return
   if (!inputText.value.trim() && !isRecording.value) return
@@ -1779,7 +1928,7 @@ const sendMessage = async () => {
   }
 
   if (isAgentMode.value) {
-    await upgradeChatToWorkflow()
+    await sendAgentWorkspaceMessage()
     return
   }
 
@@ -1834,7 +1983,6 @@ const upgradeChatToWorkflow = async () => {
       activeWorkflowRunId.value = response.run.runId
       activeWorkflowRun.value = response.run
       activeAcgView.value = null
-      setWorkflowPanelOpen(true)
       startAcgRefresh()
       ElMessage.success(`已创建 WorkflowRun：${response.run.runId}`)
     }
@@ -1982,14 +2130,6 @@ watch(
   { immediate: true }
 )
 
-watch(
-  workspaceMode,
-  mode => {
-    if (mode === 'agent') setWorkflowPanelOpen(true)
-  },
-  { immediate: true }
-)
-
 const handleWorkspaceModeChange = (event: Event) => {
   const mode = (event as CustomEvent<{ mode?: WorkspaceMode }>).detail?.mode
   if (mode !== 'agent' && mode !== 'chat') return
@@ -1999,6 +2139,14 @@ const handleWorkspaceModeChange = (event: Event) => {
 watch(
   () => chatStore.messages.length,
   (newLen, oldLen) => {
+    if (newLen === 0) {
+      activeWorkflowRunId.value = ''
+      activeWorkflowRun.value = null
+      activeAcgView.value = null
+      stopAcgRefresh()
+      setWorkflowPanelOpen(false)
+      return
+    }
     if (newLen <= oldLen) return
     const latest = chatStore.messages[newLen - 1]
     const isUserMessage = latest?.role === 'user'
@@ -3580,6 +3728,107 @@ onUnmounted(() => {
   will-change: transform;
 }
 
+.workflow-run-strip {
+  order: 0;
+  width: 50%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 7px;
+  padding: 5px 7px 5px 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.workflow-run-strip__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.workflow-run-strip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-color);
+}
+
+.workflow-run-strip.waiting_review .workflow-run-strip__dot,
+.workflow-run-strip.retrying .workflow-run-strip__dot {
+  background: var(--warning);
+}
+
+.workflow-run-strip.completed .workflow-run-strip__dot {
+  background: var(--success);
+}
+
+.workflow-run-strip.failed .workflow-run-strip__dot,
+.workflow-run-strip.cancelled .workflow-run-strip__dot {
+  background: var(--danger);
+}
+
+.workflow-run-strip code {
+  min-width: 96px;
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-run-strip__workflow {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-run-strip__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.workflow-run-strip__actions button {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary-color);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.workflow-run-strip__actions button:hover,
+.workflow-run-strip__actions button:focus-visible {
+  background: var(--primary-fade);
+  outline: none;
+}
+
+.workflow-run-strip__actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .composer-popover {
   order: 0;
   width: 50%;
@@ -3842,6 +4091,11 @@ onUnmounted(() => {
   background: var(--primary-fade);
   color: var(--primary-color);
   outline: none;
+}
+
+.composer-acg-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .composer-runtime-lock {
@@ -4392,6 +4646,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
+  .workflow-run-strip {
+    width: calc(100% - 32px);
+  }
+
   .landing-topbar {
     min-height: 118px;
     padding: 14px 18px 0;
@@ -4444,6 +4702,24 @@ onUnmounted(() => {
 }
 
 @media (max-width: 620px) {
+  .chat-main:not(.simple-session) .composer-card,
+  .workflow-run-strip {
+    width: 100%;
+  }
+
+  .workflow-run-strip {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .workflow-run-strip__workflow {
+    display: none;
+  }
+
+  .workflow-run-strip__actions {
+    margin-left: auto;
+  }
+
   .landing-topbar {
     min-height: 136px;
   }
