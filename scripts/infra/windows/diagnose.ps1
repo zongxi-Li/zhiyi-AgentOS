@@ -11,6 +11,7 @@ $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $output = Join-Path ([System.IO.Path]::GetFullPath($OutputRoot)) "$($context.DeploymentId)-$stamp"
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $composeArgs = Get-KinlinComposeArguments $context
+$secretValues = @(Get-KinlinSecretValues $context)
 
 function Save-CommandOutput {
     param([string]$Name, [scriptblock]$Command, [switch]$Sanitize)
@@ -20,7 +21,7 @@ function Save-CommandOutput {
         $lines = @("CHECK_FAILED: $($_.Exception.Message)")
     }
     if ($Sanitize) {
-        $lines = $lines | ForEach-Object { if ($_ -match '(?i)(password|secret|token|api[_-]?key|authorization)') { "[REDACTED SENSITIVE LINE]" } else { $_ } }
+        $lines = $lines | ForEach-Object { Protect-KinlinDiagnosticText -Text ([string]$_) -SecretValues $secretValues }
     }
     $lines | Set-Content -LiteralPath (Join-Path $output $Name) -Encoding UTF8
 }

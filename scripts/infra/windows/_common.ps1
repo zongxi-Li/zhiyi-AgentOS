@@ -47,12 +47,20 @@ function Get-KinlinWindowsContext {
     $secretValue = $envData.Values["KINLIN_SECRETS_DIR"]
     $secretPath = if ([System.IO.Path]::IsPathRooted($secretValue)) { $secretValue } else { Join-Path $script:KinlinProjectRoot $secretValue }
     $httpPort = if ($envData.Values.ContainsKey("KINLIN_HTTP_PORT")) { [int]$envData.Values["KINLIN_HTTP_PORT"] } else { 8080 }
+    if ($httpPort -lt 1 -or $httpPort -gt 65535) { throw "KINLIN_HTTP_PORT must be between 1 and 65535" }
+    $publicOrigin = if ($envData.Values.ContainsKey("KINLIN_PUBLIC_ORIGIN")) { $envData.Values["KINLIN_PUBLIC_ORIGIN"] } else { "http://127.0.0.1:$httpPort" }
+    try { $originUri = [System.Uri]$publicOrigin } catch { throw "KINLIN_PUBLIC_ORIGIN must be an absolute HTTP URL" }
+    if (-not $originUri.IsAbsoluteUri -or $originUri.Scheme -ne "http" -or -not $originUri.IsLoopback -or $originUri.Port -ne $httpPort) {
+        throw "KINLIN_PUBLIC_ORIGIN must use loopback HTTP and match KINLIN_HTTP_PORT"
+    }
     return [PSCustomObject]@{
         ProjectRoot = $script:KinlinProjectRoot
         EnvFile = $envData.Path
         DeploymentId = $deploymentId
         SecretsDir = [System.IO.Path]::GetFullPath($secretPath)
         HttpPort = $httpPort
+        PublicOrigin = $publicOrigin
+        Values = $envData.Values
         ComposeFiles = $script:KinlinComposeFiles
     }
 }
@@ -95,8 +103,8 @@ function Get-KinlinServiceContainerId {
     $baseArgs = Get-KinlinComposeArguments $Context
     Push-Location $Context.ProjectRoot
     try {
-        $containerId = (& docker compose @baseArgs ps -q $Service).Trim()
-        if ($LASTEXITCODE -ne 0 -or -not $containerId) { throw "Service is not running: $Service" }
+        $containerId = (& docker compose @baseArgs ps --all -q $Service).Trim()
+        if ($LASTEXITCODE -ne 0 -or -not $containerId) { throw "Service container does not exist: $Service" }
         return $containerId
     } finally {
         Pop-Location
@@ -118,12 +126,39 @@ function Wait-KinlinServiceHealthy {
             Write-Host "$Service status=$status"
             return
         }
-        if ($status -eq "unhealthy" -or $status -eq "exited" -or $status -eq "dead") {
+        if ($status -eq "exited" -or $status -eq "dead") {
             throw "$Service entered terminal status=$status"
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
-    throw "Timed out waiting for $Service after ${TimeoutSeconds}s"
+    $health = (& docker inspect --format '{{json .State.Health}}' $containerId).Trim()
+    Write-Warning "$Service did not become healthy; final health=$health"
+    throw "Timed out waiting for $Service after ${TimeoutSeconds}s; run logs.ps1 -Service $Service"
+}
+
+function Get-KinlinSecretValues {
+    param($Context)
+    if (-not (Test-Path -LiteralPath $Context.SecretsDir -PathType Container)) { return }
+    foreach ($file in Get-ChildItem -LiteralPath $Context.SecretsDir -File -ErrorAction SilentlyContinue) {
+        try {
+            $rawValue = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
+            $value = if ($null -eq $rawValue) { "" } else { ([string]$rawValue).Trim() }
+            if ($value.Length -ge 8) { Write-Output $value }
+        } catch {
+            continue
+        }
+    }
+}
+
+function Protect-KinlinDiagnosticText {
+    param([string]$Text, [string[]]$SecretValues)
+    $sanitized = $Text
+    foreach ($secretValue in $SecretValues) {
+        if ($secretValue) { $sanitized = $sanitized.Replace($secretValue, "[REDACTED_SECRET]") }
+    }
+    $sanitized = [regex]::Replace($sanitized, '(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+', 'Bearer [REDACTED]')
+    $sanitized = [regex]::Replace($sanitized, '\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b', '[REDACTED_JWT]')
+    return $sanitized
 }
 
 function Get-KinlinWslOutput {
