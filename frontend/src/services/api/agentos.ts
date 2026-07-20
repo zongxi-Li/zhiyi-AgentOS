@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const agentosRequest = axios.create({
+export const agentosRequest = axios.create({
   baseURL: '/ai',
   timeout: 240000,
   headers: {

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { agentosRequest } from './agentos'
 import type { AgentRoutingInfo, AgentTraceStep, FederatedInfo } from './agentLawyer'
 
 const TEACHER_AGENT_TIMEOUT_MS = 240000
@@ -102,7 +103,7 @@ const extractTextFromOcrResponse = (responseData: any): TeacherOcrResult => {
 
 export const agentTeacherApi = {
   async chat(payload: TeacherAgentRequest): Promise<TeacherAgentResponse> {
-    const response = await request.post<TeacherAgentResponse>(
+    const response = await agentosRequest.post<TeacherAgentResponse>(
       '/agent/teacher/chat',
       payload,
       { timeout: TEACHER_AGENT_TIMEOUT_MS }

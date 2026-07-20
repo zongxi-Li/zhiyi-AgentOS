@@ -676,10 +676,14 @@ def _llm_route_decision(role: str, role_config: Dict[str, Any], text: str) -> Op
 
 
 def _classify_legacy_chat_route(role: str, role_config: Dict[str, Any], text: str) -> Dict[str, Any]:
+    rule_decision = _fallback_route_decision(role, role_config, text)
+    if rule_decision.get("decision") == "direct":
+        return rule_decision
+
     llm_decision = _llm_route_decision(role, role_config, text)
     if llm_decision is not None:
         return llm_decision
-    return _fallback_route_decision(role, role_config, text)
+    return rule_decision
 
 
 def _legacy_workflow_id_for_chat(role: str, role_config: Dict[str, Any], text: str) -> str:

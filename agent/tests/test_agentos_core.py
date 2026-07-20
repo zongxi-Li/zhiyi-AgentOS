@@ -499,6 +499,32 @@ def test_legacy_lawyer_agent_chat_smalltalk_returns_direct_intro_without_trace(t
     assert payload["routing"]["workflowRequired"] is False
 
 
+def test_legacy_chat_smalltalk_rule_cannot_be_overridden_by_llm(monkeypatch):
+    from app.api import agentos_core
+
+    monkeypatch.setattr(
+        agentos_core,
+        "_llm_route_decision",
+        lambda *_args, **_kwargs: {
+            "decision": "workflow",
+            "workflowRequired": True,
+            "workflowId": "legal_case_analysis_v1",
+            "source": "llm",
+            "confidence": 0.99,
+        },
+    )
+
+    route = agentos_core._classify_legacy_chat_route(
+        "lawyer",
+        agentos_core.LEGACY_AGENT_CONFIG["lawyer"],
+        "你好",
+    )
+
+    assert route["decision"] == "direct"
+    assert route["workflowRequired"] is False
+    assert route["source"] == "rules"
+
+
 def test_legacy_lawyer_agent_chat_vpn_question_is_not_contract_template():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

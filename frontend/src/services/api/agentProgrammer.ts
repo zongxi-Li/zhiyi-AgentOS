@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import { agentosRequest } from './agentos'
 import type { AgentRoutingInfo, AgentTraceStep, FederatedInfo } from './agentLawyer'
 
 const PROGRAMMER_AGENT_TIMEOUT_MS = 240000
@@ -95,7 +95,7 @@ export interface ProgrammerAgentResponse {
 
 export const agentProgrammerApi = {
   async chat(payload: ProgrammerAgentRequest): Promise<ProgrammerAgentResponse> {
-    const response = await request.post<ProgrammerAgentResponse>(
+    const response = await agentosRequest.post<ProgrammerAgentResponse>(
       '/agent/programmer/chat',
       payload,
       { timeout: PROGRAMMER_AGENT_TIMEOUT_MS }

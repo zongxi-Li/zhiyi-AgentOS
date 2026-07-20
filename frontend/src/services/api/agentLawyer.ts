@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import { agentosRequest } from './agentos'
 
 const LAWYER_AGENT_TIMEOUT_MS = 240000
 
@@ -100,7 +100,7 @@ export interface LawyerAgentResponse {
 
 export const agentLawyerApi = {
   async chat(payload: LawyerAgentRequest): Promise<LawyerAgentResponse> {
-    const response = await request.post<LawyerAgentResponse>(
+    const response = await agentosRequest.post<LawyerAgentResponse>(
       '/agent/lawyer/chat',
       payload,
       { timeout: LAWYER_AGENT_TIMEOUT_MS }
