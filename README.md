@@ -403,12 +403,17 @@ python -m scripts.infra.init_secrets .secrets/kinlin-win-dev-001
 .\scripts\infra\windows\up.ps1 -Build
 ```
 
+模型 Key 保存在同一 Secret 目录的 `deepseek_api_key` 或 `dashscope_api_key` 文件中；至少配置一个文件才能调用真实模型。两个文件都为空时，容器仍可启动，但真实模型请求不可用。
+
 打开 <http://127.0.0.1:8080>，首次使用自行注册账号。常用命令：
 
 ```powershell
 .\scripts\infra\windows\status.ps1      # 查看各服务状态
 .\scripts\infra\windows\logs.ps1        # 查看所有服务日志
 .\scripts\infra\windows\up.ps1 -DebugPorts  # 启动并暴露调试端口
+.\scripts\infra\windows\restart-service.ps1 -Service backend  # 增量编译并等待 DevTools 恢复
+.\scripts\infra\windows\up.ps1 -BuildService backend  # 仅重建 Backend 后启动完整环境
+.\scripts\infra\windows\preflight.ps1 -Full  # 完整主机、WSL 和磁盘诊断
 .\scripts\infra\windows\down.ps1        # 停止所有服务
 ```
 
