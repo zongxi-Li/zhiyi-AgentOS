@@ -12,7 +12,7 @@ services:
       - ./agent/app:/app/app
       - ./agent/packs:/app/packs
       - ./agent/knowledge:/app/knowledge
-      - ./agent/requirements_minimal.txt:/app/requirements_minimal.txt:ro
+      - ./agent/requirements.lock:/app/requirements.lock:ro
       - ./agentOS/src:/app/agentOS/src
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--reload"]
   backend:
@@ -39,5 +39,9 @@ services:
       - ./frontend/public:/app/public
       - ./frontend/package.json:/app/package.json:ro
       - ./frontend/package-lock.json:/app/package-lock.json:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]

@@ -1,4 +1,5 @@
-FROM python:3.14-slim
+ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.14.5-slim-trixie@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97
+FROM ${PYTHON_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -17,10 +18,10 @@ RUN apt-get update \
     && useradd --uid 10002 --gid 10002 --no-create-home --shell /usr/sbin/nologin kinlin \
     && python -m venv "$VIRTUAL_ENV"
 
-COPY agent/requirements_minimal.txt ./requirements_minimal.txt
+COPY agent/requirements.lock ./requirements.lock
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements_minimal.txt \
-    && sha256sum requirements_minimal.txt | cut -d ' ' -f 1 > "$VIRTUAL_ENV/.kinlin-requirements.sha256"
+    pip install --require-hashes --only-binary=:all: -r requirements.lock \
+    && sha256sum requirements.lock | cut -d ' ' -f 1 > "$VIRTUAL_ENV/.kinlin-requirements.sha256"
 
 COPY agent/app ./app
 COPY agent/packs ./packs
