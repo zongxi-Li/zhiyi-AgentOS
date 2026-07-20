@@ -34,6 +34,7 @@ _PROFILE_SCHEMA = {
         "taskTypeHint": {"type": "string"},
         "implicitRequirements": {"type": "array", "items": {"type": "string"}},
         "riskLevel": {"type": "string"},
+        "entropyBudget": {"type": "integer", "minimum": 0},
     },
     "required": ["primaryGoal", "requiredCapabilities", "estimatedComplexity"],
 }
@@ -128,7 +129,10 @@ class IntentParser:
         data.setdefault("domainHint", domain)
         data.setdefault("taskTypeHint", task_type)
         data["rawIntent"] = intent
-        return self._enrich_profile(TaskSemanticProfile.model_validate(data), intent, domain, task_type)
+        profile = self._enrich_profile(TaskSemanticProfile.model_validate(data), intent, domain, task_type)
+        if not profile.primary_goal.strip() or not profile.required_capabilities:
+            raise ValueError("LLM returned an empty task semantic profile")
+        return profile
 
     def _heuristic(self, intent: str, domain: str, task_type: str) -> TaskSemanticProfile:
         text = intent or ""
@@ -165,6 +169,12 @@ class IntentParser:
             if cap not in profile.required_capabilities:
                 profile.required_capabilities.append(cap)
         profile.required_capabilities = _clean_capabilities(profile.required_capabilities)
+        if not profile.required_capabilities:
+            profile.required_capabilities = self._infer_capabilities(
+                intent or "", domain, task_type, include_defaults=True
+            )
+        if not profile.primary_goal.strip():
+            profile.primary_goal = (intent or task_type or "未命名任务")[:80]
         if not profile.domain_hint:
             profile.domain_hint = domain
         if not profile.task_type_hint:

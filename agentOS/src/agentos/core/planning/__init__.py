@@ -13,13 +13,14 @@ from agentos.core.planning.cognitive_router import (
     CognitiveRouter,
     CollaborationNetwork,
 )
-from agentos.core.planning.engine import PlanningEngine, PlanResult
+from agentos.core.planning.engine import ACGPlanningError, PlanningEngine, PlanResult
 from agentos.core.planning.intent_parser import IntentLLM, IntentParser
 from agentos.core.planning.profile import TaskSemanticProfile
 from agentos.core.planning.template_matcher import TemplateMatch, TemplateMatcher
 
 __all__ = [
     "PlanningEngine",
+    "ACGPlanningError",
     "PlanResult",
     "IntentParser",
     "IntentLLM",

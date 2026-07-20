@@ -14,6 +14,8 @@ from typing import Dict, List, Set
 
 from agentos.core.acg.blueprint import ACGBlueprint
 from agentos.core.acg.enums import EdgeType, NodeType
+from agentos.core.acg.nodes import ControlNode, StepNode
+from agentos.core.data_contracts import check_contract_schema
 
 
 class ACGValidationError(ValueError):
@@ -97,14 +99,105 @@ def find_dangling_dependencies(blueprint: ACGBlueprint) -> List[str]:
     return dangling
 
 
+def _has_dependency_path(blueprint: ACGBlueprint, source_id: str, target_id: str) -> bool:
+    adjacency = _dependency_adjacency(blueprint)
+    seen: Set[str] = set()
+    frontier = [source_id]
+    while frontier:
+        current = frontier.pop()
+        if current == target_id:
+            return True
+        if current in seen:
+            continue
+        seen.add(current)
+        frontier.extend(adjacency.get(current, []))
+    return False
+
+
+def _validate_edge_endpoints(blueprint: ACGBlueprint) -> None:
+    allowed = {
+        EdgeType.DEPENDENCY: ({NodeType.STEP, NodeType.CONTROL}, {NodeType.STEP, NodeType.CONTROL}),
+        EdgeType.COMMUNICATION: ({NodeType.STEP}, {NodeType.STEP}),
+        EdgeType.CONTROL_FLOW: ({NodeType.CONTROL}, {NodeType.STEP, NodeType.CONTROL}),
+        EdgeType.EXECUTION: ({NodeType.AGENT}, {NodeType.STEP}),
+        EdgeType.WRITE: ({NodeType.STEP}, {NodeType.MEMORY}),
+        EdgeType.READ: ({NodeType.MEMORY}, {NodeType.STEP}),
+        EdgeType.SUPPORT: ({NodeType.EVIDENCE}, {NodeType.STEP}),
+    }
+    node_types = {node.node_id: node.node_type for node in blueprint.nodes}
+    for edge in blueprint.edges:
+        if edge.source_id not in node_types or edge.target_id not in node_types:
+            raise ACGValidationError(
+                f"ACG edge {edge.edge_id} references missing endpoint: "
+                f"{edge.source_id} -> {edge.target_id}"
+            )
+        source_types, target_types = allowed[edge.edge_type]
+        if node_types[edge.source_id] not in source_types or node_types[edge.target_id] not in target_types:
+            raise ACGValidationError(
+                f"ACG edge {edge.edge_id} has invalid endpoint types for {edge.edge_type.value}: "
+                f"{node_types[edge.source_id].value} -> {node_types[edge.target_id].value}"
+            )
+        if edge.edge_type == EdgeType.DEPENDENCY and edge.source_id == edge.target_id:
+            raise ACGValidationError(f"ACG dependency edge {edge.edge_id} cannot target itself")
+
+
 def validate_blueprint(blueprint: ACGBlueprint) -> None:
     """规划器交付前的图级验证。非法则抛 ACGValidationError。"""
-    dangling = find_dangling_dependencies(blueprint)
-    if dangling:
-        raise ACGValidationError(f"ACG has dangling dependency edges: {dangling}")
+    step_nodes = blueprint.step_nodes()
+    if not step_nodes:
+        raise ACGValidationError("ACG must contain at least one Step node")
+
+    node_ids = [node.node_id for node in blueprint.nodes]
+    duplicate_nodes = sorted({node_id for node_id in node_ids if node_ids.count(node_id) > 1})
+    if duplicate_nodes:
+        raise ACGValidationError(f"ACG has duplicate node ids: {duplicate_nodes}")
+    edge_ids = [edge.edge_id for edge in blueprint.edges]
+    duplicate_edges = sorted({edge_id for edge_id in edge_ids if edge_ids.count(edge_id) > 1})
+    if duplicate_edges:
+        raise ACGValidationError(f"ACG has duplicate edge ids: {duplicate_edges}")
+
+    _validate_edge_endpoints(blueprint)
     cycle = detect_cycle(blueprint)
     if cycle:
         raise ACGValidationError(f"ACG contains a cycle: {' -> '.join(cycle)}")
+
+    for node in blueprint.nodes:
+        if isinstance(node, ControlNode) and node.control_type.value in {"if", "loop"}:
+            raise ACGValidationError(f"unsupported control node: {node.node_id} ({node.control_type.value})")
+        if not isinstance(node, StepNode):
+            continue
+        if not node.agent_name:
+            raise ACGValidationError(f"Step node {node.node_id} has no executable agentName")
+        try:
+            check_contract_schema(node.output_spec, label=f"{node.node_id}.outputSpec")
+        except ValueError as exc:
+            raise ACGValidationError(str(exc)) from exc
+        input_schema = node.input_spec.get("schema") if isinstance(node.input_spec, dict) else None
+        if isinstance(input_schema, dict):
+            try:
+                check_contract_schema(input_schema, label=f"{node.node_id}.inputSpec.schema")
+            except ValueError as exc:
+                raise ACGValidationError(str(exc)) from exc
+        from_map = node.input_spec.get("from") if isinstance(node.input_spec, dict) else None
+        if isinstance(from_map, dict):
+            for source_id in from_map:
+                source = str(source_id)
+                if not blueprint.has_node(source):
+                    raise ACGValidationError(f"Step {node.node_id} input.from references missing Step {source}")
+                source_node = blueprint.get_node(source)
+                if source_node.node_type != NodeType.STEP:
+                    raise ACGValidationError(f"Step {node.node_id} input.from source is not a Step: {source}")
+                if not _has_dependency_path(blueprint, source, node.node_id):
+                    raise ACGValidationError(
+                        f"Step {node.node_id} consumes {source} without an execution dependency path"
+                    )
+
+    for edge in blueprint.edges_of_type(EdgeType.COMMUNICATION):
+        if not _has_dependency_path(blueprint, edge.source_id, edge.target_id):
+            raise ACGValidationError(
+                f"Communication edge {edge.edge_id} has no execution dependency path: "
+                f"{edge.source_id} -> {edge.target_id}"
+            )
 
 
 def ready_steps(blueprint: ACGBlueprint, completed: Set[str]) -> List[str]:

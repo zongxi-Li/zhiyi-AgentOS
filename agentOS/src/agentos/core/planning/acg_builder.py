@@ -56,25 +56,43 @@ _ROLE_ORDER = {
     "report": 60,
 }
 
-_ROLE_INPUT_SPECS = {
-    "classify": {"fields": ["contract_type", "scope", "payment_terms", "acceptance_terms", "ip_terms", "dispute_resolution"]},
-    "risk": {"fields": ["clauses", "contract_summary", "payment_terms", "acceptance_terms", "ip_terms"]},
-    "evidence": {"fields": ["risks", "risk_level", "risk_score"]},
-    "suggest": {"fields": ["risks", "risk_summary", "evidences", "citations"]},
-    "review": {"fields": ["risks", "risk_summary", "revision_suggestions", "manual_review_focus"]},
+_ROLE_SOURCE_FIELDS = {
+    "classify": {"parse": ["contract_type", "scope", "payment_terms", "acceptance_terms", "ip_terms", "dispute_resolution"]},
+    "risk": {"parse": ["contract_summary", "payment_terms", "acceptance_terms", "ip_terms"], "classify": ["clauses"]},
+    "evidence": {"parse": ["contract_type"], "risk": ["risks", "risk_level", "risk_score"]},
+    "suggest": {"risk": ["risks", "risk_summary"], "evidence": ["evidences", "citations"]},
+    "review": {"risk": ["risks", "risk_summary"], "suggest": ["revision_suggestions", "manual_review_focus"]},
     "report": {
-        "fields": [
-            "contract_type",
-            "parties",
-            "scope",
-            "risks",
-            "risk_summary",
-            "evidences",
-            "revision_suggestions",
-            "manual_review_focus",
-        ]
+        "parse": ["contract_type", "parties", "scope"],
+        "risk": ["risks", "risk_summary"],
+        "evidence": ["evidences"],
+        "suggest": ["revision_suggestions", "manual_review_focus"],
+        "review": ["review_status", "review_focus"],
     },
 }
+
+_ROLE_REQUIRED_FIELDS = {
+    "classify": ["contract_type"],
+    "risk": ["clauses"],
+    "evidence": ["risks"],
+    "suggest": ["risks", "evidences"],
+    "review": ["risks", "manual_review_focus"],
+    "report": ["contract_type", "risks", "evidences", "revision_suggestions"],
+}
+
+_ROLE_OUTPUT_REQUIRED = {
+    "parse": ["contract_summary", "contract_type", "parties"],
+    "classify": ["clauses"],
+    "risk": ["risks", "risk_level", "risk_score"],
+    "evidence": ["evidences", "citations"],
+    "suggest": ["revision_suggestions", "manual_review_focus"],
+    "review": ["review_status", "review_focus"],
+    "report": ["report_markdown"],
+}
+
+
+def _object_schema(required: List[str]) -> dict:
+    return {"type": "object", "required": list(required)}
 
 
 class ACGBuilder:
@@ -103,6 +121,9 @@ class ACGBuilder:
         #    让动态图可以被现有 Pack Agent 直接执行。
         step_nodes = self._build_step_nodes(blueprint, network)
 
+        # 把抽象角色依赖解析成实际 Step id，形成可执行的字段级通信契约。
+        self._configure_step_contracts(step_nodes)
+
         # 2) 依赖图生成：解析 → 并行分析 → 汇聚 → 建议/审核/报告。
         self._wire_task_graph(blueprint, step_nodes)
 
@@ -110,12 +131,14 @@ class ACGBuilder:
         for step in step_nodes:
             cap = step.capability or ""
             role = str(step.metadata.get("role") or "")
-            if cap in _EVIDENCE_CAPABILITIES or role in {"risk", "evidence", "report"}:
-                ev = EvidenceNode(nodeId=_node_id("ev"), name=f"证据:{cap}", evidenceType="retrieved")
-                blueprint.nodes.append(ev)
-                blueprint.edges.append(
-                    ACGEdge(sourceId=ev.node_id, targetId=step.node_id, edgeType=EdgeType.SUPPORT)
+            if role == "evidence" or cap == "证据检索":
+                ev = EvidenceNode(
+                    nodeId=_node_id("ev"),
+                    name=f"证据:{cap}",
+                    evidenceType="retrieved",
+                    metadata={"producerStepId": step.node_id},
                 )
+                blueprint.nodes.append(ev)
                 step.evidence_ids.append(ev.node_id)
             if cap in _MEMORY_CAPABILITIES or role in {"risk", "suggest", "report"}:
                 mem = MemoryNode(nodeId=_node_id("mem"), name=f"记忆:{cap}", memoryType="episodic")
@@ -124,6 +147,37 @@ class ACGBuilder:
                     ACGEdge(sourceId=step.node_id, targetId=mem.node_id, edgeType=EdgeType.WRITE)
                 )
                 step.memory_ids.append(mem.node_id)
+
+        memory_by_source = {
+            edge.source_id: edge.target_id
+            for edge in blueprint.edges_of_type(EdgeType.WRITE)
+        }
+        evidence_by_source = {
+            str(node.metadata.get("producerStepId")): node.node_id
+            for node in blueprint.nodes
+            if isinstance(node, EvidenceNode) and node.metadata.get("producerStepId")
+        }
+        for target in step_nodes:
+            from_map = target.input_spec.get("from") if isinstance(target.input_spec, dict) else None
+            if not isinstance(from_map, dict):
+                continue
+            for source_id in from_map:
+                if source_id in memory_by_source:
+                    blueprint.edges.append(
+                        ACGEdge(
+                            sourceId=memory_by_source[source_id],
+                            targetId=target.node_id,
+                            edgeType=EdgeType.READ,
+                        )
+                    )
+                if source_id in evidence_by_source:
+                    blueprint.edges.append(
+                        ACGEdge(
+                            sourceId=evidence_by_source[source_id],
+                            targetId=target.node_id,
+                            edgeType=EdgeType.SUPPORT,
+                        )
+                    )
 
         blueprint.touch()
         # 5) 图级验证（环检测 + 悬空依赖）
@@ -150,7 +204,8 @@ class ACGBuilder:
                 goal=f"完成能力：{display}",
                 agentName=binding.agent_name,
                 capability=binding.capability,
-                inputSpec=dict(_ROLE_INPUT_SPECS.get(role, {})),
+                inputSpec={},
+                outputSpec=_object_schema(_ROLE_OUTPUT_REQUIRED.get(role, [])) if role in _ROLE_OUTPUT_REQUIRED else {},
                 reviewRequired=False,
                 metadata={
                     "ephemeralAgent": binding.ephemeral,
@@ -179,6 +234,25 @@ class ACGBuilder:
             )
 
         return step_nodes
+
+    def _configure_step_contracts(self, step_nodes: List[StepNode]) -> None:
+        by_role: dict[str, List[StepNode]] = {}
+        for step in step_nodes:
+            by_role.setdefault(str(step.metadata.get("role") or "other"), []).append(step)
+
+        for target_role, source_roles in _ROLE_SOURCE_FIELDS.items():
+            for target in by_role.get(target_role, []):
+                from_map: dict[str, List[str]] = {}
+                for source_role, fields in source_roles.items():
+                    for source in by_role.get(source_role, []):
+                        from_map[source.node_id] = list(fields)
+                if not from_map:
+                    continue
+                required = _ROLE_REQUIRED_FIELDS.get(target_role, [])
+                target.input_spec = {
+                    "from": from_map,
+                    "schema": _object_schema(required),
+                }
 
     def _wire_task_graph(self, blueprint: ACGBlueprint, step_nodes: List[StepNode]) -> None:
         if not step_nodes:
@@ -242,39 +316,21 @@ class ACGBuilder:
         by_role: dict[str, List[StepNode]],
         step_nodes: List[StepNode],
     ) -> None:
-        parse_nodes = by_role.get("parse") or step_nodes[:1]
-        classify_nodes = by_role.get("classify", [])
-        risk_nodes = by_role.get("risk", [])
-        evidence_nodes = by_role.get("evidence", [])
-        suggest_nodes = by_role.get("suggest", [])
-        review_nodes = by_role.get("review", [])
-        report_nodes = by_role.get("report", [])
-        known_roles = {"parse", "classify", "risk", "evidence", "suggest", "review", "report"}
-        other_nodes = [s for s in step_nodes if str(s.metadata.get("role")) not in known_roles]
-
-        for src in parse_nodes:
-            for target in _unique_steps(classify_nodes + risk_nodes + other_nodes):
-                _add_comm(blueprint, src, target)
-
-        for src in classify_nodes:
-            for target in risk_nodes:
-                _add_comm(blueprint, src, target)
-
-        for target in evidence_nodes:
-            for src in risk_nodes or classify_nodes or parse_nodes:
-                _add_comm(blueprint, src, target)
-
-        for target in suggest_nodes:
-            for src in _unique_steps(risk_nodes + evidence_nodes):
-                _add_comm(blueprint, src, target)
-
-        for target in review_nodes:
-            for src in _unique_steps(risk_nodes + evidence_nodes + suggest_nodes):
-                _add_comm(blueprint, src, target)
-
-        for target in report_nodes:
-            for src in _unique_steps(parse_nodes + classify_nodes + risk_nodes + evidence_nodes + suggest_nodes + review_nodes):
-                _add_comm(blueprint, src, target)
+        del by_role  # contracts already contain concrete source Step ids
+        by_id = {step.node_id: step for step in step_nodes}
+        for target in step_nodes:
+            from_map = target.input_spec.get("from") if isinstance(target.input_spec, dict) else None
+            if not isinstance(from_map, dict):
+                continue
+            for source_id, fields in from_map.items():
+                source = by_id.get(str(source_id))
+                if source is not None:
+                    _add_comm(
+                        blueprint,
+                        source,
+                        target,
+                        fields=[str(field) for field in fields] if isinstance(fields, list) else [],
+                    )
 
 
 def _slug(text: str) -> str:
@@ -340,13 +396,21 @@ def _add_dep(blueprint: ACGBlueprint, source_id: str, target_id: str) -> None:
     blueprint.edges.append(ACGEdge(sourceId=source_id, targetId=target_id, edgeType=EdgeType.DEPENDENCY))
 
 
-def _add_comm(blueprint: ACGBlueprint, source: StepNode, target: StepNode) -> None:
+def _add_comm(
+    blueprint: ACGBlueprint,
+    source: StepNode,
+    target: StepNode,
+    *,
+    fields: List[str] | None = None,
+) -> None:
     if source.node_id == target.node_id:
         return
     for edge in blueprint.edges_of_type(EdgeType.COMMUNICATION):
         if edge.source_id == source.node_id and edge.target_id == target.node_id:
             return
-    fields = target.input_spec.get("fields") if isinstance(target.input_spec.get("fields"), list) else []
+    if fields is None:
+        raw_fields = target.input_spec.get("fields")
+        fields = list(raw_fields) if isinstance(raw_fields, list) else []
     blueprint.edges.append(
         ACGEdge(
             sourceId=source.node_id,
@@ -356,6 +420,7 @@ def _add_comm(blueprint: ACGBlueprint, source: StepNode, target: StepNode) -> No
             metadata={"mode": "low_entropy", "contract": "input.fields"},
         )
     )
+    _add_dep(blueprint, source.node_id, target.node_id)
 
 
 __all__ = ["ACGBuilder"]

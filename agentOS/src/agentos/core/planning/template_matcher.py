@@ -60,19 +60,18 @@ class TemplateMatcher:
         if not candidates:
             return TemplateMatch(workflow=None, score=0.0, matched_by="none")  # type: ignore[arg-type]
 
-        # 精确 intent 命中直接给高分
+        # intent 是一级索引信号，但不能绕过语义与能力检查直接保送。
         exact = [wf for wf in candidates if wf.intent.lower() == intent]
         if exact:
-            wf = exact[0]
-            sim = self._similarity(profile, wf)
-            score = max(0.9, sim)  # intent 精确命中保底 0.9
+            scored = [(self._similarity(profile, wf, exact_intent=True), wf) for wf in exact]
+            score, wf = max(scored, key=lambda item: item[0])
             return TemplateMatch(workflow=wf, score=round(score, 4), matched_by="index+similarity")
 
         # 否则在同域候选里按相似度选最优
         best: Optional[WorkflowDefinition] = None
         best_score = 0.0
         for wf in candidates:
-            sim = self._similarity(profile, wf)
+            sim = self._similarity(profile, wf, exact_intent=False)
             if sim > best_score:
                 best, best_score = wf, sim
 
@@ -82,15 +81,17 @@ class TemplateMatcher:
     def is_hit(self, match: TemplateMatch) -> bool:
         return match.workflow is not None and match.score >= self.threshold
 
-    def _similarity(self, profile: TaskSemanticProfile, wf: WorkflowDefinition) -> float:
+    def _similarity(
+        self, profile: TaskSemanticProfile, wf: WorkflowDefinition, *, exact_intent: bool
+    ) -> float:
         query = f"{profile.primary_goal} {profile.raw_intent} {' '.join(profile.required_capabilities)}"
-        target = f"{wf.name} {wf.description} {wf.intent}"
-        sim = _dice_similarity(query, target)
-        # 能力词命中加成
+        target = f"{wf.name} {wf.description} {wf.intent} {' '.join(wf.tags)}"
+        text_score = _dice_similarity(query, target)
         cap_hits = sum(1 for cap in profile.required_capabilities if cap and cap in target)
-        if profile.required_capabilities:
-            sim += 0.1 * cap_hits / len(profile.required_capabilities)
-        return min(1.0, sim)
+        capability_score = cap_hits / len(profile.required_capabilities) if profile.required_capabilities else 0.0
+        if exact_intent:
+            return min(1.0, 0.84 + 0.10 * text_score + 0.06 * capability_score)
+        return min(1.0, 0.7 * text_score + 0.3 * capability_score)
 
 
 __all__ = ["TemplateMatcher", "TemplateMatch"]

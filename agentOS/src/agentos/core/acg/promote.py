@@ -36,7 +36,7 @@ def _complexity_from_step_count(count: int) -> ComplexityLevel:
 # - 产生结论性内容、值得沉淀的步骤 → 注入 Memory 节点
 # - 需要外部依据支撑、可审计的步骤 → 注入 Evidence 节点
 _MEMORY_KEYWORDS = ("risk", "风险", "suggest", "revision", "建议", "report", "报告", "analysis", "分析", "summary", "结论")
-_EVIDENCE_KEYWORDS = ("risk", "风险", "evidence", "证据", "依据", "report", "报告", "statute", "法条", "citation")
+_EVIDENCE_KEYWORDS = ("evidence", "证据", "依据", "statute", "法条", "citation")
 
 
 def _matches(text: str, keywords: tuple[str, ...]) -> bool:
@@ -69,6 +69,7 @@ def promote_workflow_to_acg(
         complexityLevel=_complexity_from_step_count(len(steps)),
         metadata={
             "sourceWorkflowId": workflow.workflow_id,
+            "sourceWorkflowVersion": workflow.version,
             "promotedFromLinear": True,
             "enriched": enrich,
             "runtimeEngine": workflow.effective_runtime_engine,
@@ -84,8 +85,11 @@ def promote_workflow_to_acg(
             agentName=definition.agent_name,
             capability=definition.capability,
             inputSpec=dict(definition.input),
+            outputSpec=dict(definition.output_spec),
             reviewRequired=definition.review_required,
             retryLimit=definition.max_retries,
+            timeout=definition.timeout,
+            priority=definition.priority,
         )
         blueprint.nodes.append(node)
 
@@ -106,6 +110,40 @@ def promote_workflow_to_acg(
                 )
             )
 
+    # input.from 是结构化通信契约。为每个声明的数据来源创建通信边，并补齐
+    # 执行依赖，保证消费者不会在生产者完成前被调度。
+    for definition in steps:
+        from_map = definition.input.get("from") if isinstance(definition.input, dict) else None
+        if not isinstance(from_map, dict):
+            continue
+        for source_id, fields in from_map.items():
+            if source_id not in step_ids or source_id == definition.step_id:
+                continue
+            data_fields = [str(field) for field in fields] if isinstance(fields, list) else []
+            blueprint.edges.append(
+                ACGEdge(
+                    sourceId=source_id,
+                    targetId=definition.step_id,
+                    edgeType=EdgeType.COMMUNICATION,
+                    dataFields=data_fields,
+                    metadata={"contract": "input.from"},
+                )
+            )
+            if not any(
+                edge.edge_type == EdgeType.DEPENDENCY
+                and edge.source_id == source_id
+                and edge.target_id == definition.step_id
+                for edge in blueprint.edges
+            ):
+                blueprint.edges.append(
+                    ACGEdge(
+                        sourceId=source_id,
+                        targetId=definition.step_id,
+                        edgeType=EdgeType.DEPENDENCY,
+                        metadata={"derivedFrom": "input.from"},
+                    )
+                )
+
     if enrich:
         _inject_cognitive_nodes(blueprint, steps)
 
@@ -116,6 +154,8 @@ def promote_workflow_to_acg(
 def _inject_cognitive_nodes(blueprint: ACGBlueprint, steps) -> None:
     """为每个 Step 注入 Agent / Memory / Evidence 认知节点与关联边。"""
     agent_nodes: dict[str, str] = {}  # agentName -> agent_node_id（去重复用）
+    memory_nodes: dict[str, str] = {}
+    evidence_nodes: dict[str, str] = {}
 
     for definition in steps:
         step_id = definition.step_id
@@ -143,11 +183,14 @@ def _inject_cognitive_nodes(blueprint: ACGBlueprint, steps) -> None:
         if _matches(sig, _EVIDENCE_KEYWORDS):
             ev_id = _node_id("ev")
             blueprint.nodes.append(
-                EvidenceNode(nodeId=ev_id, name=f"证据·{definition.name}", evidenceType="retrieved")
+                EvidenceNode(
+                    nodeId=ev_id,
+                    name=f"证据·{definition.name}",
+                    evidenceType="retrieved",
+                    metadata={"producerStepId": step_id},
+                )
             )
-            blueprint.edges.append(
-                ACGEdge(sourceId=ev_id, targetId=step_id, edgeType=EdgeType.SUPPORT)
-            )
+            evidence_nodes[step_id] = ev_id
 
         # 3) Memory 节点（产出结论、值得沉淀的步骤）
         if _matches(sig, _MEMORY_KEYWORDS):
@@ -158,6 +201,30 @@ def _inject_cognitive_nodes(blueprint: ACGBlueprint, steps) -> None:
             blueprint.edges.append(
                 ACGEdge(sourceId=step_id, targetId=mem_id, edgeType=EdgeType.WRITE)
             )
+            memory_nodes[step_id] = mem_id
+
+    # READ/SUPPORT 只连接真实声明消费该生产步骤的下游节点。
+    for definition in steps:
+        from_map = definition.input.get("from") if isinstance(definition.input, dict) else None
+        if not isinstance(from_map, dict):
+            continue
+        for source_id in from_map:
+            if source_id in memory_nodes:
+                blueprint.edges.append(
+                    ACGEdge(
+                        sourceId=memory_nodes[source_id],
+                        targetId=definition.step_id,
+                        edgeType=EdgeType.READ,
+                    )
+                )
+            if source_id in evidence_nodes:
+                blueprint.edges.append(
+                    ACGEdge(
+                        sourceId=evidence_nodes[source_id],
+                        targetId=definition.step_id,
+                        edgeType=EdgeType.SUPPORT,
+                    )
+                )
 
 
 __all__ = ["promote_workflow_to_acg"]

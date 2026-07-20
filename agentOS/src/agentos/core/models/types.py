@@ -56,6 +56,7 @@ class TraceEventType(str, Enum):
     TOOL_CALLED = "tool_called"
     DATA_PRODUCED = "data_produced"
     DATA_CONSUMED = "data_consumed"
+    CONTRACT_VIOLATION = "contract_violation"
     CHECKPOINT_CREATED = "checkpoint_created"
     REVIEW_REQUIRED = "review_required"
     REVIEW_DECIDED = "review_decided"
@@ -94,9 +95,12 @@ class WorkflowStepDefinition(CoreModel):
     agent_name: str = Field(alias="agentName")
     capability: Optional[str] = None
     input: Dict[str, Any] = Field(default_factory=dict)
+    output_spec: Dict[str, Any] = Field(default_factory=dict, alias="outputSpec")
     review_required: bool = Field(default=False, alias="reviewRequired")
     next_step_id: Optional[str] = Field(default=None, alias="nextStepId")
     max_retries: int = Field(default=0, alias="maxRetries")
+    timeout: int = 0
+    priority: int = 0
 
 
 class WorkflowDefinition(CoreModel):
@@ -107,6 +111,7 @@ class WorkflowDefinition(CoreModel):
     intent: str = "general"
     version: str = "1.0.0"
     description: str = ""
+    tags: List[str] = Field(default_factory=list)
     runtime_engine: str = Field(alias="runtimeEngine")
     executor_type: Optional[str] = Field(default=None, alias="executorType")
     implementation_id: Optional[str] = Field(default=None, alias="implementationId")
@@ -148,10 +153,15 @@ class WorkflowStep(CoreModel):
     capability: Optional[str] = None
     status: StepStatus = StepStatus.PENDING
     input: Dict[str, Any] = Field(default_factory=dict)
+    output_spec: Dict[str, Any] = Field(default_factory=dict, alias="outputSpec")
+    resolved_input: Dict[str, Any] = Field(default_factory=dict, alias="resolvedInput")
     output: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
     retry_count: int = Field(default=0, alias="retryCount")
+    attempt: int = 0
     max_retries: int = Field(default=0, alias="maxRetries")
+    timeout: int = 0
+    priority: int = 0
     requires_review: bool = Field(default=False, alias="reviewRequired")
     started_at: Optional[datetime] = Field(default=None, alias="startedAt")
     completed_at: Optional[datetime] = Field(default=None, alias="completedAt")
@@ -164,8 +174,11 @@ class WorkflowStep(CoreModel):
             agentName=definition.agent_name,
             capability=definition.capability,
             input=dict(definition.input),
+            outputSpec=dict(definition.output_spec),
             reviewRequired=definition.review_required,
             maxRetries=definition.max_retries,
+            timeout=definition.timeout,
+            priority=definition.priority,
         )
 
 
@@ -213,8 +226,10 @@ class WorkflowRun(CoreModel):
     # 已完成的 StepNode，用于并行调度时计算下一批就绪集，不影响线性路径。
     acg_blueprint: Optional[Dict[str, Any]] = Field(default=None, alias="acgBlueprint")
     completed_step_ids: List[str] = Field(default_factory=list, alias="completedStepIds")
+    active_step_ids: List[str] = Field(default_factory=list, alias="activeStepIds")
     # 数据血缘图（低熵通信审计产物，ACG 路径填充）：生产/消费事件，供前端血缘面板。
     provenance: Optional[Dict[str, Any]] = Field(default=None)
+    execution_state: Dict[str, Any] = Field(default_factory=dict, alias="executionState")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
     updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 

@@ -25,6 +25,10 @@ from agentos.core.planning.template_matcher import TemplateMatcher
 from agentos.core.workflow.registry import WorkflowRegistry
 
 
+class ACGPlanningError(ValueError):
+    """The planner cannot produce an executable ACG with current capabilities/budgets."""
+
+
 @dataclass
 class PlanResult:
     blueprint: ACGBlueprint
@@ -92,7 +96,17 @@ class PlanningEngine:
 
         # 动态补位
         network = self.cognitive_router.route(profile, domain=domain)
+        if network.unresolved_capabilities:
+            raise ACGPlanningError(
+                "No registered Agent can execute capabilities: "
+                + ", ".join(network.unresolved_capabilities)
+            )
+        if network.over_budget:
+            raise ACGPlanningError(
+                f"Estimated entropy {network.estimated_entropy} exceeds budget {network.entropy_budget}"
+            )
         blueprint = self.acg_builder.build(task_id=task_id, profile=profile, network=network)
+        self._validate_agents(blueprint, domain=domain)
         notes = [
             "force dynamic planning; generated ACG dynamically"
             if force_dynamic
@@ -107,5 +121,19 @@ class PlanningEngine:
             notes=notes,
         )
 
+    def _validate_agents(self, blueprint: ACGBlueprint, *, domain: str) -> None:
+        missing: list[str] = []
+        for step in blueprint.step_nodes():
+            try:
+                self.cognitive_router.agent_registry.resolve(
+                    domain=domain,
+                    agent_name=step.agent_name,
+                    capability=step.capability,
+                )
+            except KeyError:
+                missing.append(step.agent_name or step.node_id)
+        if missing:
+            raise ACGPlanningError("ACG references unregistered Agents: " + ", ".join(sorted(set(missing))))
 
-__all__ = ["PlanningEngine", "PlanResult"]
+
+__all__ = ["PlanningEngine", "PlanResult", "ACGPlanningError"]

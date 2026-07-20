@@ -65,6 +65,7 @@ class CollaborationNetwork:
     estimated_entropy: int = 0
     entropy_budget: int = 0
     notes: List[str] = field(default_factory=list)
+    unresolved_capabilities: List[str] = field(default_factory=list)
 
     @property
     def agent_names(self) -> List[str]:
@@ -95,7 +96,11 @@ class CognitiveRouter:
                 network.notes.append(f"skipped non-executable planning capability: {capability}")
                 continue
             binding = self._match_capability(capability, agents)
-            network.bindings.append(binding)
+            if binding is None:
+                network.unresolved_capabilities.append(capability)
+                network.notes.append(f"unresolved capability: {capability}")
+            else:
+                network.bindings.append(binding)
 
         # 熵预算规划：每条通信边预估熵耗（线性协作链 = bindings-1 条边）
         edge_count = max(0, len(network.agent_names) - 1)
@@ -107,7 +112,7 @@ class CognitiveRouter:
             )
         return network
 
-    def _match_capability(self, capability: str, agents: List[BaseAgent]) -> CapabilityBinding:
+    def _match_capability(self, capability: str, agents: List[BaseAgent]) -> Optional[CapabilityBinding]:
         # 候选生成与硬过滤：能力标签语义包含匹配
         scored: List[tuple[float, BaseAgent]] = []
         cap_aliases = _capability_aliases(capability)
@@ -118,13 +123,7 @@ class CognitiveRouter:
                 scored.append((score, agent))
 
         if not scored:
-            # 动态角色生成（最小桩）：合成临时角色描述符
-            return CapabilityBinding(
-                capability=capability,
-                agent_name=f"ephemeral::{capability}",
-                score=0.5,
-                ephemeral=True,
-            )
+            return None
 
         scored.sort(key=lambda x: x[0], reverse=True)
         best_score, best_agent = scored[0]
