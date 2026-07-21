@@ -206,7 +206,7 @@ class ACGBuilder:
                 capability=binding.capability,
                 inputSpec={},
                 outputSpec=_object_schema(_ROLE_OUTPUT_REQUIRED.get(role, [])) if role in _ROLE_OUTPUT_REQUIRED else {},
-                reviewRequired=False,
+                reviewRequired=role == "review",
                 metadata={
                     "ephemeralAgent": binding.ephemeral,
                     "role": role,

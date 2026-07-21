@@ -253,6 +253,8 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         assert len(nodes) == 22
         assert all(node["nodeType"] != "skill" for node in nodes)
         assert all(node.get("metadata", {}).get("allowedSkills") for node in nodes if node["nodeType"] == "step")
+        review_node = next(node for node in nodes if node["nodeId"] == "human_review")
+        assert review_node["reviewRequired"] is True
         connected_ids = {
             node_id
             for edge in edges
@@ -269,5 +271,48 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         classify_round = next(index for index, batch in enumerate(schedule) if "clause_classify" in batch)
         risk_round = next(index for index, batch in enumerate(schedule) if "risk_detect" in batch)
         assert classify_round < risk_round
+
+    asyncio.run(run_test())
+
+
+def test_force_dynamic_review_preserves_deep_thinking_until_report():
+    async def run_test():
+        runtime = _runtime()
+        task = runtime.create_task(
+            title="复杂合同深度审查",
+            domain="legal",
+            intent="contract_review_acg",
+            input={
+                "contractText": "甲方委托乙方开发跨境数据处理系统，并约定分阶段付款与验收。",
+                "userIntent": "解析合同、分类条款、识别风险、匹配依据、提出建议、人工审核并生成报告。",
+                "usePlanner": True,
+                "forceDynamicPlanning": True,
+                "thinkingMode": "deep",
+            },
+        )
+
+        waiting = await runtime.start(
+            task.task_id,
+            workflow_id="legal_contract_review_v1",
+            review_mode="human_in_loop",
+        )
+        assert waiting.status == WorkflowStatus.WAITING_REVIEW
+        assert waiting.current_step_id == "human_review"
+        assert waiting.output["artifacts"]["contract_parse"]["_llm"]["thinking_mode"] == "deep"
+        planner = next(
+            event for event in waiting.trace
+            if event.event_type.value == "task_status_changed" and "Planner" in event.observation
+        )
+        assert planner.payload["thinkingMode"] == "deep"
+
+        completed = await runtime.apply_review(ReviewDecision(
+            runId=waiting.run_id,
+            stepId="human_review",
+            decision=ReviewDecisionType.APPROVED,
+            reviewer="reviewer",
+            comment="通过",
+        ))
+        assert completed.status == WorkflowStatus.COMPLETED
+        assert completed.output["artifacts"]["report_generate"]["_llm"]["thinking_mode"] == "deep"
 
     asyncio.run(run_test())
