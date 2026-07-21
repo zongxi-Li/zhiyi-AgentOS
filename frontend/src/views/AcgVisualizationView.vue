@@ -39,6 +39,48 @@
           :autosize="{ minRows: 5, maxRows: 12 }"
           placeholder="输入合同文本，引擎将解析→分类→风险→证据→建议→报告"
         />
+        <div
+          class="contract-upload"
+          :class="{ dragging: uploadDragging, populated: selectedContractFile, loading: loading.upload }"
+          @dragenter.prevent="uploadDragging = true"
+          @dragover.prevent="uploadDragging = true"
+          @dragleave.prevent="uploadDragging = false"
+          @drop.prevent="handleContractDrop"
+        >
+          <input
+            ref="contractFileInput"
+            class="contract-file-input"
+            type="file"
+            accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+            @change="handleContractFileSelection"
+          />
+          <span class="contract-upload__icon" aria-hidden="true">
+            <el-icon><Document v-if="selectedContractFile" /><UploadFilled v-else /></el-icon>
+          </span>
+          <span class="contract-upload__copy">
+            <strong>{{ selectedContractFile?.name || (loading.upload ? '正在解析合同文件' : '上传合同文件') }}</strong>
+            <small v-if="selectedContractFile">
+              {{ formatFileSize(selectedContractFile.size) }} · 已提取 {{ selectedContractFile.textLength.toLocaleString('zh-CN') }} 字
+            </small>
+            <small v-else>拖放到此处，或选择 PDF、DOCX、TXT、MD，最大 10MB</small>
+          </span>
+          <span class="contract-upload__actions">
+            <el-button size="small" :loading="loading.upload" @click="openContractFilePicker">
+              <el-icon><UploadFilled /></el-icon>
+              {{ selectedContractFile ? '替换文件' : '选择文件' }}
+            </el-button>
+            <el-button
+              v-if="selectedContractFile"
+              circle
+              size="small"
+              title="移除合同文件"
+              aria-label="移除合同文件"
+              @click="clearContractFile"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </span>
+        </div>
       </div>
       <div class="ctrl-row">
         <label class="ctrl-label">任务目标</label>
@@ -115,7 +157,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { CopyDocument, Cpu, Monitor } from '@element-plus/icons-vue'
+import { CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -129,6 +171,7 @@ import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
 import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
+import { fileApi } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 
 const WORKFLOW_ID = 'legal_contract_review_v1'
@@ -167,10 +210,85 @@ watch(planningMode, () => {
 })
 
 const acgView = ref<AcgView | null>(null)
-const loading = reactive({ start: false, restore: false })
+const loading = reactive({ start: false, restore: false, upload: false })
 const route = useRoute()
 const router = useRouter()
 const loadedRunId = ref('')
+const contractFileInput = ref<HTMLInputElement | null>(null)
+const uploadDragging = ref(false)
+const selectedContractFile = ref<{
+  name: string
+  size: number
+  textLength: number
+  extractedText: string
+} | null>(null)
+
+const CONTRACT_FILE_MAX_SIZE = 10 * 1024 * 1024
+const CONTRACT_FILE_EXTENSIONS = ['pdf', 'docx', 'txt', 'md']
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+const openContractFilePicker = () => {
+  if (!loading.upload) contractFileInput.value?.click()
+}
+
+const validateContractFile = (file: File) => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || ''
+  if (!CONTRACT_FILE_EXTENSIONS.includes(extension)) {
+    throw new Error('仅支持 PDF、DOCX、TXT、MD 格式')
+  }
+  if (file.size <= 0) throw new Error('文件内容为空')
+  if (file.size > CONTRACT_FILE_MAX_SIZE) throw new Error('文件不能超过 10MB')
+}
+
+const processContractFile = async (file: File) => {
+  if (loading.upload) return
+
+  try {
+    validateContractFile(file)
+    loading.upload = true
+    const result = await fileApi.extractDocumentText(file)
+    const extractedText = (result.text || '').trim()
+    if (!extractedText) throw new Error('未能从文件中提取到文本，请确认文档包含可复制文字')
+
+    contractText.value = extractedText
+    selectedContractFile.value = {
+      name: file.name,
+      size: file.size,
+      textLength: extractedText.length,
+      extractedText
+    }
+    ElMessage.success(`已载入合同文件：${file.name}`)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '合同文件上传失败')
+  } finally {
+    loading.upload = false
+    uploadDragging.value = false
+    if (contractFileInput.value) contractFileInput.value.value = ''
+  }
+}
+
+const handleContractFileSelection = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (file) void processContractFile(file)
+}
+
+const handleContractDrop = (event: DragEvent) => {
+  uploadDragging.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (file) void processContractFile(file)
+}
+
+const clearContractFile = () => {
+  const selected = selectedContractFile.value
+  if (selected && contractText.value === selected.extractedText) contractText.value = ''
+  selectedContractFile.value = null
+  if (contractFileInput.value) contractFileInput.value.value = ''
+}
 
 const STABLE: WorkflowStatus[] = ['completed', 'failed', 'cancelled', 'waiting_review']
 
@@ -410,6 +528,52 @@ const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
 .contract-textarea :deep(.el-textarea__inner) { min-height: 132px !important; }
 .intent-textarea :deep(.el-textarea__inner) { min-height: 132px !important; }
 
+.contract-file-input { display: none; }
+.contract-upload {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border-light);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-input) 72%, transparent);
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+.contract-upload.dragging {
+  border-color: var(--primary-color);
+  background: var(--primary-fade);
+}
+.contract-upload.populated { border-style: solid; }
+.contract-upload.loading { opacity: 0.72; }
+.contract-upload__icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--surface-solid);
+  color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--border-light);
+}
+.contract-upload__copy {
+  min-width: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.contract-upload__copy strong,
+.contract-upload__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contract-upload__copy strong { color: var(--text-primary); font-size: 12px; font-weight: 700; }
+.contract-upload__copy small { color: var(--text-secondary); font-size: 11px; }
+.contract-upload__actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+
 .acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-lg); align-items: stretch; min-width: 0; }
 .grid-main { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
 .grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; min-height: 0; }
@@ -441,5 +605,8 @@ const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
   .run-context { width: 100%; flex-wrap: wrap; }
   .run-id { max-width: 100%; }
   .run-id code { overflow: hidden; text-overflow: ellipsis; }
+  .contract-upload { align-items: flex-start; flex-wrap: wrap; }
+  .contract-upload__copy { width: calc(100% - 42px); }
+  .contract-upload__actions { width: 100%; padding-left: 42px; }
 }
 </style>

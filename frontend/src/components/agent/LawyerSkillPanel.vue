@@ -39,19 +39,20 @@
         <div class="sub-section">
           <div class="sub-title">联邦增强状态</div>
           <div class="federated-row">
-            <span class="status-pill" :class="federatedStatusClass">{{ federatedStatusText }}</span>
-            <span class="meta" v-if="federated?.applied">
-              调整：{{ formatAdjustment(federated?.risk_adjustment) }} | 置信度：{{ formatPercent(federated?.confidence) }} |
-              节点：{{ federated?.federated_nodes_count ?? 0 }}
-            </span>
             <div class="federated-actions">
-              <button class="federated-btn ghost" type="button" @click="emit('open-federated-console')">联邦控制台</button>
+              <button class="federated-btn ghost" type="button" @click="emit('open-federated-console')">
+                <el-icon><Monitor /></el-icon>
+                联邦控制台
+              </button>
               <button
                 class="federated-btn"
+                :class="{ active: Boolean(federated?.enabled) }"
                 type="button"
-                :disabled="federated?.enabled === false"
+                :aria-pressed="Boolean(federated?.enabled)"
+                :disabled="!federated?.enabled"
                 @click="emit('optimize-federated')"
               >
+                <el-icon><MagicStick /></el-icon>
                 联邦优化
               </button>
             </div>
@@ -117,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, computed, type Component } from 'vue'
-import { Clock, Connection, Document, EditPen, Notebook, Operation, Reading, ScaleToOriginal, Search } from '@element-plus/icons-vue'
+import { Clock, Connection, Document, EditPen, MagicStick, Monitor, Notebook, Operation, Reading, ScaleToOriginal, Search } from '@element-plus/icons-vue'
 import TraceTimeline, { type TraceStep } from './TraceTimeline.vue'
 import { toRiskLevelZh, toSkillNameZh } from '@/utils/agentDisplay'
 
@@ -190,21 +191,6 @@ const riskLevelClass = computed(() => {
   return ''
 })
 
-const federatedStatusText = computed(() => {
-  if (!props.federated?.enabled) return '已关闭'
-  return props.federated?.applied ? '已启用（本轮生效）' : '已开启（本轮未生效）'
-})
-
-const federatedStatusClass = computed(() => {
-  if (!props.federated?.enabled) return 'off'
-  return props.federated?.applied ? 'on' : 'idle'
-})
-
-const formatPercent = (v?: number) => `${Math.max(0, Math.round((v || 0) * 100))}%`
-const formatAdjustment = (v?: number) => {
-  const value = v || 0
-  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`
-}
 </script>
 
 <style scoped>
@@ -427,6 +413,12 @@ const formatAdjustment = (v?: number) => {
   margin-bottom: 16px;
 }
 
+.sub-section:last-child { margin-bottom: 0; }
+.sub-section + .sub-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
 .sub-title {
   font-size: 11px;
   font-weight: 700;
@@ -436,28 +428,39 @@ const formatAdjustment = (v?: number) => {
 }
 
 .federated-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-input) 72%, transparent);
 }
 
 .federated-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
 .federated-btn {
-  border: 1px solid #bfdbfe;
-  background: var(--primary-fade);
-  color: #1d4ed8;
-  border-radius: 999px;
-  padding: 4px 10px;
+  min-width: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--border-light);
+  background: var(--surface-solid);
+  color: var(--text-secondary);
+  border-radius: 7px;
+  padding: 0 8px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
 }
+
+.federated-btn .el-icon { flex: 0 0 auto; font-size: 13px; }
 
 .federated-btn:hover:not(:disabled) {
   border-color: #2563eb;
@@ -465,44 +468,21 @@ const formatAdjustment = (v?: number) => {
 }
 
 .federated-btn.ghost {
-  border-color: #dbeafe;
-  background: var(--surface-solid);
-  color: #2563eb;
+  color: var(--text-primary);
+}
+
+.federated-btn.active {
+  border-color: #93c5fd;
+  background: var(--primary-fade);
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #2563eb 12%, transparent);
 }
 
 .federated-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.status-pill {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-pill.on {
-  background: var(--success-fade);
-  color: #166534;
-}
-
-.status-pill.off {
   background: var(--bg-input);
-  color: var(--text-regular);
-}
-
-.status-pill.idle {
-  background: var(--accent-fade);
-  color: #3730a3;
-}
-
-.meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.45;
-  word-break: break-word;
+  color: var(--text-disabled);
+  opacity: 1;
 }
 
 .skill-list {

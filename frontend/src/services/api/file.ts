@@ -36,6 +36,17 @@ export interface FileInfo {
   uploadTime: string
 }
 
+export interface DocumentExtractionResult {
+  success: boolean
+  text: string
+  filename?: string
+  file_type?: string
+  type?: string
+  metadata?: Record<string, unknown>
+  content?: string
+  note?: string
+}
+
 export const fileApi = {
   // 上传文件
   async uploadFile(file: File, type: string = 'general'): Promise<FileUploadResponse> {
@@ -49,6 +60,28 @@ export const fileApi = {
       }
     })
     return response.data
+  },
+
+  // 上传文档到 AI 文档处理服务并提取正文
+  async extractDocumentText(file: File): Promise<DocumentExtractionResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await api.post<{
+      success: boolean
+      data?: DocumentExtractionResult
+      detail?: string
+    }>('/ai/multimodal/document', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    const result = response.data?.data
+    if (!response.data?.success || !result?.success) {
+      throw new Error(result?.content || result?.note || response.data?.detail || '文档解析失败')
+    }
+    return result
   },
 
   // 下载文件

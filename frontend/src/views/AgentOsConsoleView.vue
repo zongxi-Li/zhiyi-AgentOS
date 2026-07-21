@@ -419,7 +419,7 @@ p {
 }
 
 .console-main :deep(.checkpoint-panel) {
-  flex: 0 0 auto;
+  flex: 1 1 0;
 }
 
 .console-side :deep(.trace-event-timeline) {
@@ -453,10 +453,8 @@ p {
   scrollbar-gutter: stable;
 }
 
-.console-main :deep(.steps),
-.console-main :deep(.checkpoint-list) {
+.console-main :deep(.steps) {
   flex: 0 0 auto;
-  max-height: none;
   overflow: visible;
 }
 
@@ -465,7 +463,11 @@ p {
 }
 
 .console-main :deep(.checkpoint-list) {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .console-side :deep(.review-history) {
@@ -480,7 +482,14 @@ p {
   max-height: none;
 }
 
-.console-main :deep(.checkpoint-panel > .empty),
+.console-main :deep(.checkpoint-panel > .empty) {
+  flex: 1 1 auto;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .console-side :deep(.trace-event-timeline > .empty) {
   flex: 0 0 auto;
   min-height: 120px;

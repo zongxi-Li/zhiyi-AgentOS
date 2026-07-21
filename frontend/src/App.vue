@@ -76,6 +76,10 @@
                 <el-icon><Search /></el-icon>
                 <span>{{ $t('nav.rag') }}</span>
               </el-menu-item>
+              <el-menu-item index="/history">
+                <el-icon><Clock /></el-icon>
+                <span>{{ $t('nav.history') }}</span>
+              </el-menu-item>
 
               <div v-if="!mainSidebarCompact" class="menu-group-title">{{ $t('nav.system') }}</div>
               <el-menu-item index="/agentos-console">
@@ -184,30 +188,56 @@
                 </button>
 
                 <div class="chat-submenu-section-head">
-                  <span>对话项目</span>
+                  <span>对话记录</span>
                   <span v-if="recentConversations.length" class="chat-project-count">{{ recentConversations.length }}</span>
                 </div>
 
                 <div v-if="conversationListLoading" class="chat-submenu-loading">正在加载…</div>
-                <div v-else-if="recentConversations.length" class="chat-project-list">
-                  <button
+                <div v-else-if="recentConversations.length" class="chat-project-list" role="list" aria-label="对话记录">
+                  <div
                     v-for="conversation in recentConversations"
                     :key="conversation.id"
-                    class="chat-project-item"
+                    class="chat-project-row"
                     :class="{ active: route.query.contextId === (conversation.contextId || conversation.id) }"
-                    type="button"
-                    :title="conversation.title || '未命名对话'"
-                    @click="openConversation(conversation)"
+                    role="listitem"
                   >
-                    <el-icon><ChatLineRound /></el-icon>
-                    <span>{{ conversation.title || '未命名对话' }}</span>
-                  </button>
+                    <button
+                      class="chat-project-item"
+                      type="button"
+                      :title="conversation.title || '未命名对话'"
+                      @click="openConversation(conversation)"
+                    >
+                      <span class="chat-project-icon" aria-hidden="true">
+                        <el-icon><ChatLineRound /></el-icon>
+                      </span>
+                      <span class="chat-project-copy">
+                        <span class="chat-project-title">{{ conversation.title || '未命名对话' }}</span>
+                        <span class="chat-project-time">{{ formatConversationTime(conversation.updatedAt || conversation.createdAt) }}</span>
+                      </span>
+                      <el-icon class="chat-project-arrow" aria-hidden="true"><ArrowRight /></el-icon>
+                    </button>
+                    <button
+                      class="chat-project-delete"
+                      type="button"
+                      :aria-label="`删除对话：${conversation.title || '未命名对话'}`"
+                      title="删除对话"
+                      @click="deleteSidebarConversation(conversation)"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </button>
+                  </div>
                 </div>
                 <div v-else class="chat-submenu-empty">暂无历史对话</div>
 
                 <button class="chat-submenu-action history-action" type="button" @click="router.push('/history')">
-                  <el-icon><Clock /></el-icon>
-                  <span>查看全部聊天历史</span>
+                  <span class="history-action__icon" aria-hidden="true">
+                    <el-icon><Clock /></el-icon>
+                  </span>
+                  <span class="history-action__copy">
+                    <strong>查找所有聊天记录</strong>
+                    <small>搜索、编辑与管理</small>
+                  </span>
+                  <el-icon class="history-action__arrow" aria-hidden="true"><ArrowRight /></el-icon>
                 </button>
               </div>
               <div
@@ -375,8 +405,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { 
-  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, Check, EditPen, User, Search,
+import {
+  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, Check, Delete, EditPen, User, Search,
   Clock, Setting, SwitchButton, Connection,
   Monitor, DocumentChecked, Cpu,
   Menu as MenuIcon, Fold, Expand, Close
@@ -468,7 +498,6 @@ const loadRecentConversations = async () => {
     const conversations = await conversationApi.getUserConversations(userId)
     recentConversations.value = [...conversations]
       .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-      .slice(0, 5)
   } catch {
     recentConversations.value = []
   } finally {
@@ -498,6 +527,56 @@ const startNewChat = async () => {
 const openConversation = async (conversation: Conversation) => {
   const contextId = conversation.contextId || conversation.id
   await router.push({ path: '/chat', query: { contextId, workspace: workspaceMode.value } })
+}
+
+const formatConversationTime = (value?: string) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const dayDifference = Math.round((startOfToday - startOfDate) / 86_400_000)
+
+  if (dayDifference === 0) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  if (dayDifference === 1) return '昨天'
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+  }
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'numeric', day: 'numeric' })
+}
+
+const deleteSidebarConversation = async (conversation: Conversation) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除对话“${conversation.title || '未命名对话'}”吗？此操作不可恢复。`,
+      '删除聊天记录',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await conversationApi.deleteConversation(conversation.id)
+    recentConversations.value = recentConversations.value.filter(item => item.id !== conversation.id)
+
+    const deletedContextId = conversation.contextId || conversation.id
+    if (route.query.contextId === deletedContextId) {
+      chatStore.clearMessages()
+      await router.replace({ path: '/chat', query: { workspace: workspaceMode.value } })
+    }
+
+    window.dispatchEvent(new Event('history-refresh'))
+    ElMessage.success('聊天记录已删除')
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error?.message || '删除聊天记录失败')
+    }
+  }
 }
 
 const handleHistoryRefresh = () => {
@@ -1227,8 +1306,10 @@ onUnmounted(() => {
   min-width: 160px;
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 10px 8px 16px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .chat-panel-enter-active {
@@ -1426,101 +1507,254 @@ onUnmounted(() => {
   justify-content: center;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--bg-panel);
-  color: var(--text-disabled);
+  background: var(--primary-fade);
+  color: var(--primary-color);
   font-size: 10px;
 }
 
-.chat-project-item .el-icon,
 .chat-submenu-action .el-icon {
   flex: 0 0 auto;
   font-size: 13px;
 }
 
 .chat-project-list {
-  position: relative;
+  min-height: 0;
+  flex: 1 1 auto;
   display: grid;
-  gap: 2px;
-  padding: 2px 0 4px 6px;
+  align-content: start;
+  gap: 6px;
+  padding: 2px 2px 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-.chat-project-list::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  bottom: 9px;
-  left: 1px;
-  width: 1px;
-  background: var(--border-light);
+.chat-project-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-project-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-project-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.chat-project-row {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: stretch;
+  gap: 2px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  color: var(--text-muted);
+  overflow: hidden;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
 .chat-project-item {
-  position: relative;
-  min-height: 34px;
-  padding: 6px 8px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 450;
-}
-
-.chat-project-item::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: -6px;
-  width: 5px;
-  height: 5px;
-  border: 1px solid var(--border-light);
-  border-radius: 50%;
-  background: var(--bg-card);
-  transform: translate(-50%, -50%);
-}
-
-.chat-project-item span,
-.chat-submenu-action span {
   min-width: 0;
+  min-height: 48px;
+  gap: 9px;
+  padding: 7px 5px 7px 8px;
+  border-radius: 7px 0 0 7px;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 450;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.chat-project-row:hover {
+  border-color: var(--primary-line);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.chat-project-item:hover {
+  background: transparent;
+  color: inherit;
+}
+
+.chat-project-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+}
+
+.chat-project-icon .el-icon {
+  font-size: 14px;
+}
+
+.chat-project-copy {
+  min-width: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-project-title,
+.chat-project-time {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.chat-project-item > span {
-  flex: 1 1 0;
-  width: 0;
-  max-width: 100%;
-  display: block;
+.chat-project-title {
+  color: inherit;
+  line-height: 1.25;
 }
 
-.chat-project-item.active {
+.chat-project-time {
+  color: var(--text-disabled);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.chat-project-arrow {
+  flex: 0 0 auto;
+  color: var(--text-disabled);
+  font-size: 12px;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.chat-project-item:hover .chat-project-arrow,
+.chat-project-row.active .chat-project-arrow {
+  color: var(--primary-color);
+  transform: translateX(1px);
+}
+
+.chat-project-row.active {
+  border-color: var(--primary-line);
   color: var(--primary-color);
   background: var(--primary-fade);
-  font-size: 13px;
   font-weight: 650;
 }
 
-.chat-project-item.active::before {
-  width: 7px;
-  height: 7px;
-  border-color: var(--primary-color);
-  background: var(--primary-color);
-  box-shadow: 0 0 0 3px var(--primary-fade);
+.chat-project-row.active .chat-project-icon {
+  background: color-mix(in srgb, var(--primary-color) 14%, var(--bg-card));
+  color: var(--primary-color);
+}
+
+.chat-project-delete {
+  width: 32px;
+  min-height: 48px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid transparent;
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.16s ease, color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.chat-project-delete .el-icon {
+  font-size: 14px;
+}
+
+.chat-project-row:hover .chat-project-delete,
+.chat-project-delete:focus-visible {
+  border-left-color: var(--border-light);
+  opacity: 1;
+}
+
+.chat-project-delete:hover,
+.chat-project-delete:focus-visible {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  color: var(--danger);
+  outline: none;
 }
 
 .chat-submenu-loading,
 .chat-submenu-empty {
+  flex: 1 1 auto;
   padding: 8px 9px;
   color: var(--text-disabled);
   font-size: 11px;
 }
 
 .history-action {
-  min-height: 36px;
-  margin-top: 7px;
-  padding: 8px 9px 4px;
-  border-top: 1px solid var(--border-light);
-  border-radius: 0;
+  min-height: 58px;
+  flex: 0 0 auto;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--primary-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary-fade) 72%, var(--bg-card));
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.history-action:hover {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-fade) 88%, var(--bg-card));
+  color: var(--primary-color);
+}
+
+.history-action__icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.history-action__copy {
+  min-width: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.history-action__copy strong,
+.history-action__copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-action__copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.history-action__copy small {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.history-action__arrow {
+  flex: 0 0 auto;
+  color: var(--primary-color);
+  font-size: 13px;
+  transition: transform 0.16s ease;
+}
+
+.history-action:hover .history-action__arrow {
+  transform: translateX(2px);
 }
 
 .app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item) {

@@ -1071,11 +1071,11 @@ const handleAgentPanelResizeKeydown = (event: KeyboardEvent) => {
 }
 
 const getWorkflowPanelHardMaxHeight = () => {
-  const panelTop = chatPanelRef.value?.getBoundingClientRect().top || 0
-  const panelHeight = Math.max(0, window.innerHeight - Math.max(0, panelTop))
+  const panelHeight = chatPanelRef.value?.clientHeight || window.innerHeight
   const topPanelHeight = contextPanelOpen.value ? contextPanelHeight.value : 30
-  const composerClearance = showHeroMode.value ? 0 : composerHeight.value + 24
-  const availableHeight = Math.max(0, panelHeight - topPanelHeight - composerClearance)
+  // The composer is absolutely positioned and follows the ACG panel edge,
+  // so reserving its height here prevents the panel from ever reaching the top.
+  const availableHeight = Math.max(0, panelHeight - topPanelHeight)
   return Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.floor(availableHeight))
 }
 
@@ -3186,9 +3186,11 @@ onUnmounted(() => {
 .context-panel-slide-leave-to { opacity: 0; transform: translateY(-18px); }
 
 .workflow-acg-panel {
-  position: relative;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 6;
-  flex: 0 0 auto;
   min-height: 180px;
   overflow: hidden;
   border-top: 1px solid var(--border-light);
