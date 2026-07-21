@@ -203,6 +203,20 @@ def test_llm_gateway_without_complete_configuration_is_unavailable():
     assert gateway.provider_name == "unavailable"
 
 
+def test_llm_config_reads_provider_key_from_secret_file(monkeypatch, tmp_path):
+    secret = tmp_path / "deepseek_api_key"
+    secret.write_text("test-secret", encoding="utf-8")
+    monkeypatch.delenv("AGENTOS_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY_FILE", str(secret))
+
+    config = LLMConfig.from_env()
+
+    assert config.provider == "openai-compatible"
+    assert config.api_key == "test-secret"
+    assert config.base_url == "https://api.deepseek.com/v1"
+
+
 def test_force_dynamic_contract_review_builds_executable_data_dependencies():
     async def run_test():
         runtime = _runtime()

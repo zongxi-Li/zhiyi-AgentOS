@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ class LLMConfig:
         # 一级配置：显式的 AGENTOS_LLM_* 始终优先。
         provider = (os.getenv("AGENTOS_LLM_PROVIDER") or "").strip().lower()
         base_url = (os.getenv("AGENTOS_LLM_BASE_URL") or "").strip()
-        api_key = (os.getenv("AGENTOS_LLM_API_KEY") or "").strip()
+        api_key = _read_secret_setting("AGENTOS_LLM_API_KEY")
         model = (os.getenv("AGENTOS_LLM_MODEL") or "").strip()
 
         # 二级配置：未显式设置 AGENTOS_LLM_* 时，自动从项目既有的
@@ -51,7 +52,7 @@ def _resolve_provider_fallback() -> tuple[str, str, str, str] | None:
     返回 (provider, base_url, api_key, model)；无可用 key 时返回 None。
     DeepSeek 优先（文本主引擎），其次通义千问。
     """
-    deepseek_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+    deepseek_key = _read_secret_setting("DEEPSEEK_API_KEY")
     deepseek_enabled = (os.getenv("DEEPSEEK_ENABLED") or "true").strip().lower() not in {"false", "0", "off", "no"}
     if deepseek_key and not deepseek_key.startswith("your-") and deepseek_enabled:
         return (
@@ -61,7 +62,7 @@ def _resolve_provider_fallback() -> tuple[str, str, str, str] | None:
             (os.getenv("DEEPSEEK_MODEL") or "deepseek-v4-flash").strip(),
         )
 
-    qwen_key = (os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY") or "").strip()
+    qwen_key = _read_secret_setting("DASHSCOPE_API_KEY") or _read_secret_setting("QWEN_API_KEY")
     if qwen_key and not qwen_key.startswith("your-"):
         return (
             "openai-compatible",
@@ -71,6 +72,20 @@ def _resolve_provider_fallback() -> tuple[str, str, str, str] | None:
         )
 
     return None
+
+
+def _read_secret_setting(name: str) -> str:
+    value = (os.getenv(name) or "").strip()
+    if value:
+        return value
+
+    file_path = (os.getenv(f"{name}_FILE") or "").strip()
+    if not file_path:
+        return ""
+    try:
+        return Path(file_path).read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return ""
 
 
 __all__ = ["LLMConfig"]
