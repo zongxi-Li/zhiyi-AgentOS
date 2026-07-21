@@ -339,7 +339,7 @@
               aria-label="调整 ACG 拓扑面板高度"
               aria-orientation="horizontal"
               :aria-valuemin="WORKFLOW_PANEL_MIN_HEIGHT"
-              :aria-valuemax="WORKFLOW_PANEL_MAX_HEIGHT"
+              :aria-valuemax="getWorkflowPanelHardMaxHeight()"
               :aria-valuenow="workflowPanelHeight"
               tabindex="0"
               title="拖动调整高度，双击恢复默认"
@@ -826,7 +826,6 @@ const WORKFLOW_PANEL_HEIGHT_KEY = 'chat.workflow_panel_height'
 const WORKFLOW_PANEL_OPEN_KEY = 'chat.workflow_panel_open_v2'
 const WORKFLOW_PANEL_DEFAULT_HEIGHT = 280
 const WORKFLOW_PANEL_MIN_HEIGHT = 180
-const WORKFLOW_PANEL_MAX_HEIGHT = 560
 const CONTEXT_PANEL_HEIGHT_KEY = 'chat.context_panel_height'
 const CONTEXT_PANEL_OPEN_KEY = 'chat.context_panel_open'
 const CONTEXT_PANEL_DEFAULT_HEIGHT = 250
@@ -842,7 +841,7 @@ const agentPanelWidth = ref(
 const agentPanelResizing = ref(false)
 const storedWorkflowPanelHeight = Number(localStorage.getItem(WORKFLOW_PANEL_HEIGHT_KEY))
 const workflowPanelHeight = ref(
-  Number.isFinite(storedWorkflowPanelHeight) && storedWorkflowPanelHeight >= WORKFLOW_PANEL_MIN_HEIGHT && storedWorkflowPanelHeight <= WORKFLOW_PANEL_MAX_HEIGHT
+  Number.isFinite(storedWorkflowPanelHeight) && storedWorkflowPanelHeight >= WORKFLOW_PANEL_MIN_HEIGHT
     ? storedWorkflowPanelHeight
     : WORKFLOW_PANEL_DEFAULT_HEIGHT
 )
@@ -888,7 +887,7 @@ let agentPanelResizeStartX = 0
 let agentPanelResizeStartWidth = AGENT_PANEL_DEFAULT_WIDTH
 let workflowPanelResizeStartY = 0
 let workflowPanelResizeStartHeight = WORKFLOW_PANEL_DEFAULT_HEIGHT
-let workflowPanelResizeMaxHeight = WORKFLOW_PANEL_MAX_HEIGHT
+let workflowPanelResizeMaxHeight = Number.MAX_SAFE_INTEGER
 let contextPanelResizeStartY = 0
 let contextPanelResizeStartHeight = CONTEXT_PANEL_DEFAULT_HEIGHT
 let acgRefreshTimer: number | undefined
@@ -1072,18 +1071,22 @@ const handleAgentPanelResizeKeydown = (event: KeyboardEvent) => {
 }
 
 const getWorkflowPanelHardMaxHeight = () => {
-  const panelHeight = chatPanelRef.value?.clientHeight || window.innerHeight
+  const panelTop = chatPanelRef.value?.getBoundingClientRect().top || 0
+  const panelHeight = Math.max(0, window.innerHeight - Math.max(0, panelTop))
   const topPanelHeight = contextPanelOpen.value ? contextPanelHeight.value : 30
-  const availableHeight = Math.max(0, panelHeight - topPanelHeight)
-  return Math.max(
-    WORKFLOW_PANEL_MIN_HEIGHT,
-    Math.min(WORKFLOW_PANEL_MAX_HEIGHT, Math.floor(availableHeight * 0.48))
-  )
+  const composerClearance = showHeroMode.value ? 0 : composerHeight.value + 24
+  const availableHeight = Math.max(0, panelHeight - topPanelHeight - composerClearance)
+  return Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.floor(availableHeight))
 }
 
 const clampWorkflowPanelHeight = (height: number, maxHeight = getWorkflowPanelHardMaxHeight()) => {
-  const safeMaxHeight = Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.min(WORKFLOW_PANEL_MAX_HEIGHT, maxHeight))
+  const safeMaxHeight = Math.max(WORKFLOW_PANEL_MIN_HEIGHT, maxHeight)
   return Math.min(safeMaxHeight, Math.max(WORKFLOW_PANEL_MIN_HEIGHT, Math.round(height)))
+}
+
+const handleWorkflowPanelViewportResize = () => {
+  const nextHeight = clampWorkflowPanelHeight(workflowPanelHeight.value)
+  if (nextHeight !== workflowPanelHeight.value) workflowPanelHeight.value = nextHeight
 }
 
 const persistWorkflowPanelHeight = () => {
@@ -2277,6 +2280,7 @@ watch(hasAgentActivity, active => {
 
 onMounted(async () => {
   window.addEventListener('workspace-mode-change', handleWorkspaceModeChange)
+  window.addEventListener('resize', handleWorkflowPanelViewportResize)
   await roleStore.loadRoles()
   workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value)
 
@@ -2319,6 +2323,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('workspace-mode-change', handleWorkspaceModeChange)
+  window.removeEventListener('resize', handleWorkflowPanelViewportResize)
   composerResizeObserver?.disconnect()
   stopAgentPanelResize()
   stopWorkflowPanelResize()
@@ -3261,8 +3266,18 @@ onUnmounted(() => {
   margin-bottom: 4px;
 }
 
+.workflow-acg-panel :deep(.graph-stage) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .workflow-acg-panel :deep(.graph-canvas) {
   flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.workflow-acg-panel :deep(.node-detail) {
   height: auto;
   min-height: 0;
 }
