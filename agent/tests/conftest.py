@@ -23,6 +23,55 @@ for path in (PROJECT_ROOT, AGENT_APP_ROOT, AGENTOS_SRC):
         sys.path.insert(0, value)
 
 
+class _ContractReviewTestProvider:
+    """Deterministic business fixtures kept outside the application package."""
+
+    provider_name = "test-fixture"
+    model = "contract-review-fixture"
+
+    def generate_text(self, prompt, **kwargs):
+        return ""
+
+    def generate_json(self, prompt, schema, **kwargs):
+        from app.llm.schemas import compact_schema_name
+
+        task = compact_schema_name(schema)
+        if task == "parse_contract":
+            return {
+                "contract_title": "测试合同",
+                "parties": [
+                    {"name": "甲方", "role": "委托方"},
+                    {"name": "乙方", "role": "服务方"},
+                ],
+                "contract_type": "测试服务合同",
+                "key_dates": [],
+                "amounts": [],
+                "obligations": [],
+                "summary": "测试输入中的合同内容。",
+                "scope": "测试服务范围",
+                "payment_terms": "测试付款安排",
+                "acceptance_terms": "测试验收安排",
+                "ip_terms": "",
+                "dispute_resolution": "",
+            }
+        if task == "risk_detect":
+            return {
+                "risks": [{
+                    "id": "risk-test-payment",
+                    "title": "付款安排需要复核",
+                    "level": "high",
+                    "clause": "测试付款安排",
+                    "reason": "测试输入中的付款触发条件需要进一步核对。",
+                    "consequence": "付款条件不清可能导致履约争议。",
+                    "suggestion": "结合交付与验收节点复核付款条件。",
+                    "evidenceIds": [],
+                }]
+            }
+        if task == "report_generate":
+            return {"report_markdown": "# 测试合同审查报告\n\n报告内容来自测试夹具。"}
+        return {}
+
+
 @pytest.fixture(autouse=True)
 def _force_mock_llm(monkeypatch):
     """默认让所有测试走 mock LLM，保证稳定、零成本、零网络。
@@ -33,6 +82,11 @@ def _force_mock_llm(monkeypatch):
     测试仍可用 set_llm_gateway_for_tests 注入自定义 provider。
     """
     monkeypatch.setenv("AGENTOS_LLM_PROVIDER", "mock")
+    from app.llm.gateway import LLMGateway, set_llm_gateway_for_tests
+
+    set_llm_gateway_for_tests(LLMGateway(provider=_ContractReviewTestProvider()))
+    yield
+    set_llm_gateway_for_tests(None)
 
 
 def pytest_pyfunc_call(pyfuncitem):

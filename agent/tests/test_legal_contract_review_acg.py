@@ -78,7 +78,7 @@ def test_acg_contract_review_approve_reject_and_need_more_info():
         artifacts = completed.output["artifacts"]
         report = artifacts["report_generate"]["report_markdown"]
         assert report
-        assert "本报告不构成最终法律意见" in report
+        assert "不构成最终法律意见" in report
         assert "Evidence 依据链" in report
         assert "审核意见：通过" in report
         assert artifacts["risk_detect"]["risks"]
@@ -98,13 +98,16 @@ class _InvalidJSONProvider:
         return {"invalid": True}
 
 
-def test_acg_contract_review_invalid_llm_json_uses_fallback():
+def test_acg_contract_review_invalid_llm_json_fails_closed_without_invented_results():
     async def run_test():
         run = await _start(_runtime())
         parse = run.output["artifacts"]["parse_contract"]
         risks = run.output["artifacts"]["risk_detect"]
-        assert parse["contract_type"]
-        assert risks["risks"]
+        assert parse["contract_type"] == ""
+        assert parse["parties"] == []
+        assert parse["analysis_status"] == "unavailable"
+        assert risks["risks"] == []
+        assert risks["analysis_status"] == "unavailable"
         assert parse["_llm"]["source"] == "mock_fallback"
         assert risks["_llm"]["source"] == "mock_fallback"
 
@@ -115,7 +118,7 @@ def test_acg_contract_review_invalid_llm_json_uses_fallback():
         set_llm_gateway_for_tests(None)
 
 
-def test_acg_contract_review_evidence_fallback_covers_partial_retrieval_failure(monkeypatch):
+def test_acg_contract_review_partial_retrieval_does_not_fabricate_evidence(monkeypatch):
     from packs.legal.agents import contract_review_migration as migration
 
     class _PartialFailureRetriever:
@@ -137,19 +140,41 @@ def test_acg_contract_review_evidence_fallback_covers_partial_retrieval_failure(
                 }]
             raise RuntimeError("partial retrieval failure")
 
+    class _TwoRiskProvider(_InvalidJSONProvider):
+        def generate_json(self, prompt: str, schema: dict, **kwargs):
+            from app.llm.schemas import compact_schema_name
+
+            if compact_schema_name(schema) != "risk_detect":
+                return super().generate_json(prompt, schema, **kwargs)
+            return {
+                "risks": [
+                    {
+                        "id": f"risk-test-{index}",
+                        "title": "付款安排需要复核",
+                        "level": "high",
+                        "clause": "测试条款",
+                        "reason": "测试原因",
+                        "consequence": "测试后果",
+                        "suggestion": "测试建议",
+                        "evidenceIds": [],
+                    }
+                    for index in (1, 2)
+                ]
+            }
+
     monkeypatch.setattr(migration, "LegalEvidenceRetriever", _PartialFailureRetriever)
-    set_llm_gateway_for_tests(LLMGateway(provider=_InvalidJSONProvider()))
+    set_llm_gateway_for_tests(LLMGateway(provider=_TwoRiskProvider()))
     try:
         run = asyncio.run(_start(_runtime()))
     finally:
         set_llm_gateway_for_tests(None)
 
-    risks = run.output["artifacts"]["risk_detect"]["risks"]
     evidence_output = run.output["artifacts"]["legal_evidence_match"]
-    covered_risk_ids = {item.get("riskId") for item in evidence_output["evidences"]}
-    assert {item["id"] for item in risks}.issubset(covered_risk_ids)
-    assert evidence_output["retrieval"]["fallback"] is True
-    assert len(evidence_output["retrieval"]["errors"]) == 2
+    assert [item.get("riskId") for item in evidence_output["evidences"]] == ["risk-test-1"]
+    assert evidence_output["retrieval"]["status"] == "incomplete"
+    assert evidence_output["retrieval"]["unmatched_risk_ids"] == ["risk-test-2"]
+    assert len(evidence_output["retrieval"]["errors"]) == 1
+    assert all(item.get("sourceType") != "mock" for item in evidence_output["evidences"])
 
 
 def test_acg_contract_review_api_trace_checkpoint_and_metrics():
@@ -173,9 +198,9 @@ def test_acg_contract_review_api_trace_checkpoint_and_metrics():
     assert client.get("/ai/core/workflows/metrics", params={"workflowId": "legal_contract_review_v1"}).json()["workflowId"] == "legal_contract_review_v1"
 
 
-def test_llm_gateway_without_configuration_uses_mock():
+def test_llm_gateway_without_complete_configuration_is_unavailable():
     gateway = LLMGateway(config=LLMConfig(provider="openai-compatible", base_url="", api_key="", model=""))
-    assert gateway.provider_name == "mock"
+    assert gateway.provider_name == "unavailable"
 
 
 def test_force_dynamic_contract_review_builds_executable_data_dependencies():

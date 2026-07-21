@@ -24,6 +24,11 @@ PARSE_CONTRACT_SCHEMA: Dict[str, Any] = {
         "amounts": {"type": "array"},
         "obligations": {"type": "array"},
         "summary": {"type": "string"},
+        "scope": {"type": "string"},
+        "payment_terms": {"type": "string"},
+        "acceptance_terms": {"type": "string"},
+        "ip_terms": {"type": "string"},
+        "dispute_resolution": {"type": "string"},
     },
 }
 

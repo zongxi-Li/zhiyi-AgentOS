@@ -73,12 +73,17 @@ def _validate_parse_contract(data: Dict[str, Any]) -> Dict[str, Any]:
         "key_dates": data.get("key_dates") if isinstance(data.get("key_dates"), list) else [],
         "amounts": data.get("amounts") if isinstance(data.get("amounts"), list) else [],
         "obligations": data.get("obligations") if isinstance(data.get("obligations"), list) else [],
+        "scope": str(data.get("scope") or ""),
+        "payment_terms": str(data.get("payment_terms") or ""),
+        "acceptance_terms": str(data.get("acceptance_terms") or ""),
+        "ip_terms": str(data.get("ip_terms") or ""),
+        "dispute_resolution": str(data.get("dispute_resolution") or ""),
     }
 
 
 def _validate_risks(data: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(data, dict) or not isinstance(data.get("risks"), list) or not data["risks"]:
-        raise ValueError("risk_detect output must contain a non-empty risks list")
+    if not isinstance(data, dict) or not isinstance(data.get("risks"), list):
+        raise ValueError("risk_detect output must contain a risks list")
     risks = []
     for index, item in enumerate(data["risks"], start=1):
         if not isinstance(item, dict):
@@ -94,8 +99,6 @@ def _validate_risks(data: Dict[str, Any]) -> Dict[str, Any]:
             "suggestion": str(item.get("suggestion") or ""),
             "evidenceIds": list(item.get("evidenceIds") or []),
         })
-    if not risks:
-        raise ValueError("risk_detect output has no valid risks")
     return {"risks": risks}
 
 
@@ -104,20 +107,10 @@ def _validate_report(data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(report, str) or not report.strip():
         raise ValueError("report_generate output must contain report_markdown")
     report = report.strip()
-    disclaimer = "当前报告未接入正式法律法规 RAG，法律依据部分仅为演示或待补充；本报告不构成最终法律意见，需律师复核。"
+    disclaimer = "本报告由自动化流程生成，不构成最终法律意见；重要结论和引用依据需由具备相应资质的专业人员复核。"
     if "本报告不构成最终法律意见" not in report:
         report = f"{report.rstrip()}\n\n## 免责声明\n{disclaimer}\n"
     return {"report_markdown": report}
-
-
-def _fallback_evidence_for_risk(risk: Dict[str, Any], index: int) -> Dict[str, Any]:
-    templates = _evidence_items()
-    item = dict(templates[(index - 1) % len(templates)])
-    item["riskId"] = str(risk.get("id") or f"risk-{index:02d}")
-    item["sourceType"] = "mock"
-    item["sourceName"] = "演示依据，待正式法律知识库校验"
-    item["metadata"] = {"demo": True}
-    return item
 
 
 def _append_evidence_appendix(report: str, evidences: List[Dict[str, Any]]) -> str:
@@ -128,10 +121,8 @@ def _append_evidence_appendix(report: str, evidences: List[Dict[str, Any]]) -> s
         return report
     lines = ["", "## Evidence 依据链"]
     for index, item in enumerate(evidences, start=1):
-        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-        marker = "（演示依据 / 待正式法律知识库校验）" if item.get("sourceType") == "mock" or metadata.get("demo") else ""
         lines.append(
-            f"{index}. [{item.get('sourceType')}] {item.get('sourceName')} {marker}：{item.get('citationText')}"
+            f"{index}. [{item.get('sourceType')}] {item.get('sourceName')}：{item.get('citationText')}"
         )
     return f"{report.rstrip()}\n" + "\n".join(lines) + "\n"
 
@@ -148,90 +139,15 @@ def _latest_human_review(context) -> Dict[str, Any]:
 def _append_review_result(report: str, review: Dict[str, Any]) -> str:
     if not review:
         return report
-    reviewer = str(review.get("reviewer") or "system")
+    reviewer = str(review.get("reviewer") or "未记录")
+    decision = str(review.get("decision") or "unknown")
     comment = str(review.get("comment") or "").strip()
     if reviewer in report and (not comment or comment in report):
         return report
-    lines = ["", "## 人工审核记录", f"- 审核人：{reviewer}", "- 审核结论：approved"]
+    lines = ["", "## 人工审核记录", f"- 审核人：{reviewer}", f"- 审核结论：{decision}"]
     if comment:
         lines.append(f"- 审核意见：{comment}")
     return f"{report.rstrip()}\n" + "\n".join(lines) + "\n"
-
-
-def _risk_items() -> List[Dict[str, Any]]:
-    return [
-        {
-            "id": "risk-payment-01",
-            "title": "尾款支付条件过于单一",
-            "level": "high",
-            "clause": "甲方在合同签署后支付 30%，系统上线后支付 70%。",
-            "reason": "尾款触发条件仅写“上线”，未绑定阶段验收、缺陷修复、发票开具和上线失败处理。",
-            "consequence": "上线后仍存在严重缺陷时，甲方可能被要求支付大额尾款，乙方也可能因付款条件不清产生回款争议。",
-            "suggestion": "建议改为“需求确认 20% + 原型确认 20% + 测试验收 30% + 上线稳定运行 30%”，并补充发票和逾期付款规则。",
-            "evidenceIds": ["ev-payment-01", "ev-acceptance-01"],
-        },
-        {
-            "id": "risk-acceptance-01",
-            "title": "验收标准缺少客观指标",
-            "level": "medium",
-            "clause": "如无重大问题视为验收通过。",
-            "reason": "“重大问题”没有定义，未明确验收材料、测试用例、反馈期限和整改次数。",
-            "consequence": "双方可能对缺陷严重程度、是否通过验收、延期责任产生争议。",
-            "suggestion": "建议列明功能清单、性能指标、验收流程、书面反馈期限以及视为验收通过的前置条件。",
-            "evidenceIds": ["ev-acceptance-01"],
-        },
-        {
-            "id": "risk-ip-01",
-            "title": "知识产权共同所有安排不清",
-            "level": "high",
-            "clause": "项目相关源代码、文档和设计成果归双方共同所有。",
-            "reason": "共同所有未说明使用、转让、二次开发、开源组件和第三方素材的授权边界。",
-            "consequence": "后续商业化、系统迭代、对外授权或交付源代码时可能产生权属冲突。",
-            "suggestion": "建议明确甲方享有定制成果全部著作财产权，乙方保留通用工具和预置组件权利，并承诺第三方组件合规。",
-            "evidenceIds": ["ev-ip-01"],
-        },
-    ]
-
-
-def _evidence_items() -> List[Dict[str, Any]]:
-    return [
-        {
-            "id": "ev-payment-01",
-            "stepId": "legal_evidence_match",
-            "sourceType": "contract_template",
-            "sourceName": "软件开发合同审查模板库",
-            "content": "付款节点通常与里程碑、阶段验收、缺陷修复期绑定，避免尾款支付条件过于单一。",
-            "citationText": "付款条款应明确付款比例、触发条件、发票条件与逾期处理。",
-            "confidence": 0.92,
-        },
-        {
-            "id": "ev-acceptance-01",
-            "stepId": "legal_evidence_match",
-            "sourceType": "practice",
-            "sourceName": "技术服务项目验收审查要点",
-            "content": "仅以“无重大问题”作为验收标准，容易造成缺陷范围、整改期限和视为通过条件争议。",
-            "citationText": "验收条款宜列明验收材料、测试标准、反馈期限、整改次数和最终确认方式。",
-            "confidence": 0.89,
-        },
-        {
-            "id": "ev-ip-01",
-            "stepId": "legal_evidence_match",
-            "sourceType": "law",
-            "sourceName": "民法典合同编与著作权法相关规则",
-            "content": "定制开发成果权属应结合委托目的、费用结构、源代码交付和第三方组件授权明确约定。",
-            "citationText": "知识产权归属、使用范围、源代码交付、开源组件合规应分别约定。",
-            "confidence": 0.9,
-        },
-        {
-            "id": "ev-liability-01",
-            "stepId": "legal_evidence_match",
-            "sourceType": "case",
-            "sourceName": "软件开发合同纠纷裁判摘要",
-            "content": "违约责任缺少计算方式和责任上限时，争议中往往需要法院结合损失、过错和履行情况酌定。",
-            "citationText": "违约责任条款应明确延迟交付、质量缺陷、逾期付款和保密违约的责任边界。",
-            "confidence": 0.86,
-        },
-    ]
 
 
 def _risk_counts(risks: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -258,14 +174,18 @@ class ContractParseAgent(BaseAgent):
     async def run(self, context):
         text = _contract_text(context)
         output = {
-            "contract_summary": text[:500] or "未提供合同文本",
-            "contract_type": "软件开发服务合同",
-            "parties": ["甲方：星河科技有限公司", "乙方：知弈软件工作室"],
-            "scope": "客户关系管理系统的需求梳理、原型设计、系统开发、测试部署和上线支持。",
-            "payment_terms": "签署后 30%，上线后 70%。",
-            "acceptance_terms": "无重大问题视为验收通过。",
-            "ip_terms": "源代码、文档和设计成果归双方共同所有。",
-            "dispute_resolution": "建议补充管辖、仲裁或诉讼条款。",
+            "contract_summary": text[:500],
+            "contract_title": "",
+            "contract_type": "",
+            "parties": [],
+            "key_dates": [],
+            "amounts": [],
+            "obligations": [],
+            "scope": "",
+            "payment_terms": "",
+            "acceptance_terms": "",
+            "ip_terms": "",
+            "dispute_resolution": "",
             "original_preview": text[:120],
         }
         output, llm = _llm_json_or_fallback(
@@ -281,6 +201,9 @@ class ContractParseAgent(BaseAgent):
             for item in output.get("parties", [])
         ]
         output["original_preview"] = text[:120]
+        required_fields = ["contract_type", "parties", "contract_summary"]
+        output["missing_fields"] = [field for field in required_fields if not output.get(field)]
+        output["analysis_status"] = "completed" if llm.get("success") else "unavailable"
         output["_llm"] = llm
         return AgentOutput(output=output, summary="Contract text parsed into structured fields.")
 
@@ -299,14 +222,22 @@ class ClauseClassifyAgent(BaseAgent):
 
     async def run(self, context):
         parsed = _observation(context, "parse_contract", "contract_parse")
+        field_categories = {
+            "parties": "主体信息",
+            "scope": "项目范围",
+            "payment_terms": "付款",
+            "acceptance_terms": "验收",
+            "ip_terms": "知识产权",
+            "dispute_resolution": "争议解决",
+        }
         categories = [
-            {"category": "主体信息", "content": parsed.get("parties", []), "attention": "确认签约主体和授权代表。"},
-            {"category": "项目范围", "content": parsed.get("scope", ""), "attention": "范围应与交付物清单、排期和验收标准联动。"},
-            {"category": "付款", "content": parsed.get("payment_terms", ""), "attention": "尾款不宜只绑定上线，应绑定稳定运行和验收。"},
-            {"category": "验收", "content": parsed.get("acceptance_terms", ""), "attention": "需补充客观指标、反馈期限和整改次数。"},
-            {"category": "知识产权", "content": parsed.get("ip_terms", ""), "attention": "需明确成果归属、复用权和第三方组件合规。"},
-            {"category": "违约责任", "content": "未见完整责任上限与计算方式。", "attention": "建议补齐责任边界和赔偿上限。"},
-            {"category": "争议解决", "content": parsed.get("dispute_resolution", ""), "attention": "需明确法院管辖或仲裁机构。"},
+            {
+                "category": category,
+                "source_field": field,
+                "content": parsed.get(field, [] if field == "parties" else ""),
+                "present": bool(parsed.get(field)),
+            }
+            for field, category in field_categories.items()
         ]
         return AgentOutput(
             output={"clauses": categories, "clause_count": len(categories)},
@@ -328,7 +259,7 @@ class RiskDetectAgent(BaseAgent):
         )
 
     async def run(self, context):
-        fallback = {"risks": _risk_items()}
+        fallback = {"risks": []}
         artifacts = {
             "parse_contract": _observation(context, "parse_contract", "contract_parse"),
             "classify_clauses": _observation(context, "classify_clauses", "clause_classify"),
@@ -345,22 +276,23 @@ class RiskDetectAgent(BaseAgent):
         )
         risks = llm_output["risks"]
         counts = _risk_counts(risks)
-        risk_level = "high" if counts["high"] else "medium" if counts["medium"] else "low"
-        risk_score = 82 if counts["high"] else 60 if counts["medium"] else 30
+        risk_level = "high" if counts["high"] else "medium" if counts["medium"] else "low" if risks else "unknown"
+        risk_score = min(100, counts["high"] * 30 + counts["medium"] * 15 + counts["low"] * 5) if risks else None
         output = {
             "risks": risks,
             "risk_summary": {
                 **counts,
-                "conclusion": "付款、验收和知识产权条款需要在签署前补强。",
+                "conclusion": "；".join(str(item.get("title") or "") for item in risks if item.get("title")),
             },
             "risk_level": risk_level,
             "risk_score": risk_score,
+            "analysis_status": "completed" if llm.get("success") else "unavailable",
             "_llm": llm,
         }
         return AgentOutput(
             output=output,
             summary=f"Detected {len(risks)} contract risk item(s).",
-            riskLevel=risk_level,
+            riskLevel=None if risk_level == "unknown" else risk_level,
         )
 
 
@@ -381,10 +313,11 @@ class LegalEvidenceMatchAgent(BaseAgent):
         parsed = _observation(context, "parse_contract", "contract_parse")
         risks = risk_output.get("risks") or []
         evidences: List[Dict[str, Any]] = []
-        fallback = False
         errors: List[str] = []
+        unmatched_risk_ids: List[str] = []
         retriever = LegalEvidenceRetriever()
-        for index, risk in enumerate(risks or _risk_items(), start=1):
+        for risk in risks:
+            risk_id = str(risk.get("id") or "")
             try:
                 results = retriever.retrieve(
                     risk=risk,
@@ -396,16 +329,17 @@ class LegalEvidenceMatchAgent(BaseAgent):
                     continue
             except Exception as exc:
                 errors.append(str(exc)[:240])
-            fallback = True
-            evidences.append(_fallback_evidence_for_risk(risk, index))
+            if risk_id:
+                unmatched_risk_ids.append(risk_id)
         evidences = [normalize_evidence(item, risk_id=str(item.get("riskId") or "")) for item in evidences]
         return AgentOutput(
             output={
                 "evidences": evidences,
                 "citations": [item["citationText"] for item in evidences],
                 "retrieval": {
-                    "fallback": fallback,
+                    "status": "complete" if not unmatched_risk_ids else "incomplete",
                     "result_count": len(evidences),
+                    "unmatched_risk_ids": unmatched_risk_ids,
                     "errors": errors,
                 },
             },
@@ -440,7 +374,11 @@ class RevisionSuggestAgent(BaseAgent):
         return AgentOutput(
             output={
                 "revision_suggestions": suggestions,
-                "manual_review_focus": ["尾款触发条件", "验收标准客观化", "知识产权归属与复用边界"],
+                "manual_review_focus": [
+                    str(risk.get("title"))
+                    for risk in risks
+                    if risk.get("level") == "high" and risk.get("title")
+                ],
             },
             summary=f"Generated {len(suggestions)} revision suggestion(s).",
         )
@@ -464,11 +402,10 @@ class HumanReviewGateAgent(BaseAgent):
         revision_output = _observation(context, "suggestion_generate", "revision_suggest")
         output = {
             "review_status": "pending",
-            "reviewer": "demo.lawyer",
+            "reviewer": None,
             "review_focus": revision_output.get("manual_review_focus", []),
             "risks": risk_output.get("risks", []),
-            "suggested_decision": "approved_after_manual_check",
-            "message": "等待律师或业务负责人确认风险结论后进入报告生成。",
+            "suggested_decision": "manual_review_required",
         }
         return AgentOutput(output=output, summary="Human review gate prepared.", riskLevel="high")
 
@@ -506,30 +443,31 @@ class ReportGenerateAgent(BaseAgent):
             f"{index}. {item.get('title')}：{item.get('suggestion')}"
             for index, item in enumerate(revisions, start=1)
         )
-        report_markdown = f"""# 软件开发服务合同审查报告
+        contract_title = str(parsed.get("contract_title") or "合同审查报告")
+        review_status = str(review.get("decision") or "unreviewed")
+        report_markdown = f"""# {contract_title}
 
 ## 一、合同基本信息
-- 类型：{parsed.get('contract_type', '技术服务 / 软件开发')}
+- 类型：{parsed.get('contract_type') or '未识别'}
 - 主体：{' / '.join(parsed.get('parties', [])) or '待确认'}
-- 范围：{parsed.get('scope', '待确认')}
+- 范围：{parsed.get('scope') or '待确认'}
 
 ## 二、风险摘要
-合同具备基础交易结构，但付款、验收、知识产权条款需要在签署前补强。
 - 高风险：{risk_summary.get('high', 0)}
 - 中风险：{risk_summary.get('medium', 0)}
 - 低风险：{risk_summary.get('low', 0)}
 
 ## 三、风险条款列表
-{risk_lines}
+{risk_lines or '未生成可验证的风险条目。'}
 
 ## 四、修改建议
-{revision_lines}
+{revision_lines or '未生成修改建议。'}
 
 ## 五、依据附录
-{evidence_lines}
+{evidence_lines or '未检索到可引用依据。'}
 
 ## 六、审核状态
-人工审核已通过，报告进入最终审查。
+{review_status}
 """
         report_result, llm = _llm_json_or_fallback(
             node_name="report_generate",
@@ -548,8 +486,8 @@ class ReportGenerateAgent(BaseAgent):
             "_llm": llm,
             "report": {
                 "contractInfo": {
-                    "name": "软件开发服务合同",
-                    "type": parsed.get("contract_type", "技术服务 / 软件开发"),
+                    "name": str(parsed.get("contract_title") or ""),
+                    "type": str(parsed.get("contract_type") or ""),
                     "parties": parsed.get("parties", []),
                     "scope": parsed.get("scope", ""),
                 },
@@ -557,7 +495,7 @@ class ReportGenerateAgent(BaseAgent):
                 "riskItems": risks,
                 "revisionSuggestions": revisions,
                 "evidenceAppendix": evidences,
-                "reviewStatus": "approved",
+                "reviewStatus": review_status,
             },
         }
         return AgentOutput(output=output, summary="Contract review report generated.")
@@ -578,14 +516,11 @@ class ContractFinalReviewAgent(BaseAgent):
     async def run(self, context):
         report_output = context.memory.observations.get("report_generate", {})
         report_markdown = report_output.get("report_markdown", "")
-        final_answer = (
-            "已完成合同审查迁移工作流。系统已完成合同解析、条款分类、风险识别、依据匹配、修改建议、人工审核和报告生成。\n\n"
-            f"{report_markdown}"
-        ).strip()
+        final_answer = str(report_markdown or "").strip()
         return AgentOutput(
             output={
                 "final_answer": final_answer,
-                "review_notes": ["ACG 合同审查步骤已完成", "人工审核节点已通过", "报告结构完整"],
+                "review_notes": [],
             },
             summary="Migrated contract review workflow finalized.",
         )

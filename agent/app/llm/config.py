@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class LLMConfig:
-    provider: str = "mock"
+    provider: str = "unavailable"
     base_url: str = ""
     api_key: str = ""
-    model: str = "mock-contract-review"
+    model: str = ""
     timeout_seconds: float = 30.0
 
     @classmethod
@@ -34,13 +34,13 @@ class LLMConfig:
             if resolved:
                 provider, base_url, api_key, model = resolved
             else:
-                provider = "mock"
+                provider = "unavailable"
 
         return cls(
-            provider=provider or "mock",
+            provider=provider or "unavailable",
             base_url=base_url,
             api_key=api_key,
-            model=model or "mock-contract-review",
+            model=model,
             timeout_seconds=timeout_seconds,
         )
 
