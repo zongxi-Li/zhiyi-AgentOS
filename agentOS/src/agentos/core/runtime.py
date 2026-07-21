@@ -11,7 +11,6 @@ from agentos.core.acg import (
     ACGBlueprint,
     AgentNode,
     EdgeType,
-    SkillNode,
     promote_workflow_to_acg,
 )
 from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory
@@ -184,9 +183,6 @@ class WorkflowRuntime:
 
     def _validate_blueprint_agents(self, blueprint: ACGBlueprint, *, domain: str) -> None:
         missing: list[str] = []
-        skill_nodes: dict[str, str] = {
-            node.name: node.node_id for node in blueprint.nodes if isinstance(node, SkillNode)
-        }
         for step in blueprint.step_nodes():
             try:
                 agent = self.agent_registry.resolve(
@@ -201,26 +197,17 @@ class WorkflowRuntime:
             execution_edges = blueprint.incoming(step.node_id, EdgeType.EXECUTION)
             if execution_edges:
                 step.assigned_agent_id = execution_edges[0].source_id
-            for skill_name in agent.profile.allowed_skills:
-                skill_id = skill_nodes.get(skill_name)
-                if skill_id is None:
-                    skill_id = f"skill::{skill_name}"
-                    if blueprint.has_node(skill_id):
-                        skill_id = f"skill::{skill_name}::{len(skill_nodes) + 1}"
-                    blueprint.nodes.append(
-                        SkillNode(
-                            nodeId=skill_id,
-                            name=skill_name,
-                            description=f"Registered skill available to {agent.profile.agent_name}",
-                        )
+            allowed_skills = list(dict.fromkeys(agent.profile.allowed_skills))
+            if allowed_skills:
+                step.metadata["allowedSkills"] = allowed_skills
+            if step.assigned_agent_id:
+                agent_node = blueprint.get_node(step.assigned_agent_id)
+                if isinstance(agent_node, AgentNode) and allowed_skills:
+                    existing = agent_node.metadata.get("allowedSkills")
+                    existing_skills = existing if isinstance(existing, list) else []
+                    agent_node.metadata["allowedSkills"] = list(
+                        dict.fromkeys([*existing_skills, *allowed_skills])
                     )
-                    skill_nodes[skill_name] = skill_id
-                if skill_id not in step.skill_ids:
-                    step.skill_ids.append(skill_id)
-                if step.assigned_agent_id:
-                    agent_node = blueprint.get_node(step.assigned_agent_id)
-                    if isinstance(agent_node, AgentNode) and skill_id not in agent_node.skill_ids:
-                        agent_node.skill_ids.append(skill_id)
         if missing:
             raise ValueError("ACG references unregistered Agents: " + ", ".join(sorted(set(missing))))
         blueprint.touch()

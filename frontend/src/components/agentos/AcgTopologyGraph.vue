@@ -59,6 +59,10 @@
           <div v-if="selectedNodeStatus"><dt>运行状态</dt><dd class="node-status" :class="selectedNodeStatus">{{ selectedNodeStatus }}</dd></div>
           <div v-if="selectedNode.agentName"><dt>Agent</dt><dd>{{ selectedNode.agentName }}</dd></div>
           <div v-if="selectedNode.capability"><dt>能力</dt><dd>{{ selectedNode.capability }}</dd></div>
+          <div v-if="selectedAllowedSkills.length">
+            <dt>可用技能</dt>
+            <dd class="skill-list"><code v-for="skill in selectedAllowedSkills" :key="skill">{{ skill }}</code></dd>
+          </div>
           <div v-if="selectedNode.controlType"><dt>控制类型</dt><dd>{{ selectedNode.controlType }}</dd></div>
         </dl>
         <p v-if="selectedNode.goal || selectedNode.description" class="node-description">
@@ -138,30 +142,46 @@ const hasData = computed(() => {
   return !!props.blueprint && Array.isArray(props.blueprint.nodes) && props.blueprint.nodes.length > 0
 })
 
-const visibleBlueprint = computed<AcgBlueprint | null>(() => {
+const renderableBlueprint = computed<AcgBlueprint | null>(() => {
   if (!props.blueprint) return null
+  const connectedNodeIds = new Set(
+    props.blueprint.edges.flatMap(edge => [edge.sourceId, edge.targetId])
+  )
+  const nodes = props.blueprint.nodes.filter(
+    node => node.nodeType !== 'skill' || connectedNodeIds.has(node.nodeId)
+  )
+  return { ...props.blueprint, nodes }
+})
+
+const visibleBlueprint = computed<AcgBlueprint | null>(() => {
+  const blueprint = renderableBlueprint.value
+  if (!blueprint) return null
   if (focusMainPath.value) {
-    const nodes = props.blueprint.nodes.filter(node => node.nodeType === 'step' || node.nodeType === 'control')
+    const nodes = blueprint.nodes.filter(node => node.nodeType === 'step' || node.nodeType === 'control')
     const nodeIds = new Set(nodes.map(node => node.nodeId))
-    const edges = props.blueprint.edges.filter(edge =>
+    const edges = blueprint.edges.filter(edge =>
       (edge.edgeType === 'dependency' || edge.edgeType === 'control_flow')
       && nodeIds.has(edge.sourceId)
       && nodeIds.has(edge.targetId)
     )
-    return { ...props.blueprint, nodes, edges }
+    return { ...blueprint, nodes, edges }
   }
 
   const selected = new Set(selectedEdgeTypes.value)
-  const edges = props.blueprint.edges.filter(edge => selected.has(edge.edgeType))
-  if (selected.size === EDGE_TYPES.length) return props.blueprint
+  const edges = blueprint.edges.filter(edge => selected.has(edge.edgeType))
+  if (selected.size === EDGE_TYPES.length) return blueprint
   const connectedNodeIds = new Set(edges.flatMap(edge => [edge.sourceId, edge.targetId]))
-  const nodes = props.blueprint.nodes.filter(node => node.nodeType === 'step' || connectedNodeIds.has(node.nodeId))
-  return { ...props.blueprint, nodes, edges }
+  const nodes = blueprint.nodes.filter(node => node.nodeType === 'step' || connectedNodeIds.has(node.nodeId))
+  return { ...blueprint, nodes, edges }
 })
 
 const selectedNode = computed(() =>
   props.blueprint?.nodes.find(node => node.nodeId === selectedNodeId.value) || null
 )
+const selectedAllowedSkills = computed(() => {
+  const value = selectedNode.value?.metadata?.allowedSkills
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : []
+})
 const stateByStep = computed(() =>
   new Map<string, string>((props.stepStates || []).map(item => [item.stepId, item.status]))
 )
@@ -178,11 +198,11 @@ const outgoingConnections = computed(() =>
 )
 
 const stats = computed(() => {
-  if (!props.blueprint || !visibleBlueprint.value) return ''
+  if (!renderableBlueprint.value || !visibleBlueprint.value) return ''
   const visible = `${visibleBlueprint.value.nodes.length} 节点 / ${visibleBlueprint.value.edges.length} 边`
-  if (visibleBlueprint.value.nodes.length === props.blueprint.nodes.length
-    && visibleBlueprint.value.edges.length === props.blueprint.edges.length) return visible
-  return `${visible}（全图 ${props.blueprint.nodes.length} / ${props.blueprint.edges.length}）`
+  if (visibleBlueprint.value.nodes.length === renderableBlueprint.value.nodes.length
+    && visibleBlueprint.value.edges.length === renderableBlueprint.value.edges.length) return visible
+  return `${visible}（全图 ${renderableBlueprint.value.nodes.length} / ${renderableBlueprint.value.edges.length}）`
 })
 
 // 节点类型 → 配色（沿用项目色板）
@@ -510,6 +530,10 @@ onBeforeUnmount(() => {
 .node-detail dt { font-size: 10px; color: var(--text-disabled); }
 .node-detail dd { margin: 0; min-width: 0; font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; }
 .node-detail code { color: var(--text-primary); }
+.node-detail .skill-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.node-detail .skill-list code {
+  padding: 2px 5px; border: 1px solid var(--border-light); border-radius: 4px; background: var(--bg-input);
+}
 .node-status { font-weight: 700; }
 .node-status.completed { color: var(--success); }
 .node-status.running { color: var(--info); }

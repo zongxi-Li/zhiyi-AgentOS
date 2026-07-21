@@ -246,6 +246,19 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         assert artifacts["risk_detect"]["risks"]
         assert artifacts["legal_evidence_match"]["evidences"]
         assert artifacts["report_generate"]["report_markdown"]
+        blueprint = run.acg_blueprint
+        assert blueprint is not None
+        nodes = blueprint["nodes"]
+        edges = blueprint["edges"]
+        assert len(nodes) == 22
+        assert all(node["nodeType"] != "skill" for node in nodes)
+        assert all(node.get("metadata", {}).get("allowedSkills") for node in nodes if node["nodeType"] == "step")
+        connected_ids = {
+            node_id
+            for edge in edges
+            for node_id in (edge["sourceId"], edge["targetId"])
+        }
+        assert {node["nodeId"] for node in nodes}.issubset(connected_ids)
         planner = next(
             event for event in run.trace
             if event.event_type.value == "task_status_changed" and "Planner" in event.observation
