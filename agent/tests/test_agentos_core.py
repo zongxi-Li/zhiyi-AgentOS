@@ -547,14 +547,15 @@ def test_legacy_lawyer_agent_chat_vpn_question_is_not_contract_template():
     payload = response.json()
     assert payload["success"] is True
     assert payload["sessionId"] == "session_vpn"
-    assert "VPN" in payload["answer"]
-    assert "行政" in payload["answer"] or "监管" in payload["answer"]
+    assert "使用vpn违法吗" in payload["answer"]
+    assert "未生成风险结论" in payload["answer"]
     assert "合同履行原则" not in payload["answer"]
     assert "违约责任" not in payload["answer"]
     assert "民商事争议" not in payload["answer"]
-    assert payload["skillsUsed"] == []
-    assert payload["trace"] == []
-    assert payload["routing"]["decision"] == "direct"
+    assert payload["skillsUsed"]
+    assert payload["trace"]
+    assert payload["routing"]["decision"] == "workflow"
+    assert payload["routing"]["workflowId"] == "legal_case_analysis_v1"
 
 
 def test_legacy_lawyer_agent_chat_contract_review_routes_to_acg_trace():
@@ -587,7 +588,7 @@ def test_legacy_lawyer_agent_chat_contract_review_routes_to_acg_trace():
     assert payload["routing"]["workflowRequired"] is True
     assert payload["routing"]["runtimeEngine"] == "acg"
     assert "合同审查摘要" in payload["answer"]
-    assert "ACG 合同审查流程" in payload["answer"]
+    assert "分析状态" in payload["answer"]
     assert "risk_detect" in payload["skillsUsed"]
     actions = {step["action"] for step in payload["trace"]}
     assert {"contract_parse", "risk_detect", "legal_evidence_match", "revision_suggest"}.issubset(actions)

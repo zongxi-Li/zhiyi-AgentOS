@@ -461,29 +461,6 @@ def _direct_model_answer(role: str) -> str:
     return f"我是知弈 AgentOS 的{role_name}。当前运行环境未提供可公开的模型名称。"
 
 
-def _direct_lawyer_general_answer(text: str) -> str:
-    if _contains_any(text, ["vpn", "翻墙", "代理"]):
-        return "\n".join(
-            [
-                "一般不能简单回答“使用 VPN 一定违法”或“一定不违法”。要看所在地、工具来源、用途、是否经营提供给他人，以及是否通过合规审批。",
-                "",
-                "在中国大陆，未经批准建立或租用专线、VPN 等跨境信道，可能涉及行政监管风险；如果用于诈骗、传播违法信息、侵犯数据安全、危害国家安全等，还可能叠加行政或刑事责任。",
-                "",
-                "建议你补充几个事实：你所在地区、VPN 的具体用途、是否是单位合规专线、是否向他人提供或收费、是否涉及违法内容。补充后我可以继续按风险点帮你分析。",
-            ]
-        )
-
-    return "\n".join(
-        [
-            "这是一个一般法律咨询问题，不能只按“案件分析”模板处理。",
-            "",
-            "初步判断要看具体事实、所在地规则、行为目的、是否造成后果，以及是否存在经营、传播、牟利或帮助他人违法等情节。",
-            "",
-            "你可以补充：发生地、具体行为、时间、涉及金额或对象、目前是否收到通知/处罚/起诉材料。我再帮你进一步判断风险等级和处理思路。",
-        ]
-    )
-
-
 def _direct_agent_response(
     role: str,
     role_config: Dict[str, Any],
@@ -540,16 +517,6 @@ def _fallback_route_decision(role: str, role_config: Dict[str, Any], text: str) 
             "directAnswerType": direct_answer_type,
             "source": "rules",
             "confidence": 0.9,
-        }
-
-    if role == "lawyer" and _is_general_legal_question(text) and not _is_contract_review_intent(text):
-        return {
-            "decision": "direct",
-            "workflowRequired": False,
-            "reason": "general_legal_question",
-            "directAnswerType": "general_question",
-            "source": "rules",
-            "confidence": 0.82,
         }
 
     workflow_id = _legacy_workflow_id_for_chat(role, role_config, text)
@@ -684,6 +651,13 @@ def _classify_legacy_chat_route(role: str, role_config: Dict[str, Any], text: st
 
     llm_decision = _llm_route_decision(role, role_config, text)
     if llm_decision is not None:
+        if (
+            role == "lawyer"
+            and llm_decision.get("decision") == "direct"
+            and _is_general_legal_question(text)
+            and not _is_smalltalk(text)
+        ):
+            return rule_decision
         return llm_decision
     return rule_decision
 
@@ -739,20 +713,6 @@ def _direct_agent_chat_response(
                 route_decision=route_decision,
             )
 
-        if role == "lawyer" and (
-            direct_answer_type == "general_question"
-            or (_is_general_legal_question(text) and not _is_contract_review_intent(text))
-        ):
-            return _direct_agent_response(
-                role=role,
-                role_config=role_config,
-                request=request,
-                answer=_direct_lawyer_general_answer(text),
-                observation=str(route_decision.get("reason") or "general_legal_question"),
-                risk_level="medium",
-                route_decision=route_decision,
-            )
-
         return _direct_agent_response(
             role=role,
             role_config=role_config,
@@ -772,16 +732,6 @@ def _direct_agent_chat_response(
             answer=answer,
             observation="smalltalk_or_capability_intro",
             risk_level="low",
-        )
-
-    if role == "lawyer" and _is_general_legal_question(text) and not _should_use_legal_case_workflow(text):
-        return _direct_agent_response(
-            role=role,
-            role_config=role_config,
-            request=request,
-            answer=_direct_lawyer_general_answer(text),
-            observation="general_legal_question",
-            risk_level="medium",
         )
 
     return None
@@ -907,7 +857,7 @@ def _legacy_contract_review_answer(artifacts: Dict[str, Any]) -> str:
         else {}
     )
 
-    contract_type = parse_output.get("contract_type") or "合同"
+    contract_type = parse_output.get("contract_type") or "未识别"
     risks = risk_output.get("risks", [])
     evidences = evidence_output.get("evidences", [])
     suggestions = suggestion_output.get("revision_suggestions", [])
@@ -915,7 +865,7 @@ def _legacy_contract_review_answer(artifacts: Dict[str, Any]) -> str:
     lines = [
         f"## 合同审查摘要：{contract_type}",
         "",
-        "已进入 ACG 合同审查流程，并完成合同解析、条款分类、风险识别、依据匹配和修改建议生成。",
+        f"分析状态：{risk_output.get('analysis_status') or 'unknown'}。",
         "",
         "### 1. 主要风险",
     ]
@@ -925,10 +875,10 @@ def _legacy_contract_review_answer(artifacts: Dict[str, Any]) -> str:
                 continue
             title = item.get("title") or item.get("id") or "未命名风险"
             level = _risk_level_label(item.get("level"))
-            reason = item.get("reason") or "需结合完整合同文本进一步确认。"
+            reason = item.get("reason") or ""
             lines.append(f"- {title}（风险：{level}）：{reason}")
     else:
-        lines.append("- 暂未识别到明确风险，但仍建议补充完整合同文本复核。")
+        lines.append("- 未生成可验证的风险条目。")
 
     lines.extend(["", "### 2. 依据匹配"])
     if evidences:
@@ -947,10 +897,10 @@ def _legacy_contract_review_answer(artifacts: Dict[str, Any]) -> str:
             if not isinstance(item, dict):
                 continue
             title = item.get("title") or item.get("riskId") or "相关条款"
-            suggestion = item.get("suggestion") or "建议补充更明确的权利义务和违约责任。"
+            suggestion = item.get("suggestion") or ""
             lines.append(f"- {title}：{suggestion}")
     else:
-        lines.append("- 建议补充付款节点、验收标准、违约责任、知识产权归属和争议解决条款。")
+        lines.append("- 未生成修改建议。")
 
     lines.extend(["", "> 当前流程停在人工审核节点；确认风险和建议后，可继续生成正式审查报告。"])
     return "\n".join(lines)
@@ -964,9 +914,9 @@ def _legacy_lawyer_answer(artifacts: Dict[str, Any]) -> str:
     statute = artifacts.get("statute", {}) if isinstance(artifacts.get("statute"), dict) else {}
     risk = artifacts.get("risk", {}) if isinstance(artifacts.get("risk"), dict) else {}
 
-    case_type = intake.get("case_type") or "民商事争议"
-    case_summary = intake.get("case_summary") or "已完成案情识别，但仍需要结合完整事实与证据进一步确认。"
-    legal_issues = _ensure_text_list(intake.get("legal_issues")) or ["事实认定", "请求权基础", "责任承担"]
+    case_type = intake.get("case_type") or "未识别"
+    case_summary = intake.get("case_summary") or "未生成案情摘要。"
+    legal_issues = _ensure_text_list(intake.get("legal_issues"))
     missing_info = _ensure_text_list(intake.get("missing_info"))
     legal_basis = statute.get("legal_basis", [])
     basis_items = []
@@ -976,12 +926,8 @@ def _legacy_lawyer_answer(artifacts: Dict[str, Any]) -> str:
             basis_items.append(formatted)
     risk_level = risk.get("risk_level") or risk.get("riskLevel") or "unknown"
     risk_score = risk.get("risk_score") or risk.get("riskScore")
-    key_risks = _ensure_text_list(risk.get("key_risks")) or ["现有结论依赖用户提供的信息，关键事实仍需证据印证。"]
-    suggestions = _ensure_text_list(risk.get("mitigation_suggestions")) or [
-        "补充合同、付款记录、沟通记录、交付凭证等核心证据。",
-        "明确诉求金额、履行节点、违约事实与对方抗辩理由。",
-        "如准备进入诉讼或仲裁，建议由专业律师结合完整材料复核。",
-    ]
+    key_risks = _ensure_text_list(risk.get("key_risks"))
+    suggestions = _ensure_text_list(risk.get("mitigation_suggestions"))
 
     lines = [
         f"## 法律初步分析：{case_type}",
@@ -990,7 +936,7 @@ def _legacy_lawyer_answer(artifacts: Dict[str, Any]) -> str:
         str(case_summary),
         "",
         "### 2. 主要争议焦点",
-        *[f"- {item}" for item in legal_issues],
+        *([f"- {item}" for item in legal_issues] or ["- 未生成争议焦点。"]),
         "",
         "### 3. 可参考法律依据",
     ]
@@ -1008,13 +954,17 @@ def _legacy_lawyer_answer(artifacts: Dict[str, Any]) -> str:
     )
     if risk_score is not None:
         lines.append(f"- 风险分值：{risk_score}/100")
-    lines.extend(f"- {item}" for item in key_risks)
+    if key_risks:
+        lines.extend(f"- {item}" for item in key_risks)
+    else:
+        lines.append("- 未生成风险结论。")
 
     if missing_info:
         lines.extend(["", "### 5. 待补充信息", *[f"- {item}" for item in missing_info]])
 
-    lines.extend(["", "### 6. 下一步建议", *[f"- {item}" for item in suggestions]])
-    lines.extend(["", "> 以上为基于当前输入和系统检索结果形成的初步分析，不能替代正式法律意见。"])
+    lines.extend(["", "### 6. 下一步建议"])
+    lines.extend([f"- {item}" for item in suggestions] or ["- 未生成下一步建议。"])
+    lines.extend(["", "> 当前结果不构成法律意见；未生成的专业结论不会由固定模板补齐。"])
     return "\n".join(lines)
 
 
@@ -1384,7 +1334,11 @@ def _legacy_answer(role: str, run, artifacts: Dict[str, Any]) -> str:
         if outline.get("final_answer"):
             return str(outline["final_answer"])
 
-    return str(run.output.get("final_answer") if isinstance(run.output, dict) else "") or "Agent workflow completed."
+    answer = str(run.output.get("final_answer") if isinstance(run.output, dict) else "").strip()
+    if answer:
+        return answer
+    status = getattr(run.status, "value", run.status)
+    return f"工作流未生成可展示结果（状态：{status}）。"
 
 
 def _legacy_response(role: str, role_config: Dict[str, Any], request: LegacyAgentChatRequest, run) -> Dict[str, Any]:
