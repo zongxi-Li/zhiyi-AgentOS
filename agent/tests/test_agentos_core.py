@@ -486,8 +486,9 @@ def test_legacy_lawyer_agent_chat_smalltalk_returns_direct_intro_without_trace(t
     assert payload["success"] is True
     assert payload["sessionId"] == "session_hi"
     if "模型" in text:
-        assert "模型网关" in payload["answer"]
-        assert "不需要进入工作流" in payload["answer"]
+        assert "当前会话使用的语言模型是" in payload["answer"]
+        assert "工作流" not in payload["answer"]
+        assert "执行轨迹" not in payload["answer"]
     else:
         assert "律师智能体" in payload["answer"]
         assert "法律咨询" in payload["answer"]

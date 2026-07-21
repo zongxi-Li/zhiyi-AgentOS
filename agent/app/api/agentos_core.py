@@ -451,12 +451,14 @@ def _direct_model_answer(role: str) -> str:
         "programmer": "程序员智能体",
         "writer": "写作智能体",
     }.get(role, "智能体")
-    return (
-        f"我是知弈 AgentOS 中的{role_name}。"
-        "我会通过 AgentOS 的模型网关调用当前配置的底层大模型；"
-        "具体模型由部署环境决定，可能是 DeepSeek、通义千问或兼容 OpenAI 协议的模型。"
-        "这类身份/模型介绍不需要进入工作流，所以不会返回执行轨迹。"
-    )
+    try:
+        model_name = str(get_llm_gateway().model or "").strip()
+    except Exception:
+        model_name = ""
+
+    if model_name:
+        return f"我是知弈 AgentOS 的{role_name}。当前会话使用的语言模型是 {model_name}。"
+    return f"我是知弈 AgentOS 的{role_name}。当前运行环境未提供可公开的模型名称。"
 
 
 def _direct_lawyer_general_answer(text: str) -> str:
