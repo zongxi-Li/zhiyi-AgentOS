@@ -1,6 +1,6 @@
 <!-- ACG 拓扑图 — 使用 vis-network 渲染 ACG 交互式拓扑，含步骤、Agent、记忆、证据、控制节点和图例 -->
 <template>
-  <section class="acg-topology ui-surface">
+  <section ref="sectionRef" class="acg-topology ui-surface">
     <header class="panel-head">
       <div class="head-left">
         <el-icon class="head-icon"><Share /></el-icon>
@@ -8,8 +8,19 @@
       </div>
       <div class="head-right">
         <span class="meta" v-if="hasData">{{ stats }}</span>
-        <button v-if="hasData" class="action-btn" @click="fit" title="适配视图">
-          <el-icon><FullScreen /></el-icon>
+        <button v-if="hasData" class="action-btn" type="button" @click="resetView()" title="复位视图" aria-label="复位拓扑视图">
+          <el-icon><RefreshRight /></el-icon>
+        </button>
+        <button
+          v-if="hasData && fullscreenSupported"
+          class="action-btn"
+          :class="{ active: isFullscreen }"
+          type="button"
+          :title="isFullscreen ? '退出全屏' : '全屏显示'"
+          :aria-label="isFullscreen ? '退出全屏显示' : '全屏显示拓扑'"
+          @click="toggleFullscreen"
+        >
+          <el-icon><Close v-if="isFullscreen" /><FullScreen v-else /></el-icon>
         </button>
         <button
           v-if="collapsible"
@@ -101,7 +112,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Aim, ArrowDownBold, Close, FullScreen, Share } from '@element-plus/icons-vue'
+import { Aim, ArrowDownBold, Close, FullScreen, RefreshRight, Share } from '@element-plus/icons-vue'
 import { DataSet } from 'vis-data'
 import { Network } from 'vis-network'
 import type { AcgBlueprint, AcgNode, AcgEdge, AcgStepState } from '@/services/api/agentos'
@@ -118,8 +129,11 @@ const emit = defineEmits<{
 }>()
 
 const graphRef = ref<HTMLElement | null>(null)
+const sectionRef = ref<HTMLElement | null>(null)
 const selectedNodeId = ref('')
 const focusMainPath = ref(false)
+const isFullscreen = ref(false)
+const fullscreenSupported = typeof document !== 'undefined' && typeof document.documentElement.requestFullscreen === 'function'
 let network: Network | null = null
 let nodesData: DataSet<any> | null = null
 let edgesData: DataSet<any> | null = null
@@ -243,24 +257,21 @@ const cssColor = (name: string, fallback: string) =>
 
 function applyThemeToGraphStyles() {
   const primary = cssColor('--primary-color', '#3f6b63')
-  const primaryFade = cssColor('--primary-fade', 'rgba(63, 107, 99, 0.1)')
   const info = cssColor('--info', '#496b8f')
-  const infoFade = cssColor('--info-fade', 'rgba(73, 107, 143, 0.12)')
   const accent = cssColor('--accent-color', '#6f668f')
-  const accentFade = cssColor('--accent-fade', 'rgba(111, 102, 143, 0.1)')
   const warning = cssColor('--warning', '#9a7432')
-  const warningFade = cssColor('--warning-fade', 'rgba(154, 116, 50, 0.12)')
   const danger = cssColor('--danger', '#b24a4a')
-  const dangerFade = cssColor('--danger-fade', 'rgba(178, 74, 74, 0.12)')
   const textSecondary = cssColor('--text-secondary', '#5a635e')
+  const nodeSurface = cssColor('--bg-panel', '#ffffff')
+  const nodeSurfaceStrong = cssColor('--bg-input', '#f5f6f8')
 
   Object.assign(NODE_STYLE, {
-    step: { background: primaryFade, border: primary, shape: 'box' },
-    agent: { background: infoFade, border: info, shape: 'ellipse' },
-    skill: { background: accentFade, border: accent, shape: 'ellipse' },
-    memory: { background: warningFade, border: warning, shape: 'database' },
-    evidence: { background: dangerFade, border: danger, shape: 'diamond' },
-    control: { background: cssColor('--bg-input', '#e2e8e0'), border: textSecondary, shape: 'hexagon' }
+    step: { background: nodeSurfaceStrong, border: primary, shape: 'box' },
+    agent: { background: nodeSurface, border: info, shape: 'ellipse' },
+    skill: { background: nodeSurface, border: accent, shape: 'ellipse' },
+    memory: { background: nodeSurfaceStrong, border: warning, shape: 'database' },
+    evidence: { background: nodeSurfaceStrong, border: danger, shape: 'diamond' },
+    control: { background: nodeSurfaceStrong, border: textSecondary, shape: 'hexagon' }
   })
   Object.assign(EDGE_STYLE, {
     dependency: { color: primary, dashes: false },
@@ -285,7 +296,11 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<str
     const style = NODE_STYLE[node.nodeType] || NODE_STYLE.step
     const status = states.get(node.nodeId) || (completed.has(node.nodeId) ? 'completed' : '')
     const isDone = status === 'completed'
-    const statusBorder = isDone
+    const controlType = String(node.controlType || '').toLowerCase()
+    const isStart = node.nodeType === 'control' && (controlType === 'start' || node.nodeId === 'ctrl_start')
+    const isEnd = node.nodeType === 'control' && (controlType === 'end' || node.nodeId === 'ctrl_end')
+    const endpointColor = isStart ? done : isEnd ? info : ''
+    const statusBorder = endpointColor || (isDone
       ? done
       : status === 'running'
         ? info
@@ -293,26 +308,41 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<str
           ? warning
           : status === 'failed'
             ? danger
-            : style.border
-    const label = node.name || node.nodeId
+            : style.border)
+    const label = isStart
+      ? '任务起点\nSTART'
+      : isEnd
+        ? '任务终点\nEND'
+        : node.name || node.nodeId
     const isStep = node.nodeType === 'step'
+    const isEndpoint = isStart || isEnd
     return {
       id: node.nodeId,
       label,
       title: `${node.nodeId}\n${node.nodeType}${status ? `\n${status}` : ''}`,
-      shape: style.shape,
+      shape: isStart ? 'circle' : isEnd ? 'box' : style.shape,
       color: {
-        background: style.background,
+        background: endpointColor || style.background,
         border: statusBorder,
-        highlight: { background: style.background, border: statusBorder }
+        highlight: { background: endpointColor || style.background, border: statusBorder }
       },
-      borderWidth: status ? 3 : 1.5,
-      shadow: status === 'running' ? { enabled: true, color: info, size: 8, x: 0, y: 0 } : false,
+      borderWidth: isEndpoint ? 3 : status ? 3 : 1.5,
+      shadow: isEndpoint
+        ? { enabled: true, color: endpointColor, size: 12, x: 0, y: 2 }
+        : status === 'running'
+          ? { enabled: true, color: info, size: 8, x: 0, y: 0 }
+          : false,
       // Step 为主干节点（大、醒目）；Agent/Memory/Evidence 为认知卫星节点（小）
-      size: isStep ? 26 : 16,
-      font: { size: isStep ? (focusMainPath.value ? 15 : 14) : 12, color: isStep ? textPrimary : textSecondary },
-      mass: isStep ? 3 : 1,
-      margin: isStep ? 10 : 6
+      size: isEndpoint ? 32 : isStep ? 26 : 16,
+      font: {
+        size: isEndpoint ? 14 : isStep ? (focusMainPath.value ? 15 : 14) : 12,
+        color: isEndpoint ? '#ffffff' : isStep ? textPrimary : textSecondary,
+        face: isEndpoint ? 'sans-serif' : 'inherit',
+        bold: isEndpoint ? { color: '#ffffff', size: 14 } : undefined
+      },
+      mass: isEndpoint ? 5 : isStep ? 3 : 1,
+      margin: isEndpoint ? 12 : isStep ? 10 : 6,
+      ...(isStart ? { x: 0, y: -440 } : isEnd ? { x: 0, y: 440 } : {})
     }
   })
 }
@@ -322,40 +352,51 @@ const buildEdgeRows = (edges: AcgEdge[]) => {
   return edges.map((edge, index) => {
     const style = EDGE_STYLE[edge.edgeType] || EDGE_STYLE.dependency
     const isDep = edge.edgeType === 'dependency'
+    const length = ({
+      dependency: 190,
+      communication: 165,
+      control_flow: 180,
+      execution: 125,
+      write: 120,
+      read: 130,
+      support: 135
+    } as Record<string, number>)[edge.edgeType] || 150
     return {
       id: edge.edgeId || `e-${index}`,
       from: edge.sourceId,
       to: edge.targetId,
-      arrows: 'to',
+      arrows: { to: { enabled: true, scaleFactor: 0.72, type: 'arrow' } },
+      arrowStrikethrough: false,
+      endPointOffset: { from: 2, to: 4 },
       color: { color: style.color, highlight: done },
       dashes: style.dashes,
       smooth: { enabled: true, type: 'continuous' },
       // 依赖主干边更粗更短（强弹簧），认知关联边更细
-      width: isDep ? 2.5 : 1,
-      length: isDep ? 130 : 70
+      width: isDep ? 2.5 : edge.edgeType === 'execution' ? 1.5 : 1,
+      length
     }
   })
 }
 
 const options = {
   autoResize: true,
-  layout: { improvedLayout: true },
+  layout: { improvedLayout: true, randomSeed: 42 },
   physics: {
     enabled: true,
     solver: 'forceAtlas2Based',
     forceAtlas2Based: {
-      gravitationalConstant: -45,
-      centralGravity: 0.012,
-      springLength: 120,
-      springConstant: 0.18,
-      damping: 0.42,
-      avoidOverlap: 0.6
+      gravitationalConstant: -85,
+      centralGravity: 0.006,
+      springLength: 170,
+      springConstant: 0.075,
+      damping: 0.5,
+      avoidOverlap: 1
     },
     maxVelocity: 28,
     minVelocity: 0.45,
     timestep: 0.5,
     adaptiveTimestep: true,
-    stabilization: { enabled: true, iterations: 220, fit: true }
+    stabilization: { enabled: true, iterations: 360, fit: true }
   },
   interaction: { hover: true, dragNodes: true, zoomView: true, navigationButtons: false }
 }
@@ -407,9 +448,11 @@ const render = async () => {
   network = new Network(graphRef.value, data as any, options as any)
   network.on('selectNode', params => {
     selectedNodeId.value = String(params.nodes[0] || '')
+    window.setTimeout(() => resetView(false), 140)
   })
   network.on('deselectNode', () => {
     selectedNodeId.value = ''
+    window.setTimeout(() => resetView(false), 140)
   })
 
   // 布局展开成形后，完全冻结 physics —— 节点定住不再漂移抖动。
@@ -421,10 +464,41 @@ const render = async () => {
   })
   network.once('stabilized', stopPhysics)
   // Tiny or sparse graphs may not emit the iteration event consistently.
-  stabilizationTimer = window.setTimeout(stopPhysics, 1400)
+  stabilizationTimer = window.setTimeout(stopPhysics, 2400)
 }
 
-const fit = () => network?.fit({ animation: true })
+const resetView = (animation = true) => {
+  network?.fit({ animation: animation ? { duration: 320, easingFunction: 'easeInOutQuad' } : false })
+}
+
+const syncFullscreenState = () => {
+  isFullscreen.value = document.fullscreenElement === sectionRef.value
+  window.setTimeout(() => {
+    network?.redraw()
+    resetView(false)
+  }, 120)
+}
+
+const toggleFullscreen = async () => {
+  if (!sectionRef.value || !fullscreenSupported) return
+  try {
+    if (document.fullscreenElement === sectionRef.value) {
+      await document.exitFullscreen()
+      return
+    }
+    if (document.fullscreenElement) await document.exitFullscreen()
+    await sectionRef.value.requestFullscreen()
+  } catch (error) {
+    console.warn('ACG topology fullscreen request failed', error)
+    syncFullscreenState()
+  }
+}
+
+const handleFullscreenEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && document.fullscreenElement === sectionRef.value) {
+    void document.exitFullscreen()
+  }
+}
 
 const clearSelection = () => {
   selectedNodeId.value = ''
@@ -449,11 +523,18 @@ watch(
   { deep: true }
 )
 onMounted(() => {
+  document.addEventListener('fullscreenchange', syncFullscreenState)
+  document.addEventListener('keydown', handleFullscreenEscape)
   themeObserver = new MutationObserver(() => render())
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-color-scheme'] })
   render()
 })
 onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncFullscreenState)
+  document.removeEventListener('keydown', handleFullscreenEscape)
+  if (document.fullscreenElement === sectionRef.value) {
+    void document.exitFullscreen()
+  }
   stopPhysics()
   themeObserver?.disconnect()
   themeObserver = null
@@ -488,6 +569,7 @@ onBeforeUnmount(() => {
   border-radius: 6px; cursor: pointer; transition: all .2s ease;
 }
 .action-btn:hover { background: var(--primary-color); color: #fff; }
+.action-btn.active { background: var(--primary-color); color: #fff; }
 .graph-toolbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 0 0 var(--space-sm); margin-bottom: var(--space-sm);
@@ -511,11 +593,11 @@ onBeforeUnmount(() => {
 .edge-filters i { width: 12px; height: 2px; border-radius: 1px; opacity: .35; }
 .edge-filters label.checked i { opacity: 1; }
 .empty { padding: 32px 12px; text-align: center; color: var(--text-secondary); font-size: 13px; }
-.graph-stage { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 420px; }
+.graph-stage { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 460px; }
 .graph-stage.has-detail { grid-template-columns: minmax(0, 1fr) 280px; }
-.graph-canvas { width: 100%; max-width: 100%; min-width: 0; height: 420px; min-height: 320px; }
+.graph-canvas { width: 100%; max-width: 100%; min-width: 0; height: 460px; min-height: 360px; }
 .node-detail {
-  height: 420px; min-width: 0; overflow-y: auto; padding: 12px;
+  height: 460px; min-width: 0; overflow-y: auto; padding: 12px;
   border-left: 1px solid var(--border-light); background: var(--bg-panel);
 }
 .node-detail header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
@@ -565,6 +647,19 @@ onBeforeUnmount(() => {
 .ring.running { border-color: var(--info); }
 .ring.waiting { border-color: var(--warning); }
 .ring.failed { border-color: var(--danger); }
+
+.acg-topology:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  padding: 16px;
+  background: var(--bg-card);
+}
+.acg-topology:fullscreen .graph-stage { flex: 1 1 auto; min-height: 0; }
+.acg-topology:fullscreen .graph-canvas,
+.acg-topology:fullscreen .node-detail { height: 100%; min-height: 0; }
+.acg-topology:fullscreen .graph-toolbar,
+.acg-topology:fullscreen .legend,
+.acg-topology:fullscreen .panel-head { flex: 0 0 auto; }
 
 @media (max-width: 760px) {
   .graph-stage.has-detail { grid-template-columns: 1fr; }
