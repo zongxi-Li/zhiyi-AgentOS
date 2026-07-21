@@ -26,6 +26,12 @@ def _observation(context, *step_ids: str) -> Dict[str, Any]:
     return {}
 
 
+def _thinking_mode(context) -> str | None:
+    """Read the per-run reasoning mode without changing legacy callers."""
+    value = str(context.task.input.get("thinkingMode") or "").strip().lower()
+    return value if value in {"disabled", "standard", "deep"} else None
+
+
 def _llm_json_or_fallback(
     *,
     node_name: str,
@@ -33,11 +39,12 @@ def _llm_json_or_fallback(
     schema: Dict[str, Any],
     fallback: Dict[str, Any],
     validator: Callable[[Dict[str, Any]], Dict[str, Any]],
+    thinking_mode: str | None = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """Preserve the former graph's JSON guard and deterministic fallback behavior."""
     gateway = get_llm_gateway()
     try:
-        response = gateway.generate_json(prompt, schema)
+        response = gateway.generate_json(prompt, schema, thinking_mode=thinking_mode)
         output = validator(response.get("data", {}))
         provider = str(response.get("provider") or gateway.provider_name)
         return output, {
@@ -47,6 +54,7 @@ def _llm_json_or_fallback(
             "source": "mock" if provider == "mock" else "llm",
             "success": True,
             "latency_ms": int(response.get("latency_ms") or 0),
+            "thinking_mode": thinking_mode or "disabled",
         }
     except Exception as exc:
         return fallback, {
@@ -56,6 +64,7 @@ def _llm_json_or_fallback(
             "source": "mock_fallback",
             "success": False,
             "error": str(exc)[:240],
+            "thinking_mode": thinking_mode or "disabled",
         }
 
 
@@ -194,6 +203,7 @@ class ContractParseAgent(BaseAgent):
             schema=PARSE_CONTRACT_SCHEMA,
             fallback=output,
             validator=_validate_parse_contract,
+            thinking_mode=_thinking_mode(context),
         )
         output["parties"] = [
             f"{item.get('name', 'unknown')}：{item.get('role', 'unknown')}"
@@ -273,6 +283,7 @@ class RiskDetectAgent(BaseAgent):
             schema=RISK_DETECT_SCHEMA,
             fallback=fallback,
             validator=_validate_risks,
+            thinking_mode=_thinking_mode(context),
         )
         risks = llm_output["risks"]
         counts = _risk_counts(risks)
@@ -477,6 +488,7 @@ class ReportGenerateAgent(BaseAgent):
             schema=REPORT_GENERATE_SCHEMA,
             fallback={"report_markdown": report_markdown},
             validator=_validate_report,
+            thinking_mode=_thinking_mode(context),
         )
         report_markdown = _append_evidence_appendix(report_result["report_markdown"], evidences)
         report_markdown = _append_review_result(report_markdown, review)

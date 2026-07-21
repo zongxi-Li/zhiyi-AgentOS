@@ -178,6 +178,9 @@ class WorkflowRuntime:
         run.execution_state["workflowVersion"] = workflow.version
         run.execution_state["graphId"] = blueprint.graph_id
         run.execution_state["graphVersion"] = blueprint.version
+        thinking_mode = str(task.input.get("thinkingMode") or "").strip()
+        if thinking_mode:
+            run.execution_state["thinkingMode"] = thinking_mode
         self._sync_run_steps_to_acg(run, blueprint)
         return await executor.run(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
@@ -248,6 +251,7 @@ class WorkflowRuntime:
                 domain=workflow.domain or task.domain,
                 task_type=task.intent or workflow.intent,
                 force_dynamic=force_dynamic,
+                thinking_mode=str(task.input.get("thinkingMode") or "").strip() or None,
             )
             self.trace_store.append(
                 run=run,

@@ -114,17 +114,28 @@ class IntentParser:
         intent: str,
         domain: str = "general",
         task_type: str = "general",
+        thinking_mode: str | None = None,
     ) -> TaskSemanticProfile:
         if self.llm is not None:
             try:
-                return self._parse_with_llm(intent, domain, task_type)
+                return self._parse_with_llm(intent, domain, task_type, thinking_mode)
             except Exception:
                 # LLM 失败时不阻断规划，回退启发式。
                 pass
         return self._heuristic(intent, domain, task_type)
 
-    def _parse_with_llm(self, intent: str, domain: str, task_type: str) -> TaskSemanticProfile:
-        result = self.llm.generate_json(_build_prompt(intent, domain, task_type), _PROFILE_SCHEMA)
+    def _parse_with_llm(
+        self,
+        intent: str,
+        domain: str,
+        task_type: str,
+        thinking_mode: str | None = None,
+    ) -> TaskSemanticProfile:
+        result = self.llm.generate_json(
+            _build_prompt(intent, domain, task_type),
+            _PROFILE_SCHEMA,
+            thinking_mode=thinking_mode,
+        )
         data = result.get("data", result) if isinstance(result, dict) else {}
         data.setdefault("domainHint", domain)
         data.setdefault("taskTypeHint", task_type)

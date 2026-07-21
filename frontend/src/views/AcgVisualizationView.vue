@@ -59,6 +59,7 @@
             <el-radio-button label="dynamic">强制动态</el-radio-button>
           </el-radio-group>
           <el-tag size="small" type="success" effect="plain">{{ planningModeHint }}</el-tag>
+          <el-tag size="small" type="info" effect="plain">深度思考</el-tag>
         </div>
         <el-checkbox v-model="faultEnabled">注入故障演示自愈</el-checkbox>
         <el-select v-if="faultEnabled" v-model="faultStep" size="small" style="width: 180px">
@@ -153,6 +154,7 @@ const userIntent = ref(`请以 ACG 多智能体协作方式审查这份软件开
 
 最终报告必须包含合同基本信息、条款分类摘要、高中低风险清单、每个风险点的条款位置、风险原因、可能后果、证据依据、修改建议、人工复核关注点和签署前处理结论。`)
 const planningMode = ref<'template' | 'planner' | 'dynamic'>('dynamic')
+const thinkingMode = 'deep'
 const faultEnabled = ref(false)
 const faultStep = ref('risk_detect')
 const faultType = ref<'timeout' | 'crash' | 'empty_evidence'>('timeout')
@@ -339,7 +341,8 @@ const startRun = async () => {
     const input: Record<string, any> = {
       contractText: contractText.value,
       userIntent: intentText,
-      planningMode: planningMode.value
+      planningMode: planningMode.value,
+      thinkingMode
     }
     if (planningMode.value !== 'template') input.usePlanner = true
     if (planningMode.value === 'dynamic') input.forceDynamicPlanning = true

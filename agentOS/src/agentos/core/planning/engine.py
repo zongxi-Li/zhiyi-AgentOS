@@ -36,6 +36,7 @@ class PlanResult:
     strategy: str  # "static_template" | "dynamic_generation"
     template_id: Optional[str] = None
     template_score: float = 0.0
+    thinking_mode: Optional[str] = None
     notes: list[str] = field(default_factory=list)
 
     def to_decision(self) -> Dict[str, Any]:
@@ -43,6 +44,7 @@ class PlanResult:
             "strategy": self.strategy,
             "templateId": self.template_id,
             "templateScore": self.template_score,
+            "thinkingMode": self.thinking_mode,
             "profile": self.profile.model_dump(by_alias=True),
             "graphId": self.blueprint.graph_id,
             "nodeCount": self.blueprint.node_count,
@@ -75,8 +77,14 @@ class PlanningEngine:
         domain: str = "general",
         task_type: str = "general",
         force_dynamic: bool = False,
+        thinking_mode: str | None = None,
     ) -> PlanResult:
-        profile = self.intent_parser.parse(intent=intent, domain=domain, task_type=task_type)
+        profile = self.intent_parser.parse(
+            intent=intent,
+            domain=domain,
+            task_type=task_type,
+            thinking_mode=thinking_mode,
+        )
 
         match = None
         if not force_dynamic:
@@ -91,6 +99,7 @@ class PlanningEngine:
                     strategy="static_template",
                     template_id=match.workflow.workflow_id,
                     template_score=match.score,
+                    thinking_mode=thinking_mode,
                     notes=[f"matched template by {match.matched_by}"],
                 )
 
@@ -118,6 +127,7 @@ class PlanningEngine:
             profile=profile,
             strategy="dynamic_generation",
             template_score=match.score if match else 0.0,
+            thinking_mode=thinking_mode,
             notes=notes,
         )
 
