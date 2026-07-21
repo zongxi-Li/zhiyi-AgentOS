@@ -288,9 +288,8 @@
                   class="composer-acg-toggle"
                   :class="{ active: workflowPanelOpen }"
                   type="button"
-                  :disabled="!hasActiveWorkflow"
                   :aria-pressed="workflowPanelOpen"
-                  :title="!hasActiveWorkflow ? '专业任务启动后可查看 ACG 拓扑' : (workflowPanelOpen ? '收起 ACG 拓扑' : '展开 ACG 拓扑')"
+                  :title="workflowPanelOpen ? '收起 ACG 拓扑' : '展开 ACG 拓扑'"
                   @click="toggleWorkflowPanel"
                 >
                   <el-icon><Share /></el-icon>
@@ -328,7 +327,7 @@
 
         <Transition name="workflow-acg-slide">
           <section
-            v-if="isAgentMode && hasActiveWorkflow && workflowPanelOpen"
+            v-if="isAgentMode && workflowPanelOpen"
             class="workflow-acg-panel"
             :class="{ resizing: workflowPanelResizing }"
             :style="{ height: `${workflowPanelHeight}px` }"
@@ -360,15 +359,18 @@
           </section>
         </Transition>
         <button
-          v-if="isAgentMode && hasActiveWorkflow && !workflowPanelOpen"
+          v-if="isAgentMode && !workflowPanelOpen"
           class="workflow-acg-dock"
+          :class="{ idle: !hasActiveWorkflow }"
           type="button"
           aria-label="展开 ACG 动态拓扑"
           @click="setWorkflowPanelOpen(true)"
         >
           <span class="workflow-acg-dock__pulse" aria-hidden="true"></span>
           <span>ACG 动态拓扑</span>
-          <span class="workflow-acg-dock__meta">{{ displayAcgBlueprint?.nodes.length || 0 }} 节点</span>
+          <span class="workflow-acg-dock__meta">
+            {{ hasActiveWorkflow ? `${displayAcgBlueprint?.nodes.length || 0} 节点` : '等待任务' }}
+          </span>
           <el-icon><ArrowUp /></el-icon>
         </button>
       </section>
@@ -867,13 +869,13 @@ const showHeroMode = computed(() => {
 })
 const composerDockOffset = computed(() => {
   if (showHeroMode.value) return 'auto'
-  if (!isAgentMode.value || !hasActiveWorkflow.value) return '0px'
+  if (!isAgentMode.value) return '0px'
   return workflowPanelOpen.value ? `${workflowPanelHeight.value}px` : '30px'
 })
 const composerHeight = ref(180)
 const composerReservedSpace = computed(() => {
   if (showHeroMode.value) return 0
-  const dockHeight = isAgentMode.value && hasActiveWorkflow.value
+  const dockHeight = isAgentMode.value
     ? (workflowPanelOpen.value ? workflowPanelHeight.value : 30)
     : 0
   return Math.ceil(composerHeight.value + dockHeight + 24)
@@ -1127,7 +1129,6 @@ const resetWorkflowPanelHeight = () => {
 }
 
 const setWorkflowPanelOpen = (open: boolean) => {
-  if (open && !hasActiveWorkflow.value) return
   workflowPanelOpen.value = open
   localStorage.setItem(WORKFLOW_PANEL_OPEN_KEY, open ? '1' : '0')
 }
@@ -3316,6 +3317,12 @@ onUnmounted(() => {
   background: var(--primary-color);
   box-shadow: 0 0 0 4px var(--primary-fade);
   animation: acg-dock-pulse 2s ease-in-out infinite;
+}
+
+.workflow-acg-dock.idle .workflow-acg-dock__pulse {
+  background: var(--text-disabled);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-disabled) 12%, transparent);
+  animation: none;
 }
 
 .workflow-acg-dock__meta {
