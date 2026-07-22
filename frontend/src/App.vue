@@ -416,6 +416,7 @@ import { authApi } from '@/services/api/auth'
 import { conversationApi, type Conversation } from '@/services/api/conversation'
 import { useChatStore } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
+import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import type { Role } from '@/services/api/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -423,6 +424,7 @@ const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
 const roleStore = useRoleStore()
+const workflowRunsStore = useWorkflowRunsStore()
 const sidebarRoles = computed(() => roleStore.roles)
 const globalError = ref('')
 const simpleNavOpen = ref(false)
@@ -841,6 +843,7 @@ onMounted(() => {
   window.addEventListener('history-refresh', handleHistoryRefresh)
   mobileMediaQuery.addEventListener('change', handleViewportChange)
   if (chatNavOpen.value) void loadRecentConversations()
+  void workflowRunsStore.bootstrap()
 })
 
 onUnmounted(() => {

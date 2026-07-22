@@ -21,6 +21,7 @@ import {
   type AsyncWorkflowStartResponse,
   type WorkflowProgress,
   type WorkflowProgressPhase,
+  type WorkflowRunSummary,
   type ReviewDecision,
   type StepStatus,
   type TraceEvent,
@@ -53,6 +54,7 @@ export type {
   AsyncWorkflowStartResponse,
   WorkflowProgress,
   WorkflowProgressPhase,
+  WorkflowRunSummary,
   ReviewDecision,
   StepStatus,
   TraceEvent,
@@ -82,32 +84,35 @@ export const workflowApi = {
     return agentosApi.getWorkflowProgress(runId, options)
   },
 
-  listRuns(params: WorkflowRunQuery = {}): Promise<PageResponse<WorkflowRun>> {
-    return agentosApi.listWorkflowRuns({ page: 1, pageSize: 20, ...params })
+  listRuns(
+    params: WorkflowRunQuery = {},
+    options: { signal?: AbortSignal } = {}
+  ): Promise<PageResponse<WorkflowRunSummary>> {
+    return agentosApi.listWorkflowRuns({ page: 1, pageSize: 20, ...params }, options)
   },
 
   getRun(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowRun> {
     return agentosApi.getWorkflowRun(runId, options)
   },
 
-  getTrace(runId: string): Promise<WorkflowTraceExport> {
-    return agentosApi.getWorkflowTrace(runId)
+  getTrace(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowTraceExport> {
+    return agentosApi.getWorkflowTrace(runId, options)
   },
 
   exportTraceMarkdown(runId: string): Promise<string> {
     return agentosApi.exportWorkflowTraceMarkdown(runId)
   },
 
-  listCheckpoints(runId: string): Promise<PageResponse<Checkpoint> & { runId: string }> {
-    return agentosApi.listWorkflowCheckpoints(runId)
+  listCheckpoints(runId: string, options: { signal?: AbortSignal } = {}): Promise<PageResponse<Checkpoint> & { runId: string }> {
+    return agentosApi.listWorkflowCheckpoints(runId, options)
   },
 
-  listReviews(runId: string): Promise<PageResponse<ReviewRecord> & { runId: string }> {
-    return agentosApi.listWorkflowReviews(runId)
+  listReviews(runId: string, options: { signal?: AbortSignal } = {}): Promise<PageResponse<ReviewRecord> & { runId: string }> {
+    return agentosApi.listWorkflowReviews(runId, options)
   },
 
-  submitReview(runId: string, payload: ReviewRequest): Promise<WorkflowRun> {
-    return agentosApi.applyWorkflowReview(runId, payload)
+  submitReview(runId: string, payload: ReviewRequest, options: { signal?: AbortSignal } = {}): Promise<WorkflowRun> {
+    return agentosApi.applyWorkflowReview(runId, payload, options)
   },
 
   resumeFromCheckpoint(runId: string, checkpointId: string): Promise<WorkflowRun> {

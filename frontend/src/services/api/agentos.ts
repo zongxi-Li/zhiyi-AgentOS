@@ -62,6 +62,11 @@ export interface WorkflowProgress {
   percentage: number
 }
 
+export interface WorkflowRunSummary extends WorkflowProgress {
+  source?: string | null
+  createdAt?: string | null
+}
+
 export type StepStatus =
   | 'pending'
   | 'running'
@@ -208,6 +213,9 @@ export interface ReviewRequest {
   decision: ReviewDecision
   reviewer?: string
   comment?: string
+  operationId?: string
+  expectedRunUpdatedAt?: string
+  expectedStepStatus?: StepStatus
 }
 
 export interface ReviewRecord {
@@ -217,6 +225,7 @@ export interface ReviewRecord {
   decision: ReviewDecision
   reviewer: string
   comment?: string
+  operationId?: string
   traceEventId?: string
   createdAt?: string
 }
@@ -248,9 +257,13 @@ export interface EvaluationRun {
 
 export interface WorkflowRunQuery {
   status?: WorkflowStatus | ''
+  statuses?: string
   domain?: string
   workflowId?: string
+  taskId?: string
+  lifecyclePhase?: WorkflowProgressPhase | ''
   source?: string
+  summary?: boolean
   page?: number
   pageSize?: number
 }
@@ -461,8 +474,14 @@ const normalizeAcgView = (view: AcgView): AcgView => ({
 })
 
 export const agentosApi = {
-  async listWorkflowRuns(params: WorkflowRunQuery = {}): Promise<PageResponse<WorkflowRun>> {
-    const response = await agentosRequest.get<PageResponse<WorkflowRun>>('/core/workflows/runs', { params })
+  async listWorkflowRuns(
+    params: WorkflowRunQuery = {},
+    options: { signal?: AbortSignal } = {}
+  ): Promise<PageResponse<WorkflowRunSummary>> {
+    const response = await agentosRequest.get<PageResponse<WorkflowRunSummary>>('/core/workflows/runs', {
+      params: { summary: true, ...params },
+      signal: options.signal
+    })
     return response.data
   },
 
@@ -518,13 +537,13 @@ export const agentosApi = {
     return response.data
   },
 
-  async listWorkflowCheckpoints(runId: string): Promise<PageResponse<Checkpoint> & { runId: string }> {
-    const response = await agentosRequest.get<PageResponse<Checkpoint> & { runId: string }>(`/core/workflows/runs/${runId}/checkpoints`)
+  async listWorkflowCheckpoints(runId: string, options: { signal?: AbortSignal } = {}): Promise<PageResponse<Checkpoint> & { runId: string }> {
+    const response = await agentosRequest.get<PageResponse<Checkpoint> & { runId: string }>(`/core/workflows/runs/${runId}/checkpoints`, { signal: options.signal })
     return response.data
   },
 
-  async getWorkflowTrace(runId: string): Promise<WorkflowTraceExport> {
-    const response = await agentosRequest.get<WorkflowTraceExport>(`/core/workflows/runs/${runId}/trace`)
+  async getWorkflowTrace(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowTraceExport> {
+    const response = await agentosRequest.get<WorkflowTraceExport>(`/core/workflows/runs/${runId}/trace`, { signal: options.signal })
     return response.data
   },
 
@@ -536,13 +555,13 @@ export const agentosApi = {
     return response.data
   },
 
-  async listWorkflowReviews(runId: string): Promise<PageResponse<ReviewRecord> & { runId: string }> {
-    const response = await agentosRequest.get<PageResponse<ReviewRecord> & { runId: string }>(`/core/workflows/runs/${runId}/reviews`)
+  async listWorkflowReviews(runId: string, options: { signal?: AbortSignal } = {}): Promise<PageResponse<ReviewRecord> & { runId: string }> {
+    const response = await agentosRequest.get<PageResponse<ReviewRecord> & { runId: string }>(`/core/workflows/runs/${runId}/reviews`, { signal: options.signal })
     return response.data
   },
 
-  async applyWorkflowReview(runId: string, payload: ReviewRequest): Promise<WorkflowRun> {
-    const response = await agentosRequest.post<WorkflowRun>(`/core/workflows/runs/${runId}/reviews`, payload)
+  async applyWorkflowReview(runId: string, payload: ReviewRequest, options: { signal?: AbortSignal } = {}): Promise<WorkflowRun> {
+    const response = await agentosRequest.post<WorkflowRun>(`/core/workflows/runs/${runId}/reviews`, payload, { signal: options.signal })
     return response.data
   },
 

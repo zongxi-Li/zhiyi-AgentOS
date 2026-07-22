@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Dict
 
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
-from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value
+from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value, status_values
 
 
 class MemoryWorkflowStore(WorkflowStore):
@@ -71,25 +71,39 @@ class MemoryWorkflowStore(WorkflowStore):
         self,
         *,
         status: WorkflowStatus | str | None = None,
+        statuses=None,
         domain: str | None = None,
         workflow_id: str | None = None,
+        task_id: str | None = None,
+        lifecycle_phase: str | None = None,
         source: str | None = None,
+        owner_user_id: str | None = None,
+        owner_tenant_id: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> WorkflowStorePage[WorkflowRun]:
         expected_status = status_value(status)
+        expected_statuses = status_values(statuses)
         runs = [
             run.model_copy(deep=True)
             for run in self._runs.values()
             if _matches_run(
                 run,
                 status=expected_status,
+                statuses=expected_statuses,
                 domain=domain,
                 workflow_id=workflow_id,
+                task_id=task_id,
+                lifecycle_phase=lifecycle_phase,
                 source=source,
+                owner_user_id=owner_user_id,
+                owner_tenant_id=owner_tenant_id,
             )
         ]
-        runs.sort(key=lambda run: (run.created_at, run.run_id), reverse=True)
+        runs.sort(
+            key=lambda run: (_run_priority(run) if expected_statuses else 0, run.updated_at, run.run_id),
+            reverse=True,
+        )
         return paginate_items(runs, page=page, page_size=page_size)
 
     def list_non_terminal_runs(self, *, limit: int = 200) -> tuple[WorkflowRun, ...]:
@@ -127,19 +141,45 @@ def _matches_run(
     run: WorkflowRun,
     *,
     status: str | None,
+    statuses: set[str] | None,
     domain: str | None,
     workflow_id: str | None,
+    task_id: str | None,
+    lifecycle_phase: str | None,
     source: str | None,
+    owner_user_id: str | None,
+    owner_tenant_id: str | None,
 ) -> bool:
     if status is not None and run.status.value != status:
+        return False
+    if statuses is not None and run.status.value not in statuses:
         return False
     if domain is not None and run.domain != domain:
         return False
     if workflow_id is not None and run.workflow_id != workflow_id:
         return False
+    if task_id is not None and run.task_id != task_id:
+        return False
+    phase = run.lifecycle_phase.value if run.lifecycle_phase is not None else None
+    if lifecycle_phase is not None and phase != lifecycle_phase:
+        return False
     if source is not None and run.input.get("source") != source:
         return False
+    run_owner = str(run.input.get("authenticatedUserId") or "").strip()
+    run_tenant = str(run.input.get("authenticatedTenantId") or "").strip()
+    if owner_user_id is not None and run_owner and run_owner != owner_user_id:
+        return False
+    if owner_tenant_id is not None and run_tenant and run_tenant != owner_tenant_id:
+        return False
     return True
+
+
+def _run_priority(run: WorkflowRun) -> int:
+    if run.status == WorkflowStatus.WAITING_REVIEW:
+        return 2
+    if run.status not in {WorkflowStatus.COMPLETED, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED}:
+        return 1
+    return 0
 
 
 def _reject_terminal_overwrite(existing: WorkflowRun, incoming: WorkflowRun) -> bool:

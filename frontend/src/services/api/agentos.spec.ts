@@ -61,4 +61,33 @@ describe('AgentOS async workflow API', () => {
     vi.spyOn(agentosRequest, 'get').mockRejectedValue(error)
     await expect(agentosApi.getWorkflowProgress('run_1')).rejects.toBe(error)
   })
+
+  it('queries a bounded summary list through Java with one AbortSignal', async () => {
+    const signal = new AbortController().signal
+    const payload = { items: [{ runId: 'run_1', phase: 'planning', percent: null }], total: 1 }
+    const get = vi.spyOn(agentosRequest, 'get').mockResolvedValue({ data: payload } as never)
+
+    const result = await agentosApi.listWorkflowRuns({
+      statuses: 'running,waiting_review', page: 1, pageSize: 50
+    }, { signal })
+
+    expect(result.items[0].percent).toBeNull()
+    expect(get).toHaveBeenCalledWith('/core/workflows/runs', {
+      params: { summary: true, statuses: 'running,waiting_review', page: 1, pageSize: 50 },
+      signal
+    })
+  })
+
+  it('forwards review concurrency fields and preserves 409', async () => {
+    const conflict = { response: { status: 409 } }
+    const post = vi.spyOn(agentosRequest, 'post').mockRejectedValue(conflict)
+    const signal = new AbortController().signal
+    const payload = {
+      stepId: 'human_review', decision: 'approved' as const, operationId: 'operation_1',
+      expectedRunUpdatedAt: '2026-07-22T00:00:00Z', expectedStepStatus: 'waiting_review' as const
+    }
+
+    await expect(agentosApi.applyWorkflowReview('run_1', payload, { signal })).rejects.toBe(conflict)
+    expect(post).toHaveBeenCalledWith('/core/workflows/runs/run_1/reviews', payload, { signal })
+  })
 })

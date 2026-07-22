@@ -4,6 +4,7 @@ import { parseChatStreamData, parseSseDataLine, type ChatStreamEvent } from '@/u
 import { workflowApi, type AsyncWorkflowStartResponse } from '@/services/api/workflow'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import { loadModelSettings, toModelRequestSettings, type ModelSettings } from '@/config/modelSettings'
+import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import {
   agentLawyerApi,
   type AgentRoutingInfo,
@@ -176,6 +177,7 @@ export const useChatStore = defineStore('chat', () => {
   const isStreaming = ref(false)
   const isLoadingConversation = ref(false)
   const workflowBindings = ref<Record<string, ChatWorkflowBinding[]>>(loadWorkflowBindings())
+  const workflowRunsStore = useWorkflowRunsStore()
   let activeStreamController: AbortController | null = null
   const contextId = ref<string | null>(null)
   const lawyerSessionId = ref<string | null>(null)
@@ -209,6 +211,7 @@ export const useChatStore = defineStore('chat', () => {
       [binding.conversationId]: [...existing.filter(item => item.runId !== binding.runId), binding]
     }
     persistWorkflowBindings()
+    workflowRunsStore.registerChatBinding(binding)
   }
 
   const getLatestWorkflowBinding = (conversationId: string) => {
@@ -233,6 +236,7 @@ export const useChatStore = defineStore('chat', () => {
         : binding)
     }
     persistWorkflowBindings()
+    workflowRunsStore.updateObservedState(runId, status)
   }
 
   const markWorkflowBindingInvalid = (conversationId: string, runId: string) => {
@@ -245,6 +249,7 @@ export const useChatStore = defineStore('chat', () => {
         : binding)
     }
     persistWorkflowBindings()
+    workflowRunsStore.markInvalid(runId)
   }
 
   const emitHistoryRefresh = () => {

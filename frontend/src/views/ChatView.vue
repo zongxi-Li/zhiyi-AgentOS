@@ -194,6 +194,17 @@
             {{ workflowStartError }}
           </p>
 
+          <WorkflowReviewPanel
+            v-if="activeWorkflowRunId && activeWorkflowStatus === 'waiting_review'"
+            class="chat-workflow-review"
+            :run-id="activeWorkflowRunId"
+            :progress="workflowProgressState.progress.value"
+            :run="activeWorkflowRun"
+            compact
+            @reviewed="handleChatWorkflowReviewed"
+            @conflict="handleChatReviewConflict"
+          />
+
           <div
             v-if="activeWorkflowRunId"
             class="workflow-run-strip"
@@ -206,17 +217,12 @@
             <code :title="activeWorkflowRunId">{{ activeWorkflowRunId }}</code>
             <span class="workflow-run-strip__workflow">{{ activeWorkflowRun?.workflowId || activeWorkflowBinding?.workflowId || 'WorkflowRun' }}</span>
             <div class="workflow-run-strip__actions">
-              <button
-                v-if="activeWorkflowStatus === 'waiting_review'"
-                type="button"
-                :disabled="workflowReviewSubmitting || !activeReviewStepId"
-                @click="approveActiveWorkflow"
-              >
-                <el-icon><Check /></el-icon>
-                <span>{{ workflowReviewSubmitting ? '提交中' : (!activeReviewStepId ? '加载审核节点' : '审核并继续') }}</span>
-              </button>
               <button type="button" @click="openActiveWorkflowOperations">
                 <span>查看 ACG</span>
+                <el-icon><DArrowRight /></el-icon>
+              </button>
+              <button type="button" @click="openActiveWorkflowConsole">
+                <span>运行控制</span>
                 <el-icon><DArrowRight /></el-icon>
               </button>
             </div>
@@ -789,6 +795,7 @@ import RelationGraph from '@/components/agent/RelationGraph.vue'
 import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import { agentosApi, type AcgBlueprint, type AcgView, type WorkflowRun } from '@/services/api/agentos'
 import type { WorkflowProgress } from '@/services/api/workflow'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
@@ -899,7 +906,6 @@ const activeAcgView = ref<AcgView | null>(null)
 const isSubmittingWorkflow = ref(false)
 const isLoadingWorkflowResult = ref(false)
 const workflowStartError = ref<string | null>(null)
-const workflowReviewSubmitting = ref(false)
 const currentConversationId = computed(() => {
   const routeContextId = typeof route.query.contextId === 'string' ? route.query.contextId.trim() : ''
   return routeContextId || chatStore.contextId || draftConversationId.value
@@ -1032,12 +1038,6 @@ const activeWorkflowStatusLabel = computed(() => ({
   completed: '运行完成',
   cancelled: '已取消'
 }[activeWorkflowStatus.value] || activeWorkflowStatus.value))
-const activeReviewStepId = computed(() => (
-  activeWorkflowRun.value?.steps.find(step => step.status === 'waiting_review')?.stepId
-  || workflowProgressState.progress.value?.currentStepId
-  || activeWorkflowRun.value?.currentStepId
-  || ''
-))
 const contextTabs = computed(() => [
   { key: 'lineage' as const, label: '数据血缘', count: contextEdges.value.length },
   { key: 'nodes' as const, label: '节点', count: contextNodes.value.length },
@@ -1378,42 +1378,23 @@ const openActiveWorkflowOperations = () => {
   void router.push({ path: '/agentos/acg', query: { runId: activeWorkflowRunId.value } })
 }
 
-const approveActiveWorkflow = async () => {
-  if (!activeWorkflowRunId.value || !activeReviewStepId.value || workflowReviewSubmitting.value) return
+const openActiveWorkflowConsole = () => {
+  if (!activeWorkflowRunId.value) return
+  void router.push({ path: '/agentos-console', query: { runId: activeWorkflowRunId.value } })
+}
 
-  try {
-    await ElMessageBox.confirm(
-      `确认通过步骤 ${activeReviewStepId.value} 并继续执行？`,
-      '人工审核',
-      {
-        confirmButtonText: '通过并继续',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-  } catch {
-    return
-  }
+const handleChatWorkflowReviewed = async (run: WorkflowRun) => {
+  if (run.runId !== activeWorkflowRunId.value) return
+  activeWorkflowRun.value = run
+  syncWorkflowMessageStatus(run.runId, run.status)
+  chatStore.updateWorkflowBindingStatus(currentConversationId.value, run.runId, run.status)
+  await workflowProgressState.refresh()
+  await loadActiveAcgView(run.runId)
+}
 
-  workflowReviewSubmitting.value = true
-  try {
-    const run = await agentosApi.applyWorkflowReview(activeWorkflowRunId.value, {
-      stepId: activeReviewStepId.value,
-      decision: 'approved',
-      reviewer: 'chat_operator',
-      comment: '从聊天工作台审核通过'
-    })
-    activeWorkflowRun.value = run
-    syncWorkflowMessageStatus(run.runId, run.status)
-    chatStore.updateWorkflowBindingStatus(currentConversationId.value, run.runId, run.status)
-    await workflowProgressState.refresh()
-    await loadActiveAcgView(run.runId)
-    ElMessage.success(run.status === 'completed' ? '工作流已完成' : '审核已提交，工作流继续执行')
-  } catch (error: any) {
-    ElMessage.error(error?.message || '提交审核失败')
-  } finally {
-    workflowReviewSubmitting.value = false
-  }
+const handleChatReviewConflict = async () => {
+  await workflowProgressState.refresh()
+  if (activeWorkflowRunId.value) await loadActiveAcgView(activeWorkflowRunId.value)
 }
 
 const roles = computed(() => roleStore.roles)
@@ -3963,6 +3944,7 @@ onUnmounted(() => {
 }
 
 .chat-workflow-progress,
+.chat-workflow-review,
 .chat-workflow-error {
   order: 0;
   width: 50%;
@@ -4901,6 +4883,7 @@ onUnmounted(() => {
 @media (max-width: 900px) {
   .workflow-run-strip,
   .chat-workflow-progress,
+  .chat-workflow-review,
   .chat-workflow-error {
     width: calc(100% - 32px);
   }
@@ -4960,6 +4943,7 @@ onUnmounted(() => {
   .chat-main:not(.simple-session) .composer-card,
   .workflow-run-strip,
   .chat-workflow-progress,
+  .chat-workflow-review,
   .chat-workflow-error {
     width: 100%;
   }

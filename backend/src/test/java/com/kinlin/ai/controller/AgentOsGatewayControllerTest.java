@@ -44,6 +44,7 @@ class AgentOsGatewayControllerTest {
         private final Map<String, String> textResponses = new HashMap<>();
         private String lastGetPath;
         private String lastPostPath;
+        private Object lastPostBody;
         private Object lastAsyncPostBody;
         private String lastTextPath;
 
@@ -65,6 +66,7 @@ class AgentOsGatewayControllerTest {
         @Override
         public Map<String, Object> post(String path, Object body) {
             lastPostPath = path;
+            lastPostBody = body;
             return postResponses.getOrDefault(path, Map.of());
         }
 
@@ -240,6 +242,33 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.total").value(1));
 
         assertEquals("/ai/core/workflows/runs/run_001/checkpoints", agentOsGatewayService.lastGetPath);
+    }
+
+    @Test
+    void listWorkflowRuns_forwardsLightweightControlPlaneFilters() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("total", 1);
+        response.put("items", java.util.List.of(Map.of(
+                "runId", "run_001",
+                "phase", "review",
+                "percent", 50.0
+        )));
+        String path = "/ai/core/workflows/runs?statuses=running,waiting_review"
+                + "&taskId=task_001&lifecyclePhase=review&summary=true&page=1&pageSize=50";
+        agentOsGatewayService.getResponses.put(path, response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs")
+                        .param("statuses", "running,waiting_review")
+                        .param("taskId", "task_001")
+                        .param("lifecyclePhase", "review")
+                        .param("summary", "true")
+                        .param("page", "1")
+                        .param("pageSize", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].phase").value("review"))
+                .andExpect(jsonPath("$.items[0].percent").value(50.0));
+
+        assertEquals(path, agentOsGatewayService.lastGetPath);
     }
 
     @Test
@@ -471,6 +500,29 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.total").value(1));
 
         assertEquals("/ai/core/workflows/runs/run_001/reviews", agentOsGatewayService.lastGetPath);
+    }
+
+    @Test
+    void applyReview_preservesConflictAndOperationPayload() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("detail", "workflow run revision changed");
+        response.put(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 409);
+        agentOsGatewayService.postResponses.put("/ai/core/workflows/runs/run_001/reviews", response);
+
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("stepId", "human_review");
+        request.put("decision", "approved");
+        request.put("operationId", "operation_001");
+        request.put("expectedRunUpdatedAt", "2026-07-22T01:07:20Z");
+        request.put("expectedStepStatus", "waiting_review");
+
+        mockMvc.perform(post("/api/agentos/core/workflows/runs/run_001/reviews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("workflow run revision changed"));
+
+        assertEquals(request, agentOsGatewayService.lastPostBody);
     }
 
     @Test

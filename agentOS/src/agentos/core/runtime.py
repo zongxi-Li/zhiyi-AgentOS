@@ -71,6 +71,10 @@ _LIFECYCLE_MESSAGES = {
 _ERROR_UNSET = object()
 
 
+class ReviewConflictError(ValueError):
+    """The reviewed Run or step changed after the client observed it."""
+
+
 class WorkflowRuntime:
     """AgentOS Core 的工作流运行时，串联任务、Trace、审核与恢复流程。"""
 
@@ -103,6 +107,7 @@ class WorkflowRuntime:
             trace_store=self.trace_store,
         )
         self._runtime_adapters: dict[str, object] = {}
+        self._review_locks: dict[str, asyncio.Lock] = {}
         self.execution_adapter_factories: dict[str, ExecutionAdapterFactory] = {
             self._normalize_runtime_engine(engine): factory
             for engine, factory in (execution_adapter_factories or {}).items()
@@ -710,10 +715,51 @@ class WorkflowRuntime:
         )
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
-        run = self.workflow_store.get_run(decision.run_id)
-        workflow = self.workflow_registry.get(run.workflow_id)
-        adapter = self._workflow_adapter(workflow)
-        return await adapter.apply_review(decision)
+        lock = self._review_locks.setdefault(decision.run_id, asyncio.Lock())
+        async with lock:
+            run = self.workflow_store.get_run(decision.run_id)
+            existing = self._find_review_operation(run, decision.operation_id)
+            if existing is not None:
+                if (
+                    existing.get("stepId") == decision.step_id
+                    and existing.get("decision") == decision.decision.value
+                ):
+                    return run
+                raise ReviewConflictError("review operation id was already used for a different decision")
+
+            if run.status in _TERMINAL_RUN_STATUSES:
+                raise ReviewConflictError("workflow run is already terminal")
+            if run.status != WorkflowStatus.WAITING_REVIEW:
+                raise ReviewConflictError("workflow run is no longer waiting for review")
+            step = run.get_step(decision.step_id)
+            if step.status != StepStatus.WAITING_REVIEW:
+                raise ReviewConflictError("workflow step is no longer waiting for review")
+            if (
+                decision.expected_run_updated_at is not None
+                and run.updated_at != decision.expected_run_updated_at
+            ):
+                raise ReviewConflictError("workflow run revision changed")
+            if (
+                decision.expected_step_status is not None
+                and step.status != decision.expected_step_status
+            ):
+                raise ReviewConflictError("workflow step state changed")
+
+            workflow = self.workflow_registry.get(run.workflow_id)
+            adapter = self._workflow_adapter(workflow)
+            return await adapter.apply_review(decision)
+
+    @staticmethod
+    def _find_review_operation(run: WorkflowRun, operation_id: str | None) -> dict | None:
+        if not operation_id:
+            return None
+        for event in run.trace:
+            if event.event_type != TraceEventType.REVIEW_DECIDED:
+                continue
+            payload = event.payload or {}
+            if payload.get("operationId") == operation_id:
+                return payload
+        return None
 
     async def resume_from_checkpoint(self, *, run_id: str, checkpoint_id: str) -> WorkflowRun:
         run = self.workflow_store.get_run(run_id)

@@ -1,5 +1,6 @@
 import { flushPromises, shallowMount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AcgVisualizationView from './AcgVisualizationView.vue'
 import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun } from '@/services/api/workflow'
@@ -61,7 +62,7 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
   await router.isReady()
   const wrapper = shallowMount(AcgVisualizationView, {
     global: {
-      plugins: [router],
+      plugins: [createPinia(), router],
       stubs: {
         'el-button': buttonStub,
         'el-input': true,

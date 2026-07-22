@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.execution import RunExecutionCoordinator
 from agentos.core.models.types import ReviewDecision, ReviewDecisionType, WorkflowRun
-from agentos.core.runtime import WorkflowRuntime
+from agentos.core.runtime import ReviewConflictError, WorkflowRuntime
 from agentos.core.workflow.progress import ProgressAssembler
 from app.execution.runtime import build_default_runtime
 from app.llm.gateway import get_llm_gateway
@@ -187,13 +187,24 @@ class ReviewRequest(BaseModel):
     decision: ReviewDecisionType
     reviewer: str = "system"
     comment: str = ""
+    operation_id: Optional[str] = Field(default=None, alias="operationId")
+    expected_run_updated_at: Optional[str] = Field(default=None, alias="expectedRunUpdatedAt")
+    expected_step_status: Optional[str] = Field(default=None, alias="expectedStepStatus")
 
     @model_validator(mode="before")
     @classmethod
     def accept_camel_case(cls, data):
-        if isinstance(data, dict) and "stepId" in data and "step_id" not in data:
+        if isinstance(data, dict):
             data = dict(data)
-            data["step_id"] = data["stepId"]
+            aliases = {
+                "stepId": "step_id",
+                "operationId": "operation_id",
+                "expectedRunUpdatedAt": "expected_run_updated_at",
+                "expectedStepStatus": "expected_step_status",
+            }
+            for alias, field in aliases.items():
+                if alias in data and field not in data:
+                    data[field] = data[alias]
         return data
 
 
@@ -1717,24 +1728,48 @@ def create_router(
     @router.get("/core/workflows/runs")
     async def list_workflow_runs(
         status: Optional[str] = None,
+        statuses: Optional[str] = None,
         domain: Optional[str] = None,
         workflow_id: Optional[str] = Query(None, alias="workflowId"),
+        task_id: Optional[str] = Query(None, alias="taskId"),
+        lifecycle_phase: Optional[str] = Query(None, alias="lifecyclePhase"),
         source: Optional[str] = None,
+        summary: bool = False,
         page: int = Query(1, ge=1),
-        page_size: int = Query(20, ge=1, alias="pageSize"),
+        page_size: int = Query(20, ge=1, le=100, alias="pageSize"),
     ):
         if workflow_id:
             workflow_id = runtime.resolve_workflow_id(workflow_id)
-        return _page_to_json(
-            runtime.workflow_store.list_runs(
-                status=status,
-                domain=domain,
-                workflow_id=workflow_id,
-                source=source,
-                page=page,
-                page_size=page_size,
-            )
+        actor = current_trusted_user()
+        requested_statuses = [item.strip() for item in (statuses or "").split(",") if item.strip()]
+        result = runtime.workflow_store.list_runs(
+            status=status,
+            statuses=requested_statuses or None,
+            domain=domain,
+            workflow_id=workflow_id,
+            task_id=task_id,
+            lifecycle_phase=lifecycle_phase,
+            source=source,
+            owner_user_id=actor.user_id if actor else None,
+            owner_tenant_id=actor.tenant_id if actor else None,
+            page=page,
+            page_size=page_size,
         )
+        if not summary:
+            return _page_to_json(result)
+        return {
+            "items": [
+                {
+                    **_to_json(progress_assembler.assemble(run)),
+                    "source": run.input.get("source"),
+                    "createdAt": run.created_at,
+                }
+                for run in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "pageSize": result.page_size,
+        }
 
     @router.get("/core/workflows/metrics")
     async def evaluate_workflows(
@@ -1755,7 +1790,9 @@ def create_router(
     @router.get("/core/workflows/runs/{run_id}")
     async def get_workflow_run(run_id: str):
         try:
-            return _to_json(runtime.get_status(run_id))
+            run = runtime.get_status(run_id)
+            _require_run_access(run)
+            return _to_json(run)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -1774,6 +1811,7 @@ def create_router(
     @router.get("/core/workflows/runs/{run_id}/checkpoints")
     async def list_checkpoints(run_id: str):
         try:
+            _require_run_access(runtime.get_status(run_id))
             checkpoints = runtime.list_checkpoints(run_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1793,6 +1831,8 @@ def create_router(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+        _require_run_access(run)
+
         if format == "markdown":
             return PlainTextResponse(
                 runtime.trace_store.export_markdown(run),
@@ -1810,6 +1850,8 @@ def create_router(
             run = runtime.get_status(run_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        _require_run_access(run)
 
         events = runtime.trace_store.events(run)
 
@@ -1905,6 +1947,7 @@ def create_router(
     @router.get("/core/workflows/runs/{run_id}/reviews")
     async def list_reviews(run_id: str):
         try:
+            _require_run_access(runtime.get_status(run_id))
             reviews = runtime.list_reviews(run_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1917,34 +1960,48 @@ def create_router(
     @router.post("/core/workflows/runs/{run_id}/reviews")
     async def apply_review(run_id: str, request: ReviewRequest):
         try:
+            existing_run = runtime.get_status(run_id)
+            _require_run_access(existing_run)
+            actor = current_trusted_user()
             run = await runtime.apply_review(
                 ReviewDecision(
                     runId=run_id,
                     stepId=request.step_id,
                     decision=request.decision,
-                    reviewer=request.reviewer,
+                    reviewer=actor.user_id if actor else request.reviewer,
                     comment=request.comment,
+                    operationId=request.operation_id,
+                    expectedRunUpdatedAt=request.expected_run_updated_at,
+                    expectedStepStatus=request.expected_step_status,
                 )
             )
             return _to_json(run)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ReviewConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.post("/core/workflows/runs/{run_id}/resume")
     async def resume_workflow(run_id: str, request: ResumeRequest):
         try:
+            _require_run_access(runtime.get_status(run_id))
             run = await runtime.resume_from_checkpoint(run_id=run_id, checkpoint_id=request.checkpoint_id)
             return _to_json(run)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.post("/core/workflows/runs/{run_id}/cancel")
     async def cancel_workflow(run_id: str):
         try:
+            _require_run_access(runtime.get_status(run_id))
             return _to_json(runtime.cancel(run_id))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

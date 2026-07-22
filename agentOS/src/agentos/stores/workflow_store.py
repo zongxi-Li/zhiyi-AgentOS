@@ -48,6 +48,12 @@ def status_value(status: WorkflowStatus | str | None) -> str | None:
     return status.value if isinstance(status, WorkflowStatus) else str(status)
 
 
+def status_values(statuses: Sequence[WorkflowStatus | str] | None) -> set[str] | None:
+    if not statuses:
+        return None
+    return {item.value if isinstance(item, WorkflowStatus) else str(item) for item in statuses}
+
+
 class WorkflowStore(ABC):
     """AgentTask 和 WorkflowRun 状态的持久化边界。"""
 
@@ -84,9 +90,14 @@ class WorkflowStore(ABC):
         self,
         *,
         status: WorkflowStatus | str | None = None,
+        statuses: Sequence[WorkflowStatus | str] | None = None,
         domain: str | None = None,
         workflow_id: str | None = None,
+        task_id: str | None = None,
+        lifecycle_phase: str | None = None,
         source: str | None = None,
+        owner_user_id: str | None = None,
+        owner_tenant_id: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> WorkflowStorePage[WorkflowRun]:

@@ -22,6 +22,10 @@
             <el-icon><Monitor /></el-icon>
             运维查看
           </el-button>
+          <el-button v-if="activeRunReference?.conversationId" size="small" title="返回关联对话" @click="openLinkedChat">
+            <el-icon><ChatDotRound /></el-icon>
+            返回 Chat
+          </el-button>
         </div>
         <el-tag v-if="activeRunId" :type="statusTagType" effect="dark">{{ statusLabel }}</el-tag>
         <el-tag v-if="acgView" type="info" effect="plain">engine: {{ acgView.engine }}</el-tag>
@@ -125,6 +129,15 @@
 
     <p v-if="startError" class="run-error" role="alert">{{ startError }}</p>
 
+    <WorkflowReviewPanel
+      v-if="activeRunId && (progressTracker.progress.value?.phase === 'review' || progressTracker.progress.value?.status === 'waiting_review')"
+      :run-id="activeRunId"
+      :progress="progressTracker.progress.value"
+      :run="activeRun"
+      @reviewed="handleAcgReviewed"
+      @conflict="handleAcgReviewConflict"
+    />
+
     <!-- 主区：拓扑 + 指标/血缘 -->
     <div class="acg-grid" v-if="acgView">
       <div class="grid-main">
@@ -167,7 +180,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch, type DeepReadonly } from 'vue'
 import axios from 'axios'
-import { CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
+import { ChatDotRound, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -182,7 +195,9 @@ import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
 import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
+import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import { fileApi } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 
@@ -222,12 +237,14 @@ watch(planningMode, () => {
 })
 
 const acgView = ref<AcgView | null>(null)
+const activeRun = ref<WorkflowRun | null>(null)
 const loading = reactive({ upload: false })
 const isSubmitting = ref(false)
 const isAcgLoading = ref(false)
 const startError = ref<string | null>(null)
 const route = useRoute()
 const router = useRouter()
+const workflowRunsStore = useWorkflowRunsStore()
 const activeRunId = ref('')
 const loadedRunId = ref('')
 const contractFileInput = ref<HTMLInputElement | null>(null)
@@ -241,8 +258,15 @@ const selectedContractFile = ref<{
 
 const progressTracker = useWorkflowProgress({
   intervalMs: 2000,
+  onProgressChanged: value => workflowRunsStore.updateObservedState(
+    value.runId,
+    value.status,
+    value.phase,
+    value.updatedAt
+  ),
   onTerminal: handleTerminal
 })
+const activeRunReference = computed(() => workflowRunsStore.getReference(activeRunId.value))
 
 const CONTRACT_FILE_MAX_SIZE = 10 * 1024 * 1024
 const CONTRACT_FILE_EXTENSIONS = ['pdf', 'docx', 'txt', 'md']
@@ -423,6 +447,7 @@ const clearRunData = () => {
   topologyController?.abort()
   topologyController = null
   acgView.value = null
+  activeRun.value = null
   loadedRunId.value = ''
   isAcgLoading.value = false
   lastTopologyRefreshAt = 0
@@ -445,6 +470,7 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     ])
     if (requestGeneration !== topologyGeneration || runId !== activeRunId.value) return
     acgView.value = hydrateAcgView(view, run)
+    activeRun.value = run
     loadedRunId.value = runId
     lastTopologyRefreshAt = Date.now()
     lastTopologyUpdatedAt = progressTracker.progress.value?.updatedAt ?? null
@@ -496,6 +522,7 @@ watch(
     clearRunData()
     startError.value = null
     activeRunId.value = runId
+    workflowRunsStore.register({ runId, source: 'restored' })
     void progressTracker.start(runId, { fresh: false })
   },
   { immediate: true }
@@ -514,6 +541,24 @@ const copyRunId = async () => {
 const openInConsole = () => {
   if (!activeRunId.value) return
   void router.push({ path: '/agentos-console', query: { runId: activeRunId.value } })
+}
+
+const openLinkedChat = () => {
+  const conversationId = activeRunReference.value?.conversationId
+  if (!conversationId || !activeRunId.value) return
+  void router.push({ path: '/chat', query: { workspace: 'agent', contextId: conversationId, runId: activeRunId.value } })
+}
+
+const handleAcgReviewed = async (run: WorkflowRun) => {
+  if (run.runId !== activeRunId.value) return
+  activeRun.value = run
+  await progressTracker.refresh()
+  await refreshAcgForRun(run.runId, true)
+}
+
+const handleAcgReviewConflict = async () => {
+  await progressTracker.refresh()
+  if (activeRunId.value) await refreshAcgForRun(activeRunId.value, true)
 }
 
 const downloadText = (content: string, filename: string, type: string) => {
@@ -577,6 +622,14 @@ const startRun = async () => {
       clientRequestId
     }, { signal: submitController.signal })
     activeRunId.value = res.run.runId
+    workflowRunsStore.register({
+      runId: res.run.runId,
+      taskId: res.task.taskId,
+      workflowId: res.run.workflowId || WORKFLOW_ID,
+      source: 'acg',
+      status: res.run.status,
+      phase: res.run.lifecyclePhase
+    })
     void progressTracker.start(res.run.runId, { fresh: true })
     await router.replace({ query: { ...route.query, runId: res.run.runId } })
   } catch (error: unknown) {

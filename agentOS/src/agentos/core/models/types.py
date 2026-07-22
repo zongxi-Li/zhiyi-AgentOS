@@ -253,6 +253,9 @@ class ReviewDecision(CoreModel):
     decision: ReviewDecisionType
     reviewer: str = "system"
     comment: str = ""
+    operation_id: Optional[str] = Field(default=None, alias="operationId")
+    expected_run_updated_at: Optional[datetime] = Field(default=None, alias="expectedRunUpdatedAt")
+    expected_step_status: Optional[StepStatus] = Field(default=None, alias="expectedStepStatus")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
 
 
@@ -263,6 +266,7 @@ class ReviewRecord(CoreModel):
     decision: ReviewDecisionType
     reviewer: str = "system"
     comment: str = ""
+    operation_id: Optional[str] = Field(default=None, alias="operationId")
     trace_event_id: Optional[str] = Field(default=None, alias="traceEventId")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
 
