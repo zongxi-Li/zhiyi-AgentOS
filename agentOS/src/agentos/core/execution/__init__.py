@@ -5,9 +5,11 @@ from agentos.core.execution.adapters import (
     ExecutionAdapter,
     ExecutionAdapterFactory,
 )
+from agentos.core.execution.run_execution_coordinator import RunExecutionCoordinator
 
 __all__ = [
     "ExecutionAdapter",
     "ExecutionAdapterFactory",
     "ACGWorkflowAdapter",
+    "RunExecutionCoordinator",
 ]

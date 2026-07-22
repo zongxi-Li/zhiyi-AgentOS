@@ -95,6 +95,8 @@ logging:
 agent:
   enabled: ${AGENT_ENABLED:true}
   timeout-ms: ${AGENT_TIMEOUT_MS:240000}
+  progress-timeout-ms: ${AGENT_PROGRESS_TIMEOUT_MS:5000}
+  async-start-timeout-ms: ${AGENT_ASYNC_START_TIMEOUT_MS:15000}
   trace-enabled: ${AGENT_TRACE_ENABLED:false}
   python:
     lawyer-chat-url: ${AGENT_PYTHON_LAWYER_CHAT_URL:http://localhost:8000/ai/agent/lawyer/chat}

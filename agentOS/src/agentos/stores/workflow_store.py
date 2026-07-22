@@ -91,3 +91,12 @@ class WorkflowStore(ABC):
         page_size: int = 20,
     ) -> WorkflowStorePage[WorkflowRun]:
         raise NotImplementedError
+
+    @abstractmethod
+    def list_non_terminal_runs(self, *, limit: int = 200) -> tuple[WorkflowRun, ...]:
+        """Return a bounded newest-first snapshot of unfinished runs."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_run_by_idempotency_key(self, idempotency_key: str) -> WorkflowRun | None:
+        raise NotImplementedError

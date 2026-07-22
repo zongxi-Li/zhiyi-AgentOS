@@ -38,12 +38,16 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     if settings.ENVIRONMENT.strip().lower() in {"prod", "production"}:
         require_valid_internal_token_configuration(settings.AI_INTERNAL_TOKEN)
-    yield
+    await agentos_core.coordinator.startup()
+    try:
+        yield
+    finally:
+        await agentos_core.coordinator.shutdown()
     
-    # 关闭时执行 - 简化日志输出
-    from app.llm.provider_conversation import close_configured_provider_conversation_store
+        # 关闭时执行 - 简化日志输出
+        from app.llm.provider_conversation import close_configured_provider_conversation_store
 
-    await close_configured_provider_conversation_store()
+        await close_configured_provider_conversation_store()
 
 app = FastAPI(
     title="知弈 AI Service",

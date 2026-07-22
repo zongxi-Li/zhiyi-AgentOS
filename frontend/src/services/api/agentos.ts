@@ -26,6 +26,42 @@ export type WorkflowStatus =
   | 'completed'
   | 'cancelled'
 
+export type WorkflowProgressPhase =
+  | 'understanding'
+  | 'planning'
+  | 'graph_building'
+  | 'executing'
+  | 'recovery'
+  | 'review'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface WorkflowProgress {
+  taskId: string
+  runId: string
+  workflowId: string
+  status: string
+  phase: WorkflowProgressPhase
+  message: string
+  percent: number | null
+  totalSteps: number
+  pendingSteps: number
+  runningSteps: number
+  waitingReviewSteps: number
+  retryingSteps: number
+  failedSteps: number
+  completedSteps: number
+  cancelledSteps: number
+  currentStepId: string | null
+  activeStepIds: string[]
+  recoveryCount: number
+  startedAt: string | null
+  updatedAt: string | null
+  progress: number
+  percentage: number
+}
+
 export type StepStatus =
   | 'pending'
   | 'running'
@@ -268,6 +304,35 @@ export interface ProvenanceProduction {
   evidenceRefs?: string[]
 }
 
+export interface AsyncWorkflowStartRequest extends WorkflowStartRequest {
+  clientRequestId: string
+  roleType?: string
+  taskType?: string
+}
+
+export interface AsyncWorkflowStartResponse {
+  accepted: boolean
+  task: {
+    taskId: string
+    status: string
+  }
+  run: {
+    runId: string
+    status: string
+    lifecyclePhase?: WorkflowProgressPhase
+    lifecycleMessage?: string
+  }
+}
+
+export class WorkflowApiContractError extends Error {
+  readonly code = 'INVALID_ASYNC_WORKFLOW_RESPONSE'
+
+  constructor(message = '异步启动响应缺少有效的 run.runId') {
+    super(message)
+    this.name = 'WorkflowApiContractError'
+  }
+}
+
 export interface ProvenanceConsumption {
   eventId: string
   consumerStepId: string
@@ -405,13 +470,42 @@ export const agentosApi = {
     return response.data
   },
 
+  async startWorkflowAsync(
+    payload: AsyncWorkflowStartRequest,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<AsyncWorkflowStartResponse> {
+    const response = await agentosRequest.post<AsyncWorkflowStartResponse>(
+      '/core/workflows/start-async',
+      payload,
+      { signal: options.signal }
+    )
+    const data = response.data
+    if (!data?.run || typeof data.run.runId !== 'string' || !data.run.runId.trim()) {
+      throw new WorkflowApiContractError()
+    }
+    return data
+  },
+
+  async getWorkflowProgress(
+    runId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<WorkflowProgress> {
+    const response = await agentosRequest.get<WorkflowProgress>(
+      `/core/workflows/runs/${encodeURIComponent(runId)}/progress`,
+      { signal: options.signal }
+    )
+    return response.data
+  },
+
   async upgradeChatToWorkflow(payload: ChatWorkflowUpgradeRequest): Promise<WorkflowStartResponse> {
     const response = await agentosRequest.post<WorkflowStartResponse>('/chat/workflows/upgrade', payload)
     return response.data
   },
 
-  async getWorkflowRun(runId: string): Promise<WorkflowRun> {
-    const response = await agentosRequest.get<WorkflowRun>(`/core/workflows/runs/${runId}`)
+  async getWorkflowRun(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowRun> {
+    const response = await agentosRequest.get<WorkflowRun>(`/core/workflows/runs/${runId}`, {
+      signal: options.signal
+    })
     return response.data
   },
 
@@ -453,8 +547,10 @@ export const agentosApi = {
     return response.data
   },
 
-  async getAcgView(runId: string): Promise<AcgView> {
-    const response = await agentosRequest.get<AcgView>(`/core/workflows/runs/${runId}/acg`)
+  async getAcgView(runId: string, options: { signal?: AbortSignal } = {}): Promise<AcgView> {
+    const response = await agentosRequest.get<AcgView>(`/core/workflows/runs/${runId}/acg`, {
+      signal: options.signal
+    })
     return normalizeAcgView(response.data)
   }
 }

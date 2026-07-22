@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import { loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
@@ -13,6 +13,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      include: ['src/**/*.spec.ts'],
+      alias: {
+        '@': resolve(__dirname, 'src')
+      }
+    },
     resolve: {
       alias: [
         { find: '@', replacement: resolve(__dirname, 'src') },

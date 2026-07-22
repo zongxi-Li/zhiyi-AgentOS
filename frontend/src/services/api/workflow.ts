@@ -17,6 +17,10 @@ import {
   type ReviewRequest,
   type WorkflowStartRequest,
   type WorkflowStartResponse,
+  type AsyncWorkflowStartRequest,
+  type AsyncWorkflowStartResponse,
+  type WorkflowProgress,
+  type WorkflowProgressPhase,
   type ReviewDecision,
   type StepStatus,
   type TraceEvent,
@@ -45,6 +49,10 @@ export type {
   ReviewRequest,
   WorkflowStartRequest,
   WorkflowStartResponse,
+  AsyncWorkflowStartRequest,
+  AsyncWorkflowStartResponse,
+  WorkflowProgress,
+  WorkflowProgressPhase,
   ReviewDecision,
   StepStatus,
   TraceEvent,
@@ -60,12 +68,26 @@ export const workflowApi = {
     return agentosApi.startWorkflow(payload)
   },
 
+  startWorkflowAsync(
+    payload: AsyncWorkflowStartRequest,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<AsyncWorkflowStartResponse> {
+    return agentosApi.startWorkflowAsync(payload, options)
+  },
+
+  getWorkflowProgress(
+    runId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<WorkflowProgress> {
+    return agentosApi.getWorkflowProgress(runId, options)
+  },
+
   listRuns(params: WorkflowRunQuery = {}): Promise<PageResponse<WorkflowRun>> {
     return agentosApi.listWorkflowRuns({ page: 1, pageSize: 20, ...params })
   },
 
-  getRun(runId: string): Promise<WorkflowRun> {
-    return agentosApi.getWorkflowRun(runId)
+  getRun(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowRun> {
+    return agentosApi.getWorkflowRun(runId, options)
   },
 
   getTrace(runId: string): Promise<WorkflowTraceExport> {
@@ -96,7 +118,7 @@ export const workflowApi = {
     return agentosApi.getWorkflowMetrics(params)
   },
 
-  getAcgView(runId: string): Promise<AcgView> {
-    return agentosApi.getAcgView(runId)
+  getAcgView(runId: string, options: { signal?: AbortSignal } = {}): Promise<AcgView> {
+    return agentosApi.getAcgView(runId, options)
   }
 }

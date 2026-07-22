@@ -1,6 +1,7 @@
 """AgentOS Core 的 FastAPI 路由层，负责任务创建、工作流启动、状态查询、审核、恢复和兼容聊天入口。"""
 
 
+import hashlib
 import json
 import uuid
 import logging
@@ -10,8 +11,10 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from agentos.core.models.types import ReviewDecision, ReviewDecisionType
+from agentos.core.execution import RunExecutionCoordinator
+from agentos.core.models.types import ReviewDecision, ReviewDecisionType, WorkflowRun
 from agentos.core.runtime import WorkflowRuntime
+from agentos.core.workflow.progress import ProgressAssembler
 from app.execution.runtime import build_default_runtime
 from app.llm.gateway import get_llm_gateway
 from app.llm.schemas import CHAT_ROUTE_DECISION_SCHEMA
@@ -21,16 +24,23 @@ from app.observability.context import execution_context
 logger = logging.getLogger(__name__)
 
 
+class IdempotencyConflictError(ValueError):
+    pass
+
+
 def _input_with_authenticated_actor(payload: Dict[str, Any]) -> Dict[str, Any]:
     actor = current_trusted_user()
     if actor is None:
         return payload
-    return {
+    authenticated = {
         **payload,
         "authenticatedUserId": actor.user_id,
         "authenticatedSubject": actor.subject,
         "authenticatedRole": actor.role,
     }
+    if actor.tenant_id:
+        authenticated["authenticatedTenantId"] = actor.tenant_id
+    return authenticated
 
 
 class AgentTaskCreateRequest(BaseModel):
@@ -93,6 +103,7 @@ class WorkflowStartRequest(BaseModel):
     priority: str = "normal"
     workflow_id: Optional[str] = None
     review_mode: str = "auto"
+    client_request_id: Optional[str] = Field(default=None, alias="clientRequestId")
 
     @model_validator(mode="before")
     @classmethod
@@ -109,6 +120,8 @@ class WorkflowStartRequest(BaseModel):
                 data["role_type"] = data["roleType"]
             if "taskType" in data and "task_type" not in data:
                 data["task_type"] = data["taskType"]
+            if "clientRequestId" in data and "client_request_id" not in data:
+                data["client_request_id"] = data["clientRequestId"]
         return data
 
 
@@ -199,7 +212,23 @@ class ResumeRequest(BaseModel):
 
 
 def _to_json(model) -> Dict[str, Any]:
-    return model.model_dump(by_alias=True, mode="json")
+    payload = model.model_dump(by_alias=True, mode="json")
+    payload.pop("idempotencyKey", None)
+    payload.pop("idempotencyFingerprint", None)
+    return payload
+
+
+def _require_run_access(run: WorkflowRun) -> None:
+    owner_user_id = str(run.input.get("authenticatedUserId") or "").strip()
+    if not owner_user_id:
+        # Legacy/internal runs predate ownership metadata and retain the existing gateway boundary.
+        return
+    actor = current_trusted_user()
+    owner_tenant_id = str(run.input.get("authenticatedTenantId") or "").strip()
+    if actor is None or actor.user_id != owner_user_id:
+        raise HTTPException(status_code=404, detail=f"workflow run not found: {run.run_id}")
+    if owner_tenant_id and actor.tenant_id != owner_tenant_id:
+        raise HTTPException(status_code=404, detail=f"workflow run not found: {run.run_id}")
 
 
 def _page_to_json(page) -> Dict[str, Any]:
@@ -235,6 +264,90 @@ async def _create_task_and_start(
         )
         logger.info("AgentOS workflow run started")
     return {"task": _to_json(task), "run": _to_json(run)}
+
+
+def _workflow_start_idempotency_key(client_request_id: str | None) -> str | None:
+    request_id = (client_request_id or "").strip()
+    if not request_id:
+        return None
+    actor = current_trusted_user()
+    caller = "anonymous"
+    if actor is not None:
+        tenant = actor.tenant_id or "default"
+        caller = f"tenant:{tenant}:user:{actor.user_id or actor.subject or 'authenticated'}"
+    material = f"{caller}:workflow_start:{request_id}".encode("utf-8")
+    return hashlib.sha256(material).hexdigest()
+
+
+def _workflow_start_fingerprint(request: WorkflowStartRequest) -> str:
+    critical = {
+        "title": request.title,
+        "domain": request.domain,
+        "intent": request.intent,
+        "roleType": request.role_type,
+        "taskType": request.task_type,
+        "input": request.input,
+        "securityLevel": request.security_level,
+        "priority": request.priority,
+        "workflowId": request.workflow_id,
+        "reviewMode": request.review_mode,
+    }
+    canonical = json.dumps(critical, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _create_task_and_submit(
+    runtime: WorkflowRuntime,
+    coordinator: RunExecutionCoordinator,
+    request: WorkflowStartRequest,
+) -> Dict[str, Any]:
+    idempotency_key = _workflow_start_idempotency_key(request.client_request_id)
+    idempotency_fingerprint = _workflow_start_fingerprint(request)
+    existing = (
+        runtime.workflow_store.find_run_by_idempotency_key(idempotency_key)
+        if idempotency_key
+        else None
+    )
+    if existing is not None:
+        if existing.idempotency_fingerprint != idempotency_fingerprint:
+            raise IdempotencyConflictError(
+                "clientRequestId was already used with different workflow start parameters"
+            )
+        task = runtime.task_manager.get_task(existing.task_id)
+        if existing.status.value not in {"completed", "failed", "cancelled"}:
+            await coordinator.submit(existing.run_id)
+        latest = runtime.workflow_store.get_run(existing.run_id)
+        return {"accepted": True, "task": _to_json(task), "run": _to_json(latest)}
+
+    task = runtime.create_task(
+        title=request.title,
+        domain=request.domain,
+        intent=request.intent,
+        input=_input_with_authenticated_actor(request.input),
+        security_level=request.security_level,
+        priority=request.priority,
+        role_type=request.role_type,
+        task_type=request.task_type,
+        workflow_id=request.workflow_id,
+    )
+    _, run = runtime.prepare_run(
+        task_id=task.task_id,
+        workflow_id=request.workflow_id,
+        review_mode=request.review_mode,
+        idempotency_key=idempotency_key,
+        idempotency_fingerprint=idempotency_fingerprint,
+    )
+    try:
+        await coordinator.submit(run.run_id)
+    except Exception as exc:
+        await runtime.fail_run_safely(
+            run.run_id,
+            error_code="background_submission_failed",
+            error_message=runtime._safe_error_message(exc),
+        )
+        raise
+    latest = runtime.workflow_store.get_run(run.run_id)
+    return {"accepted": True, "task": _to_json(task), "run": _to_json(latest)}
 
 
 LEGACY_AGENT_CONFIG: Dict[str, Dict[str, Any]] = {
@@ -1444,8 +1557,13 @@ def _legacy_response(role: str, role_config: Dict[str, Any], request: LegacyAgen
     return response
 
 
-def create_router(runtime: WorkflowRuntime) -> APIRouter:
+def create_router(
+    runtime: WorkflowRuntime,
+    coordinator: RunExecutionCoordinator | None = None,
+) -> APIRouter:
     router = APIRouter()
+    execution_coordinator = coordinator or RunExecutionCoordinator(runtime)
+    progress_assembler = ProgressAssembler()
 
     @router.post("/core/tasks")
     async def create_task(request: AgentTaskCreateRequest):
@@ -1508,6 +1626,17 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.post("/core/workflows/start-async", status_code=202)
+    async def start_workflow_async(request: WorkflowStartRequest):
+        try:
+            return await _create_task_and_submit(runtime, execution_coordinator, request)
+        except IdempotencyConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="workflow execution could not be submitted") from exc
 
     @router.post("/chat/workflows/upgrade")
     async def upgrade_chat_to_workflow(request: ChatWorkflowUpgradeRequest):
@@ -1629,6 +1758,18 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
             return _to_json(runtime.get_status(run_id))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @router.get("/core/workflows/runs/{run_id}/progress")
+    async def get_workflow_progress(run_id: str):
+        try:
+            run = runtime.get_status(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Workflow progress store read failed", extra={"runId": run_id})
+            raise HTTPException(status_code=503, detail="workflow progress is temporarily unavailable") from exc
+        _require_run_access(run)
+        return _to_json(progress_assembler.assemble(run))
 
     @router.get("/core/workflows/runs/{run_id}/checkpoints")
     async def list_checkpoints(run_id: str):
@@ -1812,4 +1953,5 @@ def create_router(runtime: WorkflowRuntime) -> APIRouter:
 
 
 runtime = build_default_runtime()
-router = create_router(runtime)
+coordinator = RunExecutionCoordinator(runtime)
+router = create_router(runtime, coordinator)

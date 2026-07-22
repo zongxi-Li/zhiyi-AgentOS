@@ -10,6 +10,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from agentos.core.models.enums import WorkflowProgressPhase
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -212,6 +214,11 @@ class WorkflowRun(CoreModel):
     runtime_engine: str = Field(alias="runtimeEngine")
     implementation_id: Optional[str] = Field(default=None, alias="implementationId")
     status: WorkflowStatus = WorkflowStatus.PENDING
+    lifecycle_phase: Optional[WorkflowProgressPhase] = Field(default=None, alias="lifecyclePhase")
+    lifecycle_message: Optional[str] = Field(default=None, alias="lifecycleMessage")
+    started_at: Optional[datetime] = Field(default=None, alias="startedAt")
+    idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
+    idempotency_fingerprint: Optional[str] = Field(default=None, alias="idempotencyFingerprint")
     current_step_id: Optional[str] = Field(default=None, alias="currentStepId")
     review_mode: str = Field(default="auto", alias="reviewMode")
     input: Dict[str, Any] = Field(default_factory=dict)
@@ -219,7 +226,7 @@ class WorkflowRun(CoreModel):
     steps: List[WorkflowStep] = Field(default_factory=list)
     checkpoints: List[Checkpoint] = Field(default_factory=list)
     trace: List[TraceEvent] = Field(default_factory=list)
-    error: Optional[str] = None
+    error: Optional[str | Dict[str, Any]] = None
     recovery_count: int = Field(default=0, alias="recoveryCount")
     # ACG 执行路径承载字段（可选，仅 runtimeEngine=acg 时填充）。
     # acg_blueprint 存规划器产物 / 升格结果；completed_step_ids 记录就绪集调度

@@ -15,6 +15,7 @@ class MemoryWorkflowStore(WorkflowStore):
     def __init__(self):
         self._tasks: Dict[str, AgentTask] = {}
         self._runs: Dict[str, WorkflowRun] = {}
+        self._terminal_run_statuses: Dict[str, WorkflowStatus] = {}
 
     def save_task(self, task: AgentTask) -> None:
         self._tasks[task.task_id] = task
@@ -26,11 +27,25 @@ class MemoryWorkflowStore(WorkflowStore):
             raise KeyError(f"task not found: {task_id}") from exc
 
     def save_run(self, run: WorkflowRun) -> None:
-        self._runs[run.run_id] = run
+        existing = self._runs.get(run.run_id)
+        terminal_status = self._terminal_run_statuses.get(run.run_id)
+        if terminal_status is not None and _reject_terminal_status_overwrite(terminal_status, run.status):
+            return
+        if existing is not None and _reject_terminal_overwrite(existing, run):
+            return
+        if run.status in {
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
+        }:
+            self._terminal_run_statuses[run.run_id] = run.status
+        elif terminal_status == WorkflowStatus.FAILED and run.status == WorkflowStatus.RETRYING:
+            self._terminal_run_statuses.pop(run.run_id, None)
+        self._runs[run.run_id] = run.model_copy(deep=True)
 
     def get_run(self, run_id: str) -> WorkflowRun:
         try:
-            return self._runs[run_id]
+            return self._runs[run_id].model_copy(deep=True)
         except KeyError as exc:
             raise KeyError(f"workflow run not found: {run_id}") from exc
 
@@ -45,7 +60,7 @@ class MemoryWorkflowStore(WorkflowStore):
     ) -> WorkflowStorePage[AgentTask]:
         expected_status = status_value(status)
         tasks = [
-            task
+            task.model_copy(deep=True)
             for task in self._tasks.values()
             if _matches_task(task, status=expected_status, domain=domain, source=source)
         ]
@@ -64,7 +79,7 @@ class MemoryWorkflowStore(WorkflowStore):
     ) -> WorkflowStorePage[WorkflowRun]:
         expected_status = status_value(status)
         runs = [
-            run
+            run.model_copy(deep=True)
             for run in self._runs.values()
             if _matches_run(
                 run,
@@ -76,6 +91,26 @@ class MemoryWorkflowStore(WorkflowStore):
         ]
         runs.sort(key=lambda run: (run.created_at, run.run_id), reverse=True)
         return paginate_items(runs, page=page, page_size=page_size)
+
+    def list_non_terminal_runs(self, *, limit: int = 200) -> tuple[WorkflowRun, ...]:
+        terminal = {
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
+        }
+        runs = [run.model_copy(deep=True) for run in self._runs.values() if run.status not in terminal]
+        runs.sort(key=lambda run: (run.updated_at, run.run_id), reverse=True)
+        return tuple(runs[: max(1, limit)])
+
+    def find_run_by_idempotency_key(self, idempotency_key: str) -> WorkflowRun | None:
+        matches = [
+            run.model_copy(deep=True)
+            for run in self._runs.values()
+            if run.idempotency_key == idempotency_key
+        ]
+        if not matches:
+            return None
+        return max(matches, key=lambda run: (run.created_at, run.run_id))
 
 
 def _matches_task(task: AgentTask, *, status: str | None, domain: str | None, source: str | None) -> bool:
@@ -105,3 +140,25 @@ def _matches_run(
     if source is not None and run.input.get("source") != source:
         return False
     return True
+
+
+def _reject_terminal_overwrite(existing: WorkflowRun, incoming: WorkflowRun) -> bool:
+    terminal = {
+        WorkflowStatus.COMPLETED,
+        WorkflowStatus.FAILED,
+        WorkflowStatus.CANCELLED,
+    }
+    if existing.status == WorkflowStatus.FAILED and incoming.status == WorkflowStatus.RETRYING:
+        return False
+    if existing.status in terminal and incoming.status != existing.status:
+        return True
+    return existing.status in terminal and incoming.updated_at < existing.updated_at
+
+
+def _reject_terminal_status_overwrite(
+    existing: WorkflowStatus,
+    incoming: WorkflowStatus,
+) -> bool:
+    if existing == WorkflowStatus.FAILED and incoming == WorkflowStatus.RETRYING:
+        return False
+    return incoming != existing

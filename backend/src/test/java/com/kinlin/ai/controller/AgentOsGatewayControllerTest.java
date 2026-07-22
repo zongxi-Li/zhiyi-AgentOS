@@ -40,9 +40,11 @@ class AgentOsGatewayControllerTest {
     private static class RecordingAgentOsGatewayService extends AgentOsGatewayService {
         private final Map<String, Map<String, Object>> getResponses = new HashMap<>();
         private final Map<String, Map<String, Object>> postResponses = new HashMap<>();
+        private final Map<String, Map<String, Object>> asyncPostResponses = new HashMap<>();
         private final Map<String, String> textResponses = new HashMap<>();
         private String lastGetPath;
         private String lastPostPath;
+        private Object lastAsyncPostBody;
         private String lastTextPath;
 
         private RecordingAgentOsGatewayService() {
@@ -56,9 +58,21 @@ class AgentOsGatewayControllerTest {
         }
 
         @Override
+        public Map<String, Object> getProgress(String path) {
+            return get(path);
+        }
+
+        @Override
         public Map<String, Object> post(String path, Object body) {
             lastPostPath = path;
             return postResponses.getOrDefault(path, Map.of());
+        }
+
+        @Override
+        public Map<String, Object> postAsyncStart(String path, Object body) {
+            lastPostPath = path;
+            lastAsyncPostBody = body;
+            return asyncPostResponses.getOrDefault(path, Map.of());
         }
 
         @Override
@@ -229,6 +243,81 @@ class AgentOsGatewayControllerTest {
     }
 
     @Test
+    void startWorkflowAsync_preserves202RunIdAndClientRequestId() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("accepted", true);
+        response.put("task", Map.of("taskId", "task_001", "status", "pending", "title", "合同审查"));
+        Map<String, Object> run = new LinkedHashMap<>();
+        run.put("runId", "run_001");
+        run.put("status", "pending");
+        run.put("lifecyclePhase", "understanding");
+        run.put("lifecycleMessage", "任务已接受");
+        run.put("steps", java.util.List.of());
+        response.put("run", run);
+        response.put(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 202);
+        agentOsGatewayService.asyncPostResponses.put("/ai/core/workflows/start-async", response);
+
+        mockMvc.perform(post("/api/agentos/core/workflows/start-async")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "合同审查",
+                                "domain", "legal",
+                                "intent", "contract_review",
+                                "clientRequestId", "frontend-request-1"
+                        ))))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.accepted").value(true))
+                .andExpect(jsonPath("$.run.runId").value("run_001"))
+                .andExpect(jsonPath("$.run.lifecyclePhase").value("understanding"));
+
+        assertEquals("/ai/core/workflows/start-async", agentOsGatewayService.lastPostPath);
+        com.kinlin.ai.dto.agentos.AsyncWorkflowStartRequest request =
+                (com.kinlin.ai.dto.agentos.AsyncWorkflowStartRequest) agentOsGatewayService.lastAsyncPostBody;
+        assertEquals("frontend-request-1", request.clientRequestId());
+    }
+
+    @Test
+    void startWorkflowAsync_preserves409And503() throws Exception {
+        Map<String, Object> conflict = new LinkedHashMap<>();
+        conflict.put("detail", "clientRequestId conflict");
+        conflict.put(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 409);
+        agentOsGatewayService.asyncPostResponses.put("/ai/core/workflows/start-async", conflict);
+
+        mockMvc.perform(post("/api/agentos/core/workflows/start-async")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("clientRequestId", "request-1"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("clientRequestId conflict"));
+
+        Map<String, Object> unavailable = new LinkedHashMap<>();
+        unavailable.put("message", "upstream unavailable");
+        unavailable.put(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 503);
+        agentOsGatewayService.asyncPostResponses.put("/ai/core/workflows/start-async", unavailable);
+
+        mockMvc.perform(post("/api/agentos/core/workflows/start-async")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("clientRequestId", "request-2"))))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value("upstream unavailable"));
+    }
+
+    @Test
+    void startWorkflowAsync_rejectsMissingRunIdAsGatewayContractError() throws Exception {
+        Map<String, Object> invalid = new LinkedHashMap<>();
+        invalid.put("accepted", true);
+        invalid.put("task", Map.of("taskId", "task_001", "status", "pending"));
+        invalid.put("run", Map.of("status", "pending"));
+        invalid.put(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 202);
+        agentOsGatewayService.asyncPostResponses.put("/ai/core/workflows/start-async", invalid);
+
+        mockMvc.perform(post("/api/agentos/core/workflows/start-async")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("clientRequestId", "request-1"))))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("AGENTOS_INVALID_ASYNC_START_RESPONSE"));
+    }
+
+    @Test
     void getAcgView_forwardsToAgentOsCore() throws Exception {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("runId", "run_001");
@@ -244,6 +333,128 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.lowEntropyMetrics.tokensSaved").value(42));
 
         assertEquals("/ai/core/workflows/runs/run_001/acg", agentOsGatewayService.lastGetPath);
+    }
+
+    @Test
+    void getWorkflowProgress_forwardsTypedExecutingPayload() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("taskId", "task_001");
+        response.put("runId", "run_001");
+        response.put("workflowId", "legal_contract_review_v1");
+        response.put("status", "running");
+        response.put("phase", "executing");
+        response.put("message", "正在执行步骤：risk_detect");
+        response.put("percent", 42.86);
+        response.put("totalSteps", 7);
+        response.put("pendingSteps", 3);
+        response.put("runningSteps", 1);
+        response.put("waitingReviewSteps", 0);
+        response.put("retryingSteps", 0);
+        response.put("failedSteps", 0);
+        response.put("completedSteps", 3);
+        response.put("cancelledSteps", 0);
+        response.put("currentStepId", "risk_detect");
+        response.put("activeStepIds", java.util.List.of("risk_detect", "legal_match"));
+        response.put("recoveryCount", 0);
+        response.put("startedAt", "2026-07-22T01:06:26Z");
+        response.put("updatedAt", "2026-07-22T01:07:20Z");
+        response.put("progress", 0.4286);
+        response.put("percentage", 42.86);
+        agentOsGatewayService.getResponses.put("/ai/core/workflows/runs/run_001/progress", response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/progress"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value("run_001"))
+                .andExpect(jsonPath("$.phase").value("executing"))
+                .andExpect(jsonPath("$.percent").value(42.86))
+                .andExpect(jsonPath("$.activeStepIds[0]").value("risk_detect"))
+                .andExpect(jsonPath("$.activeStepIds[1]").value("legal_match"))
+                .andExpect(jsonPath("$.startedAt").value("2026-07-22T01:06:26Z"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-07-22T01:07:20Z"));
+
+        assertEquals("/ai/core/workflows/runs/run_001/progress", agentOsGatewayService.lastGetPath);
+    }
+
+    @Test
+    void getWorkflowProgress_preservesNullPercent() throws Exception {
+        Map<String, Object> response = progressResponse("planning");
+        response.put("percent", null);
+        response.put("progress", 0.0);
+        response.put("percentage", 0.0);
+        agentOsGatewayService.getResponses.put("/ai/core/workflows/runs/run_001/progress", response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/progress"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phase").value("planning"))
+                .andExpect(jsonPath("$.percent").doesNotExist())
+                .andExpect(jsonPath("$.progress").value(0.0));
+    }
+
+    @Test
+    void getWorkflowProgress_preservesUpstream404() throws Exception {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("detail", "workflow run not found: run_missing");
+        response.put(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 404);
+        agentOsGatewayService.getResponses.put("/ai/core/workflows/runs/run_missing/progress", response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_missing/progress"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("workflow run not found: run_missing"))
+                .andExpect(jsonPath("$._httpStatus").doesNotExist());
+    }
+
+    @Test
+    void getWorkflowProgress_preservesCancelledStatusAndPhase() throws Exception {
+        Map<String, Object> response = progressResponse("cancelled");
+        response.put("status", "cancelled");
+        response.put("percent", 25.0);
+        response.put("progress", 0.25);
+        response.put("percentage", 25.0);
+        agentOsGatewayService.getResponses.put("/ai/core/workflows/runs/run_001/progress", response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/progress"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("cancelled"))
+                .andExpect(jsonPath("$.phase").value("cancelled"))
+                .andExpect(jsonPath("$.percent").value(25.0));
+    }
+
+    @Test
+    void getWorkflowProgress_rejectsInvalidPayloadWithoutFakingNormalProgress() throws Exception {
+        Map<String, Object> response = progressResponse("not_a_phase");
+        agentOsGatewayService.getResponses.put("/ai/core/workflows/runs/run_001/progress", response);
+
+        mockMvc.perform(get("/api/agentos/core/workflows/runs/run_001/progress"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("AGENTOS_INVALID_PROGRESS_RESPONSE"))
+                .andExpect(jsonPath("$.phase").doesNotExist());
+    }
+
+    private Map<String, Object> progressResponse(String phase) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("taskId", "task_001");
+        response.put("runId", "run_001");
+        response.put("workflowId", "workflow_001");
+        response.put("status", "running");
+        response.put("phase", phase);
+        response.put("message", "planning");
+        response.put("percent", 0.0);
+        response.put("totalSteps", 0);
+        response.put("pendingSteps", 0);
+        response.put("runningSteps", 0);
+        response.put("waitingReviewSteps", 0);
+        response.put("retryingSteps", 0);
+        response.put("failedSteps", 0);
+        response.put("completedSteps", 0);
+        response.put("cancelledSteps", 0);
+        response.put("currentStepId", null);
+        response.put("activeStepIds", java.util.List.of());
+        response.put("recoveryCount", 0);
+        response.put("startedAt", "2026-07-22T01:06:26Z");
+        response.put("updatedAt", "2026-07-22T01:07:20Z");
+        response.put("progress", 0.0);
+        response.put("percentage", 0.0);
+        return response;
     }
 
     @Test

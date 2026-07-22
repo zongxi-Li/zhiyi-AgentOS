@@ -10,10 +10,10 @@
         </div>
       </div>
       <div class="hero-right">
-        <div v-if="acgView" class="run-context">
-          <span class="run-id" :title="acgView.runId">
+        <div v-if="activeRunId" class="run-context">
+          <span class="run-id" :title="activeRunId">
             <span>RUN</span>
-            <code>{{ acgView.runId }}</code>
+            <code>{{ activeRunId }}</code>
           </span>
           <el-button circle size="small" title="复制 Run ID" aria-label="复制 Run ID" @click="copyRunId">
             <el-icon><CopyDocument /></el-icon>
@@ -23,7 +23,7 @@
             运维查看
           </el-button>
         </div>
-        <el-tag v-if="acgView" :type="statusTagType" effect="dark">{{ statusLabel }}</el-tag>
+        <el-tag v-if="activeRunId" :type="statusTagType" effect="dark">{{ statusLabel }}</el-tag>
         <el-tag v-if="acgView" type="info" effect="plain">engine: {{ acgView.engine }}</el-tag>
       </div>
     </header>
@@ -112,9 +112,18 @@
           <el-option label="Agent 崩溃" value="crash" />
           <el-option label="证据为空" value="empty_evidence" />
         </el-select>
-        <el-button type="primary" :loading="loading.start" @click="startRun">启动 ACG 引擎</el-button>
+        <el-button type="primary" :loading="isSubmitting" @click="startRun">启动 ACG 引擎</el-button>
       </div>
     </section>
+
+    <WorkflowProgressBar
+      v-if="isSubmitting || progressTracker.progress.value || progressTracker.syncError.value"
+      :progress="progressTracker.progress.value"
+      :loading="isSubmitting || progressTracker.isLoading.value"
+      :sync-error="progressTracker.syncError.value"
+    />
+
+    <p v-if="startError" class="run-error" role="alert">{{ startError }}</p>
 
     <!-- 主区：拓扑 + 指标/血缘 -->
     <div class="acg-grid" v-if="acgView">
@@ -149,14 +158,15 @@
     </div>
 
     <div v-else class="ui-surface ui-surface--pad placeholder">
-      <el-icon class="ph-icon" :class="{ restoring: loading.restore }"><Cpu /></el-icon>
-      <p>{{ loading.restore ? '正在恢复 ACG 运行上下文...' : '启动一个 ACG 引擎工作流，观察动态拓扑、Token 节省率、数据血缘与故障自愈。' }}</p>
+      <el-icon class="ph-icon" :class="{ restoring: isAcgLoading }"><Cpu /></el-icon>
+      <p>{{ placeholderMessage }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch, type DeepReadonly } from 'vue'
+import axios from 'axios'
 import { CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
@@ -165,12 +175,14 @@ import {
   type AcgDeliverable,
   type AcgView,
   type WorkflowRun,
-  type WorkflowStatus
+  type WorkflowProgress
 } from '@/services/api/workflow'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
 import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
+import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { fileApi } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 
@@ -210,9 +222,13 @@ watch(planningMode, () => {
 })
 
 const acgView = ref<AcgView | null>(null)
-const loading = reactive({ start: false, restore: false, upload: false })
+const loading = reactive({ upload: false })
+const isSubmitting = ref(false)
+const isAcgLoading = ref(false)
+const startError = ref<string | null>(null)
 const route = useRoute()
 const router = useRouter()
+const activeRunId = ref('')
 const loadedRunId = ref('')
 const contractFileInput = ref<HTMLInputElement | null>(null)
 const uploadDragging = ref(false)
@@ -222,6 +238,11 @@ const selectedContractFile = ref<{
   textLength: number
   extractedText: string
 } | null>(null)
+
+const progressTracker = useWorkflowProgress({
+  intervalMs: 2000,
+  onTerminal: handleTerminal
+})
 
 const CONTRACT_FILE_MAX_SIZE = 10 * 1024 * 1024
 const CONTRACT_FILE_EXTENSIONS = ['pdf', 'docx', 'txt', 'md']
@@ -290,20 +311,20 @@ const clearContractFile = () => {
   if (contractFileInput.value) contractFileInput.value.value = ''
 }
 
-const STABLE: WorkflowStatus[] = ['completed', 'failed', 'cancelled', 'waiting_review']
-
 const statusLabel = computed(() => {
   const map: Record<string, string> = {
     completed: '已完成', failed: '失败', running: '执行中',
     waiting_review: '待审核', cancelled: '已取消', retrying: '重试中', planning: '规划中', pending: '待启动'
   }
-  return acgView.value ? (map[acgView.value.status] || acgView.value.status) : ''
+  const status = progressTracker.progress.value?.status || acgView.value?.status
+  return status ? (map[status] || status) : '准备中'
 })
 const statusTagType = computed(() => {
-  const s = acgView.value?.status
+  const phase = progressTracker.progress.value?.phase
+  const s = progressTracker.progress.value?.status || acgView.value?.status
   if (s === 'completed') return 'success'
   if (s === 'failed') return 'danger'
-  if (s === 'waiting_review') return 'warning'
+  if (s === 'waiting_review' || phase === 'review' || phase === 'recovery') return 'warning'
   return 'info'
 })
 const planningModeHint = computed(() => {
@@ -380,37 +401,110 @@ const hydrateAcgView = (view: AcgView, run: WorkflowRun): AcgView => {
   }
 }
 
-const restoreRun = async (runId: string) => {
-  if (!runId || (loadedRunId.value === runId && acgView.value)) return
-  loading.restore = true
-  try {
-    const [run, view] = await Promise.all([
-      workflowApi.getRun(runId),
-      workflowApi.getAcgView(runId)
-    ])
-    acgView.value = hydrateAcgView(view, run)
-    loadedRunId.value = runId
-  } catch (err: any) {
-    acgView.value = null
-    loadedRunId.value = ''
-    ElMessage.error(`恢复运行失败：${err?.message || err}`)
-  } finally {
-    loading.restore = false
+const ACTIVE_TOPOLOGY_PHASES = new Set(['executing', 'recovery', 'review'])
+const TOPOLOGY_REFRESH_MS = 8000
+let topologyController: AbortController | null = null
+let topologyTimer: ReturnType<typeof setTimeout> | null = null
+let topologyGeneration = 0
+let lastTopologyRefreshAt = 0
+let lastTopologyUpdatedAt: string | null = null
+let submitController: AbortController | null = null
+
+const clearTopologyTimer = () => {
+  if (topologyTimer !== null) {
+    window.clearTimeout(topologyTimer)
+    topologyTimer = null
   }
 }
+
+const clearRunData = () => {
+  clearTopologyTimer()
+  topologyGeneration += 1
+  topologyController?.abort()
+  topologyController = null
+  acgView.value = null
+  loadedRunId.value = ''
+  isAcgLoading.value = false
+  lastTopologyRefreshAt = 0
+  lastTopologyUpdatedAt = null
+}
+
+async function refreshAcgForRun(runId: string, force = false): Promise<void> {
+  if (!runId || runId !== activeRunId.value) return
+  if (!force && progressTracker.progress.value?.updatedAt === lastTopologyUpdatedAt) return
+
+  const requestGeneration = ++topologyGeneration
+  topologyController?.abort()
+  topologyController = new AbortController()
+  const signal = topologyController.signal
+  isAcgLoading.value = true
+  try {
+    const [run, view] = await Promise.all([
+      workflowApi.getRun(runId, { signal }),
+      workflowApi.getAcgView(runId, { signal })
+    ])
+    if (requestGeneration !== topologyGeneration || runId !== activeRunId.value) return
+    acgView.value = hydrateAcgView(view, run)
+    loadedRunId.value = runId
+    lastTopologyRefreshAt = Date.now()
+    lastTopologyUpdatedAt = progressTracker.progress.value?.updatedAt ?? null
+  } catch (error: unknown) {
+    if (!axios.isCancel(error) && requestGeneration === topologyGeneration && force) {
+      ElMessage.warning('最终 ACG 数据暂时未能加载，请稍后刷新')
+    }
+  } finally {
+    if (requestGeneration === topologyGeneration) {
+      topologyController = null
+      isAcgLoading.value = false
+    }
+  }
+}
+
+const scheduleTopologyRefresh = (value: DeepReadonly<WorkflowProgress>) => {
+  if (!ACTIVE_TOPOLOGY_PHASES.has(value.phase) || value.runId !== activeRunId.value) return
+  if (value.updatedAt === lastTopologyUpdatedAt) return
+  clearTopologyTimer()
+  const remaining = Math.max(0, TOPOLOGY_REFRESH_MS - (Date.now() - lastTopologyRefreshAt))
+  topologyTimer = window.setTimeout(() => {
+    topologyTimer = null
+    void refreshAcgForRun(value.runId)
+  }, remaining)
+}
+
+async function handleTerminal(value: WorkflowProgress): Promise<void> {
+  clearTopologyTimer()
+  await refreshAcgForRun(value.runId, true)
+  if (value.phase === 'completed') ElMessage.success('ACG 引擎执行完成')
+  if (value.phase === 'failed') ElMessage.error('ACG 工作流执行失败')
+  if (value.phase === 'cancelled') ElMessage.info('ACG 工作流已取消')
+}
+
+watch(
+  () => progressTracker.progress.value,
+  (value) => {
+    if (value) scheduleTopologyRefresh(value)
+  }
+)
 
 watch(
   () => route.query.runId,
   (value) => {
-    if (typeof value === 'string' && value.trim()) void restoreRun(value.trim())
+    if (typeof value !== 'string' || !value.trim()) return
+    const runId = value.trim()
+    if (runId === activeRunId.value && progressTracker.runId.value === runId) return
+    progressTracker.reset()
+    clearRunData()
+    startError.value = null
+    activeRunId.value = runId
+    void progressTracker.start(runId, { fresh: false })
   },
   { immediate: true }
 )
 
 const copyRunId = async () => {
-  if (!acgView.value) return
+  if (!activeRunId.value) return
   try {
-    await navigator.clipboard.writeText(acgView.value.runId)
+    await navigator.clipboard.writeText(activeRunId.value)
     ElMessage.success('Run ID 已复制')
   } catch {
     ElMessage.warning('浏览器未授权剪贴板，请直接选择 Run ID')
@@ -418,8 +512,8 @@ const copyRunId = async () => {
 }
 
 const openInConsole = () => {
-  if (!acgView.value) return
-  void router.push({ path: '/agentos-console', query: { runId: acgView.value.runId } })
+  if (!activeRunId.value) return
+  void router.push({ path: '/agentos-console', query: { runId: activeRunId.value } })
 }
 
 const downloadText = (content: string, filename: string, type: string) => {
@@ -448,15 +542,21 @@ const exportAudit = (format: 'json' | 'csv') => {
 }
 
 const startRun = async () => {
+  if (isSubmitting.value) return
   if (!contractText.value.trim()) {
     ElMessage.warning('请输入合同文本')
     return
   }
-  loading.start = true
-  acgView.value = null
+  isSubmitting.value = true
+  startError.value = null
+  submitController?.abort()
+  submitController = new AbortController()
+  progressTracker.reset()
+  clearRunData()
+  activeRunId.value = ''
   try {
     const intentText = userIntent.value.trim() || '审查合同风险并生成报告'
-    const input: Record<string, any> = {
+    const input: Record<string, unknown> = {
       contractText: contractText.value,
       userIntent: intentText,
       planningMode: planningMode.value,
@@ -467,36 +567,66 @@ const startRun = async () => {
     if (faultEnabled.value) {
       input.faultInjection = { step_id: faultStep.value, fault_type: faultType.value, max_triggers: 1 }
     }
-    const res = await workflowApi.startWorkflow({
+    const clientRequestId = createClientRequestId()
+    const res = await workflowApi.startWorkflowAsync({
       title: intentText,
       domain: 'legal',
       intent: 'contract_review_acg',
       workflowId: WORKFLOW_ID,
-      input
-    })
-    const latest = await pollUntilStable(res.run.runId)
-    const view = await workflowApi.getAcgView(res.run.runId)
-    acgView.value = hydrateAcgView(view, latest)
-    loadedRunId.value = res.run.runId
+      input,
+      clientRequestId
+    }, { signal: submitController.signal })
+    activeRunId.value = res.run.runId
+    void progressTracker.start(res.run.runId, { fresh: true })
     await router.replace({ query: { ...route.query, runId: res.run.runId } })
-    ElMessage.success('ACG 引擎执行完成')
-  } catch (err: any) {
-    ElMessage.error(`启动失败：${err?.message || err}`)
+  } catch (error: unknown) {
+    if (axios.isCancel(error)) return
+    startError.value = startErrorMessage(error)
   } finally {
-    loading.start = false
+    isSubmitting.value = false
+    submitController = null
   }
 }
 
-const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
-  let latest = await workflowApi.getRun(runId)
-  let tries = 0
-  while (!STABLE.includes(latest.status) && tries < 6) {
-    await new Promise((r) => window.setTimeout(r, 800))
-    latest = await workflowApi.getRun(runId)
-    tries += 1
-  }
-  return latest
+const createClientRequestId = (): string => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
 }
+
+const startErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 409) {
+      return '相同请求标识已用于不同参数，请重新发起任务'
+    }
+    if (!error.response) return '任务未能启动：网络连接暂时不可用'
+  }
+  return '任务未能启动'
+}
+
+const placeholderMessage = computed(() => {
+  if (isSubmitting.value) return '正在创建 ACG 运行...'
+  if (progressTracker.syncError.value === '运行记录不存在或当前账户无权访问') {
+    return progressTracker.syncError.value
+  }
+  if (progressTracker.progress.value && !acgView.value) {
+    const phase = progressTracker.progress.value.phase
+    if (phase === 'understanding' || phase === 'planning') return '任务正在规划，ACG 拓扑将在构建后显示。'
+    if (phase === 'graph_building') return '正在构建 ACG 拓扑...'
+    return isAcgLoading.value ? '正在加载 ACG 拓扑与审查数据...' : '等待 ACG 数据刷新...'
+  }
+  return '启动一个 ACG 引擎工作流，观察动态拓扑、Token 节省率、数据血缘与故障自愈。'
+})
+
+onBeforeUnmount(() => {
+  submitController?.abort()
+  clearTopologyTimer()
+  topologyGeneration += 1
+  topologyController?.abort()
+})
 </script>
 
 <style scoped>
@@ -514,6 +644,15 @@ const pollUntilStable = async (runId: string): Promise<WorkflowRun> => {
 .run-id code { color: var(--text-primary); font-size: 11px; white-space: nowrap; }
 
 .control-bar { display: flex; flex-direction: column; gap: var(--space-md); }
+.run-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 38%, var(--border-light));
+  border-radius: 6px;
+  background: var(--danger-fade);
+  color: var(--danger);
+  font-size: 12px;
+}
 .ctrl-row { display: flex; flex-direction: column; gap: 6px; }
 .ctrl-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
 .ctrl-options { flex-direction: row; align-items: center; gap: var(--space-md); flex-wrap: wrap; }

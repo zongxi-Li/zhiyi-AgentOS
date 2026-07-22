@@ -40,22 +40,30 @@ class SQLiteWorkflowStore(WorkflowStore):
         return AgentTask.model_validate(json.loads(row["payload"]))
 
     def save_run(self, run: WorkflowRun) -> None:
-        self._execute(
-            """
-            INSERT INTO runs(run_id, task_id, payload, updated_at)
-            VALUES(?, ?, ?, ?)
-            ON CONFLICT(run_id) DO UPDATE SET
-                task_id=excluded.task_id,
-                payload=excluded.payload,
-                updated_at=excluded.updated_at
-            """,
-            (
-                run.run_id,
-                run.task_id,
-                json.dumps(run.model_dump(by_alias=True, mode="json"), ensure_ascii=False),
-                run.updated_at.isoformat(),
-            ),
-        )
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT payload FROM runs WHERE run_id = ?", (run.run_id,)).fetchone()
+            if row is not None:
+                existing = WorkflowRun.model_validate(json.loads(row["payload"]))
+                if _reject_terminal_overwrite(existing, run):
+                    return
+            conn.execute(
+                """
+                INSERT INTO runs(run_id, task_id, payload, updated_at)
+                VALUES(?, ?, ?, ?)
+                ON CONFLICT(run_id) DO UPDATE SET
+                    task_id=excluded.task_id,
+                    payload=excluded.payload,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    run.run_id,
+                    run.task_id,
+                    json.dumps(run.model_dump(by_alias=True, mode="json"), ensure_ascii=False),
+                    run.updated_at.isoformat(),
+                ),
+            )
+            conn.commit()
 
     def get_run(self, run_id: str) -> WorkflowRun:
         row = self._fetch_one("SELECT payload FROM runs WHERE run_id = ?", (run_id,))
@@ -107,6 +115,40 @@ class SQLiteWorkflowStore(WorkflowStore):
         ]
         runs.sort(key=lambda run: (run.created_at, run.run_id), reverse=True)
         return paginate_items(runs, page=page, page_size=page_size)
+
+    def list_non_terminal_runs(self, *, limit: int = 200) -> tuple[WorkflowRun, ...]:
+        safe_limit = max(1, limit)
+        rows = self._fetch_all(
+            """
+            SELECT payload FROM runs
+            WHERE json_extract(payload, '$.status') NOT IN (?, ?, ?)
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (
+                WorkflowStatus.COMPLETED.value,
+                WorkflowStatus.FAILED.value,
+                WorkflowStatus.CANCELLED.value,
+                safe_limit,
+            ),
+        )
+        return tuple(
+            WorkflowRun.model_validate(json.loads(row["payload"])) for row in rows
+        )
+
+    def find_run_by_idempotency_key(self, idempotency_key: str) -> WorkflowRun | None:
+        row = self._fetch_one(
+            """
+            SELECT payload FROM runs
+            WHERE json_extract(payload, '$.idempotencyKey') = ?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (idempotency_key,),
+        )
+        if row is None:
+            return None
+        return WorkflowRun.model_validate(json.loads(row["payload"]))
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
@@ -215,3 +257,16 @@ def _matches_run(
     if source is not None and run.input.get("source") != source:
         return False
     return True
+
+
+def _reject_terminal_overwrite(existing: WorkflowRun, incoming: WorkflowRun) -> bool:
+    terminal = {
+        WorkflowStatus.COMPLETED,
+        WorkflowStatus.FAILED,
+        WorkflowStatus.CANCELLED,
+    }
+    if existing.status == WorkflowStatus.FAILED and incoming.status == WorkflowStatus.RETRYING:
+        return False
+    if existing.status in terminal and incoming.status != existing.status:
+        return True
+    return existing.status in terminal and incoming.updated_at < existing.updated_at

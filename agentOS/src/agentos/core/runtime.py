@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from copy import deepcopy
+import logging
 import os
+from time import monotonic
 from typing import Mapping, Optional
 
 from agentos.agents import AgentRegistry
@@ -37,10 +41,34 @@ from agentos.core.models.types import (
     WorkflowStep,
     utc_now,
 )
+from agentos.core.models.enums import WorkflowProgressPhase
 from agentos.packs.registry import register_installed_packs
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 from agentos.stores.workflow_store import WorkflowStore
+
+
+logger = logging.getLogger(__name__)
+
+_TERMINAL_RUN_STATUSES = {
+    WorkflowStatus.COMPLETED,
+    WorkflowStatus.FAILED,
+    WorkflowStatus.CANCELLED,
+}
+
+_LIFECYCLE_MESSAGES = {
+    WorkflowProgressPhase.UNDERSTANDING: "任务已接受，正在准备 ACG 规划",
+    WorkflowProgressPhase.PLANNING: "正在规划 ACG 执行路径",
+    WorkflowProgressPhase.GRAPH_BUILDING: "正在构建 ACG 拓扑",
+    WorkflowProgressPhase.EXECUTING: "正在执行 ACG 节点",
+    WorkflowProgressPhase.RECOVERY: "正在恢复 ACG 执行",
+    WorkflowProgressPhase.REVIEW: "正在等待人工审核",
+    WorkflowProgressPhase.COMPLETED: "ACG 工作流执行完成",
+    WorkflowProgressPhase.FAILED: "ACG 工作流执行失败",
+    WorkflowProgressPhase.CANCELLED: "ACG 工作流已取消",
+}
+
+_ERROR_UNSET = object()
 
 
 class WorkflowRuntime:
@@ -138,25 +166,129 @@ class WorkflowRuntime:
         workflow_id: Optional[str] = None,
         review_mode: str = "auto",
     ) -> WorkflowRun:
+        _, run = self.prepare_run(
+            task_id=task_id,
+            workflow_id=workflow_id,
+            review_mode=review_mode,
+        )
+        return await self.execute_prepared_run(run.run_id)
+
+    def prepare_run(
+        self,
+        task_id: str,
+        workflow_id: Optional[str] = None,
+        review_mode: str = "auto",
+        *,
+        idempotency_key: Optional[str] = None,
+        idempotency_fingerprint: Optional[str] = None,
+    ) -> tuple[AgentTask, WorkflowRun]:
+        """Persist a queryable run before planning or node execution starts."""
+
+        if idempotency_key:
+            existing = self.workflow_store.find_run_by_idempotency_key(idempotency_key)
+            if existing is not None:
+                if existing.idempotency_fingerprint != idempotency_fingerprint:
+                    raise ValueError("idempotency key conflicts with the workflow start request")
+                return self.task_manager.get_task(existing.task_id), existing
+
         task = self.task_manager.get_task(task_id)
         workflow = self._resolve_workflow(task, workflow_id)
-        task = self.task_manager.mark_running(task)
-
+        is_acg = workflow.effective_runtime_engine == "acg"
         run = WorkflowRun(
             taskId=task.task_id,
             workflowId=workflow.workflow_id,
             domain=workflow.domain,
             runtimeEngine=workflow.effective_runtime_engine,
             implementationId=workflow.effective_implementation_id,
-            currentStepId=workflow.first_step_id(),
             reviewMode=review_mode,
             input=dict(task.input),
-            steps=[WorkflowStep.from_definition(step) for step in workflow.steps],
+            lifecyclePhase=WorkflowProgressPhase.UNDERSTANDING,
+            lifecycleMessage=_LIFECYCLE_MESSAGES[WorkflowProgressPhase.UNDERSTANDING],
+            idempotencyKey=idempotency_key,
+            idempotencyFingerprint=idempotency_fingerprint,
+            currentStepId=None if is_acg else workflow.first_step_id(),
+            steps=(
+                []
+                if is_acg
+                else [WorkflowStep.from_definition(step) for step in workflow.steps]
+            ),
         )
+        self.workflow_store.save_run(run)
+        logger.info(
+            "run_prepared",
+            extra={
+                "taskId": task.task_id,
+                "runId": run.run_id,
+                "workflowId": workflow.workflow_id,
+                "phase": run.lifecycle_phase.value,
+            },
+        )
+        return task, run
 
-        adapter = self._workflow_adapter(workflow)
-        self._transition_run(run, WorkflowStatus.RUNNING)
-        return await adapter.start(task=task, run=run, workflow=workflow)
+    async def execute_prepared_run(self, run_id: str) -> WorkflowRun:
+        """Execute an already-persisted run while preserving terminal state."""
+
+        run = self.workflow_store.get_run(run_id)
+        if run.status in _TERMINAL_RUN_STATUSES:
+            return run
+
+        task = self.task_manager.get_task(run.task_id)
+        workflow = self.workflow_registry.get(run.workflow_id)
+        started = monotonic()
+        run = self._set_run_lifecycle(
+            run,
+            status=WorkflowStatus.RUNNING,
+            phase=WorkflowProgressPhase.PLANNING,
+            message=_LIFECYCLE_MESSAGES[WorkflowProgressPhase.PLANNING],
+            set_started_at=True,
+        )
+        try:
+            self.task_manager.mark_running(task)
+            logger.info(
+                "run_execution_started",
+                extra={
+                    "taskId": task.task_id,
+                    "runId": run.run_id,
+                    "workflowId": workflow.workflow_id,
+                    "phase": run.lifecycle_phase.value,
+                },
+            )
+            adapter = self._workflow_adapter(workflow)
+            result = await adapter.start(task=task, run=run, workflow=workflow)
+            persisted = self.workflow_store.get_run(result.run_id)
+            if persisted.status in _TERMINAL_RUN_STATUSES and persisted.status != result.status:
+                result = persisted
+            logger.info(
+                "run_execution_completed",
+                extra={
+                    "taskId": task.task_id,
+                    "runId": result.run_id,
+                    "workflowId": workflow.workflow_id,
+                    "phase": result.lifecycle_phase.value if result.lifecycle_phase else None,
+                    "elapsedMs": int((monotonic() - started) * 1000),
+                },
+            )
+            return result
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            await self.fail_run_safely(
+                run.run_id,
+                error_code="workflow_execution_failed",
+                error_message=self._safe_error_message(exc),
+            )
+            logger.exception(
+                "run_execution_failed",
+                extra={
+                    "taskId": task.task_id,
+                    "runId": run.run_id,
+                    "workflowId": workflow.workflow_id,
+                    "phase": WorkflowProgressPhase.FAILED.value,
+                    "elapsedMs": int((monotonic() - started) * 1000),
+                    "errorType": type(exc).__name__,
+                },
+            )
+            raise
 
     async def _start_acg(
         self,
@@ -173,7 +305,29 @@ class WorkflowRuntime:
             observation=f"Task created: {task.title}",
             payload=task.model_dump(by_alias=True, mode="json"),
         )
-        blueprint = self._build_acg_blueprint(task, run, workflow)
+        planning_started = monotonic()
+        logger.info(
+            "run_planning_started",
+            extra={"taskId": task.task_id, "runId": run.run_id, "workflowId": workflow.workflow_id},
+        )
+        blueprint = await asyncio.to_thread(self._build_acg_blueprint, task, run, workflow)
+        run = self._set_run_lifecycle(
+            run,
+            phase=WorkflowProgressPhase.GRAPH_BUILDING,
+            message=_LIFECYCLE_MESSAGES[WorkflowProgressPhase.GRAPH_BUILDING],
+        )
+        if run.status in _TERMINAL_RUN_STATUSES:
+            return run
+        logger.info(
+            "run_planning_completed",
+            extra={
+                "taskId": task.task_id,
+                "runId": run.run_id,
+                "workflowId": workflow.workflow_id,
+                "phase": run.lifecycle_phase.value,
+                "elapsedMs": int((monotonic() - planning_started) * 1000),
+            },
+        )
         self._validate_blueprint_agents(blueprint, domain=workflow.domain or task.domain)
         run.execution_state["workflowVersion"] = workflow.version
         run.execution_state["graphId"] = blueprint.graph_id
@@ -182,6 +336,16 @@ class WorkflowRuntime:
         if thinking_mode:
             run.execution_state["thinkingMode"] = thinking_mode
         self._sync_run_steps_to_acg(run, blueprint)
+        run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
+        run.updated_at = utc_now()
+        self.workflow_store.save_run(run)
+        run = self._set_run_lifecycle(
+            run,
+            phase=WorkflowProgressPhase.EXECUTING,
+            message=_LIFECYCLE_MESSAGES[WorkflowProgressPhase.EXECUTING],
+        )
+        if run.status in _TERMINAL_RUN_STATUSES:
+            return run
         return await executor.run(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
     def _validate_blueprint_agents(self, blueprint: ACGBlueprint, *, domain: str) -> None:
@@ -357,6 +521,158 @@ class WorkflowRuntime:
 
     def get_status(self, run_id: str) -> WorkflowRun:
         return self.workflow_store.get_run(run_id)
+
+    async def update_run_lifecycle(
+        self,
+        run_id: str,
+        *,
+        status: WorkflowStatus | None = None,
+        phase: WorkflowProgressPhase | None = None,
+        message: str | None = None,
+        error: object = _ERROR_UNSET,
+        set_started_at: bool = False,
+    ) -> WorkflowRun:
+        """Reload, guard, persist, and return the latest lifecycle snapshot."""
+
+        run = self.workflow_store.get_run(run_id)
+        return self._set_run_lifecycle(
+            run,
+            status=status,
+            phase=phase,
+            message=message,
+            error=error,
+            set_started_at=set_started_at,
+        )
+
+    def _set_run_lifecycle(
+        self,
+        run: WorkflowRun,
+        *,
+        status: WorkflowStatus | None = None,
+        phase: WorkflowProgressPhase | None = None,
+        message: str | None = None,
+        error: object = _ERROR_UNSET,
+        set_started_at: bool = False,
+    ) -> WorkflowRun:
+        try:
+            persisted = self.workflow_store.get_run(run.run_id)
+        except KeyError:
+            persisted = run
+        if persisted.status in _TERMINAL_RUN_STATUSES and persisted.status != run.status:
+            run = persisted
+        if run.status in _TERMINAL_RUN_STATUSES:
+            terminal_phase = WorkflowProgressPhase(run.status.value)
+            if status not in {None, run.status} or phase not in {None, terminal_phase}:
+                return run
+
+        target_status = status or run.status
+        terminal_phase_by_status = {
+            WorkflowStatus.COMPLETED: WorkflowProgressPhase.COMPLETED,
+            WorkflowStatus.FAILED: WorkflowProgressPhase.FAILED,
+            WorkflowStatus.CANCELLED: WorkflowProgressPhase.CANCELLED,
+        }
+        target_phase = terminal_phase_by_status.get(target_status, phase)
+        target_message = message
+        if target_phase is not None and target_message is None:
+            target_message = _LIFECYCLE_MESSAGES[target_phase]
+
+        changed = False
+        if target_status != run.status:
+            run.status = self.state_machine.transition(run.status, target_status)
+            changed = True
+        if target_phase is not None and target_phase != run.lifecycle_phase:
+            run.lifecycle_phase = target_phase
+            changed = True
+        if target_message is not None and target_message != run.lifecycle_message:
+            run.lifecycle_message = target_message
+            changed = True
+        if set_started_at and run.started_at is None:
+            run.started_at = utc_now()
+            changed = True
+        if error is not _ERROR_UNSET and error != run.error:
+            run.error = error  # type: ignore[assignment]
+            changed = True
+        if changed:
+            run.updated_at = utc_now()
+            self.workflow_store.save_run(run)
+        return run
+
+    async def fail_run_safely(
+        self,
+        run_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+    ) -> WorkflowRun:
+        """Best-effort terminal failure used by managed execution boundaries."""
+
+        run = self.workflow_store.get_run(run_id)
+        if run.status in _TERMINAL_RUN_STATUSES:
+            return run
+        error = {
+            "code": error_code,
+            "message": error_message[:500],
+        }
+        run = self._set_run_lifecycle(
+            run,
+            status=WorkflowStatus.FAILED,
+            phase=WorkflowProgressPhase.FAILED,
+            message=_LIFECYCLE_MESSAGES[WorkflowProgressPhase.FAILED],
+            error=error,
+        )
+        try:
+            self.task_manager.mark_failed(run.task_id)
+        except Exception:
+            logger.exception(
+                "Failed to align task status after run failure",
+                extra={"taskId": run.task_id, "runId": run.run_id},
+            )
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_FAILED,
+            observation=error["message"],
+            payload=error,
+        )
+        run.updated_at = utc_now()
+        self.workflow_store.save_run(run)
+        return run
+
+    async def close_orphaned_runs(self, *, limit: int = 200) -> list[str]:
+        """Close unfinished runs whose in-process executor was lost on restart."""
+
+        orphan_phases = {
+            WorkflowProgressPhase.PLANNING,
+            WorkflowProgressPhase.GRAPH_BUILDING,
+            WorkflowProgressPhase.EXECUTING,
+            WorkflowProgressPhase.RECOVERY,
+        }
+        closed: list[str] = []
+        for run in self.workflow_store.list_non_terminal_runs(limit=limit):
+            if run.status not in {WorkflowStatus.PENDING, WorkflowStatus.RUNNING} and (
+                run.lifecycle_phase not in orphan_phases
+            ):
+                continue
+            failed = await self.fail_run_safely(
+                run.run_id,
+                error_code="orphaned_after_restart",
+                error_message="工作流执行因运行进程重启而中断",
+            )
+            closed.append(failed.run_id)
+            logger.warning(
+                "orphaned_run_closed",
+                extra={
+                    "taskId": failed.task_id,
+                    "runId": failed.run_id,
+                    "workflowId": failed.workflow_id,
+                    "phase": failed.lifecycle_phase.value if failed.lifecycle_phase else None,
+                },
+            )
+        return closed
+
+    @staticmethod
+    def _safe_error_message(exc: BaseException) -> str:
+        message = str(exc).strip()
+        return (message or type(exc).__name__)[:500]
 
     def resolve_workflow_id(self, workflow_id: str | None) -> str | None:
         if not workflow_id:
@@ -555,7 +871,34 @@ class WorkflowRuntime:
         self.workflow_store.save_run(run)
 
     def _transition_run(self, run: WorkflowRun, status: WorkflowStatus) -> None:
+        try:
+            persisted = self.workflow_store.get_run(run.run_id)
+        except KeyError:
+            persisted = run
+        if persisted.status in _TERMINAL_RUN_STATUSES and persisted.status != run.status:
+            for field_name in WorkflowRun.model_fields:
+                setattr(run, field_name, deepcopy(getattr(persisted, field_name)))
+            return
         run.status = self.state_machine.transition(run.status, status)
+        phase_by_status = {
+            WorkflowStatus.WAITING_REVIEW: WorkflowProgressPhase.REVIEW,
+            WorkflowStatus.RETRYING: WorkflowProgressPhase.RECOVERY,
+            WorkflowStatus.COMPLETED: WorkflowProgressPhase.COMPLETED,
+            WorkflowStatus.FAILED: WorkflowProgressPhase.FAILED,
+            WorkflowStatus.CANCELLED: WorkflowProgressPhase.CANCELLED,
+        }
+        phase = phase_by_status.get(status)
+        if phase is None and status == WorkflowStatus.RUNNING:
+            if run.lifecycle_phase not in {
+                WorkflowProgressPhase.PLANNING,
+                WorkflowProgressPhase.GRAPH_BUILDING,
+            }:
+                phase = WorkflowProgressPhase.EXECUTING
+        if phase is not None:
+            run.lifecycle_phase = phase
+            run.lifecycle_message = _LIFECYCLE_MESSAGES[phase]
+        if status == WorkflowStatus.RUNNING:
+            run.started_at = run.started_at or utc_now()
         run.updated_at = utc_now()
 
     def _transition_step(self, step: WorkflowStep, status: StepStatus) -> None:
@@ -567,6 +910,8 @@ class WorkflowRuntime:
 
     def _complete_run(self, task: AgentTask, run: WorkflowRun) -> None:
         self._transition_run(run, WorkflowStatus.COMPLETED)
+        if run.status != WorkflowStatus.COMPLETED:
+            return
         run.current_step_id = None
         run.output = self.orchestrator.compose_final_output(run)
         self.task_manager.mark_completed(task)

@@ -17,7 +17,7 @@ class StateMachine:
     """工作流运行和步骤共享的状态机。"""
 
     _transitions = {
-        "pending": {"planning", "running", "cancelled"},
+        "pending": {"planning", "running", "failed", "cancelled"},
         "planning": {"running", "failed", "cancelled"},
         "running": {"waiting_review", "retrying", "failed", "completed", "cancelled"},
         "waiting_review": {"running", "retrying", "failed", "completed", "cancelled"},

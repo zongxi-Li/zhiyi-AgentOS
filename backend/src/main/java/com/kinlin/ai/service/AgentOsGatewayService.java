@@ -2,7 +2,10 @@ package com.kinlin.ai.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.kinlin.ai.config.AgentProperties;
+import com.kinlin.ai.dto.agentos.WorkflowProgressResponse;
+import com.kinlin.ai.dto.agentos.AsyncWorkflowStartResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +28,9 @@ public class AgentOsGatewayService {
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_BODY =
             new ParameterizedTypeReference<>() {
             };
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .findAndRegisterModules()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     public static final String INTERNAL_HTTP_STATUS_KEY = "_httpStatus";
 
     private final WebClient webClient;
@@ -40,6 +45,14 @@ public class AgentOsGatewayService {
     }
 
     public Map<String, Object> get(String path) {
+        return get(path, timeoutMs);
+    }
+
+    public Map<String, Object> getProgress(String path) {
+        return get(path, agentProperties.getProgressTimeoutMs());
+    }
+
+    private Map<String, Object> get(String path, int requestTimeoutMs) {
         if (!agentProperties.isEnabled()) {
             return disabledResponse(path);
         }
@@ -48,7 +61,7 @@ public class AgentOsGatewayService {
                     .uri(path)
                     .retrieve()
                     .bodyToMono(MAP_BODY)
-                    .timeout(Duration.ofMillis(timeoutMs))
+                    .timeout(Duration.ofMillis(requestTimeoutMs))
                     .onErrorResume(e -> toErrorResponse(e, path))
                     .block();
         } catch (Exception e) {
@@ -133,6 +146,52 @@ public class AgentOsGatewayService {
                 : "AGENTOS_UPSTREAM_ERROR");
         response.put("upstreamStatus", upstreamStatus);
         response.put(INTERNAL_HTTP_STATUS_KEY, gatewayStatus);
+        return response;
+    }
+
+    /** Preserve upstream status for the fast asynchronous workflow preparation call. */
+    public Map<String, Object> postAsyncStart(String path, Object body) {
+        if (!agentProperties.isEnabled()) {
+            return disabledResponse(path);
+        }
+        try {
+            return webClient.post()
+                    .uri(path)
+                    .bodyValue(body != null ? body : new HashMap<>())
+                    .exchangeToMono(response -> response.bodyToMono(MAP_BODY)
+                            .defaultIfEmpty(new HashMap<>())
+                            .map(payload -> withHttpStatus(payload, response.statusCode().value())))
+                    .timeout(Duration.ofMillis(agentProperties.getAsyncStartTimeoutMs()))
+                    .onErrorResume(e -> toErrorResponse(e, path))
+                    .block();
+        } catch (Exception e) {
+            return errorResponse(e, path);
+        }
+    }
+
+    public WorkflowProgressResponse parseWorkflowProgress(Map<String, Object> body) {
+        try {
+            return OBJECT_MAPPER.convertValue(body, WorkflowProgressResponse.class);
+        } catch (IllegalArgumentException exception) {
+            log.warn("AgentOS progress response validation failed. type={}",
+                    exception.getClass().getSimpleName());
+            throw new IllegalStateException("AgentOS returned an invalid progress response", exception);
+        }
+    }
+
+    public AsyncWorkflowStartResponse parseAsyncWorkflowStart(Map<String, Object> body) {
+        try {
+            return OBJECT_MAPPER.convertValue(body, AsyncWorkflowStartResponse.class);
+        } catch (IllegalArgumentException exception) {
+            log.warn("AgentOS async start response validation failed. type={}",
+                    exception.getClass().getSimpleName());
+            throw new IllegalStateException("AgentOS returned an invalid async start response", exception);
+        }
+    }
+
+    private Map<String, Object> withHttpStatus(Map<String, Object> payload, int status) {
+        Map<String, Object> response = new HashMap<>(payload == null ? Map.of() : payload);
+        response.put(INTERNAL_HTTP_STATUS_KEY, status);
         return response;
     }
 

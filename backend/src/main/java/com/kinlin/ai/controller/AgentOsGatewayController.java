@@ -1,6 +1,9 @@
 package com.kinlin.ai.controller;
 
 import com.kinlin.ai.service.AgentOsGatewayService;
+import com.kinlin.ai.dto.agentos.AsyncWorkflowStartRequest;
+import com.kinlin.ai.dto.agentos.AsyncWorkflowStartResponse;
+import com.kinlin.ai.dto.agentos.WorkflowProgressResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -78,6 +81,27 @@ public class AgentOsGatewayController {
         return gatewayResponse(agentOsGatewayService.post("/ai/core/workflows/start", body));
     }
 
+    @PostMapping("/core/workflows/start-async")
+    public ResponseEntity<?> startWorkflowAsync(@RequestBody AsyncWorkflowStartRequest body) {
+        Map<String, Object> upstream = agentOsGatewayService.postAsyncStart("/ai/core/workflows/start-async", body);
+        Map<String, Object> response = new LinkedHashMap<>(upstream == null ? Map.of() : upstream);
+        Object status = response.remove(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY);
+        int httpStatus = status instanceof Number ? ((Number) status).intValue() : 200;
+        if (httpStatus < 200 || httpStatus >= 300) {
+            return ResponseEntity.status(httpStatus).body(response);
+        }
+        try {
+            AsyncWorkflowStartResponse parsed = agentOsGatewayService.parseAsyncWorkflowStart(response);
+            return ResponseEntity.status(httpStatus).body(parsed);
+        } catch (IllegalStateException exception) {
+            Map<String, Object> invalid = new LinkedHashMap<>();
+            invalid.put("success", false);
+            invalid.put("message", "AgentOS returned an invalid async start response.");
+            invalid.put("error", "AGENTOS_INVALID_ASYNC_START_RESPONSE");
+            return ResponseEntity.status(502).body(invalid);
+        }
+    }
+
     @GetMapping("/core/workflows/metrics")
     public ResponseEntity<Map<String, Object>> evaluateWorkflows(
             @RequestParam(required = false) String status,
@@ -102,6 +126,27 @@ public class AgentOsGatewayController {
     @GetMapping("/core/workflows/runs/{runId}")
     public ResponseEntity<Map<String, Object>> getWorkflowRun(HttpServletRequest request) {
         return gatewayResponse(agentOsGatewayService.get(toPythonPath(request)));
+    }
+
+    @GetMapping("/core/workflows/runs/{runId}/progress")
+    public ResponseEntity<?> getWorkflowProgress(HttpServletRequest request) {
+        Map<String, Object> upstream = agentOsGatewayService.getProgress(toPythonPath(request));
+        Map<String, Object> response = new LinkedHashMap<>(upstream == null ? Map.of() : upstream);
+        Object status = response.remove(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY);
+        int httpStatus = status instanceof Number ? ((Number) status).intValue() : 200;
+        if (httpStatus < 200 || httpStatus >= 300) {
+            return ResponseEntity.status(httpStatus).body(response);
+        }
+        try {
+            WorkflowProgressResponse progress = agentOsGatewayService.parseWorkflowProgress(response);
+            return ResponseEntity.ok(progress);
+        } catch (IllegalStateException exception) {
+            Map<String, Object> invalid = new LinkedHashMap<>();
+            invalid.put("success", false);
+            invalid.put("message", "AgentOS returned an invalid progress response.");
+            invalid.put("error", "AGENTOS_INVALID_PROGRESS_RESPONSE");
+            return ResponseEntity.status(502).body(invalid);
+        }
     }
 
     @GetMapping("/core/workflows/runs/{runId}/checkpoints")
