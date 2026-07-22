@@ -1,7 +1,7 @@
 <template>
   <section
     class="workflow-progress"
-    :class="phaseClass"
+    :class="[phaseClass, `variant-${variant}`]"
     aria-labelledby="workflow-progress-title"
   >
     <div class="workflow-progress__header">
@@ -58,10 +58,12 @@ const props = withDefaults(defineProps<{
   loading?: boolean
   syncError?: string | null
   elapsedSeconds?: number
+  variant?: 'default' | 'compact'
 }>(), {
   loading: false,
   syncError: null,
-  elapsedSeconds: undefined
+  elapsedSeconds: undefined,
+  variant: 'default'
 })
 
 const PHASE_LABELS: Record<WorkflowProgressPhase, string> = {
@@ -143,6 +145,14 @@ const ariaValueText = computed(() => {
 .workflow-progress.phase-completed { --progress-state: var(--success); }
 .workflow-progress.phase-failed { --progress-state: var(--danger); }
 .workflow-progress.phase-cancelled { --progress-state: var(--text-muted); }
+
+.workflow-progress.variant-compact {
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.workflow-progress.variant-compact .workflow-progress__message { margin: 6px 0 8px; }
+.workflow-progress.variant-compact .workflow-progress__footer { margin-top: 7px; }
 
 .workflow-progress__header,
 .workflow-progress__footer,

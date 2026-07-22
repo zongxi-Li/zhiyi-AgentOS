@@ -17,6 +17,10 @@ export interface UseWorkflowProgressOptions {
   intervalMs?: number
   maxConsecutiveErrors?: number
   onTerminal?: (progress: WorkflowProgress) => void | Promise<void>
+  onProgressChanged?: (
+    current: WorkflowProgress,
+    previous: WorkflowProgress | null
+  ) => void
   request?: (
     runId: string,
     options?: { signal?: AbortSignal }
@@ -98,7 +102,13 @@ export function useWorkflowProgress(options: UseWorkflowProgressOptions = {}) {
       const response = await request(requestedRunId, { signal: controller.signal })
       if (requestGeneration !== generation || requestedRunId !== runId.value) return
 
+      const previous = progress.value
       progress.value = response
+      try {
+        options.onProgressChanged?.(response, previous)
+      } catch {
+        // UI projection callbacks must not break successful progress synchronization.
+      }
       syncError.value = null
       consecutiveErrors.value = 0
       state.value = isTerminalProgress(response) ? 'terminal' : 'polling'
@@ -121,7 +131,7 @@ export function useWorkflowProgress(options: UseWorkflowProgressOptions = {}) {
           state.value = 'temporarily_disconnected'
           schedule(1000, requestGeneration)
         } else {
-          syncError.value = '运行记录不存在或当前账户无权访问'
+          syncError.value = '该运行记录不存在或当前账户无权访问'
           consecutiveErrors.value += 1
           state.value = 'stopped'
           clearTimer()

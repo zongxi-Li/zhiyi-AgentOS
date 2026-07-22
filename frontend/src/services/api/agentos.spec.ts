@@ -35,6 +35,16 @@ describe('AgentOS async workflow API', () => {
     })).rejects.toBeInstanceOf(WorkflowApiContractError)
   })
 
+  it.each([
+    { accepted: false, task: { taskId: 'task_1', status: 'pending' }, run: { runId: 'run_1', status: 'pending' } },
+    { accepted: true, task: { taskId: '', status: 'pending' }, run: { runId: 'run_1', status: 'pending' } }
+  ])('rejects an incomplete accepted/task contract', async (data) => {
+    vi.spyOn(agentosRequest, 'post').mockResolvedValue({ data } as never)
+    await expect(agentosApi.startWorkflowAsync({
+      title: '合同审查', domain: 'legal', intent: 'review', clientRequestId: 'request_1'
+    })).rejects.toBeInstanceOf(WorkflowApiContractError)
+  })
+
   it('queries progress through Java, preserves null percent, and forwards cancellation', async () => {
     const signal = new AbortController().signal
     const payload = { runId: 'run/1', phase: 'planning', percent: null }

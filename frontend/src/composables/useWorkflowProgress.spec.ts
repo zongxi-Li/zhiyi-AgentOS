@@ -44,11 +44,12 @@ describe('useWorkflowProgress', () => {
   })
 
   it('queries immediately, then polls every two seconds with real backend values', async () => {
+    const onProgressChanged = vi.fn()
     const request = vi.fn().mockResolvedValueOnce(progress()).mockResolvedValueOnce(progress({
       phase: 'executing', percent: 42.86, totalSteps: 7, completedSteps: 3
     }))
     const scope = effectScope()
-    const tracker = scope.run(() => useWorkflowProgress({ request }))!
+    const tracker = scope.run(() => useWorkflowProgress({ request, onProgressChanged }))!
 
     await tracker.start('run_1')
     expect(request).toHaveBeenCalledTimes(1)
@@ -57,6 +58,12 @@ describe('useWorkflowProgress', () => {
     await vi.advanceTimersByTimeAsync(2000)
     expect(request).toHaveBeenCalledTimes(2)
     expect(tracker.percent.value).toBe(42.86)
+    expect(onProgressChanged).toHaveBeenNthCalledWith(1, expect.objectContaining({ phase: 'planning' }), null)
+    expect(onProgressChanged).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ phase: 'executing', percent: 42.86 }),
+      expect.objectContaining({ phase: 'planning' })
+    )
     scope.stop()
   })
 

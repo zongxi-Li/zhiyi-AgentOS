@@ -92,4 +92,15 @@ describe('WorkflowProgressBar', () => {
     expect(wrapper.get('.workflow-progress__message').text()).toBe(message)
     wrapper.unmount()
   })
+
+  it('supports compact Chat rendering without changing progress semantics', () => {
+    vi.useFakeTimers()
+    const wrapper = mount(WorkflowProgressBar, {
+      props: { progress: makeProgress({ percent: 37.5 }), variant: 'compact' }
+    })
+    expect(wrapper.classes()).toContain('variant-compact')
+    expect(wrapper.text()).toContain('37.50%')
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('37.5')
+    wrapper.unmount()
+  })
 })

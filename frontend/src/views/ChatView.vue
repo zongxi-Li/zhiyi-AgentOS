@@ -17,6 +17,7 @@
         ref="chatPanelRef"
         class="chat-panel"
         :class="{ 'hero-mode': showHeroMode }"
+        :aria-busy="isLoadingConversation || isStreamingChat"
       >
         <Transition name="context-panel-slide" @after-leave="finishContextPanelClose">
           <section
@@ -178,7 +179,23 @@
 
         <div ref="composerRef" class="composer" :style="{ bottom: composerDockOffset }">
           <div
-            v-if="isAgentMode && activeWorkflowRunId"
+            v-if="isSubmittingWorkflow || activeWorkflowRunId"
+            class="chat-workflow-progress"
+          >
+            <WorkflowProgressBar
+              :progress="workflowProgressState.progress.value"
+              :loading="isSubmittingWorkflow || workflowProgressState.isLoading.value"
+              :sync-error="workflowProgressState.syncError.value"
+              variant="compact"
+            />
+          </div>
+
+          <p v-if="workflowStartError" class="chat-workflow-error" role="alert">
+            {{ workflowStartError }}
+          </p>
+
+          <div
+            v-if="activeWorkflowRunId"
             class="workflow-run-strip"
             :class="activeWorkflowStatus"
           >
@@ -187,7 +204,7 @@
               {{ activeWorkflowStatusLabel }}
             </span>
             <code :title="activeWorkflowRunId">{{ activeWorkflowRunId }}</code>
-            <span class="workflow-run-strip__workflow">{{ activeWorkflowRun?.workflowId || 'WorkflowRun' }}</span>
+            <span class="workflow-run-strip__workflow">{{ activeWorkflowRun?.workflowId || activeWorkflowBinding?.workflowId || 'WorkflowRun' }}</span>
             <div class="workflow-run-strip__actions">
               <button
                 v-if="activeWorkflowStatus === 'waiting_review'"
@@ -199,7 +216,7 @@
                 <span>{{ workflowReviewSubmitting ? '提交中' : (!activeReviewStepId ? '加载审核节点' : '审核并继续') }}</span>
               </button>
               <button type="button" @click="openActiveWorkflowOperations">
-                <span>在运维页查看</span>
+                <span>查看 ACG</span>
                 <el-icon><DArrowRight /></el-icon>
               </button>
             </div>
@@ -249,7 +266,7 @@
               :disabled="isWorkflowUpgradeDisabled"
               @click="upgradeChatToWorkflow"
             >
-              <span>Workflow</span>
+              <span>{{ isSubmittingWorkflow ? '正在创建' : 'Workflow' }}</span>
             </button>
             <button v-if="isTeacherMode" class="composer-shelf-action" type="button" @click="openTeacherUploadDialog">
               <el-icon><UploadFilled /></el-icon>
@@ -355,7 +372,7 @@
               collapsible
               @collapse="setWorkflowPanelOpen(false)"
             />
-            <div v-if="acgViewLoading && !activeAcgView" class="workflow-acg-loading">正在加载动态拓扑…</div>
+            <div v-if="isLoadingWorkflowResult && !activeAcgView" class="workflow-acg-loading">正在加载动态拓扑…</div>
           </section>
         </Transition>
         <button
@@ -726,6 +743,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import axios from 'axios'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -770,14 +788,17 @@ import MindMapViewer from '@/components/agent/MindMapViewer.vue'
 import RelationGraph from '@/components/agent/RelationGraph.vue'
 import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
+import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import { agentosApi, type AcgBlueprint, type AcgView, type WorkflowRun } from '@/services/api/agentos'
+import type { WorkflowProgress } from '@/services/api/workflow'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { federatedModelApi } from '@/services/api/federatedModel'
 import { fileApi } from '@/services/api/file'
 import { recommendationApi, type RecommendationItem } from '@/services/api/recommendation'
-import { useChatStore } from '@/stores/chat'
+import { useChatStore, type ChatWorkflowBinding } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
 import { useDebounce } from '@/composables/useDebounce'
+import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { loadModelSettings } from '@/config/modelSettings'
 
 const { t } = useI18n()
@@ -786,8 +807,22 @@ const router = useRouter()
 
 const roleStore = useRoleStore()
 const chatStore = useChatStore()
+const createClientRequestId = (): string => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
+}
 type WorkspaceMode = 'agent' | 'chat'
 const WORKSPACE_MODE_KEY = 'layout.workspace_mode'
+const DRAFT_CONVERSATION_KEY = 'chat.workflow_draft_conversation_id'
+const WORKFLOW_SUBMISSION_KEY_PREFIX = 'chat.workflow_submission.'
+const draftConversationId = ref(
+  localStorage.getItem(DRAFT_CONVERSATION_KEY) || `draft:${createClientRequestId()}`
+)
+localStorage.setItem(DRAFT_CONVERSATION_KEY, draftConversationId.value)
 const workspaceMode = ref<WorkspaceMode>(
   route.query.workspace === 'agent' || localStorage.getItem(WORKSPACE_MODE_KEY) === 'agent'
     ? 'agent'
@@ -858,10 +893,24 @@ const contextPanelClosing = ref(false)
 const contextPanelResizing = ref(false)
 const contextPanelTab = ref<'lineage' | 'nodes' | 'steps'>('lineage')
 const activeWorkflowRunId = ref('')
+const activeWorkflowBinding = ref<ChatWorkflowBinding | null>(null)
 const activeWorkflowRun = ref<WorkflowRun | null>(null)
 const activeAcgView = ref<AcgView | null>(null)
-const acgViewLoading = ref(false)
+const isSubmittingWorkflow = ref(false)
+const isLoadingWorkflowResult = ref(false)
+const workflowStartError = ref<string | null>(null)
 const workflowReviewSubmitting = ref(false)
+const currentConversationId = computed(() => {
+  const routeContextId = typeof route.query.contextId === 'string' ? route.query.contextId.trim() : ''
+  return routeContextId || chatStore.contextId || draftConversationId.value
+})
+const isStreamingChat = computed(() => chatStore.isStreaming)
+const isLoadingConversation = computed(() => chatStore.isLoadingConversation)
+const workflowProgressState = useWorkflowProgress({
+  intervalMs: 2000,
+  onProgressChanged: handleWorkflowProgressChanged,
+  onTerminal: handleWorkflowTerminal
+})
 const hasActiveWorkflow = computed(() => Boolean(activeWorkflowRunId.value))
 const showHeroMode = computed(() => {
   return chatStore.messages.length === 0 && !contextPanelOpen.value && !contextPanelClosing.value
@@ -890,7 +939,11 @@ let workflowPanelResizeStartHeight = WORKFLOW_PANEL_DEFAULT_HEIGHT
 let workflowPanelResizeMaxHeight = Number.MAX_SAFE_INTEGER
 let contextPanelResizeStartY = 0
 let contextPanelResizeStartHeight = CONTEXT_PANEL_DEFAULT_HEIGHT
-let acgRefreshTimer: number | undefined
+let workflowResultController: AbortController | null = null
+let workflowResultGeneration = 0
+let conversationGeneration = 0
+const terminalResultLoaded = new Set<string>()
+const workflowResultCache = new Map<string, { run: WorkflowRun; view: AcgView }>()
 let composerResizeObserver: ResizeObserver | undefined
 
 const workflowRunBlueprint = computed<AcgBlueprint | null>(() => {
@@ -963,7 +1016,8 @@ const contextObjective = computed(() => {
   return displayAcgBlueprint.value?.objective || activeWorkflowRun.value?.workflowId || '等待工作流'
 })
 const activeWorkflowStatus = computed(() => (
-  activeWorkflowRun.value?.status
+  workflowProgressState.progress.value?.status
+  || activeWorkflowRun.value?.status
   || activeAcgView.value?.status
   || [...chatStore.messages].reverse().find(message => message.workflowRunId === activeWorkflowRunId.value)?.workflowStatus
   || 'pending'
@@ -980,6 +1034,7 @@ const activeWorkflowStatusLabel = computed(() => ({
 }[activeWorkflowStatus.value] || activeWorkflowStatus.value))
 const activeReviewStepId = computed(() => (
   activeWorkflowRun.value?.steps.find(step => step.status === 'waiting_review')?.stepId
+  || workflowProgressState.progress.value?.currentStepId
   || activeWorkflowRun.value?.currentStepId
   || ''
 ))
@@ -1136,7 +1191,11 @@ const setWorkflowPanelOpen = (open: boolean) => {
   localStorage.setItem(WORKFLOW_PANEL_OPEN_KEY, open ? '1' : '0')
 }
 
-const toggleWorkflowPanel = () => setWorkflowPanelOpen(!workflowPanelOpen.value)
+const toggleWorkflowPanel = () => {
+  const open = !workflowPanelOpen.value
+  setWorkflowPanelOpen(open)
+  if (open && activeWorkflowRunId.value) void loadActiveAcgView(activeWorkflowRunId.value)
+}
 
 const handleWorkflowPanelResizeKeydown = (event: KeyboardEvent) => {
   const step = event.shiftKey ? 24 : 8
@@ -1246,46 +1305,77 @@ const handleContextPanelResizeKeydown = (event: KeyboardEvent) => {
   persistContextPanelHeight()
 }
 
-const stopAcgRefresh = () => {
-  if (acgRefreshTimer !== undefined) {
-    window.clearInterval(acgRefreshTimer)
-    acgRefreshTimer = undefined
-  }
+const invalidateWorkflowResultRequest = () => {
+  workflowResultGeneration += 1
+  workflowResultController?.abort()
+  workflowResultController = null
+  isLoadingWorkflowResult.value = false
 }
 
-const loadActiveAcgView = async () => {
-  if (!activeWorkflowRunId.value || acgViewLoading.value) return
-  acgViewLoading.value = true
+const loadActiveAcgView = async (runId = activeWorkflowRunId.value, force = false) => {
+  if (!runId || runId !== activeWorkflowRunId.value) return false
+  if (isLoadingWorkflowResult.value && !force) return false
+  const requestGeneration = ++workflowResultGeneration
+  workflowResultController?.abort()
+  workflowResultController = new AbortController()
+  const signal = workflowResultController.signal
+  isLoadingWorkflowResult.value = true
   try {
     const [run, view] = await Promise.all([
-      agentosApi.getWorkflowRun(activeWorkflowRunId.value),
-      agentosApi.getAcgView(activeWorkflowRunId.value)
+      agentosApi.getWorkflowRun(runId, { signal }),
+      agentosApi.getAcgView(runId, { signal })
     ])
+    if (requestGeneration !== workflowResultGeneration || runId !== activeWorkflowRunId.value) return false
     activeWorkflowRun.value = run
     activeAcgView.value = view
-    if (['completed', 'failed', 'cancelled'].includes(activeAcgView.value.status)) stopAcgRefresh()
-  } catch {
-    // The ACG projection can lag briefly behind WorkflowRun creation; polling retries it.
+    workflowResultCache.set(runId, { run, view })
+    syncWorkflowMessageStatus(run.runId, run.status)
+    return true
+  } catch (error: unknown) {
+    if (!axios.isCancel(error) && force && requestGeneration === workflowResultGeneration) {
+      ElMessage.warning('ACG 最终结果暂时未能加载')
+    }
+    return false
   } finally {
-    acgViewLoading.value = false
+    if (requestGeneration === workflowResultGeneration) {
+      workflowResultController = null
+      isLoadingWorkflowResult.value = false
+    }
   }
 }
 
-const startAcgRefresh = () => {
-  stopAcgRefresh()
-  void loadActiveAcgView()
-  acgRefreshTimer = window.setInterval(() => void loadActiveAcgView(), 2500)
+function handleWorkflowProgressChanged(current: WorkflowProgress, previous: WorkflowProgress | null) {
+  if (current.runId !== activeWorkflowRunId.value) return
+  const conversationId = currentConversationId.value
+  chatStore.updateWorkflowBindingStatus(conversationId, current.runId, current.status)
+  if (activeWorkflowBinding.value?.runId === current.runId) {
+    activeWorkflowBinding.value = { ...activeWorkflowBinding.value, status: current.status }
+  }
+  syncWorkflowMessageStatus(current.runId, current.status)
+
+  const phaseChanged = previous?.phase !== current.phase
+  if (current.phase === 'review' && phaseChanged) {
+    void loadActiveAcgView(current.runId)
+  } else if (workflowPanelOpen.value && phaseChanged && current.phase === 'executing') {
+    void loadActiveAcgView(current.runId)
+  }
 }
 
-const syncWorkflowMessageStatus = (run: WorkflowRun) => {
+async function handleWorkflowTerminal(progress: WorkflowProgress): Promise<void> {
+  if (progress.runId !== activeWorkflowRunId.value || terminalResultLoaded.has(progress.runId)) return
+  const loaded = await loadActiveAcgView(progress.runId, true)
+  if (loaded) terminalResultLoaded.add(progress.runId)
+}
+
+const syncWorkflowMessageStatus = (runId: string, status: string) => {
   chatStore.messages.forEach(message => {
-    if (message.workflowRunId === run.runId) message.workflowStatus = run.status
+    if (message.workflowRunId === runId) message.workflowStatus = status
   })
 }
 
 const openActiveWorkflowOperations = () => {
   if (!activeWorkflowRunId.value) return
-  void router.push({ path: '/agentos-console', query: { runId: activeWorkflowRunId.value } })
+  void router.push({ path: '/agentos/acg', query: { runId: activeWorkflowRunId.value } })
 }
 
 const approveActiveWorkflow = async () => {
@@ -1314,13 +1404,10 @@ const approveActiveWorkflow = async () => {
       comment: '从聊天工作台审核通过'
     })
     activeWorkflowRun.value = run
-    syncWorkflowMessageStatus(run)
-    if (['completed', 'failed', 'cancelled'].includes(run.status)) {
-      stopAcgRefresh()
-    } else {
-      startAcgRefresh()
-    }
-    await loadActiveAcgView()
+    syncWorkflowMessageStatus(run.runId, run.status)
+    chatStore.updateWorkflowBindingStatus(currentConversationId.value, run.runId, run.status)
+    await workflowProgressState.refresh()
+    await loadActiveAcgView(run.runId)
     ElMessage.success(run.status === 'completed' ? '工作流已完成' : '审核已提交，工作流继续执行')
   } catch (error: any) {
     ElMessage.error(error?.message || '提交审核失败')
@@ -1570,7 +1657,20 @@ const hasAgentActivity = computed(() => {
 
 const showScrollToBottom = computed(() => !isNearBottom.value && chatStore.messages.length > 0)
 const isSendDisabled = computed(() => loading.value || (!inputText.value.trim() && !isRecording.value))
-const isWorkflowUpgradeDisabled = computed(() => loading.value || !inputText.value.trim())
+const isWorkflowTerminal = computed(() => {
+  const phase = workflowProgressState.progress.value?.phase
+  const status = workflowProgressState.progress.value?.status || activeWorkflowBinding.value?.status
+  const terminal = ['completed', 'failed', 'cancelled']
+  return terminal.includes(phase || '') || terminal.includes(status || '')
+})
+const isWorkflowUnavailable = computed(() =>
+  workflowProgressState.syncError.value === '该运行记录不存在或当前账户无权访问'
+)
+const isWorkflowUpgradeDisabled = computed(() =>
+  isSubmittingWorkflow.value
+  || (Boolean(activeWorkflowRunId.value) && !isWorkflowTerminal.value && !isWorkflowUnavailable.value)
+  || !inputText.value.trim()
+)
 
 const recommendationToggleText = computed(() => {
   if (recommendationLoading.value) return '正在生成推荐...'
@@ -1901,10 +2001,12 @@ const sendAgentWorkspaceMessage = async () => {
 
     if (composerStartRect) await animateComposerToConversation(composerStartRect)
     if (response?.workflowRunId) {
-      activeWorkflowRunId.value = response.workflowRunId
-      activeWorkflowRun.value = null
-      activeAcgView.value = null
-      startAcgRefresh()
+      const binding = chatStore.getLatestWorkflowBinding(currentConversationId.value)
+      await activateWorkflowRun(
+        response.workflowRunId,
+        binding?.runId === response.workflowRunId ? binding : null,
+        false
+      )
       ElMessage.success(`专业任务已进入 ACG：${response.workflowRunId}`)
     }
     scrollToBottom()
@@ -1967,35 +2069,98 @@ const sendMessage = async () => {
   }
 }
 
+interface PendingWorkflowSubmission {
+  conversationId: string
+  text: string
+  clientRequestId: string
+}
+
+const workflowSubmissionStorageKey = (conversationId: string) =>
+  `${WORKFLOW_SUBMISSION_KEY_PREFIX}${conversationId}`
+
+const getWorkflowClientRequestId = (conversationId: string, text: string) => {
+  try {
+    const raw = sessionStorage.getItem(workflowSubmissionStorageKey(conversationId))
+    const pending = raw ? JSON.parse(raw) as PendingWorkflowSubmission : null
+    if (pending?.conversationId === conversationId && pending.text === text && pending.clientRequestId) {
+      return pending.clientRequestId
+    }
+  } catch {
+    // A malformed pending submission is replaced by a new explicit operation.
+  }
+  const clientRequestId = createClientRequestId()
+  sessionStorage.setItem(workflowSubmissionStorageKey(conversationId), JSON.stringify({
+    conversationId,
+    text,
+    clientRequestId
+  } satisfies PendingWorkflowSubmission))
+  return clientRequestId
+}
+
+const activateWorkflowRun = async (
+  runId: string,
+  binding: ChatWorkflowBinding | null,
+  fresh: boolean
+) => {
+  conversationGeneration += 1
+  workflowProgressState.reset()
+  invalidateWorkflowResultRequest()
+  activeWorkflowRunId.value = runId
+  activeWorkflowBinding.value = binding
+  activeWorkflowRun.value = null
+  activeAcgView.value = null
+  workflowStartError.value = null
+  void workflowProgressState.start(runId, { fresh })
+  await router.replace({ query: { ...route.query, runId } })
+}
+
+const workflowStartErrorMessage = (error: unknown) => {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 409) return '本次请求标识与原任务参数冲突，请重新发起'
+    if (error.response?.status === 503 || !error.response) return 'ACG 任务暂时不可用，请稍后重试'
+  }
+  if (error instanceof Error && error.name === 'WorkflowApiContractError') {
+    return 'ACG 启动响应契约无效'
+  }
+  return 'ACG 任务未能启动'
+}
+
 const upgradeChatToWorkflow = async () => {
-  if (loading.value) return
+  if (isSubmittingWorkflow.value || (activeWorkflowRunId.value && !isWorkflowTerminal.value)) return
   const userText = inputText.value.trim()
   if (!userText) {
     ElMessage.warning('请输入要升级为 Workflow 的内容')
     return
   }
 
-  loading.value = true
+  const conversationId = currentConversationId.value
+  const clientRequestId = getWorkflowClientRequestId(conversationId, userText)
+  isSubmittingWorkflow.value = true
+  workflowStartError.value = null
   inputText.value = ''
   try {
-    const response = await chatStore.upgradeToWorkflow(userText, {
+    const result = await chatStore.upgradeToWorkflow(userText, {
       domain: 'legal',
       intent: isLawyerMode.value ? 'case_analysis' : 'case_analysis',
-      reviewMode: 'human_in_loop'
+      workflowId: 'legal_case_analysis_v1',
+      reviewMode: 'human_in_loop',
+      conversationId,
+      clientRequestId
     })
-    if (response?.run?.runId) {
-      activeWorkflowRunId.value = response.run.runId
-      activeWorkflowRun.value = response.run
-      activeAcgView.value = null
-      startAcgRefresh()
-      ElMessage.success(`已创建 WorkflowRun：${response.run.runId}`)
+    if (result) {
+      sessionStorage.removeItem(workflowSubmissionStorageKey(conversationId))
+      await activateWorkflowRun(result.binding.runId, result.binding, true)
+      ElMessage.success(`已创建 WorkflowRun：${result.binding.runId}`)
     }
     scrollToBottom()
-  } catch (err: any) {
+  } catch (error: unknown) {
     inputText.value = userText
-    ElMessage.error(err.message || '升级 Workflow 失败')
+    workflowStartError.value = workflowStartErrorMessage(error)
+    if (axios.isAxiosError(error) && error.response?.status === 409) {
+      sessionStorage.removeItem(workflowSubmissionStorageKey(conversationId))
+    }
   } finally {
-    loading.value = false
+    isSubmittingWorkflow.value = false
   }
 }
 
@@ -2144,10 +2309,6 @@ watch(
   () => chatStore.messages.length,
   (newLen, oldLen) => {
     if (newLen === 0) {
-      activeWorkflowRunId.value = ''
-      activeWorkflowRun.value = null
-      activeAcgView.value = null
-      stopAcgRefresh()
       setWorkflowPanelOpen(false)
       return
     }
@@ -2262,16 +2423,64 @@ watch(agentPanelCollapsed, collapsed => {
   localStorage.setItem(AGENT_PANEL_COLLAPSED_KEY, collapsed ? '1' : '0')
 })
 
+const restoreWorkflowForConversation = async (conversationChanged = false) => {
+  const conversationId = currentConversationId.value
+  const binding = chatStore.getActiveWorkflowBinding(conversationId)
+    || chatStore.getLatestWorkflowBinding(conversationId)
+  const routeRunId = typeof route.query.runId === 'string' ? route.query.runId.trim() : ''
+  const queryRunId = conversationChanged && !binding ? '' : routeRunId
+  const runId = binding?.runId || queryRunId
+
+  if (runId && runId === activeWorkflowRunId.value && workflowProgressState.runId.value === runId) return
+
+  const restoreGeneration = ++conversationGeneration
+  workflowProgressState.reset()
+  invalidateWorkflowResultRequest()
+  activeWorkflowRunId.value = ''
+  activeWorkflowBinding.value = null
+  activeWorkflowRun.value = null
+  activeAcgView.value = null
+  workflowStartError.value = null
+  if (!runId) {
+    if (conversationChanged && routeRunId) {
+      const { runId: _removed, ...remainingQuery } = route.query
+      await router.replace({ query: remainingQuery })
+    }
+    return
+  }
+
+  activeWorkflowRunId.value = runId
+  activeWorkflowBinding.value = binding?.runId === runId ? binding : null
+  const cachedResult = workflowResultCache.get(runId)
+  if (cachedResult) {
+    activeWorkflowRun.value = cachedResult.run
+    activeAcgView.value = cachedResult.view
+  }
+  await workflowProgressState.start(runId, { fresh: false })
+  if (restoreGeneration !== conversationGeneration || runId !== activeWorkflowRunId.value) return
+  if (binding && queryRunId !== runId) {
+    await router.replace({ query: { ...route.query, runId } })
+  }
+}
+
 watch(
-  () => [...chatStore.messages].reverse().find(message => message.workflowRunId)?.workflowRunId,
-  runId => {
-    if (!runId || runId === activeWorkflowRunId.value) return
-    activeWorkflowRunId.value = runId
-    activeWorkflowRun.value = null
-    activeAcgView.value = null
-    startAcgRefresh()
+  [currentConversationId, () => route.query.runId],
+  ([conversationId], previous) => {
+    const previousConversationId = previous?.[0]
+    void restoreWorkflowForConversation(Boolean(previousConversationId && previousConversationId !== conversationId))
   },
   { immediate: true }
+)
+
+watch(
+  () => workflowProgressState.syncError.value,
+  error => {
+    if (error !== '该运行记录不存在或当前账户无权访问') return
+    const binding = activeWorkflowBinding.value
+    if (!binding) return
+    chatStore.markWorkflowBindingInvalid(binding.conversationId, binding.runId)
+    activeWorkflowBinding.value = { ...binding, invalidAt: new Date().toISOString() }
+  }
 )
 
 watch(hasAgentActivity, active => {
@@ -2328,7 +2537,8 @@ onUnmounted(() => {
   stopAgentPanelResize()
   stopWorkflowPanelResize()
   stopContextPanelResize()
-  stopAcgRefresh()
+  workflowProgressState.reset()
+  invalidateWorkflowResultRequest()
   if (messagesRef.value) {
     messagesRef.value.removeEventListener('scroll', checkScrollState)
   }
@@ -3752,6 +3962,24 @@ onUnmounted(() => {
   will-change: transform;
 }
 
+.chat-workflow-progress,
+.chat-workflow-error {
+  order: 0;
+  width: 50%;
+  margin: 0 auto 7px;
+}
+
+.chat-workflow-error {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 36%, var(--border-light));
+  border-radius: 6px;
+  background: var(--danger-fade);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
 .workflow-run-strip {
   order: 0;
   width: 50%;
@@ -3794,10 +4022,11 @@ onUnmounted(() => {
   background: var(--success);
 }
 
-.workflow-run-strip.failed .workflow-run-strip__dot,
-.workflow-run-strip.cancelled .workflow-run-strip__dot {
+.workflow-run-strip.failed .workflow-run-strip__dot {
   background: var(--danger);
 }
+
+.workflow-run-strip.cancelled .workflow-run-strip__dot { background: var(--text-muted); }
 
 .workflow-run-strip code {
   min-width: 96px;
@@ -4670,7 +4899,9 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
-  .workflow-run-strip {
+  .workflow-run-strip,
+  .chat-workflow-progress,
+  .chat-workflow-error {
     width: calc(100% - 32px);
   }
 
@@ -4727,7 +4958,9 @@ onUnmounted(() => {
 
 @media (max-width: 620px) {
   .chat-main:not(.simple-session) .composer-card,
-  .workflow-run-strip {
+  .workflow-run-strip,
+  .chat-workflow-progress,
+  .chat-workflow-error {
     width: 100%;
   }
 

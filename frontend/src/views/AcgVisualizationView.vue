@@ -609,7 +609,7 @@ const startErrorMessage = (error: unknown): string => {
 
 const placeholderMessage = computed(() => {
   if (isSubmitting.value) return '正在创建 ACG 运行...'
-  if (progressTracker.syncError.value === '运行记录不存在或当前账户无权访问') {
+  if (progressTracker.syncError.value === '该运行记录不存在或当前账户无权访问') {
     return progressTracker.syncError.value
   }
   if (progressTracker.progress.value && !acgView.value) {

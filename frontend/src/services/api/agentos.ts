@@ -319,6 +319,7 @@ export interface AsyncWorkflowStartResponse {
   run: {
     runId: string
     status: string
+    workflowId?: string
     lifecyclePhase?: WorkflowProgressPhase
     lifecycleMessage?: string
   }
@@ -480,8 +481,16 @@ export const agentosApi = {
       { signal: options.signal }
     )
     const data = response.data
-    if (!data?.run || typeof data.run.runId !== 'string' || !data.run.runId.trim()) {
-      throw new WorkflowApiContractError()
+    if (
+      data?.accepted !== true
+      || !data.task
+      || typeof data.task.taskId !== 'string'
+      || !data.task.taskId.trim()
+      || !data.run
+      || typeof data.run.runId !== 'string'
+      || !data.run.runId.trim()
+    ) {
+      throw new WorkflowApiContractError('异步启动响应缺少 accepted、task.taskId 或 run.runId')
     }
     return data
   },

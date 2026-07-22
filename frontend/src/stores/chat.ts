@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { parseChatStreamData, parseSseDataLine, type ChatStreamEvent } from '@/utils/sse'
-import { agentosApi, type WorkflowStartResponse } from '@/services/api/agentos'
+import { workflowApi, type AsyncWorkflowStartResponse } from '@/services/api/workflow'
 import { chatApi, type ChatRequest } from '@/services/api/chat'
 import { loadModelSettings, toModelRequestSettings, type ModelSettings } from '@/config/modelSettings'
 import {
@@ -133,17 +133,49 @@ export interface Message {
   agentMode?: 'default' | 'lawyer' | 'teacher' | 'programmer' | 'writer'
   routing?: AgentRoutingInfo
   workflowRunId?: string
+  workflowTaskId?: string
   workflowId?: string
   workflowStatus?: string
+  workflowClientRequestId?: string
   runtimeEngine?: string
   implementationId?: string
+}
+
+export interface ChatWorkflowBinding {
+  conversationId: string
+  messageId?: string
+  taskId: string
+  runId: string
+  workflowId: string
+  clientRequestId: string
+  createdAt: string
+  status: string
+  invalidAt?: string
+}
+
+export interface ChatWorkflowStartResult {
+  response: AsyncWorkflowStartResponse
+  binding: ChatWorkflowBinding
 }
 
 type AgentMode = NonNullable<Message['agentMode']>
 
 export const useChatStore = defineStore('chat', () => {
+  const WORKFLOW_BINDINGS_KEY = 'chat.workflow_bindings.v1'
+  const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+  const loadWorkflowBindings = (): Record<string, ChatWorkflowBinding[]> => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(WORKFLOW_BINDINGS_KEY) || '{}')
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
   const messages = ref<Message[]>([])
   const loading = ref(false)
+  const isStreaming = ref(false)
+  const isLoadingConversation = ref(false)
+  const workflowBindings = ref<Record<string, ChatWorkflowBinding[]>>(loadWorkflowBindings())
   let activeStreamController: AbortController | null = null
   const contextId = ref<string | null>(null)
   const lawyerSessionId = ref<string | null>(null)
@@ -163,6 +195,56 @@ export const useChatStore = defineStore('chat', () => {
       userMessage.fileUrl = fileUrl
     }
     messages.value.push(userMessage)
+    return userMessage
+  }
+
+  const persistWorkflowBindings = () => {
+    localStorage.setItem(WORKFLOW_BINDINGS_KEY, JSON.stringify(workflowBindings.value))
+  }
+
+  const addWorkflowBinding = (binding: ChatWorkflowBinding) => {
+    const existing = workflowBindings.value[binding.conversationId] || []
+    workflowBindings.value = {
+      ...workflowBindings.value,
+      [binding.conversationId]: [...existing.filter(item => item.runId !== binding.runId), binding]
+    }
+    persistWorkflowBindings()
+  }
+
+  const getLatestWorkflowBinding = (conversationId: string) => {
+    const bindings = workflowBindings.value[conversationId] || []
+    return [...bindings].reverse().find(binding => !binding.invalidAt)
+  }
+
+  const getActiveWorkflowBinding = (conversationId: string) => {
+    const bindings = workflowBindings.value[conversationId] || []
+    return [...bindings].reverse().find(binding =>
+      !binding.invalidAt && !TERMINAL_WORKFLOW_STATUSES.has(binding.status)
+    )
+  }
+
+  const updateWorkflowBindingStatus = (conversationId: string, runId: string, status: string) => {
+    const bindings = workflowBindings.value[conversationId] || []
+    if (!bindings.some(binding => binding.runId === runId)) return
+    workflowBindings.value = {
+      ...workflowBindings.value,
+      [conversationId]: bindings.map(binding => binding.runId === runId
+        ? { ...binding, status }
+        : binding)
+    }
+    persistWorkflowBindings()
+  }
+
+  const markWorkflowBindingInvalid = (conversationId: string, runId: string) => {
+    const bindings = workflowBindings.value[conversationId] || []
+    if (!bindings.some(binding => binding.runId === runId)) return
+    workflowBindings.value = {
+      ...workflowBindings.value,
+      [conversationId]: bindings.map(binding => binding.runId === runId
+        ? { ...binding, invalidAt: new Date().toISOString() }
+        : binding)
+    }
+    persistWorkflowBindings()
   }
 
   const emitHistoryRefresh = () => {
@@ -285,6 +367,7 @@ export const useChatStore = defineStore('chat', () => {
 
     pushUserMessage(text)
     loading.value = true
+    isStreaming.value = true
 
     const streamMsg: Message = {
       id: Date.now() + 1,
@@ -449,6 +532,7 @@ export const useChatStore = defineStore('chat', () => {
         finishThinking(message.content && !message.content.startsWith('Stream request failed:') ? 'complete' : 'error')
       }
       if (activeStreamController === streamController) activeStreamController = null
+      isStreaming.value = false
       loading.value = false
     }
   }
@@ -614,55 +698,68 @@ export const useChatStore = defineStore('chat', () => {
       workflowId?: string
       reviewMode?: string
       title?: string
-    } = {}
-  ): Promise<WorkflowStartResponse | undefined> => {
-    if (!text.trim() || loading.value) return undefined
-
-    pushUserMessage(text)
-
-    loading.value = true
-    try {
-      const context = messages.value
-        .slice(-8)
-        .filter(message => message.content)
-        .map(message => ({
-          role: message.role,
-          content: message.content
-        }))
-
-      const response = await agentosApi.upgradeChatToWorkflow({
-        text,
-        title: options.title,
-        domain: options.domain || 'legal',
-        intent: options.intent || 'case_analysis',
-        workflowId: options.workflowId,
-        reviewMode: options.reviewMode || 'human_in_loop',
-        roleId: currentRoleId.value || undefined,
-        contextId: contextId.value || undefined,
-        context,
-        input: {
-          source: 'chat',
-          caseText: text
-        }
-      })
-
-      const assistantMessage: Message = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: `已升级为 WorkflowRun：${response.run.workflowId}（状态：${response.run.status}）`,
-        createdAt: new Date(),
-        modelInfo: 'AgentOS Workflow',
-        agentMode: 'default',
-        workflowRunId: response.run.runId,
-        workflowId: response.run.workflowId,
-        workflowStatus: response.run.status
-      }
-      messages.value.push(assistantMessage)
-      emitHistoryRefresh()
-      return response
-    } finally {
-      loading.value = false
+      conversationId: string
+      clientRequestId: string
     }
+  ): Promise<ChatWorkflowStartResult | undefined> => {
+    if (!text.trim()) return undefined
+
+    const userMessage = messages.value.find(message =>
+      message.role === 'user' && message.workflowClientRequestId === options.clientRequestId
+    ) || pushUserMessage(text)
+    userMessage.workflowClientRequestId = options.clientRequestId
+
+    const context = messages.value
+      .slice(-8)
+      .filter(message => message.content)
+      .map(message => ({ role: message.role, content: message.content }))
+
+    const response = await workflowApi.startWorkflowAsync({
+      title: options.title || `Chat ACG：${text.slice(0, 40)}`,
+      domain: options.domain || 'legal',
+      intent: options.intent || 'case_analysis',
+      workflowId: options.workflowId,
+      reviewMode: options.reviewMode || 'human_in_loop',
+      clientRequestId: options.clientRequestId,
+      input: {
+        source: 'chat',
+        caseText: text,
+        chatText: text,
+        chatContextId: contextId.value,
+        chatRoleId: currentRoleId.value,
+        chatContext: context
+      }
+    })
+
+    const workflowId = response.run.workflowId || options.workflowId
+    if (!workflowId) throw new Error('异步启动响应缺少 run.workflowId')
+    const binding: ChatWorkflowBinding = {
+      conversationId: options.conversationId,
+      messageId: String(userMessage.id),
+      taskId: response.task.taskId,
+      runId: response.run.runId,
+      workflowId,
+      clientRequestId: options.clientRequestId,
+      createdAt: new Date().toISOString(),
+      status: response.run.status
+    }
+    addWorkflowBinding(binding)
+
+    messages.value.push({
+      id: Date.now() + 1,
+      role: 'assistant',
+      content: '已创建 ACG 运行任务',
+      createdAt: new Date(),
+      modelInfo: 'AgentOS Workflow',
+      agentMode: 'default',
+      workflowTaskId: binding.taskId,
+      workflowRunId: binding.runId,
+      workflowId: binding.workflowId,
+      workflowStatus: binding.status,
+      workflowClientRequestId: binding.clientRequestId
+    })
+    emitHistoryRefresh()
+    return { response, binding }
   }
 
   const clearHistory = async () => {
@@ -685,6 +782,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!targetContextId) return
 
     loading.value = true
+    isLoadingConversation.value = true
     try {
       const history = await chatApi.getHistory(targetContextId)
 
@@ -715,6 +813,7 @@ export const useChatStore = defineStore('chat', () => {
       console.error('加载对话历史失败:', error)
       messages.value = []
     } finally {
+      isLoadingConversation.value = false
       loading.value = false
     }
   }
@@ -759,6 +858,9 @@ export const useChatStore = defineStore('chat', () => {
   return {
     messages,
     loading,
+    isStreaming,
+    isLoadingConversation,
+    workflowBindings,
     contextId,
     lawyerSessionId,
     teacherSessionId,
@@ -774,6 +876,11 @@ export const useChatStore = defineStore('chat', () => {
     sendProgrammerMessage,
     sendWriterMessage,
     upgradeToWorkflow,
+    addWorkflowBinding,
+    getLatestWorkflowBinding,
+    getActiveWorkflowBinding,
+    updateWorkflowBindingStatus,
+    markWorkflowBindingInvalid,
     clearHistory,
     setRole,
     loadHistory,
