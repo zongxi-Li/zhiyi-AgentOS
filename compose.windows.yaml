@@ -15,6 +15,10 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+      start_interval: 1s
+    depends_on: !override
+      backend:
+        condition: service_started
     labels:
       com.kinlin.environment: windows-development
 
@@ -23,13 +27,24 @@ services:
       MAVEN_CONFIG: /home/kinlin/.m2
       HOME: /home/kinlin
       MAVEN_OPTS: -Djansi.tmpdir=/app/target/.jansi
+      KINLIN_BACKEND_SOURCE_SYNC_ENABLED: "true"
     volumes:
+      - type: volume
+        source: backend-source-cache
+        target: /app/src
+        volume:
+          nocopy: true
+      - type: bind
+        source: ./backend/src
+        target: /kinlin-host/backend-src
+        read_only: true
       - maven-cache:/home/kinlin/.m2
       - backend-build-cache:/app/target
     healthcheck:
       interval: 5s
       timeout: 5s
       start_period: 300s
+      start_interval: 1s
       retries: 20
     labels:
       com.kinlin.environment: windows-development
@@ -44,14 +59,20 @@ services:
     volumes:
       - python-venv:/opt/kinlin-venv
       - pip-cache:/pip-cache
+    healthcheck:
+      start_interval: 1s
     labels:
       com.kinlin.environment: windows-development
 
   postgres:
+    healthcheck:
+      start_interval: 1s
     labels:
       com.kinlin.environment: windows-development
 
   redis:
+    healthcheck:
+      start_interval: 1s
     labels:
       com.kinlin.environment: windows-development
 
@@ -90,6 +111,11 @@ services:
       com.kinlin.environment: windows-development-debug
 
 volumes:
+  backend-source-cache:
+    name: ${KINLIN_DEPLOYMENT_ID}_backend_source_cache
+    labels:
+      com.kinlin.deployment-id: ${KINLIN_DEPLOYMENT_ID}
+      com.kinlin.lifecycle: p1-windows-development-cache
   frontend-node-modules:
     name: ${KINLIN_DEPLOYMENT_ID}_frontend_node_modules
     labels:

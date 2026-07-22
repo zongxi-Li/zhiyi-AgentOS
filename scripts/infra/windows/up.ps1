@@ -22,8 +22,15 @@ if ($BuildService) {
     Write-Host "Building only $BuildService before starting the full development stack"
     Invoke-KinlinCompose $context build $BuildService
 }
-$arguments = @("up", "-d", "--wait")
-if ($Build) { $arguments += "--build" }
-if ($DebugPorts) { $arguments = @("--profile", "debug-ports") + $arguments }
+$profileArguments = @()
+if ($DebugPorts) { $profileArguments = @("--profile", "debug-ports") }
+if ($Build) {
+    Write-Host "Building the Windows development images before measuring container startup"
+    Invoke-KinlinCompose $context @profileArguments build
+}
+$arguments = $profileArguments + @("up", "-d", "--wait")
+$startupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 Invoke-KinlinCompose $context @arguments
+$startupStopwatch.Stop()
+Write-Host ("Windows Compose readiness completed in {0:N2}s (image build excluded)" -f $startupStopwatch.Elapsed.TotalSeconds)
 Write-Host "Windows development environment is ready at $($context.PublicOrigin)"

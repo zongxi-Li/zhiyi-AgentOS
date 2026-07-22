@@ -98,6 +98,24 @@ function Invoke-KinlinCompose {
     }
 }
 
+function Invoke-KinlinComposeOutput {
+    param(
+        $Context,
+        [Parameter(ValueFromRemainingArguments = $true)][string[]]$ComposeArgs
+    )
+    $baseArgs = Get-KinlinComposeArguments $Context
+    Push-Location $Context.ProjectRoot
+    try {
+        $output = @(& docker compose @baseArgs @ComposeArgs 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker Compose failed with exit code $LASTEXITCODE`n$($output -join [Environment]::NewLine)"
+        }
+        return @($output | ForEach-Object { [string]$_ })
+    } finally {
+        Pop-Location
+    }
+}
+
 function Get-KinlinServiceContainerId {
     param($Context, [string]$Service)
     $baseArgs = Get-KinlinComposeArguments $Context

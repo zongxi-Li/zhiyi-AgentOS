@@ -4,7 +4,7 @@ FROM ${MAVEN_IMAGE}
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gosu iproute2 netcat-openbsd \
+    && apt-get install -y --no-install-recommends gosu iproute2 netcat-openbsd rsync util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s "$(command -v gosu)" /usr/local/bin/su-exec \
     && groupadd --gid 10001 kinlin \
@@ -21,7 +21,8 @@ COPY src ./src
 
 COPY docker-entrypoint.sh /usr/local/bin/kinlin-entrypoint
 COPY docker-entrypoint-dev.sh /usr/local/bin/kinlin-dev-entrypoint
-RUN chmod 0755 /usr/local/bin/kinlin-entrypoint /usr/local/bin/kinlin-dev-entrypoint
+COPY sync-backend-source.sh /usr/local/bin/kinlin-sync-backend-source
+RUN chmod 0755 /usr/local/bin/kinlin-entrypoint /usr/local/bin/kinlin-dev-entrypoint /usr/local/bin/kinlin-sync-backend-source
 
 EXPOSE 8080
 EXPOSE 5005

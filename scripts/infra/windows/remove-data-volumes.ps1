@@ -13,10 +13,17 @@ if ($ConfirmInstanceId -cne $context.DeploymentId) { throw "Instance confirmatio
 
 $running = & docker ps --filter "label=com.kinlin.deployment-id=$($context.DeploymentId)" -q
 if ($running) { throw "Deployment containers are still running; stop them before deleting development volumes" }
-$volumes = & docker volume ls --filter "label=com.kinlin.deployment-id=$($context.DeploymentId)" --format '{{.Name}}'
-foreach ($volume in $volumes) {
+$candidateVolumes = & docker volume ls --filter "label=com.kinlin.deployment-id=$($context.DeploymentId)" --format '{{.Name}}'
+$volumes = @()
+foreach ($volume in $candidateVolumes) {
     $actualLabel = (& docker volume inspect $volume --format '{{ index .Labels "com.kinlin.deployment-id" }}').Trim()
     if ($actualLabel -ne $context.DeploymentId) { throw "Volume label mismatch: $volume" }
+    $lifecycle = (& docker volume inspect $volume --format '{{ index .Labels "com.kinlin.lifecycle" }}').Trim()
+    if ($lifecycle -eq "p1-windows-development-cache") {
+        Write-Host "Preserving explicit development cache volume: $volume"
+        continue
+    }
+    $volumes += $volume
 }
 foreach ($volume in $volumes) {
     & docker volume rm $volume

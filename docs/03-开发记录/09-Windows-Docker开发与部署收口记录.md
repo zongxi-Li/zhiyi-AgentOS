@@ -1,6 +1,6 @@
 # Windows Docker 开发与部署收口记录
 
-日期：2026-07-19
+日期：2026-07-19（2026-07-22 增补 Windows 开发启动优化验收）
 
 ## 1. 当前结论与范围
 
@@ -26,10 +26,54 @@ ENTERPRISE_SECURITY_GATE: DEFERRED
 
 - `up.ps1` 默认复用现有镜像、Maven/Node/Python 缓存和容器配置；只有 Dockerfile、POM 或依赖变化时使用 `-Build`。
 - `down.ps1` 不使用 `-v` 或 `--volumes`，不会删除数据卷。
-- `status.ps1`、`logs.ps1`、`diagnose.ps1`、`restart-service.ps1` 均通过 PowerShell AST 解析和脚本契约测试。
-- `restart-service.ps1 -Service backend` 默认执行容器内 `mvn -B -ntp -DskipTests compile`，随后由 Spring Boot DevTools 增量重启；`-FullRestart` 保留显式硬重启。
-- 运行中热缓存实测从编译到健康确认 14.16 秒，未执行测试，达到 15 至 30 秒目标；因此没有引入 Backend 宿主机运行模式。
+- `status.ps1`、`logs.ps1`、`diagnose.ps1`、`restart-service.ps1`、`clear-backend-source-cache.ps1` 均通过 PowerShell AST 解析和脚本契约测试。
+- Windows 开发环境将宿主 `backend/src` 只读挂载到 `/kinlin-host/backend-src`；`/app/src` 是 deployment 独立、`nocopy` 的 named volume。宿主源码始终是唯一事实来源，named volume 只承载可重建开发缓存。
+- 容器启动与 `restart-service.ps1 -Service backend` 调用同一个加锁 rsync 脚本。无变化时跳过 Maven；新增或修改时执行默认依赖语义的 `mvn -B -ntp -DskipTests compile`；发生删除时先清理 `target/classes` 和 `target/generated-sources` 再编译。
+- `restart-service.ps1 -Service backend -FullRestart` 保留显式硬重启；没有增加持续文件监听守护进程。
 - Backend 开发镜像首次 `dependency:go-offline` 构建约 200.6 秒，属于镜像层一次性成本；镜像内 `/opt/kinlin-m2/repository` 已实测存在，新 Maven named volume 会从该目录预热。
+
+### 2.1 源码缓存生命周期
+
+- 同步使用 `rsync -rltc --delete`，锁文件位于 deployment 独立的 Backend build cache；锁等待上限 120 秒。
+- `down.ps1` 不删除源码缓存；业务备份白名单不包含该缓存；业务数据卷清理脚本会按 lifecycle 标签保留该缓存。
+- 只有以下显式命令会删除源码缓存，并且要求容器已停止、完整 deployment ID、危险操作开关及卷标签全部匹配：
+
+```powershell
+.\scripts\infra\windows\clear-backend-source-cache.ps1 `
+  -ConfirmInstanceId kinlin-win-p1-001 `
+  -IUnderstandDevelopmentCacheWillBeDeleted
+```
+
+### 2.2 2026-07-22 实测结果
+
+优化前日志基线：五服务从最早容器启动到 Frontend ready 约 99.5 秒；Backend 从容器启动到 Spring Boot started 约 88.6 秒，其中从 Windows bind mount 执行 javac 全量编译 139 个源文件耗时约 64.4 秒。
+
+优化后在同一 Windows 11、Docker Desktop、同一 deployment 和保留业务数据卷条件下，空源码缓存启动的 Compose readiness 为 19.94 秒。关键分段均相对最早容器启动时点：
+
+| 分段 | 实测 |
+|---|---:|
+| PostgreSQL 进程 ready | 0.32 秒；PostgreSQL/Redis 健康依赖门禁均在 1.40 秒内通过 |
+| Redis ready | 0.29 秒 |
+| Frontend Vite ready / 可访问 | 2.51 秒；HTTP 200 |
+| AI application startup / 首个 readiness | 7.58 秒 / 9.36 秒 |
+| Backend 首次 rsync（184 文件） | 4.57 秒 |
+| Backend javac（139 文件，Linux named volume） | 4.61 秒 |
+| Backend Spring Boot started | 19.64 秒 |
+| 五服务 Compose readiness | 19.94 秒；含预检的入口总时间约 22.73 秒，镜像构建不计入 |
+
+五个规定场景均已实测：
+
+| 场景 | 结果 |
+|---|---|
+| 空缓存首次启动 | 通过；缓存卷由显式命令删除后重建，业务卷未删除，五服务 19.94 秒 ready |
+| 无修改重启 | `unchanged`；跳过 Maven，2.64 秒完成 |
+| 单 Java 文件修改 | `changed`；默认 Maven 全依赖编译，10.81 秒恢复 ready |
+| 新增 Java 文件 | `changed`；140 个源文件编译，对应 class 存在，12.56 秒恢复 ready |
+| 删除 Java 文件 | `deleted`；清理并重建 classes，源文件和旧 class 均不存在，12.83 秒恢复 ready |
+
+两个并发同步调用实测总耗时 3.30 秒；一个立即获得锁，另一个等待 1.71 秒后才进入 rsync，未发生并行同步。Frontend 在 Windows 开发覆盖层仅等待 Backend `service_started`，启动与 Java 编译并行；五个 `healthcheck.start_interval: 1s` 也只存在于该覆盖层。生产 Compose、生产镜像、部署包、Secret、网络、业务数据卷、API 和数据库迁移均未改变。
+
+本次增补复验：`python -m pytest -q scripts/infra/tests scripts/release/tests` 为 49 passed；12 个 Windows PowerShell 脚本 AST 解析无错误；标准开发、Windows 开发、生产、Windows 生产和 release Compose 均通过 `config --quiet`。
 
 ## 3. Windows amd64 部署模式
 
