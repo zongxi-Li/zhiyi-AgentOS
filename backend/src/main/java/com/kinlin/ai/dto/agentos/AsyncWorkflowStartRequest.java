@@ -16,4 +16,12 @@ public record AsyncWorkflowStartRequest(
         String reviewMode,
         String clientRequestId
 ) {
+    public AsyncWorkflowStartRequest {
+        domain = domain == null ? "general" : domain;
+        intent = intent == null ? "general" : intent;
+        input = input == null ? Map.of() : input;
+        securityLevel = securityLevel == null ? "internal" : securityLevel;
+        priority = priority == null ? "normal" : priority;
+        reviewMode = reviewMode == null ? "auto" : reviewMode;
+    }
 }

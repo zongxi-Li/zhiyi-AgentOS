@@ -303,6 +303,10 @@ class AgentOsGatewayControllerTest {
         com.kinlin.ai.dto.agentos.AsyncWorkflowStartRequest request =
                 (com.kinlin.ai.dto.agentos.AsyncWorkflowStartRequest) agentOsGatewayService.lastAsyncPostBody;
         assertEquals("frontend-request-1", request.clientRequestId());
+        assertEquals("internal", request.securityLevel());
+        assertEquals("normal", request.priority());
+        assertEquals("auto", request.reviewMode());
+        assertEquals(Map.of(), request.input());
     }
 
     @Test
