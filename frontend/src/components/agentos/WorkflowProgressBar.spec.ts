@@ -68,9 +68,13 @@ describe('WorkflowProgressBar', () => {
 
   it('shows completed 100 and keeps the last state when synchronization fails', () => {
     vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-22T02:07:00Z'))
     const wrapper = mount(WorkflowProgressBar, {
       props: {
-        progress: makeProgress({ phase: 'completed', status: 'completed', percent: 100, completedSteps: 7 }),
+        progress: makeProgress({
+          phase: 'completed', status: 'completed', percent: 100, completedSteps: 7,
+          startedAt: '2026-07-22T00:00:00Z', updatedAt: '2026-07-22T00:01:32Z'
+        }),
         syncError: '进度同步暂时中断，正在重试'
       }
     })
@@ -78,6 +82,7 @@ describe('WorkflowProgressBar', () => {
     expect(wrapper.text()).toContain('100%')
     expect(wrapper.text()).toContain('已完成 7 / 7')
     expect(wrapper.text()).toContain('进度同步暂时中断')
+    expect(wrapper.get('.workflow-progress__elapsed').text()).toBe('已运行 01:32')
     wrapper.unmount()
   })
 

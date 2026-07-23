@@ -115,7 +115,13 @@ const elapsed = computed(() => {
   const startedAt = props.progress?.startedAt
   if (!startedAt) return null
   const started = Date.parse(startedAt)
-  return Number.isFinite(started) ? Math.max(0, Math.floor((now.value - started) / 1000)) : null
+  if (!Number.isFinite(started)) return null
+  const isTerminal = ['completed', 'failed', 'cancelled'].includes(props.progress?.status ?? '')
+  const terminalAt = isTerminal && props.progress?.updatedAt
+    ? Date.parse(props.progress.updatedAt)
+    : Number.NaN
+  const end = Number.isFinite(terminalAt) ? terminalAt : now.value
+  return Math.max(0, Math.floor((end - started) / 1000))
 })
 const elapsedLabel = computed(() => {
   if (elapsed.value === null) return '准备中'
