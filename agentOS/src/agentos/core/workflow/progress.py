@@ -94,6 +94,12 @@ class ProgressAssembler:
         step_name = self._step_name(step_by_id, current_step_id)
         if phase_message is not None:
             message = phase_message
+        elif step_name and phase in {
+            WorkflowProgressPhase.EXECUTING,
+            WorkflowProgressPhase.RECOVERY,
+            WorkflowProgressPhase.REVIEW,
+        }:
+            message = self._message(phase, step_name)
         elif run.lifecycle_phase == phase and run.lifecycle_message:
             message = run.lifecycle_message
         else:

@@ -78,12 +78,14 @@ class PlanningEngine:
         task_type: str = "general",
         force_dynamic: bool = False,
         thinking_mode: str | None = None,
+        deterministic_intent: bool = False,
     ) -> PlanResult:
         profile = self.intent_parser.parse(
             intent=intent,
             domain=domain,
             task_type=task_type,
             thinking_mode=thinking_mode,
+            use_llm=not deterministic_intent,
         )
 
         match = None

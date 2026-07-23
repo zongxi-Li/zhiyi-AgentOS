@@ -183,6 +183,11 @@ class ACGExecutor:
                         "attempt": step.attempt + 1,
                     },
                 )
+                # “已调度”与“正在运行”必须作为同一个持久化状态提交。
+                # 如果先保存 activeStepIds、再只在内存中把 Step 改为 RUNNING，
+                # 长耗时 Agent 执行期间的进度读取会错误显示“活动 0”。
+                self._mark_step_running(run, step)
+            run.updated_at = utc_now()
             self.runtime.workflow_store.save_run(run)
 
             results = await asyncio.gather(
@@ -332,17 +337,9 @@ class ACGExecutor:
         self, *, task, run: WorkflowRun, workflow, blueprint: ACGBlueprint, node_id: str
     ) -> StepStatus:
         step = self._bridge_step(run, blueprint, node_id)
-        self.runtime._transition_step(step, StepStatus.RUNNING)
-        step.attempt += 1
-        run.updated_at = utc_now()
-        self.runtime.trace_store.append(
-            run=run,
-            event_type=TraceEventType.STEP_STARTED,
-            step_id=node_id,
-            agent_name=step.agent_name,
-            observation=f"Step started: {step.name}",
-            payload={"inputSummary": input_summary(step.input), "attempt": step.attempt},
-        )
+
+        # Step 的 RUNNING 状态已在批次调度点原子持久化；这里开始实际调用。
+        # resume/retry 同样统一经过 _drive 的批次调度，不应重复增加 attempt。
 
         # 低熵通信：按 input_spec 精准装配下游上下文，记录消费血缘与节省率。
         step_node = blueprint.get_node(node_id)
@@ -460,6 +457,7 @@ class ACGExecutor:
                 payload={"direction": exc.direction, "path": exc.path, "attempt": step.attempt},
             )
             raise
+        self._record_degraded_output(run, step, output)
         step.output = output
         # 数据生产事件：登记产物，供前向追溯与节省率统计。
         self.assembler.record_production(
@@ -514,6 +512,53 @@ class ACGExecutor:
             duration_ms=duration_ms,
         )
         return StepStatus.COMPLETED
+
+    def _mark_step_running(self, run: WorkflowRun, step: WorkflowStep) -> None:
+        self.runtime._transition_step(step, StepStatus.RUNNING)
+        step.attempt += 1
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.STEP_STARTED,
+            step_id=step.step_id,
+            agent_name=step.agent_name,
+            observation=f"Step started: {step.name}",
+            payload={"inputSummary": input_summary(step.input), "attempt": step.attempt},
+        )
+
+    def _record_degraded_output(
+        self,
+        run: WorkflowRun,
+        step: WorkflowStep,
+        output: Dict[str, object],
+    ) -> None:
+        llm = output.get("_llm")
+        if not isinstance(llm, dict) or llm.get("success") is not False:
+            return
+
+        degraded = run.execution_state.setdefault("degradedSteps", [])
+        marker = {"stepId": step.step_id, "attempt": step.attempt}
+        if any(
+            isinstance(item, dict)
+            and item.get("stepId") == marker["stepId"]
+            and item.get("attempt") == marker["attempt"]
+            for item in degraded
+        ):
+            return
+        detail = {
+            **marker,
+            "source": str(llm.get("source") or "fallback"),
+            "error": str(llm.get("error") or "model output degraded")[:240],
+        }
+        degraded.append(detail)
+        run.recovery_count += 1
+        self.runtime.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_RECOVERED,
+            step_id=step.step_id,
+            agent_name=step.agent_name,
+            observation=f"Step used a degraded fallback: {step.name}",
+            payload=detail,
+        )
 
     # ------------------------------------------------------------------
     # 控制节点处理：把已满足前置的 Control 节点并入完成集，激活其分支

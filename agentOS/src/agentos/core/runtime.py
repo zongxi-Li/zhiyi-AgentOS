@@ -421,6 +421,9 @@ class WorkflowRuntime:
                 task_type=task.intent or workflow.intent,
                 force_dynamic=force_dynamic,
                 thinking_mode=str(task.input.get("thinkingMode") or "").strip() or None,
+                # 强制动态图必须可重复且快速；图仍按输入意图动态构建，但语义
+                # 解析采用本地确定性规则，避免额外模型往返及随机治理参数。
+                deterministic_intent=force_dynamic,
             )
             self.trace_store.append(
                 run=run,
@@ -958,6 +961,8 @@ class WorkflowRuntime:
         self._transition_run(run, WorkflowStatus.COMPLETED)
         if run.status != WorkflowStatus.COMPLETED:
             return
+        if run.recovery_count:
+            run.lifecycle_message = f"ACG 工作流执行完成（含 {run.recovery_count} 次降级恢复）"
         run.current_step_id = None
         run.output = self.orchestrator.compose_final_output(run)
         self.task_manager.mark_completed(task)

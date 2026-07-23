@@ -34,7 +34,6 @@ _PROFILE_SCHEMA = {
         "taskTypeHint": {"type": "string"},
         "implicitRequirements": {"type": "array", "items": {"type": "string"}},
         "riskLevel": {"type": "string"},
-        "entropyBudget": {"type": "integer", "minimum": 0},
     },
     "required": ["primaryGoal", "requiredCapabilities", "estimatedComplexity"],
 }
@@ -64,6 +63,11 @@ def _canonical_capability(capability: str) -> Optional[str]:
     if "报告" in raw and any(k in raw for k in ("生成", "输出", "撰写", "Markdown", "markdown")):
         return "报告生成"
     if ("证据" in raw or "依据" in raw) and any(k in raw for k in ("检索", "匹配", "引用")):
+        return "证据检索"
+    # 大模型有时会用“法律知识应用”概括检索、匹配并引用法律依据。
+    # 将这种泛化表述收敛为注册表中的可执行能力，避免动态规划随机产生
+    # 无法路由的自由文本能力名。
+    if "法律" in raw and "知识" in raw and any(k in raw for k in ("应用", "检索", "匹配", "引用")):
         return "证据检索"
     if "修改" in raw or "修订" in raw:
         return "修改建议"
@@ -95,7 +99,8 @@ def _build_prompt(intent: str, domain: str, task_type: str) -> str:
     return (
         "你是一个任务规划的意图解析器。请将用户需求解析为结构化任务语义画像，"
         "只返回 JSON。字段：primaryGoal（一句核心目标）、keyConstraints（约束列表）、"
-        "requiredCapabilities（完成任务所需核心能力，如 文本解析/风险识别/证据检索/报告生成）、"
+        "requiredCapabilities（只使用以下稳定能力名：文本解析/条款分类/风险识别/证据检索/修改建议/人工审核/报告生成；"
+        "不要创造‘法律知识应用’等泛化能力名）、"
         "estimatedComplexity（simple/medium/complex/extreme）、domainHint、taskTypeHint、"
         "implicitRequirements（隐含需求）、riskLevel（low/normal/high）。\n\n"
         f"领域提示：{domain}\n任务类型提示：{task_type}\n用户需求：{intent}\n"
@@ -115,8 +120,9 @@ class IntentParser:
         domain: str = "general",
         task_type: str = "general",
         thinking_mode: str | None = None,
+        use_llm: bool = True,
     ) -> TaskSemanticProfile:
-        if self.llm is not None:
+        if use_llm and self.llm is not None:
             try:
                 return self._parse_with_llm(intent, domain, task_type, thinking_mode)
             except Exception:
@@ -137,6 +143,11 @@ class IntentParser:
             thinking_mode=thinking_mode,
         )
         data = result.get("data", result) if isinstance(result, dict) else {}
+        # 熵预算属于执行控制面，不能由非确定性的模型输出决定。模型曾随机
+        # 返回 entropyBudget=1000，导致同一个 7 节点合同任务（最低 1536）
+        # 在规划阶段偶发失败。预算只能由受信任的调用方显式配置。
+        data.pop("entropyBudget", None)
+        data.pop("entropy_budget", None)
         data.setdefault("domainHint", domain)
         data.setdefault("taskTypeHint", task_type)
         data["rawIntent"] = intent
@@ -180,6 +191,11 @@ class IntentParser:
             if cap not in profile.required_capabilities:
                 profile.required_capabilities.append(cap)
         profile.required_capabilities = _clean_capabilities(profile.required_capabilities)
+        profile.required_capabilities = self._complete_contract_review_dependencies(
+            profile.required_capabilities,
+            domain=domain,
+            task_type=task_type,
+        )
         if not profile.required_capabilities:
             profile.required_capabilities = self._infer_capabilities(
                 intent or "", domain, task_type, include_defaults=True
@@ -195,6 +211,37 @@ class IntentParser:
         if profile.risk_level in {"", "normal", "low"} and any(k in (intent or "") for k in ("风险", "合规", "诉讼", "违约")):
             profile.risk_level = "high"
         return profile
+
+    @staticmethod
+    def _complete_contract_review_dependencies(
+        capabilities: List[str],
+        *,
+        domain: str,
+        task_type: str,
+    ) -> List[str]:
+        """补齐合同审查 Agent 输入契约要求的上游能力。"""
+        normalized_task_type = (task_type or "").lower()
+        if (domain or "").lower() != "legal" or "contract_review" not in normalized_task_type:
+            return capabilities
+
+        prerequisites = {
+            "条款分类": ("文本解析",),
+            "风险识别": ("文本解析", "条款分类"),
+            "证据检索": ("风险识别",),
+            "修改建议": ("风险识别", "证据检索"),
+            "人工审核": ("风险识别", "修改建议"),
+            "报告生成": ("文本解析", "风险识别", "证据检索", "修改建议"),
+        }
+        completed = list(capabilities)
+        changed = True
+        while changed:
+            changed = False
+            for capability in tuple(completed):
+                for prerequisite in prerequisites.get(capability, ()):
+                    if prerequisite not in completed:
+                        completed.append(prerequisite)
+                        changed = True
+        return completed
 
     @staticmethod
     def _infer_capabilities(text: str, domain: str, task_type: str, *, include_defaults: bool = True) -> List[str]:

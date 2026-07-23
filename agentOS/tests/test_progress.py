@@ -124,6 +124,7 @@ def test_normal_execution_uses_completed_steps_only():
     assert progress.pending_steps == 1
     assert progress.percent == pytest.approx(50.0)
     assert progress.current_step_id == "step_3"
+    assert progress.message == "正在执行 ACG 步骤：Step 3"
 
 
 def test_parallel_active_steps_preserve_run_order_then_definition_order():

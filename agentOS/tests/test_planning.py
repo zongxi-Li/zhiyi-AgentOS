@@ -100,6 +100,44 @@ def test_intent_parser_uses_injected_llm():
     assert profile.estimated_complexity == ComplexityLevel.COMPLEX
 
 
+def test_intent_parser_does_not_accept_entropy_budget_from_llm():
+    class _LLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            assert "entropyBudget" not in schema["properties"]
+            return {
+                "data": {
+                    "primaryGoal": "完成合同审查",
+                    "requiredCapabilities": ["文本解析", "报告生成"],
+                    "estimatedComplexity": "complex",
+                    "entropyBudget": 1000,
+                }
+            }
+
+    profile = IntentParser(_LLM()).parse(
+        intent="审查合同并生成报告",
+        domain="legal",
+        task_type="contract_review",
+    )
+
+    assert profile.entropy_budget == 0
+
+
+def test_intent_parser_can_use_deterministic_fast_path():
+    class _UnexpectedLLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            raise AssertionError("deterministic parsing must not call the model")
+
+    profile = IntentParser(_UnexpectedLLM()).parse(
+        intent="审查合同风险并生成报告",
+        domain="legal",
+        task_type="contract_review",
+        use_llm=False,
+    )
+
+    assert "风险识别" in profile.required_capabilities
+    assert "报告生成" in profile.required_capabilities
+
+
 def test_intent_parser_falls_back_when_llm_raises():
     class _BadLLM:
         def generate_json(self, prompt, schema, **kwargs):
@@ -251,6 +289,68 @@ def test_dynamic_planner_drops_meta_capabilities_from_llm():
     assert "多智能体协作编排" not in step_caps
     assert "报告生成" in step_caps
     assert all(not step.agent_name.startswith("ephemeral::") for step in result.blueprint.step_nodes())
+
+
+def test_dynamic_planner_normalizes_legal_knowledge_capability_from_llm():
+    class _LLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            return {
+                "data": {
+                    "primaryGoal": "完成合同法律审查",
+                    "requiredCapabilities": ["合同解析", "法律知识应用", "报告生成"],
+                    "estimatedComplexity": "complex",
+                }
+            }
+
+    workflows, _ = _registries()
+    engine = PlanningEngine(
+        workflow_registry=workflows,
+        agent_registry=_legal_acg_agent_registry(),
+        intent_llm=_LLM(),
+    )
+    result = engine.plan(
+        task_id="legal-knowledge-alias",
+        intent="审查合同并匹配法律依据，生成审查报告",
+        domain="legal",
+        task_type="contract_review",
+        force_dynamic=True,
+    )
+
+    assert "法律知识应用" not in result.profile.required_capabilities
+    assert "证据检索" in result.profile.required_capabilities
+    assert "legal_evidence_match" in {step.agent_name for step in result.blueprint.step_nodes()}
+
+
+def test_dynamic_planner_completes_contract_review_agent_dependencies():
+    class _LLM:
+        def generate_json(self, prompt, schema, **kwargs):
+            return {
+                "data": {
+                    "primaryGoal": "完成合同审查",
+                    # 模拟真实模型漏掉证据步骤，但建议和报告 Agent 均依赖 evidences。
+                    "requiredCapabilities": ["文本解析", "条款分类", "风险识别", "修改建议", "报告生成"],
+                    "estimatedComplexity": "complex",
+                }
+            }
+
+    workflows, _ = _registries()
+    engine = PlanningEngine(
+        workflow_registry=workflows,
+        agent_registry=_legal_acg_agent_registry(),
+        intent_llm=_LLM(),
+    )
+    result = engine.plan(
+        task_id="contract-dependency-closure",
+        intent="完成合同审查",
+        domain="legal",
+        task_type="contract_review_acg",
+        force_dynamic=True,
+    )
+
+    assert "证据检索" in result.profile.required_capabilities
+    steps = {step.agent_name: step for step in result.blueprint.step_nodes()}
+    assert "legal_evidence_match" in steps
+    assert "legal_evidence_match" in steps["revision_suggest"].input_spec["from"]
 
 
 def test_cognitive_router_binds_capabilities():
