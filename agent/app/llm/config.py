@@ -11,15 +11,15 @@ class LLMConfig:
     base_url: str = ""
     api_key: str = ""
     model: str = ""
-    timeout_seconds: float = 30.0
+    timeout_seconds: float = 120.0
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
-        timeout_raw = (os.getenv("AGENTOS_LLM_TIMEOUT_SECONDS") or "30").strip()
+        timeout_raw = (os.getenv("AGENTOS_LLM_TIMEOUT_SECONDS") or "120").strip()
         try:
             timeout_seconds = max(1.0, float(timeout_raw))
         except ValueError:
-            timeout_seconds = 30.0
+            timeout_seconds = 120.0
 
         # 一级配置：显式的 AGENTOS_LLM_* 始终优先。
         provider = (os.getenv("AGENTOS_LLM_PROVIDER") or "").strip().lower()

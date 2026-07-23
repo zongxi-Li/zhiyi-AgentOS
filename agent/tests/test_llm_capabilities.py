@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 
 from app.llm.capabilities import (
@@ -13,6 +14,7 @@ from app.llm.contracts import (
     ProviderRawResult,
     ThinkingMode,
 )
+from app.llm.config import LLMConfig
 from app.llm.providers.openai_compatible_provider import OpenAICompatibleProvider
 from app.ai_engine.deepseekadapter import DeepSeekAdapter
 
@@ -105,6 +107,40 @@ def test_provider_raw_result_keeps_reasoning_provider_private():
     assert isinstance(raw, ProviderRawResult)
     assert raw.reasoning_content == "private reasoning"
     assert raw.content == "final answer"
+
+
+def test_json_provider_prompt_contains_the_supplied_schema():
+    prompt = OpenAICompatibleProvider._json_system_prompt({
+        "type": "object",
+        "required": ["parties"],
+        "properties": {"parties": {"type": "array"}},
+    })
+    assert '"required":["parties"]' in prompt
+    assert '"parties":{"type":"array"}' in prompt
+
+
+def test_openai_compatible_provider_uses_one_explicit_request_budget(monkeypatch):
+    captured = {}
+
+    def fake_openai(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=fake_openai))
+    OpenAICompatibleProvider(
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="deepseek-v4-flash",
+        timeout_seconds=120,
+    )
+
+    assert captured["timeout"] == 120
+    assert captured["max_retries"] == 0
+
+
+def test_llm_config_default_budget_supports_deep_report_generation(monkeypatch):
+    monkeypatch.delenv("AGENTOS_LLM_TIMEOUT_SECONDS", raising=False)
+    assert LLMConfig.from_env().timeout_seconds == 120
 
 
 def test_legacy_deepseek_adapter_uses_v4_and_preserves_non_thinking_default():

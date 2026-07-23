@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, Callable, Dict, List
 
@@ -61,7 +62,7 @@ def _llm_json_or_fallback(
             "node_name": node_name,
             "provider": getattr(gateway, "provider_name", "unknown"),
             "model": getattr(gateway, "model", "unknown"),
-            "source": "mock_fallback",
+            "source": "fallback",
             "success": False,
             "error": str(exc)[:240],
             "thinking_mode": thinking_mode or "disabled",
@@ -197,7 +198,8 @@ class ContractParseAgent(BaseAgent):
             "dispute_resolution": "",
             "original_preview": text[:120],
         }
-        output, llm = _llm_json_or_fallback(
+        output, llm = await asyncio.to_thread(
+            _llm_json_or_fallback,
             node_name="parse_contract",
             prompt=render_parse_contract_prompt(text),
             schema=PARSE_CONTRACT_SCHEMA,
@@ -274,7 +276,8 @@ class RiskDetectAgent(BaseAgent):
             "parse_contract": _observation(context, "parse_contract", "contract_parse"),
             "classify_clauses": _observation(context, "classify_clauses", "clause_classify"),
         }
-        llm_output, llm = _llm_json_or_fallback(
+        llm_output, llm = await asyncio.to_thread(
+            _llm_json_or_fallback,
             node_name="risk_detect",
             prompt=render_risk_detect_prompt(
                 contract_text=json.dumps(artifacts, ensure_ascii=False, default=str),
@@ -436,15 +439,41 @@ class ReportGenerateAgent(BaseAgent):
     async def run(self, context):
         observations = context.memory.observations
         parsed = _observation(context, "parse_contract", "contract_parse")
+        clauses = observations.get("clause_classify", {}).get("clauses", [])
         risks = observations.get("risk_detect", {}).get("risks", [])
         risk_summary = observations.get("risk_detect", {}).get("risk_summary", {})
         evidences = observations.get("legal_evidence_match", {}).get("evidences", [])
-        revisions = _observation(context, "suggestion_generate", "revision_suggest").get("revision_suggestions", [])
+        revision_output = _observation(context, "suggestion_generate", "revision_suggest")
+        revisions = revision_output.get("revision_suggestions", [])
+        manual_review_focus = revision_output.get("manual_review_focus", [])
         review = _latest_human_review(context)
 
+        evidence_by_risk: Dict[str, List[str]] = {}
+        for item in evidences:
+            risk_id = str(item.get("riskId") or "")
+            citation = str(item.get("citationText") or "").strip()
+            if risk_id and citation:
+                evidence_by_risk.setdefault(risk_id, []).append(citation)
         risk_lines = "\n".join(
-            f"{index}. {risk.get('title')}：{risk.get('reason')}\n   建议：{risk.get('suggestion')}"
+            "\n".join(
+                [
+                    f"### {index}. [{str(risk.get('level') or 'medium').upper()}] {risk.get('title')}",
+                    f"- 条款位置：{risk.get('clause') or '待人工定位'}",
+                    f"- 风险原因：{risk.get('reason') or '待补充'}",
+                    f"- 可能后果：{risk.get('consequence') or '待补充'}",
+                    f"- 修改建议：{risk.get('suggestion') or '待补充'}",
+                    "- 证据依据：" + (
+                        "；".join(evidence_by_risk.get(str(risk.get('id') or ''), []))
+                        or "未匹配到可引用依据，需人工复核"
+                    ),
+                ]
+            )
             for index, risk in enumerate(risks, start=1)
+        )
+        clause_lines = "\n".join(
+            f"- {item.get('category') or item.get('source_field') or '未分类'}："
+            f"{'已识别' if item.get('present') else '未明确'}"
+            for item in clauses
         )
         evidence_lines = "\n".join(
             f"{index}. {item.get('sourceName')}：{item.get('citationText')}"
@@ -456,6 +485,11 @@ class ReportGenerateAgent(BaseAgent):
         )
         contract_title = str(parsed.get("contract_title") or "合同审查报告")
         review_status = str(review.get("decision") or "unreviewed")
+        signing_conclusion = (
+            "存在高风险事项，完成修改并经专业人员复核前不建议签署。"
+            if risk_summary.get("high", 0)
+            else "未发现高风险事项，但仍应完成证据与关键商业条款的人工复核后再签署。"
+        )
         report_markdown = f"""# {contract_title}
 
 ## 一、合同基本信息
@@ -463,33 +497,56 @@ class ReportGenerateAgent(BaseAgent):
 - 主体：{' / '.join(parsed.get('parties', [])) or '待确认'}
 - 范围：{parsed.get('scope') or '待确认'}
 
-## 二、风险摘要
+## 二、条款分类摘要
+{clause_lines or '未生成条款分类。'}
+
+## 三、风险摘要
 - 高风险：{risk_summary.get('high', 0)}
 - 中风险：{risk_summary.get('medium', 0)}
 - 低风险：{risk_summary.get('low', 0)}
 
-## 三、风险条款列表
+## 四、高中低风险清单
 {risk_lines or '未生成可验证的风险条目。'}
 
-## 四、修改建议
+## 五、修改建议
 {revision_lines or '未生成修改建议。'}
 
-## 五、依据附录
+## 六、Evidence 依据链
 {evidence_lines or '未检索到可引用依据。'}
 
-## 六、审核状态
-{review_status}
+## 七、人工复核关注点
+{chr(10).join(f'- {item}' for item in manual_review_focus) or '无额外人工复核关注点。'}
+
+## 八、审核状态与签署前结论
+- 审核状态：{review_status}
+- 签署前处理结论：{signing_conclusion}
 """
-        report_result, llm = _llm_json_or_fallback(
-            node_name="report_generate",
-            prompt=render_report_generate_prompt(
-                {"artifacts": observations, "risks": risks, "evidences": evidences, "review": review}
-            ),
-            schema=REPORT_GENERATE_SCHEMA,
-            fallback={"report_markdown": report_markdown},
-            validator=_validate_report,
-            thinking_mode=_thinking_mode(context),
-        )
+        thinking_mode = _thinking_mode(context)
+        if thinking_mode == "disabled":
+            # 快速模式直接组装已有的结构化审查产物。报告生成是确定性格式化，
+            # 再调用一次模型只会重复风险分析并增加约 9 秒串行等待。
+            report_result = _validate_report({"report_markdown": report_markdown})
+            llm = {
+                "node_name": "report_generate",
+                "provider": "local",
+                "model": "deterministic-report-v1",
+                "source": "deterministic",
+                "success": True,
+                "latency_ms": 0,
+                "thinking_mode": thinking_mode,
+            }
+        else:
+            report_result, llm = await asyncio.to_thread(
+                _llm_json_or_fallback,
+                node_name="report_generate",
+                prompt=render_report_generate_prompt(
+                    {"artifacts": observations, "risks": risks, "evidences": evidences, "review": review}
+                ),
+                schema=REPORT_GENERATE_SCHEMA,
+                fallback={"report_markdown": report_markdown},
+                validator=_validate_report,
+                thinking_mode=thinking_mode,
+            )
         report_markdown = _append_evidence_appendix(report_result["report_markdown"], evidences)
         report_markdown = _append_review_result(report_markdown, review)
         output = {

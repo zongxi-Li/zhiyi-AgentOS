@@ -125,6 +125,54 @@ def test_acg_engine_parallel_branch_executes_both():
     asyncio.run(_run())
 
 
+def test_acg_engine_persists_running_step_before_awaiting_agent():
+    class _BlockingAgent(BaseAgent):
+        def __init__(self, started: asyncio.Event, release: asyncio.Event):
+            super().__init__(AgentProfile(agentName="slow", domain="test", capabilities=["slow"]))
+            self.started = started
+            self.release = release
+
+        async def run(self, context):
+            self.started.set()
+            await self.release.wait()
+            return AgentOutput(output={"done": True}, summary="done")
+
+    async def _run():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        agents = AgentRegistry()
+        agents.register(_BlockingAgent(started, release))
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="observable",
+                name="Observable",
+                domain="test",
+                intent="demo",
+                runtimeEngine="acg",
+                steps=[WorkflowStepDefinition(stepId="slow", name="Slow", agentName="slow")],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        task = runtime.create_task(title="observable", domain="test", intent="demo")
+        execution = asyncio.create_task(runtime.start(task.task_id, workflow_id="observable"))
+
+        await asyncio.wait_for(started.wait(), timeout=1)
+        page = runtime.workflow_store.list_runs(page=1, page_size=10)
+        persisted = page.items[0]
+        assert persisted.status == WorkflowStatus.RUNNING
+        assert persisted.current_step_id == "slow"
+        assert persisted.active_step_ids == ["slow"]
+        assert persisted.get_step("slow").status == StepStatus.RUNNING
+        assert persisted.get_step("slow").attempt == 1
+
+        release.set()
+        completed = await execution
+        assert completed.status == WorkflowStatus.COMPLETED
+
+    asyncio.run(_run())
+
+
 def test_acg_engine_human_review_interrupt_and_resume():
     async def _run():
         steps = [

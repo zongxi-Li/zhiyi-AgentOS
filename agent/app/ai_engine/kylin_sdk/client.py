@@ -177,10 +177,14 @@ class KylinSDKClient:
                 messages.append({"role": "user", "content": prompt})
 
                 try:
-                    resp = self.deepseek_adapter.chat(
+                    # DeepSeekAdapter wraps the synchronous OpenAI client. Running it
+                    # directly here blocks FastAPI's event loop for the whole model
+                    # response and starves workflow progress/health requests.
+                    resp = await asyncio.to_thread(
+                        self.deepseek_adapter.chat,
                         messages=messages,
                         temperature=kwargs.get("temperature", 0.7),
-                        max_tokens=kwargs.get("max_tokens", 4096)
+                        max_tokens=kwargs.get("max_tokens", 4096),
                     )
                     text = resp.choices[0].message.content if resp.choices else ""
                     tokens_used = resp.usage.total_tokens if resp.usage else 0

@@ -100,7 +100,19 @@ class _InvalidJSONProvider:
 
 def test_acg_contract_review_invalid_llm_json_fails_closed_without_invented_results():
     async def run_test():
-        run = await _start(_runtime())
+        runtime = _runtime()
+        waiting = await _start(runtime)
+        assert waiting.recovery_count == 2
+        assert {item["stepId"] for item in waiting.execution_state["degradedSteps"]} == {
+            "parse_contract",
+            "risk_detect",
+        }
+        run = await runtime.apply_review(ReviewDecision(
+            runId=waiting.run_id,
+            stepId="human_review",
+            decision=ReviewDecisionType.APPROVED,
+            reviewer="reviewer",
+        ))
         parse = run.output["artifacts"]["parse_contract"]
         risks = run.output["artifacts"]["risk_detect"]
         assert parse["contract_type"] == ""
@@ -108,8 +120,15 @@ def test_acg_contract_review_invalid_llm_json_fails_closed_without_invented_resu
         assert parse["analysis_status"] == "unavailable"
         assert risks["risks"] == []
         assert risks["analysis_status"] == "unavailable"
-        assert parse["_llm"]["source"] == "mock_fallback"
-        assert risks["_llm"]["source"] == "mock_fallback"
+        assert parse["_llm"]["source"] == "fallback"
+        assert risks["_llm"]["source"] == "fallback"
+        assert run.recovery_count == 3
+        assert {item["stepId"] for item in run.execution_state["degradedSteps"]} == {
+            "parse_contract",
+            "risk_detect",
+            "report_generate",
+        }
+        assert "3 次降级恢复" in run.lifecycle_message
 
     set_llm_gateway_for_tests(LLMGateway(provider=_InvalidJSONProvider()))
     try:
@@ -232,6 +251,7 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
                 ),
                 "usePlanner": True,
                 "forceDynamicPlanning": True,
+                "thinkingMode": "disabled",
             },
         )
         run = await runtime.start(
@@ -245,7 +265,12 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         artifacts = run.output["artifacts"]
         assert artifacts["risk_detect"]["risks"]
         assert artifacts["legal_evidence_match"]["evidences"]
-        assert artifacts["report_generate"]["report_markdown"]
+        report_artifact = artifacts["report_generate"]
+        assert report_artifact["report_markdown"]
+        assert report_artifact["_llm"]["source"] == "deterministic"
+        assert report_artifact["_llm"]["latency_ms"] == 0
+        assert "条款分类摘要" in report_artifact["report_markdown"]
+        assert "签署前处理结论" in report_artifact["report_markdown"]
         blueprint = run.acg_blueprint
         assert blueprint is not None
         nodes = blueprint["nodes"]

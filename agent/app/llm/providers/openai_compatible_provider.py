@@ -15,7 +15,7 @@ class LLMProviderError(RuntimeError):
 class OpenAICompatibleProvider:
     provider_name = "openai-compatible"
 
-    def __init__(self, *, base_url: str, api_key: str, model: str, timeout_seconds: float = 30.0):
+    def __init__(self, *, base_url: str, api_key: str, model: str, timeout_seconds: float = 120.0):
         if not base_url:
             raise LLMProviderError("AGENTOS_LLM_BASE_URL is required for openai-compatible provider")
         if not api_key:
@@ -30,7 +30,15 @@ class OpenAICompatibleProvider:
         self.model = normalized.effective_model
         self.default_thinking_mode = normalized.effective_thinking_mode
         self.timeout_seconds = timeout_seconds
-        self._client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_seconds)
+        # One explicit request budget is easier to reason about than the SDK default
+        # of three hidden attempts. Deep reasoning/report generation commonly needs
+        # more than 30 seconds, so retries at that boundary only multiply latency.
+        self._client = OpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=timeout_seconds,
+            max_retries=0,
+        )
 
     def generate_text(self, prompt: str, **kwargs) -> str:
         try:
@@ -59,10 +67,7 @@ class OpenAICompatibleProvider:
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "Return one valid JSON object matching the requested fields. "
-                            "Do not wrap JSON in markdown fences or include explanatory text."
-                        ),
+                        "content": self._json_system_prompt(schema),
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -91,6 +96,15 @@ class OpenAICompatibleProvider:
             thinking_mode=thinking_mode,
             parameters=parameters,
         ).parameters
+
+    @staticmethod
+    def _json_system_prompt(schema: Dict[str, Any]) -> str:
+        schema_text = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
+        return (
+            "Return one valid JSON object matching the supplied JSON Schema exactly. "
+            "Do not wrap JSON in markdown fences or include explanatory text. "
+            f"JSON Schema: {schema_text}"
+        )
 
     @staticmethod
     def _extract_raw_result(completion: Any) -> ProviderRawResult:
