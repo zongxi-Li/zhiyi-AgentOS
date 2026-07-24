@@ -114,7 +114,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/federated-agent-workbench',
     name: 'FederatedAgentWorkbench',
-    redirect: '/agentos/legal/contract-review'
+    redirect: { path: '/chat', query: { workspace: 'agent' } }
   },
   {
     path: '/agentos-console',
@@ -127,12 +127,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/agentos/legal/contract-review',
-    name: 'LawyerContractReviewWorkbench',
-    component: () => import('@/views/LawyerContractReviewWorkbenchView.vue'),
-    meta: {
-      title: '角色工作台',
-      requiresAuth: true
-    }
+    redirect: { path: '/chat', query: { workspace: 'agent' } }
   },
   {
     path: '/agentos/acg',
@@ -147,8 +142,8 @@ const routes: RouteRecordRaw[] = [
     path: '/contract-clause-planner',
     name: 'ContractClausePlanner',
     redirect: {
-      path: '/agentos/legal/contract-review',
-      query: { role: 'lawyer', template: 'lawyer-document' }
+      path: '/chat',
+      query: { workspace: 'agent' }
     }
   },
   {

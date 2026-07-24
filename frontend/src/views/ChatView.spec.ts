@@ -6,6 +6,7 @@ import { agentosApi, type AcgView, type WorkflowRun } from '@/services/api/agent
 import { workflowApi, type WorkflowProgress } from '@/services/api/workflow'
 import { recommendationApi } from '@/services/api/recommendation'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import RoleTemplateSwitchDialog from '@/components/RoleTemplateSwitchDialog.vue'
 import ChatView from './ChatView.vue'
 
 let chatStoreMock: ReturnType<typeof createChatStoreMock>
@@ -58,6 +59,7 @@ function createChatStoreMock() {
     updateWorkflowBindingStatus: vi.fn(),
     markWorkflowBindingInvalid: vi.fn(),
     loadHistory: vi.fn(async (contextId: string) => { chatStoreMock.contextId = contextId }),
+    clearMessages: vi.fn(() => { chatStoreMock.messages = [] }),
     setRole: vi.fn(),
     sendLawyerMessage: vi.fn(),
     sendTeacherMessage: vi.fn(),
@@ -69,7 +71,10 @@ function createChatStoreMock() {
 
 function createRoleStoreMock() {
   return reactive({
-    roles: [{ id: 'role_1', name: '律师' }],
+    roles: [
+      { id: 'role_1', name: '律师' },
+      { id: 'role_2', name: '教师' }
+    ],
     currentRole: { id: 'role_1', name: '律师' },
     loadRoles: vi.fn().mockResolvedValue(undefined),
     setCurrentRole: vi.fn().mockResolvedValue(undefined)
@@ -212,6 +217,26 @@ describe('ChatView ACG progress integration', () => {
     expect(chatStoreMock.upgradeToWorkflow).toHaveBeenCalledOnce()
     expect(chatStoreMock.isStreaming).toBe(true)
     expect(wrapper.findComponent(WorkflowProgressBar).props('progress')).toEqual(expect.objectContaining({ phase: 'planning' }))
+    wrapper.unmount()
+  })
+
+  it('opens the role template dialog from the composer and applies a selected role', async () => {
+    const { wrapper } = await mountPage()
+    const trigger = wrapper.get('.composer-agent-mode')
+
+    expect(trigger.attributes('aria-haspopup')).toBe('dialog')
+    await trigger.trigger('click')
+
+    const dialog = wrapper.findComponent(RoleTemplateSwitchDialog)
+    expect(dialog.props('open')).toBe(true)
+
+    dialog.vm.$emit('confirm', { roleId: 'teacher', templateKey: 'teacher-lesson' })
+    await flushPromises()
+
+    expect(roleStoreMock.setCurrentRole).toHaveBeenCalledWith(expect.objectContaining({ id: 'role_2', name: '教师' }))
+    expect(chatStoreMock.setRole).toHaveBeenCalledWith('role_2')
+    expect(localStorage.getItem('chat.active_template_key')).toBe('teacher-lesson')
+    expect(dialog.props('open')).toBe(false)
     wrapper.unmount()
   })
 

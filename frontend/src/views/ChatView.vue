@@ -302,10 +302,18 @@
                 <button class="composer-icon-action" type="button" aria-label="添加文件" title="添加文件" @click="handleControl('folder')">
                   <el-icon><Plus /></el-icon>
                 </button>
-                <span class="composer-agent-mode">
+                <button
+                  class="composer-agent-mode"
+                  type="button"
+                  aria-haspopup="dialog"
+                  :aria-expanded="roleTemplateDialogOpen"
+                  title="切换角色与模板"
+                  @click="openRoleTemplateDialog"
+                >
                   <el-icon><component :is="agentIcon" /></el-icon>
                   {{ currentRole?.name || 'Agent' }} 模式
-                </span>
+                  <el-icon class="composer-agent-mode__chevron"><ArrowDownBold /></el-icon>
+                </button>
                 <button
                   v-if="isAgentMode"
                   class="composer-acg-toggle"
@@ -720,6 +728,14 @@
       </Transition>
     </div>
 
+    <RoleTemplateSwitchDialog
+      :open="roleTemplateDialogOpen"
+      :current-role-name="currentRole?.name"
+      :current-template-key="selectedChatTemplateKey"
+      @close="roleTemplateDialogOpen = false"
+      @confirm="applyRoleTemplateSelection"
+    />
+
     <el-drawer v-model="showRoleDrawer" direction="rtl" :size="320" :with-header="false">
       <div class="drawer-head">
         <h3>角色列表</h3>
@@ -793,6 +809,7 @@ import DiagramViewer from '@/components/agent/DiagramViewer.vue'
 import MindMapViewer from '@/components/agent/MindMapViewer.vue'
 import RelationGraph from '@/components/agent/RelationGraph.vue'
 import RecommendationPanel from '@/components/RecommendationPanel.vue'
+import RoleTemplateSwitchDialog from '@/components/RoleTemplateSwitchDialog.vue'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
@@ -807,6 +824,7 @@ import { useRoleStore } from '@/stores/role'
 import { useDebounce } from '@/composables/useDebounce'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { loadModelSettings } from '@/config/modelSettings'
+import { roleTemplateGroups, type RoleId } from '@/config/agentWorkbench'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -840,6 +858,9 @@ const selectedRoleId = ref<string | null>(null)
 const inputText = ref('')
 const loading = ref(false)
 const showRoleDrawer = ref(false)
+const roleTemplateDialogOpen = ref(false)
+const CHAT_TEMPLATE_KEY = 'chat.active_template_key'
+const selectedChatTemplateKey = ref(localStorage.getItem(CHAT_TEMPLATE_KEY) || '')
 const showFileManager = ref(false)
 const isRecording = ref(false)
 const messagesRef = ref<HTMLElement | null>(null)
@@ -1897,7 +1918,7 @@ const applyChatRecommendation = (item: RecommendationItem) => {
   recommendationCollapsed.value = true
 }
 
-const selectRole = async (role: any) => {
+const selectRole = async (role: any): Promise<boolean> => {
   if (chatStore.messages.length > 0) {
     try {
       await ElMessageBox.confirm(
@@ -1911,7 +1932,7 @@ const selectRole = async (role: any) => {
       )
       chatStore.clearMessages()
     } catch {
-      return
+      return false
     }
   }
 
@@ -1920,6 +1941,49 @@ const selectRole = async (role: any) => {
   chatStore.setRole(role.id)
   showRoleDrawer.value = false
   ElMessage.success(`已切换到角色: ${role.name}`)
+  return true
+}
+
+const roleNameAliases: Record<RoleId, string[]> = {
+  lawyer: ['律师', '法律', 'lawyer'],
+  teacher: ['教师', '教学', 'teacher'],
+  programmer: ['程序', '开发', 'programmer', 'developer'],
+  writer: ['作家', '写作', 'writer']
+}
+
+const openRoleTemplateDialog = () => {
+  roleTemplateDialogOpen.value = true
+}
+
+const findRuntimeRole = (roleId: RoleId) => {
+  const aliases = roleNameAliases[roleId]
+  return roles.value.find(role => {
+    const name = (role.name || '').toLowerCase()
+    return aliases.some(alias => name.includes(alias))
+  })
+}
+
+const applyRoleTemplateSelection = async (selection: { roleId: RoleId; templateKey: string }) => {
+  const targetRole = findRuntimeRole(selection.roleId)
+  const template = roleTemplateGroups
+    .find(role => role.id === selection.roleId)
+    ?.templates.find(item => item.key === selection.templateKey)
+
+  if (!targetRole) {
+    ElMessage.warning('该角色尚未启用，请先在角色管理中启用后再切换')
+    return
+  }
+
+  if (targetRole.id !== currentRole.value?.id) {
+    const switched = await selectRole(targetRole)
+    if (!switched) return
+  } else {
+    ElMessage.success(`已选择 ${targetRole.name}${template ? ` / ${template.name}` : ''}`)
+  }
+
+  selectedChatTemplateKey.value = selection.templateKey
+  localStorage.setItem(CHAT_TEMPLATE_KEY, selection.templateKey)
+  roleTemplateDialogOpen.value = false
 }
 
 const animateComposerToConversation = async (startRect: DOMRect) => {
@@ -4298,9 +4362,31 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   color: var(--primary-color);
   font-size: 11px;
   font-weight: 600;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.composer-agent-mode:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 26%, var(--border-light));
+  background: color-mix(in srgb, var(--primary-color) 9%, transparent);
+}
+
+.composer-agent-mode:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-color) 58%, transparent);
+  outline-offset: 2px;
+}
+
+.composer-agent-mode__chevron {
+  font-size: 9px;
+  opacity: 0.72;
 }
 
 .composer-acg-toggle {

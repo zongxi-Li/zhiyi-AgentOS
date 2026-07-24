@@ -61,11 +61,6 @@
                 </button>
 
               </div>
-              <el-menu-item index="/agentos/legal/contract-review">
-                <el-icon><DocumentChecked /></el-icon>
-                <span>角色工作台</span>
-              </el-menu-item>
-
               <el-menu-item index="/agentos/acg">
                 <el-icon><Cpu /></el-icon>
                 <span>ACG 动态群体智能引擎</span>
@@ -138,36 +133,13 @@
             >
               <div class="chat-panel-header">
                 <div class="chat-panel-switch" role="tablist" aria-label="工作模式">
-                  <div class="agent-switch-entry" @mouseenter="ensureSidebarRoles">
-                    <button
-                      :class="{ active: workspaceMode === 'agent' }"
-                      type="button"
-                      role="tab"
-                      :aria-selected="workspaceMode === 'agent'"
-                      @click="selectWorkspaceMode('agent')"
-                    >
-                      Agent
-                    </button>
-                    <div class="agent-hover-menu role-switch-menu" role="menu" aria-label="切换 Agent 角色">
-                      <div v-if="roleStore.loading" class="role-switch-status">正在加载角色…</div>
-                      <button
-                        v-for="role in sidebarRoles"
-                        v-else
-                        :key="role.id"
-                        class="role-switch-item"
-                        :class="{ active: roleStore.currentRole?.id === role.id }"
-                        type="button"
-                        role="menuitemradio"
-                        :aria-checked="roleStore.currentRole?.id === role.id"
-                        @click.stop="selectSidebarRole(role)"
-                      >
-                        <el-icon><User /></el-icon>
-                        <span>{{ role.name }}</span>
-                        <el-icon v-if="roleStore.currentRole?.id === role.id" class="role-switch-check"><Check /></el-icon>
-                      </button>
-                      <div v-if="!roleStore.loading && !sidebarRoles.length" class="role-switch-status">暂无可用角色</div>
-                    </div>
-                  </div>
+                  <button
+                    :class="{ active: workspaceMode === 'agent' }"
+                    type="button"
+                    role="tab"
+                    :aria-selected="workspaceMode === 'agent'"
+                    @click="selectWorkspaceMode('agent')"
+                  >Agent</button>
                   <button
                     :class="{ active: workspaceMode === 'chat' }"
                     type="button"
@@ -311,11 +283,6 @@
                 <el-icon><ChatDotRound /></el-icon>
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
-              <el-menu-item index="/agentos/legal/contract-review">
-                <el-icon><DocumentChecked /></el-icon>
-                <span>角色工作台</span>
-              </el-menu-item>
-
               <el-menu-item index="/agentos/acg">
                 <el-icon><Cpu /></el-icon>
                 <span>ACG 动态群体智能引擎</span>
@@ -406,26 +373,22 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, Check, Delete, EditPen, User, Search,
+  ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, Delete, EditPen, User, Search,
   Clock, Setting, SwitchButton, Connection,
-  Monitor, DocumentChecked, Cpu,
+  Monitor, Cpu,
   Menu as MenuIcon, Fold, Expand, Close
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { authApi } from '@/services/api/auth'
 import { conversationApi, type Conversation } from '@/services/api/conversation'
 import { useChatStore } from '@/stores/chat'
-import { useRoleStore } from '@/stores/role'
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
-import type { Role } from '@/services/api/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
-const roleStore = useRoleStore()
 const workflowRunsStore = useWorkflowRunsStore()
-const sidebarRoles = computed(() => roleStore.roles)
 const globalError = ref('')
 const simpleNavOpen = ref(false)
 type WorkspaceMode = 'agent' | 'chat'
@@ -605,15 +568,6 @@ const selectWorkspaceMode = (mode: WorkspaceMode) => {
   })
 }
 
-const ensureSidebarRoles = () => {
-  if (!roleStore.roles.length) void roleStore.loadRoles()
-}
-
-const selectSidebarRole = async (role: Role) => {
-  await roleStore.setCurrentRole(role)
-  selectWorkspaceMode('agent')
-}
-
 // Immersive mode: only keep login page immersive
 const isImmersive = computed(() => {
   const path = route.path
@@ -767,7 +721,6 @@ const isRouteScrollable = computed(() => {
     path.startsWith('/federated-learning') ||
     path.startsWith('/federated-models') ||
     path.startsWith('/agentos-console') ||
-    path.startsWith('/agentos/legal/contract-review') ||
     path.startsWith('/agentos/acg') ||
     path.startsWith('/rag') ||
     path.startsWith('/voice-chat')
@@ -778,7 +731,6 @@ const activeMenu = computed(() => {
   const path = route.path
   if (path === '/chat' || path.startsWith('/chat')) return '/chat'
   if (path.startsWith('/agentos-console')) return '/agentos-console'
-  if (path.startsWith('/agentos/legal/contract-review')) return '/agentos/legal/contract-review'
   if (path.startsWith('/agentos/acg')) return '/agentos/acg'
   if (path === '/roles' || path.startsWith('/roles')) return '/roles'
   if (path === '/rag' || path.startsWith('/rag')) return '/rag'
@@ -1076,114 +1028,6 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.agent-switch-entry {
-  position: relative;
-  min-width: 0;
-}
-
-.agent-hover-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 30;
-  width: 142px;
-  padding-top: 6px;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-4px) scale(0.98);
-  transform-origin: top left;
-  transition: opacity 0.14s ease, transform 0.16s var(--ease-out), visibility 0s linear 0.16s;
-}
-
-.agent-hover-menu.role-switch-menu {
-  width: 176px;
-  padding: 6px;
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow-md);
-}
-
-.agent-switch-entry:hover .agent-hover-menu,
-.agent-switch-entry:focus-within .agent-hover-menu {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateY(0) scale(1);
-  transition-delay: 0s;
-}
-
-.agent-hover-menu > button {
-  width: 100%;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 9px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow-md);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.16s ease, background-color 0.16s ease;
-}
-
-.agent-hover-menu.role-switch-menu > button {
-  height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 7px;
-  box-shadow: none;
-  background: transparent;
-  font-weight: 500;
-}
-
-.agent-hover-menu.role-switch-menu > button.active {
-  color: var(--primary-color);
-  background: var(--primary-fade);
-}
-
-.role-switch-item span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.role-switch-check {
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: var(--primary-color);
-}
-
-.role-switch-status {
-  padding: 8px;
-  color: var(--text-disabled);
-  font-size: 11px;
-  text-align: center;
-}
-
-.agent-hover-menu > button:hover {
-  color: var(--primary-color);
-  background: var(--bg-panel);
-}
-
-.agent-hover-menu > button:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: -2px;
-}
-
-.agent-hover-arrow {
-  margin-left: auto;
-  color: var(--text-disabled);
-  font-size: 11px;
-}
-
 .chat-side-panel {
   position: relative;
   z-index: 1;
@@ -1249,8 +1093,7 @@ onUnmounted(() => {
   background: var(--bg-input);
 }
 
-.chat-panel-switch > button,
-.chat-panel-switch > .agent-switch-entry > button {
+.chat-panel-switch > button {
   width: 100%;
   height: 27px;
   padding: 0 6px;
@@ -1265,20 +1108,17 @@ onUnmounted(() => {
   transition: color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.chat-panel-switch > button:hover,
-.chat-panel-switch > .agent-switch-entry > button:hover {
+.chat-panel-switch > button:hover {
   color: var(--text-primary);
 }
 
-.chat-panel-switch > button.active,
-.chat-panel-switch > .agent-switch-entry > button.active {
+.chat-panel-switch > button.active {
   color: var(--text-primary);
   background: var(--bg-card);
   box-shadow: var(--shadow-sm);
 }
 
 .chat-panel-switch > button:focus-visible,
-.chat-panel-switch > .agent-switch-entry > button:focus-visible,
 .chat-panel-close:focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: -2px;

@@ -550,10 +550,12 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .run-sidebar, .console-main, .console-side { min-width: 0; min-height: 0; height: 100%; }
 .run-sidebar, .console-main, .console-side { overflow-y: auto; scrollbar-gutter: stable; }
 .console-main, .console-side { display: flex; flex-direction: column; gap: 12px; }
+.console-main > * { flex-shrink: 0; }
 .console-main > .selection-empty:last-child,
 .console-main > .run-facts:last-child,
 .console-main > :deep(.trace-event-timeline:last-child),
-.console-side > .acg-summary:last-child { flex: 1 1 auto; min-height: 0; }
+.console-side > .acg-summary:last-child { flex: 1 0 auto; min-height: 0; }
+.console-main > :deep(.trace-event-timeline:last-child) { min-height: 260px; }
 .filter-panel { display: grid; gap: 10px; }
 .filter-title, .run-list-head, .run-group > header, .run-item__top, .run-item__metrics, .run-toolbar, .run-toolbar nav, .acg-summary header, .acg-summary__facts, .pagination { display: flex; align-items: center; }
 .filter-title { gap: 7px; font-size: 14px; font-weight: 700; }
