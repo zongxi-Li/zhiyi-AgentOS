@@ -122,6 +122,23 @@ describe('AgentOsConsoleView control plane', () => {
     wrapper.unmount()
   })
 
+  it('loads complete review details when waitingReviewSteps reveals a pending gate', async () => {
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(progress({
+      phase: 'executing', status: 'running', waitingReviewSteps: 1,
+      currentStepId: 'human_review', activeStepIds: ['human_review']
+    }))
+    vi.mocked(workflowApi.getRun).mockResolvedValue({
+      ...run, status: 'waiting_review',
+      steps: [{ stepId: 'human_review', name: '人工审核', agentName: 'reviewer', status: 'waiting_review' }]
+    })
+    const { wrapper } = await mountConsole('?runId=run_1')
+    await flushPromises()
+
+    expect(workflowApi.getRun).toHaveBeenCalledWith('run_1', expect.any(Object))
+    expect(workflowApi.listReviews).toHaveBeenCalledWith('run_1', expect.any(Object))
+    wrapper.unmount()
+  })
+
   it('pauses list polling while hidden and refreshes immediately when visible', async () => {
     vi.useFakeTimers()
     const { wrapper } = await mountConsole()

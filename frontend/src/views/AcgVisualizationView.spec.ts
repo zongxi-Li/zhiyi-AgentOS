@@ -110,6 +110,10 @@ describe('AcgVisualizationView async progress loop', () => {
     await clickStart(wrapper)
 
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledOnce()
+    expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
+      reviewMode: 'human_in_loop',
+      input: expect.objectContaining({ source: 'acg' })
+    }), expect.any(Object))
     expect(workflowApi.startWorkflow).not.toHaveBeenCalled()
     expect(vi.mocked(workflowApi.startWorkflowAsync).mock.calls[0][0].clientRequestId).toBeTruthy()
     expect(workflowApi.getWorkflowProgress).toHaveBeenCalledWith('run_1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
@@ -152,6 +156,23 @@ describe('AcgVisualizationView async progress loop', () => {
     await flushPromises()
     expect(workflowApi.getWorkflowProgress).toHaveBeenCalledTimes(2)
     expect(workflowApi.getAcgView).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('shows the review panel when the canonical Run is waiting even if progress is briefly stale', async () => {
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
+      phase: 'executing', status: 'running', percent: 75, waitingReviewSteps: 0,
+      currentStepId: 'human_review', activeStepIds: ['human_review']
+    }))
+    vi.mocked(workflowApi.getRun).mockResolvedValue({
+      ...makeRun(), status: 'waiting_review',
+      steps: [{ stepId: 'human_review', name: '人工审核', agentName: 'reviewer', status: 'waiting_review' }]
+    })
+    const { wrapper } = await mountPage('?runId=run_1')
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'WorkflowReviewPanel' }).exists()).toBe(true)
     wrapper.unmount()
   })
 

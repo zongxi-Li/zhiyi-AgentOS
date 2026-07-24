@@ -72,6 +72,7 @@
                 <span>{{ run.totalSteps > 0 ? `${run.completedSteps}/${run.totalSteps} 步` : '规模计算中' }}</span>
                 <span>恢复 {{ run.recoveryCount }}</span>
                 <span v-if="run.source === 'chat'">来自 Chat</span>
+                <span v-else-if="run.source === 'acg'">来自 ACG</span>
               </span>
             </button>
           </section>
@@ -198,6 +199,7 @@ import {
   type WorkflowStatus
 } from '@/services/api/workflow'
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
+import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
 
 const DEFAULT_STATUSES = ['pending', 'planning', 'running', 'retrying', 'waiting_review', 'completed', 'failed', 'cancelled']
 const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
@@ -250,11 +252,11 @@ const statusOptions = [
 const runGroups = computed(() => [
   {
     key: 'review', label: '需要处理',
-    items: runs.value.filter(run => run.status === 'waiting_review' || run.phase === 'review')
+    items: runs.value.filter(run => isWorkflowReviewPending(run))
   },
   {
     key: 'running', label: '正在运行',
-    items: runs.value.filter(run => !TERMINAL.has(run.status) && run.status !== 'waiting_review' && run.phase !== 'review')
+    items: runs.value.filter(run => !TERMINAL.has(run.status) && !isWorkflowReviewPending(run))
   },
   {
     key: 'terminal', label: '最近结束',
@@ -362,7 +364,7 @@ const activateRun = async (runId: string, syncRoute: boolean) => {
     await router.replace({ query: { ...route.query, runId } })
   }
   void progressTracker.start(runId, { fresh: false })
-  if (summary?.phase === 'review' || summary?.status === 'waiting_review') void loadSelectedDetail({ review: true })
+  if (isWorkflowReviewPending(summary)) void loadSelectedDetail({ review: true })
   if (TERMINAL.has(summary?.status || '') && !cachedTerminal) void loadSelectedDetail({ acg: true })
 }
 
@@ -393,7 +395,10 @@ const loadSelectedDetail = async (options: { full?: boolean; acg?: boolean; revi
     selectedRun.value = run
     if (acg) selectedAcgView.value = acg
     if (acg && TERMINAL.has(run.status)) terminalDetailCache.set(runId, { run, acg })
-    if (options.review || options.full) reviews.value = reviewPage.items || []
+    if (options.review || options.full) {
+      reviews.value = reviewPage.items || []
+      reviewDetailsLoaded.add(runId)
+    }
     if (options.full) {
       traceEvents.value = trace.events || []
       checkpoints.value = checkpointPage.items || []
@@ -407,6 +412,7 @@ const loadSelectedDetail = async (options: { full?: boolean; acg?: boolean; revi
     } else {
       runError.value = '运行详情暂时无法加载'
     }
+    if (options.review || options.full) reviewDetailsLoaded.delete(runId)
   } finally {
     if (generation === detailGeneration) {
       detailController = null
@@ -420,8 +426,7 @@ function handleProgressChanged(current: WorkflowProgress, previous: WorkflowProg
   workflowRunsStore.updateObservedState(current.runId, current.status, current.phase, current.updatedAt)
   const index = runs.value.findIndex(item => item.runId === current.runId)
   if (index >= 0) runs.value[index] = { ...runs.value[index], ...current }
-  if (current.phase === 'review' && previous?.phase !== 'review' && !reviewDetailsLoaded.has(current.runId)) {
-    reviewDetailsLoaded.add(current.runId)
+  if (isWorkflowReviewPending(current) && !isWorkflowReviewPending(previous) && !reviewDetailsLoaded.has(current.runId)) {
     void loadSelectedDetail({ review: true })
   }
 }

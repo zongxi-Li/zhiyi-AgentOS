@@ -75,6 +75,7 @@ import {
   type WorkflowRun
 } from '@/services/api/workflow'
 import { useWorkflowReview } from '@/composables/useWorkflowReview'
+import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
 
 const props = withDefaults(defineProps<{
   runId: string
@@ -112,9 +113,7 @@ const reviewStepId = computed(() => reviewStep.value?.stepId
 const canReview = computed(() => Boolean(
   props.runId
   && reviewStepId.value
-  && (props.progress?.phase === 'review'
-    || props.progress?.status === 'waiting_review'
-    || props.run?.status === 'waiting_review')
+  && isWorkflowReviewPending(props.progress, props.run)
 ))
 const reviewReason = computed(() => {
   if (props.run && typeof props.run.error === 'string' && props.run.error.trim()) return props.run.error

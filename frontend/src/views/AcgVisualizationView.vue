@@ -135,7 +135,7 @@
     <p v-if="startError" class="run-error" role="alert">{{ startError }}</p>
 
     <WorkflowReviewPanel
-      v-if="activeRunId && (progressTracker.progress.value?.phase === 'review' || progressTracker.progress.value?.status === 'waiting_review')"
+      v-if="reviewPending"
       :run-id="activeRunId"
       :progress="progressTracker.progress.value"
       :run="activeRun"
@@ -206,6 +206,7 @@ import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import type { ThinkingMode } from '@/config/modelSettings'
 import { fileApi } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
+import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
 
 const WORKFLOW_ID = 'legal_contract_review_v1'
 const TEMPLATE_FAULT_STEPS = ['parse_contract', 'classify_clauses', 'risk_detect', 'legal_evidence_match', 'suggestion_generate', 'human_review', 'report_generate']
@@ -274,6 +275,9 @@ const progressTracker = useWorkflowProgress({
   onTerminal: handleTerminal
 })
 const activeRunReference = computed(() => workflowRunsStore.getReference(activeRunId.value))
+const reviewPending = computed(() => Boolean(
+  activeRunId.value && isWorkflowReviewPending(progressTracker.progress.value, activeRun.value)
+))
 
 const CONTRACT_FILE_MAX_SIZE = 10 * 1024 * 1024
 const CONTRACT_FILE_EXTENSIONS = ['pdf', 'docx', 'txt', 'md']
@@ -514,8 +518,14 @@ async function handleTerminal(value: WorkflowProgress): Promise<void> {
 
 watch(
   () => progressTracker.progress.value,
-  (value) => {
-    if (value) scheduleTopologyRefresh(value)
+  (value, previous) => {
+    if (!value) return
+    if (isWorkflowReviewPending(value, activeRun.value) && !isWorkflowReviewPending(previous, activeRun.value)) {
+      clearTopologyTimer()
+      void refreshAcgForRun(value.runId, true)
+      return
+    }
+    scheduleTopologyRefresh(value)
   }
 )
 
@@ -609,6 +619,7 @@ const startRun = async () => {
   try {
     const intentText = userIntent.value.trim() || '审查合同风险并生成报告'
     const input: Record<string, unknown> = {
+      source: 'acg',
       contractText: contractText.value,
       userIntent: intentText,
       planningMode: planningMode.value,
@@ -625,6 +636,7 @@ const startRun = async () => {
       domain: 'legal',
       intent: 'contract_review_acg',
       workflowId: WORKFLOW_ID,
+      reviewMode: 'human_in_loop',
       input,
       clientRequestId
     }, { signal: submitController.signal })

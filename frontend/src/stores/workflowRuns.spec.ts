@@ -70,6 +70,17 @@ describe('workflow run reference store', () => {
     }))
   })
 
+  it('keeps the original ACG source when the Run is opened in the console', () => {
+    const store = useWorkflowRunsStore()
+    store.register({ runId: 'run_1', source: 'acg', status: 'running' })
+
+    store.register({ runId: 'run_1', source: 'console', status: 'waiting_review' })
+
+    expect(store.getReference('run_1')).toEqual(expect.objectContaining({
+      source: 'acg', status: 'waiting_review'
+    }))
+  })
+
   it('marks invalid references and excludes them from conversation recovery', () => {
     const store = useWorkflowRunsStore()
     store.register({ runId: 'run_1', source: 'chat', conversationId: 'conversation_1', status: 'running' })

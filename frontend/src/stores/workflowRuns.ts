@@ -129,7 +129,7 @@ export const useWorkflowRunsStore = defineStore('workflowRuns', () => {
       [reference.runId]: {
         ...current,
         ...safeReference,
-        source: current?.source === 'chat' ? 'chat' : safeReference.source,
+        source: current && current.source !== 'restored' ? current.source : safeReference.source,
         invalid: false,
         lastSeenAt: new Date().toISOString()
       }
