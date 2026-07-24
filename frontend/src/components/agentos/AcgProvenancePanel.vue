@@ -34,7 +34,10 @@
             <span class="node-tag consumer">{{ c.consumerStepId }}</span>
           </div>
           <div class="fields" v-if="c.consumedFields && c.consumedFields.length">
-            消费字段：<code v-for="f in c.consumedFields" :key="f">{{ f }}</code>
+            <span class="fields__label">消费字段</span>
+            <span class="fields__chips">
+              <code v-for="f in c.consumedFields" :key="f">{{ f }}</code>
+            </span>
           </div>
         </li>
       </ul>
@@ -56,7 +59,10 @@
             <span class="contract-state" :class="item.contractStatus">{{ item.contractStatus }}</span>
           </div>
           <div class="fields" v-if="interactionFields(item).length">
-            投递字段：<code v-for="field in interactionFields(item)" :key="field">{{ field }}</code>
+            <span class="fields__label">投递字段</span>
+            <span class="fields__chips">
+              <code v-for="field in interactionFields(item)" :key="field">{{ field }}</code>
+            </span>
           </div>
         </li>
       </ul>
@@ -130,26 +136,36 @@ const recoveryLabel = (t: string) => {
 </script>
 
 <style scoped>
-.acg-provenance { display: flex; flex-direction: column; }
-.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm); }
-.head-left { display: flex; align-items: center; gap: 6px; }
+.acg-provenance { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: var(--space-sm); }
+.head-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .head-icon { font-size: 15px; color: var(--primary-color); }
-.panel-head h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.export-actions, .tabs { display: flex; gap: 4px; }
+.panel-head h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-primary); text-wrap: pretty; }
+.export-actions { display: flex; flex: 0 0 auto; gap: 4px; }
 .export-actions button {
-  display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px;
+  min-height: 30px; display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px;
   border: 1px solid var(--border-light); border-radius: 6px;
-  background: transparent; color: var(--text-secondary); font-size: 10px; cursor: pointer;
+  background: var(--surface-solid); color: var(--text-secondary); font-size: 10px; cursor: pointer;
+  transition: border-color .18s ease, color .18s ease, background-color .18s ease;
 }
-.export-actions button:hover { color: var(--primary-color); border-color: var(--primary-color); }
-.tabs { margin-bottom: var(--space-sm); flex-wrap: wrap; }
+.export-actions button:hover { color: var(--primary-color); border-color: var(--primary-line); background: var(--primary-fade); }
+.tabs {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px;
+  margin-bottom: var(--space-sm); padding: 3px;
+  border: 1px solid var(--border-light); border-radius: 8px; background: var(--bg-input);
+}
 .tabs button {
-  padding: 4px 10px; font-size: 12px; border: 1px solid var(--border-light);
-  background: var(--bg-input); color: var(--text-secondary); border-radius: 6px; cursor: pointer;
+  min-width: 0; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
 }
-.tabs button.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.tabs button:hover:not(.active) { color: var(--text-primary); background: var(--surface-solid); }
+.tabs button.active { background: var(--primary-color); color: var(--on-primary); box-shadow: var(--shadow-sm); }
 
-.tab-body { flex: 1 1 320px; min-height: 320px; overflow-y: auto; }
+.tab-body {
+  flex: 1 1 320px; min-width: 0; min-height: 320px;
+  overflow-x: hidden; overflow-y: auto; padding-right: 3px; scrollbar-gutter: stable;
+}
 .empty {
   min-height: 100%;
   display: flex;
@@ -161,15 +177,38 @@ const recoveryLabel = (t: string) => {
   font-size: 13px;
 }
 
-.lineage-list, .interaction-list, .recovery-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
-.lineage-item, .interaction-item { padding: var(--space-sm); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-panel); }
-.flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.node-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.lineage-list, .interaction-list, .recovery-list {
+  min-width: 0; list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--space-sm);
+}
+.lineage-item, .interaction-item {
+  box-sizing: border-box; width: 100%; min-width: 0; padding: 11px 12px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-panel) 76%, var(--bg-card));
+  transition: border-color .18s ease, background-color .18s ease;
+}
+.lineage-item:hover, .interaction-item:hover { border-color: var(--border-hover); background: var(--bg-panel); }
+.flow { min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.node-tag {
+  min-width: 0; max-width: 100%; display: inline-flex; align-items: center;
+  padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 650;
+  line-height: 1.35; overflow-wrap: anywhere; white-space: normal;
+}
 .node-tag.producer { background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border-light); }
 .node-tag.consumer { background: var(--primary-fade); color: var(--primary-color); }
-.arrow { color: var(--text-disabled); font-size: 13px; }
-.fields { margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
-.fields code { background: var(--bg-input); padding: 1px 5px; border-radius: 4px; margin-right: 4px; }
+.arrow { flex: 0 0 auto; color: var(--text-disabled); font-size: 13px; }
+.fields {
+  min-width: 0; display: grid; gap: 5px; margin-top: 9px; padding-top: 8px;
+  border-top: 1px solid var(--border-light); color: var(--text-secondary);
+}
+.fields__label { font-size: 10px; font-weight: 650; color: var(--text-muted); }
+.fields__chips { min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.fields code {
+  min-width: 0; max-width: 100%; display: inline-flex; padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--border-light) 72%, transparent);
+  border-radius: 5px; background: var(--bg-input); color: var(--text-secondary);
+  font-size: 10px; line-height: 1.25; overflow-wrap: anywhere; white-space: normal;
+}
 .interaction-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
 .contract-state { font-weight: 700; color: var(--success); }
 .contract-state.invalid { color: var(--danger); }

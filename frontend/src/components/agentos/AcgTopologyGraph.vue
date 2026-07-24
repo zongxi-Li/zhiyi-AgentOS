@@ -140,6 +140,11 @@ let edgesData: DataSet<any> | null = null
 let graphStructureKey = ''
 let stabilizationTimer: number | undefined
 let themeObserver: MutationObserver | null = null
+let layoutFinalized = false
+
+const ENDPOINT_MIN_GAP = 190
+const ENDPOINT_MAX_GAP = 280
+const SAFE_VIEW_SCALE = 0.86
 
 const EDGE_TYPES: Array<{ value: AcgEdge['edgeType']; label: string }> = [
   { value: 'dependency', label: '依赖' },
@@ -252,6 +257,14 @@ const nodeTypeLabel = (nodeType: AcgNode['nodeType']) => ({
   control: '控制'
 }[nodeType] || nodeType)
 
+const endpointRole = (node: AcgNode) => {
+  if (node.nodeType !== 'control') return ''
+  const controlType = String(node.controlType || '').toLowerCase()
+  if (controlType === 'start' || node.nodeId === 'ctrl_start') return 'start'
+  if (controlType === 'end' || node.nodeId === 'ctrl_end') return 'end'
+  return ''
+}
+
 const cssColor = (name: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 
@@ -296,9 +309,9 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<str
     const style = NODE_STYLE[node.nodeType] || NODE_STYLE.step
     const status = states.get(node.nodeId) || (completed.has(node.nodeId) ? 'completed' : '')
     const isDone = status === 'completed'
-    const controlType = String(node.controlType || '').toLowerCase()
-    const isStart = node.nodeType === 'control' && (controlType === 'start' || node.nodeId === 'ctrl_start')
-    const isEnd = node.nodeType === 'control' && (controlType === 'end' || node.nodeId === 'ctrl_end')
+    const role = endpointRole(node)
+    const isStart = role === 'start'
+    const isEnd = role === 'end'
     const endpointColor = isStart ? done : isEnd ? info : ''
     const statusBorder = endpointColor || (isDone
       ? done
@@ -342,6 +355,7 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<str
       },
       mass: isEndpoint ? 5 : isStep ? 3 : 1,
       margin: isEndpoint ? 12 : isStep ? 10 : 6,
+      fixed: isEndpoint ? { x: true, y: true } : false,
       ...(isStart ? { x: 0, y: -440 } : isEnd ? { x: 0, y: 440 } : {})
     }
   })
@@ -414,6 +428,60 @@ const stopPhysics = () => {
   network?.setOptions({ physics: { enabled: false } } as any)
 }
 
+const placeEndpointsSafely = () => {
+  const blueprint = visibleBlueprint.value
+  if (!network || !blueprint) return
+
+  const startNode = blueprint.nodes.find(node => endpointRole(node) === 'start')
+  const endNode = blueprint.nodes.find(node => endpointRole(node) === 'end')
+  if (!startNode && !endNode) return
+
+  const contentNodes = blueprint.nodes.filter(node => !endpointRole(node))
+  const positions = network.getPositions(contentNodes.map(node => node.nodeId))
+  const contentPositions = Object.values(positions).filter(position =>
+    Number.isFinite(position.x) && Number.isFinite(position.y)
+  )
+
+  if (!contentPositions.length) {
+    if (startNode) network.moveNode(startNode.nodeId, 0, -ENDPOINT_MIN_GAP)
+    if (endNode) network.moveNode(endNode.nodeId, 0, ENDPOINT_MIN_GAP)
+    return
+  }
+
+  const xValues = contentPositions.map(position => position.x)
+  const yValues = contentPositions.map(position => position.y)
+  const minX = Math.min(...xValues)
+  const maxX = Math.max(...xValues)
+  const minY = Math.min(...yValues)
+  const maxY = Math.max(...yValues)
+  const centerX = (minX + maxX) / 2
+  const contentHeight = Math.max(1, maxY - minY)
+  const safeGap = Math.min(ENDPOINT_MAX_GAP, Math.max(ENDPOINT_MIN_GAP, contentHeight * 0.18))
+
+  if (startNode) network.moveNode(startNode.nodeId, centerX, minY - safeGap)
+  if (endNode) network.moveNode(endNode.nodeId, centerX, maxY + safeGap)
+}
+
+const fitWithSafePadding = (animation = true) => {
+  if (!network) return
+  network.fit({ animation: false })
+  const fittedScale = network.getScale()
+  const position = network.getViewPosition()
+  network.moveTo({
+    position,
+    scale: fittedScale * SAFE_VIEW_SCALE,
+    animation: animation ? { duration: 360, easingFunction: 'easeInOutQuad' } : false
+  })
+}
+
+const finalizeGraphLayout = (animation = true) => {
+  if (layoutFinalized) return
+  layoutFinalized = true
+  stopPhysics()
+  placeEndpointsSafely()
+  fitWithSafePadding(animation)
+}
+
 const render = async () => {
   await nextTick()
   const blueprint = visibleBlueprint.value
@@ -444,6 +512,7 @@ const render = async () => {
   nodesData = new DataSet(nodeRows)
   edgesData = new DataSet(edgeRows)
   graphStructureKey = nextStructureKey
+  layoutFinalized = false
   const data = { nodes: nodesData, edges: edgesData }
   network = new Network(graphRef.value, data as any, options as any)
   network.on('selectNode', params => {
@@ -459,16 +528,16 @@ const render = async () => {
   // physics 关闭后 dragNodes 仍有效：拖动只移动被拖的单个节点，
   // 其余节点保持不动，不会触发整图重新布局/旋转。
   network.once('stabilizationIterationsDone', () => {
-    stopPhysics()
-    network?.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } })
+    finalizeGraphLayout(true)
   })
-  network.once('stabilized', stopPhysics)
+  network.once('stabilized', () => finalizeGraphLayout(true))
   // Tiny or sparse graphs may not emit the iteration event consistently.
-  stabilizationTimer = window.setTimeout(stopPhysics, 2400)
+  stabilizationTimer = window.setTimeout(() => finalizeGraphLayout(false), 2400)
 }
 
 const resetView = (animation = true) => {
-  network?.fit({ animation: animation ? { duration: 320, easingFunction: 'easeInOutQuad' } : false })
+  placeEndpointsSafely()
+  fitWithSafePadding(animation)
 }
 
 const syncFullscreenState = () => {

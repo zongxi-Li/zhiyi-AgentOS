@@ -534,7 +534,8 @@ const formatRelativeTime = (value?: string | null) => value ? new Date(value).to
 </script>
 
 <style scoped>
-.agentos-console { min-height: 100%; color: var(--text-primary); }
+.agentos-console { height: 100%; min-height: 0; color: var(--text-primary); overflow: hidden; }
+.console-header { flex: 0 0 auto; }
 .console-title { display: flex; align-items: flex-start; gap: 14px; }
 .console-refresh,
 .run-toolbar button,
@@ -545,10 +546,14 @@ const formatRelativeTime = (value?: string | null) => value ? new Date(value).to
 }
 .console-refresh:hover:not(:disabled), .run-toolbar button:hover:not(:disabled), .pagination button:hover:not(:disabled) { border-color: var(--primary-line); color: var(--primary-color); }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
-.console-layout { display: grid; grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) minmax(300px, 360px); gap: 14px; height: calc(100dvh - 170px); min-height: 620px; overflow: hidden; }
-.run-sidebar, .console-main, .console-side { min-width: 0; min-height: 0; }
+.console-layout { display: grid; grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) minmax(300px, 360px); align-items: stretch; gap: 14px; flex: 1 1 auto; height: auto; min-height: 0; overflow: hidden; }
+.run-sidebar, .console-main, .console-side { min-width: 0; min-height: 0; height: 100%; }
 .run-sidebar, .console-main, .console-side { overflow-y: auto; scrollbar-gutter: stable; }
 .console-main, .console-side { display: flex; flex-direction: column; gap: 12px; }
+.console-main > .selection-empty:last-child,
+.console-main > .run-facts:last-child,
+.console-main > :deep(.trace-event-timeline:last-child),
+.console-side > .acg-summary:last-child { flex: 1 1 auto; min-height: 0; }
 .filter-panel { display: grid; gap: 10px; }
 .filter-title, .run-list-head, .run-group > header, .run-item__top, .run-item__metrics, .run-toolbar, .run-toolbar nav, .acg-summary header, .acg-summary__facts, .pagination { display: flex; align-items: center; }
 .filter-title { gap: 7px; font-size: 14px; font-weight: 700; }
@@ -591,11 +596,11 @@ select:focus, input:focus { border-color: var(--primary-line); box-shadow: 0 0 0
 .run-toolbar > div span { color: var(--text-secondary); font-size: 11px; }
 .run-toolbar code { overflow-wrap: anywhere; font-size: 12px; }
 .run-toolbar nav { justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
-.run-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; }
+.run-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; grid-auto-rows: max-content; gap: 1px; overflow: hidden; }
 .run-facts > div { min-width: 0; padding: 11px 12px; background: var(--bg-card); }
 .run-facts dt { color: var(--text-secondary); font-size: 11px; }
 .run-facts dd { margin: 4px 0 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 650; }
-.acg-summary { display: grid; gap: 10px; }
+.acg-summary { display: grid; align-content: start; gap: 10px; }
 .acg-summary header { justify-content: space-between; gap: 8px; }
 .acg-summary header span, .acg-summary p { color: var(--text-secondary); font-size: 12px; }
 .acg-summary p { margin: 0; line-height: 1.55; }
@@ -603,6 +608,6 @@ select:focus, input:focus { border-color: var(--primary-line); box-shadow: 0 0 0
 .acg-summary__facts span { padding: 4px 7px; border-radius: 5px; background: var(--bg-input); font-size: 11px; }
 @keyframes list-progress { 0% { transform: translateX(-110%); } 100% { transform: translateX(270%); } }
 @media (prefers-reduced-motion: reduce) { .run-mini-progress.indeterminate > span { animation: none; transform: translateX(80%); } }
-@media (max-width: 1180px) { .console-layout { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); height: auto; overflow: visible; } .console-side { grid-column: 2; } .run-sidebar { max-height: 720px; } }
+@media (max-width: 1180px) { .agentos-console { height: auto; min-height: 100%; overflow: visible; } .console-layout { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); flex: none; height: auto; overflow: visible; } .run-sidebar, .console-main, .console-side { height: auto; } .console-side { grid-column: 2; } .run-sidebar { max-height: 720px; } }
 @media (max-width: 760px) { .agentos-console { padding: 12px; } .console-header { align-items: flex-start; flex-direction: column; } .console-layout { grid-template-columns: 1fr; } .console-side { grid-column: 1; } .run-sidebar { max-height: none; } .run-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .run-toolbar { align-items: flex-start; flex-direction: column; } .run-toolbar nav { justify-content: flex-start; } }
 </style>

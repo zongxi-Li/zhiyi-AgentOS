@@ -138,6 +138,9 @@ const ariaValueText = computed(() => {
 <style scoped>
 .workflow-progress {
   --progress-state: var(--primary-color);
+  --progress-gradient-start: color-mix(in srgb, var(--bg-card) 76%, var(--progress-state));
+  --progress-gradient-middle: color-mix(in srgb, var(--bg-card) 48%, var(--progress-state));
+  --progress-gradient-end: color-mix(in srgb, var(--bg-card) 18%, var(--progress-state));
   padding: 14px 16px;
   overflow: hidden;
   border: 1px solid var(--border-light);
@@ -196,24 +199,38 @@ const ariaValueText = computed(() => {
 
 .workflow-progress__track {
   position: relative;
-  height: 7px;
+  height: 8px;
   overflow: hidden;
-  border-radius: 4px;
-  background: var(--bg-input);
+  border: 1px solid color-mix(in srgb, var(--progress-state) 28%, var(--border-light));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-input) 92%, var(--progress-state));
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
 
 .workflow-progress__fill {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--progress-state);
+  background: linear-gradient(
+    90deg,
+    var(--progress-gradient-start) 0%,
+    var(--progress-gradient-middle) 48%,
+    var(--progress-gradient-end) 100%
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--progress-state) 28%, transparent);
   transition: width 240ms ease;
 }
 
 .workflow-progress__track.is-indeterminate .workflow-progress__fill {
   position: absolute;
   width: 34%;
-  background: linear-gradient(90deg, transparent, var(--progress-state), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--progress-gradient-middle),
+    var(--progress-gradient-end),
+    transparent
+  );
   animation: progress-flow 1.4s ease-in-out infinite;
 }
 
@@ -244,7 +261,7 @@ const ariaValueText = computed(() => {
   .workflow-progress__track.is-indeterminate .workflow-progress__fill {
     left: 33%;
     animation: none;
-    background: linear-gradient(90deg, transparent, var(--progress-state), transparent);
+    background: linear-gradient(90deg, transparent, var(--progress-gradient-middle), var(--progress-gradient-end), transparent);
   }
 }
 </style>
