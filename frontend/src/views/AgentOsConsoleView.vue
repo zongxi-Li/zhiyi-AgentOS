@@ -1,12 +1,10 @@
 <template>
   <main class="agentos-console ui-shell">
-    <header class="console-header ui-hero">
+    <header class="console-header ui-hero ui-hero--compact">
       <div class="console-title">
         <span class="ui-icon-badge"><el-icon><Monitor /></el-icon></span>
         <div>
-          <span class="ui-hero__eyebrow">Zhiyi AgentOS</span>
-          <h1 class="ui-hero__title">全局运行控制面</h1>
-          <p class="ui-hero__subtitle">观察后台 Workflow、处理人工审核，并在 Chat 与 ACG 之间恢复上下文。</p>
+          <h3 class="ui-hero__title">全局运行控制面</h3>
         </div>
       </div>
       <button class="console-refresh" type="button" :disabled="listLoading" @click="refreshAll">
@@ -541,7 +539,7 @@ const formatRelativeTime = (value?: string | null) => value ? new Date(value).to
 <style scoped>
 .agentos-console { height: 100%; min-height: 0; color: var(--text-primary); overflow: hidden; }
 .console-header { flex: 0 0 auto; }
-.console-title { display: flex; align-items: flex-start; gap: 14px; }
+.console-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .console-refresh,
 .run-toolbar button,
 .pagination button {

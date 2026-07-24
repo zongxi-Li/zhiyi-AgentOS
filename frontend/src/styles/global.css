@@ -654,6 +654,30 @@ html[data-color-scheme='codex-dark'] .el-overlay {
   backdrop-filter: var(--backdrop-blur);
 }
 
+.ui-hero--compact {
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 7px 12px;
+}
+
+.ui-hero--compact .ui-icon-badge {
+  width: 28px;
+  height: 28px;
+}
+
+.ui-hero--compact .ui-hero__title {
+  margin-top: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.ui-hero--compact .ui-hero__subtitle {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .ui-hero__eyebrow {
   display: inline-flex;
   align-items: center;

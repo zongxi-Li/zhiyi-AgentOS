@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AcgVisualizationView from './AcgVisualizationView.vue'
+import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun } from '@/services/api/workflow'
 
 vi.mock('@/services/api/workflow', async (importOriginal) => {
@@ -67,10 +68,12 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
         'el-button': buttonStub,
         'el-input': true,
         'el-icon': true,
-        'el-tag': true,
+        'el-tag': { template: '<span class="el-tag-stub"><slot /></span>' },
         'el-radio-group': true,
         'el-radio-button': true,
         'el-checkbox': true,
+        'el-checkbox-group': true,
+        'el-checkbox-button': true,
         'el-select': true,
         'el-option': true
       }
@@ -81,7 +84,7 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
 }
 
 const clickStart = async (wrapper: VueWrapper) => {
-  const button = wrapper.findAll('button').find((item) => item.text().includes('启动 ACG 引擎'))
+  const button = wrapper.findAll('button').find((item) => item.text().includes('启动 ACG'))
   if (!button) throw new Error('start button not found')
   await button.trigger('click')
   await flushPromises()
@@ -119,6 +122,27 @@ describe('AcgVisualizationView async progress loop', () => {
     expect(workflowApi.getWorkflowProgress).toHaveBeenCalledWith('run_1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(router.currentRoute.value.query.runId).toBe('run_1')
     expect(workflowApi.getAcgView).not.toHaveBeenCalled()
+    expect(wrapper.find('.input-fields').attributes('style') || '').not.toContain('display: none')
+    await vi.advanceTimersByTimeAsync(1400)
+    expect(wrapper.find('.input-summary').exists()).toBe(true)
+    expect(wrapper.find('.input-fields').attributes('style')).toContain('display: none')
+    expect(wrapper.findComponent(WorkflowProgressBar).exists()).toBe(true)
+    expect(wrapper.find('.ctrl-options').exists()).toBe(true)
+    expect(wrapper.findAll('.input-panel-toggle')).toHaveLength(1)
+    expect(wrapper.find('.input-panel-toggle').attributes('aria-expanded')).toBe('false')
+    await wrapper.find('.input-panel-toggle').trigger('click')
+    expect(wrapper.find('.input-fields').attributes('style')).not.toContain('display: none')
+    expect(wrapper.find('.input-panel-toggle').attributes('aria-expanded')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('keeps the compact header context visible before a Run starts', async () => {
+    const { wrapper } = await mountPage()
+
+    expect(wrapper.find('.hero-right').text()).toContain('RUN--')
+    expect(wrapper.find('.hero-right').text()).toContain('准备中')
+    expect(wrapper.find('.hero-right').text()).toContain('engine: acg')
+    expect(wrapper.findAll('.hero-right button').every(button => button.attributes('disabled') !== undefined)).toBe(true)
     wrapper.unmount()
   })
 
@@ -128,6 +152,8 @@ describe('AcgVisualizationView async progress loop', () => {
     expect(workflowApi.startWorkflowAsync).not.toHaveBeenCalled()
     expect(workflowApi.getWorkflowProgress).toHaveBeenCalledWith('run_1', expect.any(Object))
     expect(workflowApi.getAcgView).not.toHaveBeenCalled()
+    expect(wrapper.find('.input-summary').exists()).toBe(true)
+    expect(wrapper.find('.ctrl-options').exists()).toBe(true)
     wrapper.unmount()
   })
 

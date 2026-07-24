@@ -1,24 +1,23 @@
 <!-- ACG 动态群体智能引擎页面 — 输入合同文本和任务目标，引擎进行解析、分类、风险分析、证据和建议生成 -->
 <template>
-  <div class="acg-view ui-shell">
-    <header class="ui-hero">
+  <div class="acg-view ui-shell" :class="{ 'has-progress': isSubmitting || progressTracker.progress.value || progressTracker.syncError.value }">
+    <header class="ui-hero ui-hero--compact">
       <div class="hero-left">
         <div class="ui-icon-badge"><el-icon><Cpu /></el-icon></div>
         <div>
-          <h1>ACG 动态群体智能引擎</h1>
-          <p class="hero-sub">Core Native 自研 · 就绪集并行调度 · 低熵通信 · 故障自愈</p>
+          <h3>ACG 动态群体智能引擎</h3>
         </div>
       </div>
       <div class="hero-right">
-        <div v-if="activeRunId" class="run-context">
-          <span class="run-id" :title="activeRunId">
+        <div class="run-context">
+          <span class="run-id" :title="activeRunId || '暂无运行任务'">
             <span>RUN</span>
-            <code>{{ activeRunId }}</code>
+            <code>{{ activeRunId || '--' }}</code>
           </span>
-          <el-button circle size="small" title="复制 Run ID" aria-label="复制 Run ID" @click="copyRunId">
+          <el-button circle size="small" title="复制 Run ID" aria-label="复制 Run ID" :disabled="!activeRunId" @click="copyRunId">
             <el-icon><CopyDocument /></el-icon>
           </el-button>
-          <el-button size="small" title="在 AgentOS 运维页查看" @click="openInConsole">
+          <el-button size="small" title="在 AgentOS 运维页查看" :disabled="!activeRunId" @click="openInConsole">
             <el-icon><Monitor /></el-icon>
             运维查看
           </el-button>
@@ -27,101 +26,86 @@
             返回 Chat
           </el-button>
         </div>
-        <el-tag v-if="activeRunId" :type="statusTagType" effect="dark">{{ statusLabel }}</el-tag>
-        <el-tag v-if="acgView" type="info" effect="plain">engine: {{ acgView.engine }}</el-tag>
+        <el-tag :type="statusTagType" :effect="activeRunId ? 'dark' : 'plain'">{{ statusLabel }}</el-tag>
+        <el-tag type="info" effect="plain">engine: {{ acgView?.engine || 'acg' }}</el-tag>
       </div>
     </header>
 
     <!-- 控制台 -->
-    <section class="ui-surface ui-surface--pad control-bar">
-      <div class="ctrl-row">
-        <label class="ctrl-label">合同文本</label>
-        <el-input
-          class="contract-textarea"
-          v-model="contractText"
-          type="textarea"
-          :autosize="{ minRows: 5, maxRows: 12 }"
-          placeholder="输入合同文本，引擎将解析→分类→风险→证据→建议→报告"
-        />
-        <div
-          class="contract-upload"
-          :class="{ dragging: uploadDragging, populated: selectedContractFile, loading: loading.upload }"
-          @dragenter.prevent="uploadDragging = true"
-          @dragover.prevent="uploadDragging = true"
-          @dragleave.prevent="uploadDragging = false"
-          @drop.prevent="handleContractDrop"
-        >
-          <input
-            ref="contractFileInput"
-            class="contract-file-input"
-            type="file"
-            accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-            @change="handleContractFileSelection"
-          />
-          <span class="contract-upload__icon" aria-hidden="true">
-            <el-icon><Document v-if="selectedContractFile" /><UploadFilled v-else /></el-icon>
-          </span>
-          <span class="contract-upload__copy">
-            <strong>{{ selectedContractFile?.name || (loading.upload ? '正在解析合同文件' : '上传合同文件') }}</strong>
-            <small v-if="selectedContractFile">
-              {{ formatFileSize(selectedContractFile.size) }} · 已提取 {{ selectedContractFile.textLength.toLocaleString('zh-CN') }} 字
-            </small>
-            <small v-else>拖放到此处，或选择 PDF、DOCX、TXT、MD，最大 10MB</small>
-          </span>
-          <span class="contract-upload__actions">
-            <el-button size="small" :loading="loading.upload" @click="openContractFilePicker">
-              <el-icon><UploadFilled /></el-icon>
-              {{ selectedContractFile ? '替换文件' : '选择文件' }}
-            </el-button>
-            <el-button
-              v-if="selectedContractFile"
-              circle
-              size="small"
-              title="移除合同文件"
-              aria-label="移除合同文件"
-              @click="clearContractFile"
-            >
-              <el-icon><Delete /></el-icon>
-            </el-button>
-          </span>
+    <section class="ui-surface ui-surface--pad control-bar" :class="{ collapsed: !inputPanelExpanded }">
+      <button
+        class="input-panel-toggle"
+        type="button"
+        :title="inputPanelExpanded ? '收起合同文本与任务目标' : '展开合同文本与任务目标'"
+        :aria-label="inputPanelExpanded ? '收起合同文本与任务目标' : '展开合同文本与任务目标'"
+        :aria-expanded="inputPanelExpanded"
+        @click="inputPanelExpanded = !inputPanelExpanded"
+      >
+        <el-icon><ArrowUp v-if="inputPanelExpanded" /><ArrowDown v-else /></el-icon>
+      </button>
+      <div v-if="!inputPanelExpanded" class="input-summary">
+        <span class="input-summary__copy">
+          <el-icon><Document /></el-icon>
+          <strong>软件开发合同审查</strong>
+          <small>合同文本 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜思考{{ thinkingModeSummary }}</small>
+        </span>
+      </div>
+      <div v-show="inputPanelExpanded" class="input-fields">
+        <div class="input-pane contract-pane">
+          <span class="pane-heading">任务资料</span>
+          <div class="ctrl-row">
+            <label class="ctrl-label">合同文本</label>
+            <el-input class="contract-textarea" v-model="contractText" type="textarea" :autosize="{ minRows: 8, maxRows: 16 }" placeholder="输入合同文本，引擎将解析→分类→风险→证据→建议→报告" />
+          </div>
+          <div class="contract-upload" :class="{ dragging: uploadDragging, populated: selectedContractFile, loading: loading.upload }" @dragenter.prevent="uploadDragging = true" @dragover.prevent="uploadDragging = true" @dragleave.prevent="uploadDragging = false" @drop.prevent="handleContractDrop">
+            <input ref="contractFileInput" class="contract-file-input" type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" @change="handleContractFileSelection" />
+            <span class="contract-upload__icon" aria-hidden="true"><el-icon><Document v-if="selectedContractFile" /><UploadFilled v-else /></el-icon></span>
+            <span class="contract-upload__copy">
+              <strong>{{ selectedContractFile?.name || (loading.upload ? '正在解析合同文件' : '上传合同文件') }}</strong>
+              <small v-if="selectedContractFile">{{ formatFileSize(selectedContractFile.size) }} · 已提取 {{ selectedContractFile.textLength.toLocaleString('zh-CN') }} 字</small>
+              <small v-else>拖放到此处，或选择 PDF、DOCX、TXT、MD，最大 10MB</small>
+            </span>
+            <span class="contract-upload__actions">
+              <el-button size="small" :loading="loading.upload" @click="openContractFilePicker"><el-icon><UploadFilled /></el-icon>{{ selectedContractFile ? '替换文件' : '选择文件' }}</el-button>
+              <el-button v-if="selectedContractFile" circle size="small" title="移除合同文件" aria-label="移除合同文件" @click="clearContractFile"><el-icon><Delete /></el-icon></el-button>
+            </span>
+          </div>
+        </div>
+        <div class="input-pane definition-pane">
+          <span class="pane-heading">任务定义 </span>
+          <div class="ctrl-row">
+            <label class="ctrl-label">任务目标</label>
+            <el-input class="intent-textarea" v-model="userIntent" type="textarea" :autosize="{ minRows: 8, maxRows: 16 }" placeholder="描述 ACG 需要完成的审查目标" />
+          </div>
         </div>
       </div>
-      <div class="ctrl-row">
-        <label class="ctrl-label">任务目标</label>
-        <el-input
-          class="intent-textarea"
-          v-model="userIntent"
-          type="textarea"
-          :autosize="{ minRows: 5, maxRows: 14 }"
-          placeholder="描述你希望 ACG 生成的任务图，例如：重点审查付款、验收、知识产权，并输出依据和修改建议"
-        />
+      <div v-if="advancedSettingsExpanded" class="advanced-settings">
+        <label class="advanced-item"><span>故障注入</span><el-checkbox v-model="faultEnabled">启用故障演示与自愈</el-checkbox></label>
+        <label class="advanced-item"><span>调试开关</span><el-checkbox v-model="debugTraceEnabled">记录详细调试轨迹</el-checkbox></label>
+        <label class="advanced-item advanced-item--wide">
+          <span>低熵通信实验项</span>
+          <el-checkbox-group v-model="lowEntropyOptions" class="advanced-checks">
+            <el-checkbox label="trace_provenance">记录通信血缘</el-checkbox>
+            <el-checkbox label="strict_contracts">严格字段契约</el-checkbox>
+          </el-checkbox-group>
+        </label>
+        <label class="advanced-item">
+          <span>特殊策略项</span>
+          <el-select v-model="specialStrategy" size="small">
+            <el-option label="标准策略" value="standard" /><el-option label="证据优先" value="evidence_first" />
+            <el-option label="风险并行" value="risk_parallel" /><el-option label="保守复核" value="conservative_review" />
+          </el-select>
+        </label>
+        <template v-if="faultEnabled">
+          <label class="advanced-item"><span>故障节点</span><el-select v-model="faultStep" size="small"><el-option v-for="s in faultStepOptions" :key="s" :label="s" :value="s" /></el-select></label>
+          <label class="advanced-item"><span>故障类型</span><el-select v-model="faultType" size="small"><el-option label="模型超时" value="timeout" /><el-option label="Agent 崩溃" value="crash" /><el-option label="证据为空" value="empty_evidence" /></el-select></label>
+        </template>
       </div>
-      <div class="ctrl-row ctrl-options">
-        <div class="planning-mode">
-          <span class="ctrl-label">规划模式</span>
-          <el-radio-group v-model="planningMode" size="small">
-            <el-radio-button label="template">模板升格</el-radio-button>
-            <el-radio-button label="planner">智能规划</el-radio-button>
-            <el-radio-button label="dynamic">强制动态</el-radio-button>
-          </el-radio-group>
-          <el-tag size="small" type="success" effect="plain">{{ planningModeHint }}</el-tag>
-          <span class="ctrl-label">思考强度</span>
-          <el-radio-group v-model="thinkingMode" size="small">
-            <el-radio-button label="disabled">快速</el-radio-button>
-            <el-radio-button label="standard">标准</el-radio-button>
-            <el-radio-button label="deep">深度</el-radio-button>
-          </el-radio-group>
-        </div>
-        <el-checkbox v-model="faultEnabled">注入故障演示自愈</el-checkbox>
-        <el-select v-if="faultEnabled" v-model="faultStep" size="small" style="width: 180px">
-          <el-option v-for="s in faultStepOptions" :key="s" :label="s" :value="s" />
-        </el-select>
-        <el-select v-if="faultEnabled" v-model="faultType" size="small" style="width: 150px">
-          <el-option label="模型超时" value="timeout" />
-          <el-option label="Agent 崩溃" value="crash" />
-          <el-option label="证据为空" value="empty_evidence" />
-        </el-select>
-        <el-button type="primary" :loading="isSubmitting" @click="startRun">启动 ACG 引擎</el-button>
+      <div class="ctrl-options">
+        <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">编排模式</span><el-radio-group v-model="planningMode" size="small"><el-radio-button label="template">模板执行</el-radio-button><el-radio-button label="planner">智能规划</el-radio-button><el-radio-button label="dynamic">动态编排</el-radio-button></el-radio-group></div>
+        <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">思考强度</span><el-radio-group v-model="thinkingMode" size="small"><el-radio-button label="disabled">关闭</el-radio-button><el-radio-button label="standard">标准</el-radio-button><el-radio-button label="deep">深度</el-radio-button></el-radio-group></div>
+        <button v-show="inputPanelExpanded" class="advanced-toggle" type="button" :aria-expanded="advancedSettingsExpanded" @click="advancedSettingsExpanded = !advancedSettingsExpanded"><span>高级设置</span><el-icon><ArrowUp v-if="advancedSettingsExpanded" /><ArrowDown v-else /></el-icon></button>
+        <el-button :type="mainAction.type" :loading="mainAction.loading" :disabled="mainAction.disabled" @click="handleMainAction">{{ mainAction.label }}</el-button>
       </div>
     </section>
 
@@ -185,7 +169,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch, type DeepReadonly } from 'vue'
 import axios from 'axios'
-import { ChatDotRound, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, ChatDotRound, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -233,9 +217,13 @@ const userIntent = ref(`请以 ACG 多智能体协作方式审查这份软件开
 const planningMode = ref<'template' | 'planner' | 'dynamic'>('dynamic')
 // 快速模式是可验收的默认路径；深度推理由用户显式选择，不能和进度展示绑定。
 const thinkingMode = ref<ThinkingMode>('disabled')
+const advancedSettingsExpanded = ref(false)
 const faultEnabled = ref(false)
 const faultStep = ref('risk_detect')
 const faultType = ref<'timeout' | 'crash' | 'empty_evidence'>('timeout')
+const debugTraceEnabled = ref(false)
+const lowEntropyOptions = ref(['trace_provenance', 'strict_contracts'])
+const specialStrategy = ref<'standard' | 'evidence_first' | 'risk_parallel' | 'conservative_review'>('standard')
 const faultStepOptions = computed(() =>
   planningMode.value === 'dynamic' ? DYNAMIC_FAULT_STEPS : TEMPLATE_FAULT_STEPS
 )
@@ -254,6 +242,7 @@ const route = useRoute()
 const router = useRouter()
 const workflowRunsStore = useWorkflowRunsStore()
 const activeRunId = ref('')
+const inputPanelExpanded = ref(true)
 const loadedRunId = ref('')
 const contractFileInput = ref<HTMLInputElement | null>(null)
 const uploadDragging = ref(false)
@@ -362,12 +351,30 @@ const statusTagType = computed(() => {
   if (s === 'waiting_review' || phase === 'review' || phase === 'recovery') return 'warning'
   return 'info'
 })
-const planningModeHint = computed(() => {
-  if (planningMode.value === 'dynamic') return '按输入意图生成差异化 ACG'
-  if (planningMode.value === 'planner') return '命中模板则复用，未命中自动生成'
-  return '线性工作流升格为 ACG'
+const effectiveStatus = computed(() => progressTracker.progress.value?.status || acgView.value?.status || '')
+const effectivePhase = computed(() => progressTracker.progress.value?.phase || '')
+const planningModeSummary = computed(() => ({ template: '模板执行', planner: '智能规划', dynamic: '动态编排' })[planningMode.value])
+const thinkingModeSummary = computed(() => ({ disabled: '关闭', standard: '标准', deep: '深度' })[thinkingMode.value])
+const mainAction = computed<{
+  action: 'start' | 'planning' | 'view' | 'review' | 'rerun' | 'retry'
+  label: string
+  type: 'primary' | 'warning' | 'danger' | 'info'
+  loading: boolean
+  disabled: boolean
+}>(() => {
+  const status = effectiveStatus.value
+  const phase = effectivePhase.value
+  if (isSubmitting.value || (activeRunId.value && ['understanding', 'planning', 'graph_building'].includes(phase))) {
+    return { action: 'planning', label: '正在生成编排', type: 'info', loading: true, disabled: true }
+  }
+  if (!activeRunId.value) return { action: 'start', label: '启动 ACG', type: 'primary', loading: false, disabled: false }
+  if (status === 'waiting_review' || phase === 'review') return { action: 'review', label: '进入人工审核', type: 'warning', loading: false, disabled: false }
+  if (status === 'completed' || phase === 'completed') return { action: 'rerun', label: '基于当前配置重新运行', type: 'primary', loading: false, disabled: false }
+  if (status === 'failed' || phase === 'failed') return { action: 'retry', label: '修改配置并重试', type: 'danger', loading: false, disabled: false }
+  if (status === 'cancelled' || phase === 'cancelled') return { action: 'retry', label: '重新运行', type: 'primary', loading: false, disabled: false }
+  if (status === 'pending' || status === 'planning') return { action: 'planning', label: '正在生成编排', type: 'info', loading: true, disabled: true }
+  return { action: 'view', label: '查看运行', type: 'primary', loading: false, disabled: false }
 })
-
 // 从调度 trace 还原"每轮就绪集批次"，可视化并行调度
 const scheduleBatches = computed(() => {
   const events = acgView.value?.scheduleTrace || []
@@ -444,6 +451,20 @@ let topologyGeneration = 0
 let lastTopologyRefreshAt = 0
 let lastTopologyUpdatedAt: string | null = null
 let submitController: AbortController | null = null
+let inputCollapseTimer: ReturnType<typeof setTimeout> | null = null
+
+const clearInputCollapseTimer = () => {
+  if (inputCollapseTimer !== null) window.clearTimeout(inputCollapseTimer)
+  inputCollapseTimer = null
+}
+
+const scheduleInputCollapse = (delayMs = 1400) => {
+  clearInputCollapseTimer()
+  inputCollapseTimer = window.setTimeout(() => {
+    inputCollapseTimer = null
+    inputPanelExpanded.value = false
+  }, delayMs)
+}
 
 const clearTopologyTimer = () => {
   if (topologyTimer !== null) {
@@ -520,6 +541,13 @@ watch(
   () => progressTracker.progress.value,
   (value, previous) => {
     if (!value) return
+    const stateChanged = value.status !== previous?.status || value.phase !== previous?.phase
+    if (value.status === 'failed' || value.phase === 'failed') {
+      clearInputCollapseTimer()
+      inputPanelExpanded.value = true
+    } else if (stateChanged && (value.status === 'waiting_review' || ['review', 'completed', 'cancelled'].includes(value.phase))) {
+      scheduleInputCollapse(0)
+    }
     if (isWorkflowReviewPending(value, activeRun.value) && !isWorkflowReviewPending(previous, activeRun.value)) {
       clearTopologyTimer()
       void refreshAcgForRun(value.runId, true)
@@ -528,6 +556,10 @@ watch(
     scheduleTopologyRefresh(value)
   }
 )
+
+watch(inputPanelExpanded, value => {
+  if (!value) advancedSettingsExpanded.value = false
+})
 
 watch(
   () => route.query.runId,
@@ -539,6 +571,8 @@ watch(
     clearRunData()
     startError.value = null
     activeRunId.value = runId
+    inputPanelExpanded.value = false
+    advancedSettingsExpanded.value = false
     workflowRunsStore.register({ runId, source: 'restored' })
     void progressTracker.start(runId, { fresh: false })
   },
@@ -564,6 +598,25 @@ const openLinkedChat = () => {
   const conversationId = activeRunReference.value?.conversationId
   if (!conversationId || !activeRunId.value) return
   void router.push({ path: '/chat', query: { workspace: 'agent', contextId: conversationId, runId: activeRunId.value } })
+}
+
+const scrollToSection = (selector: string) => {
+  const target = document.querySelector<HTMLElement>(selector)
+  if (!target) return
+  const top = target.getBoundingClientRect().top + window.scrollY - 16
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
+
+const handleMainAction = () => {
+  if (mainAction.value.action === 'start' || mainAction.value.action === 'rerun' || mainAction.value.action === 'retry') {
+    void startRun()
+    return
+  }
+  if (mainAction.value.action === 'review') {
+    scrollToSection('.workflow-review')
+    return
+  }
+  if (mainAction.value.action === 'view') scrollToSection('.workflow-progress')
 }
 
 const handleAcgReviewed = async (run: WorkflowRun) => {
@@ -623,7 +676,10 @@ const startRun = async () => {
       contractText: contractText.value,
       userIntent: intentText,
       planningMode: planningMode.value,
-      thinkingMode: thinkingMode.value
+      thinkingMode: thinkingMode.value,
+      debugTrace: debugTraceEnabled.value,
+      lowEntropyOptions: [...lowEntropyOptions.value],
+      specialStrategy: specialStrategy.value
     }
     if (planningMode.value !== 'template') input.usePlanner = true
     if (planningMode.value === 'dynamic') input.forceDynamicPlanning = true
@@ -641,6 +697,8 @@ const startRun = async () => {
       clientRequestId
     }, { signal: submitController.signal })
     activeRunId.value = res.run.runId
+    scheduleInputCollapse()
+    advancedSettingsExpanded.value = false
     workflowRunsStore.register({
       runId: res.run.runId,
       taskId: res.task.taskId,
@@ -698,15 +756,19 @@ onBeforeUnmount(() => {
   clearTopologyTimer()
   topologyGeneration += 1
   topologyController?.abort()
+  clearInputCollapseTimer()
 })
 </script>
 
 <style scoped>
-.acg-view { display: flex; flex-direction: column; gap: var(--space-lg); }
-.hero-left { display: flex; align-items: center; gap: var(--space-md); }
-.ui-hero h1 { margin: 0; font-size: 20px; font-weight: 800; color: var(--text-primary); }
-.hero-sub { margin: 2px 0 0; font-size: 12px; color: var(--text-secondary); }
-.hero-right { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.acg-view { display: flex; flex-direction: column; gap: 0; }
+.acg-view > .ui-hero { border-bottom: 0; border-radius: 8px 8px 0 0; }
+.acg-view > .control-bar { border-top: 0; border-radius: 0 0 8px 8px; }
+.acg-view.has-progress > .control-bar { border-bottom: 0; border-radius: 0; box-shadow: none; }
+.acg-view.has-progress > :deep(.workflow-progress) { border-top: 0; border-radius: 0 0 8px 8px; }
+.hero-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ui-hero h3 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; color: var(--text-primary); }
+.hero-right { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
 .run-context { display: flex; align-items: center; gap: 6px; }
 .run-id {
   display: inline-flex; align-items: center; gap: 6px; min-width: 0;
@@ -715,7 +777,29 @@ onBeforeUnmount(() => {
 }
 .run-id code { color: var(--text-primary); font-size: 11px; white-space: nowrap; }
 
-.control-bar { display: flex; flex-direction: column; gap: var(--space-md); }
+.control-bar { position: relative; display: flex; flex-direction: column; gap: var(--space-md); padding-right: 52px; padding-bottom: 10px; }
+.control-bar.collapsed { flex-direction: row; align-items: center; gap: 12px; padding: 9px 52px 9px 14px; }
+.control-bar.collapsed .input-summary { flex: 1 1 auto; }
+.control-bar.collapsed .ctrl-options { flex: 0 0 auto; padding: 0; border: 0; }
+.input-panel-toggle {
+  position: absolute; top: 10px; right: 12px; z-index: 1;
+  width: 28px; height: 28px; display: inline-grid; place-items: center;
+  padding: 0; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--surface-solid); color: var(--text-secondary); cursor: pointer;
+  transition: var(--transition);
+}
+.input-panel-toggle:hover { border-color: var(--primary-line); color: var(--primary-color); background: var(--primary-fade); }
+.input-panel-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-fade); }
+.input-fields { display: grid; grid-template-columns: minmax(0, 13fr) minmax(280px, 7fr); gap: 24px; min-width: 0; }
+.input-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.definition-pane { min-width: 0; }
+.pane-heading { color: var(--text-primary); font-size: 13px; font-weight: 750; }
+.pane-heading small { margin-left: 4px; color: var(--text-disabled); font-size: 10px; font-weight: 600; }
+.input-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.input-summary__copy { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--text-secondary); }
+.input-summary__copy .el-icon { flex: 0 0 auto; color: var(--primary-color); }
+.input-summary__copy strong { flex: 0 0 auto; color: var(--text-primary); font-size: 12px; }
+.input-summary__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .run-error {
   margin: 0;
   padding: 10px 12px;
@@ -727,8 +811,26 @@ onBeforeUnmount(() => {
 }
 .ctrl-row { display: flex; flex-direction: column; gap: 6px; }
 .ctrl-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-.ctrl-options { flex-direction: row; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
-.planning-mode { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ctrl-options { order: 2; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-top: 4px; }
+.primary-config { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.primary-config :deep(.el-radio-button__inner) { border-color: transparent; background: transparent; box-shadow: none; }
+.primary-config :deep(.el-radio-button.is-active .el-radio-button__inner) { border-color: var(--primary-line); background: var(--primary-fade); color: var(--primary-color); }
+.advanced-toggle {
+  min-height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px;
+  border: 1px solid var(--border-light); border-radius: 6px; background: var(--surface-solid);
+  color: var(--text-secondary); cursor: pointer; transition: var(--transition);
+}
+.advanced-toggle:hover { border-color: var(--primary-line); color: var(--primary-color); }
+.ctrl-options > :deep(.el-button:last-child) { margin-left: auto; }
+.advanced-settings {
+  order: 3;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
+  padding: 12px; border: 1px solid var(--border-light); border-radius: 7px; background: var(--bg-input);
+}
+.advanced-item { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.advanced-item > span { color: var(--text-secondary); font-size: 11px; font-weight: 700; }
+.advanced-item--wide { grid-column: span 2; }
+.advanced-checks { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .contract-textarea :deep(.el-textarea__inner),
 .intent-textarea :deep(.el-textarea__inner) {
   line-height: 1.72;
@@ -736,34 +838,34 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   resize: vertical;
 }
-.contract-textarea :deep(.el-textarea__inner) { min-height: 132px !important; }
-.intent-textarea :deep(.el-textarea__inner) { min-height: 132px !important; }
+.contract-textarea :deep(.el-textarea__inner) { min-height: 280px !important; }
+.intent-textarea :deep(.el-textarea__inner) { min-height: 280px !important; }
 
 .contract-file-input { display: none; }
 .contract-upload {
-  min-height: 52px;
+  min-height: 42px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px dashed var(--border-light);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-input) 72%, transparent);
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 1px color-mix(in srgb, var(--border-light) 72%, transparent);
   transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 .contract-upload.dragging {
   border-color: var(--primary-color);
   background: var(--primary-fade);
 }
-.contract-upload.populated { border-style: solid; }
 .contract-upload.loading { opacity: 0.72; }
 .contract-upload__icon {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
   display: inline-grid;
   place-items: center;
-  border-radius: 7px;
+  border-radius: 5px;
   background: var(--surface-solid);
   color: var(--primary-color);
   box-shadow: 0 0 0 1px var(--border-light);
@@ -781,8 +883,8 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.contract-upload__copy strong { color: var(--text-primary); font-size: 12px; font-weight: 700; }
-.contract-upload__copy small { color: var(--text-secondary); font-size: 11px; }
+.contract-upload__copy strong { color: var(--text-primary); font-size: 11px; font-weight: 700; }
+.contract-upload__copy small { color: var(--text-secondary); font-size: 10px; }
 .contract-upload__actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 
 .acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-lg); align-items: stretch; min-width: 0; }
@@ -807,17 +909,27 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1160px) {
   .acg-grid { grid-template-columns: minmax(0, 1fr); }
+  .advanced-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 720px) {
   .ui-hero { flex-wrap: wrap; align-items: flex-start; }
   .hero-left { width: 100%; }
-  .hero-right { justify-content: flex-start; width: 100%; }
+  .hero-right { justify-content: flex-start; width: 100%; flex-wrap: wrap; }
   .run-context { width: 100%; flex-wrap: wrap; }
   .run-id { max-width: 100%; }
   .run-id code { overflow: hidden; text-overflow: ellipsis; }
   .contract-upload { align-items: flex-start; flex-wrap: wrap; }
-  .contract-upload__copy { width: calc(100% - 42px); }
-  .contract-upload__actions { width: 100%; padding-left: 42px; }
+  .contract-upload__copy { width: calc(100% - 34px); }
+  .contract-upload__actions { width: 100%; padding-left: 34px; }
+  .input-fields { grid-template-columns: 1fr; }
+  .definition-pane { padding-top: 14px; }
+  .advanced-settings { grid-template-columns: 1fr; }
+  .advanced-item--wide { grid-column: auto; }
+  .ctrl-options > :deep(.el-button:last-child) { width: 100%; margin-left: 0; }
+  .input-summary__copy { align-items: flex-start; flex-wrap: wrap; }
+  .input-summary__copy small { width: 100%; white-space: normal; }
+  .control-bar.collapsed { align-items: stretch; flex-direction: column; }
+  .control-bar.collapsed .ctrl-options { width: 100%; }
 }
 </style>
