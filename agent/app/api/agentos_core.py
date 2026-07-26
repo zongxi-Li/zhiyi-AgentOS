@@ -1823,6 +1823,19 @@ def create_router(
                 "bindingSwitchCount": (
                     sum(node.binding_switch_count for node in graph.nodes) if graph is not None else 0
                 ),
+                "branchDecisions": (
+                    [_to_json(item) for item in graph.branch_decisions] if graph is not None else []
+                ),
+                "skippedByConditionCount": (
+                    sum(
+                        node.status.value == "skipped_by_condition" for node in graph.nodes
+                    )
+                    if graph is not None
+                    else 0
+                ),
+                "conditionalDecisionCount": (
+                    len(graph.branch_decisions) if graph is not None else 0
+                ),
             }
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1974,6 +1987,27 @@ def create_router(
             "dynamicStepCount": dynamic_step_count,
             "bindingSwitchCount": (
                 sum(node.binding_switch_count for node in graph.nodes) if graph is not None else 0
+            ),
+            "branchDecisions": (
+                [_to_json(item) for item in graph.branch_decisions] if graph is not None else []
+            ),
+            "selectedEdgeIds": (
+                [edge_id for item in graph.branch_decisions for edge_id in item.selected_edge_ids]
+                if graph is not None
+                else []
+            ),
+            "terminatedEdgeIds": (
+                [edge_id for item in graph.branch_decisions for edge_id in item.terminated_edge_ids]
+                if graph is not None
+                else []
+            ),
+            "skippedByConditionCount": (
+                sum(node.status.value == "skipped_by_condition" for node in graph.nodes)
+                if graph is not None
+                else 0
+            ),
+            "conditionalDecisionCount": (
+                len(graph.branch_decisions) if graph is not None else 0
             ),
             "completedStepIds": run.completed_step_ids,
             "activeStepIds": run.active_step_ids,

@@ -80,6 +80,12 @@ def test_acg_view_endpoint_exposes_topology_and_provenance():
     view = acg.json()
     assert view["engine"] == "acg"
     assert view["acgBlueprint"]["nodes"]
+    assert all("activation" in edge for edge in view["acgBlueprint"]["edges"])
+    assert view["branchDecisions"] == []
+    assert view["selectedEdgeIds"] == []
+    assert view["terminatedEdgeIds"] == []
+    assert view["skippedByConditionCount"] == 0
+    assert view["conditionalDecisionCount"] == 0
     # 数据血缘：3 步至少有 2 次消费（b←a, c←b）
     assert len(view["provenance"]["productions"]) == 3
     assert len(view["provenance"]["consumptions"]) >= 2

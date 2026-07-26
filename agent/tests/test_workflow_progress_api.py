@@ -11,6 +11,8 @@ from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.core.acg import ACGBlueprint, StepNode
 from agentos.core.execution import RunExecutionCoordinator
+from agentos.core.execution.projection import refresh_run_execution_projection
+from agentos.core.conditions import BranchDecision
 from agentos.core.models.enums import WorkflowProgressPhase
 from agentos.core.models.types import (
     StepStatus,
@@ -292,9 +294,29 @@ def test_progress_api_exposes_runtime_graph_version_and_dynamic_step_count():
     )
     graph = RuntimeGraph.from_blueprint(run_id=run.run_id, blueprint=blueprint)
     graph.graph_version = 2
+    graph.nodes[0].status = StepStatus.COMPLETED
     graph.nodes[-1].created_graph_version = 2
     graph.nodes[-1].binding_switch_count = 1
+    graph.nodes[-1].status = StepStatus.SKIPPED_BY_CONDITION
+    graph.branch_decisions = [
+        BranchDecision(
+            decisionId="decision_progress",
+            controlNodeId="route",
+            sourceNodeId="step_1",
+            sourceOutputVersion=1,
+            inputHash="hash",
+            selectedCaseKey="high",
+            selectedEdgeIds=["high"],
+            terminatedEdgeIds=["low"],
+            skippedNodeIds=["step_2"],
+            joinNodeId="join",
+            sourceEventId="condition_progress",
+            sourcePatchId="patch_progress",
+            decidedAtGraphVersion=2,
+        )
+    ]
     run.runtime_graph = graph
+    refresh_run_execution_projection(run)
     runtime.workflow_store.save_run(run)
 
     payload = _client(runtime).get(
@@ -304,6 +326,9 @@ def test_progress_api_exposes_runtime_graph_version_and_dynamic_step_count():
     assert payload["graphVersion"] == 2
     assert payload["dynamicStepCount"] == 1
     assert payload["bindingSwitchCount"] == 1
+    assert payload["skippedByConditionCount"] == 1
+    assert payload["conditionalDecisionCount"] == 1
+    assert payload["percent"] == 100.0
     assert payload["totalSteps"] == 2
 
 

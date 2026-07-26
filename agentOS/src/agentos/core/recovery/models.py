@@ -27,6 +27,7 @@ def _hash(payload: dict[str, Any]) -> str:
 class PatchOperationType(str, Enum):
     ADD_SUBGRAPH = "ADD_SUBGRAPH"
     RETRY_ALTERNATE_BINDING = "RETRY_ALTERNATE_BINDING"
+    ACTIVATE_CONDITIONAL_BRANCH = "ACTIVATE_CONDITIONAL_BRANCH"
 
 
 class SubgraphInsertionMode(str, Enum):
@@ -76,6 +77,21 @@ class RuntimeGraphPatch(BaseModel):
     )
     new_binding: ExecutionBinding | None = Field(default=None, alias="newBinding")
     excluded_binding_ids: list[str] = Field(default_factory=list, alias="excludedBindingIds")
+    control_node_id: str | None = Field(default=None, alias="controlNodeId")
+    expected_control_node_state: RuntimeNodeStatus | None = Field(
+        default=None, alias="expectedControlNodeState"
+    )
+    expected_source_output_version: int | None = Field(
+        default=None, alias="expectedSourceOutputVersion"
+    )
+    input_hash: str | None = Field(default=None, alias="inputHash")
+    selected_case_key: str | None = Field(default=None, alias="selectedCaseKey")
+    selected_edge_ids: list[str] = Field(default_factory=list, alias="selectedEdgeIds")
+    terminated_edge_ids: list[str] = Field(default_factory=list, alias="terminatedEdgeIds")
+    join_node_id: str | None = Field(default=None, alias="joinNodeId")
+    node_state_updates: dict[str, RuntimeNodeStatus] = Field(
+        default_factory=dict, alias="nodeStateUpdates"
+    )
 
     @field_validator("add_nodes", mode="before")
     @classmethod
@@ -94,6 +110,27 @@ class RuntimeGraphPatch(BaseModel):
                 raise ValueError("RETRY_ALTERNATE_BINDING requires runtimeNodeId and newBinding")
             if self.target_node_id or self.add_nodes or self.add_edges or self.replaced_incoming_edge_ids:
                 raise ValueError("binding patch cannot contain subgraph fields")
+            if self.control_node_id or self.selected_edge_ids or self.terminated_edge_ids:
+                raise ValueError("binding patch cannot contain conditional fields")
+        elif self.operation_type == PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH:
+            if (
+                not self.control_node_id
+                or self.expected_source_output_version is None
+                or not self.input_hash
+                or not self.selected_edge_ids
+                or not self.terminated_edge_ids
+                or not self.join_node_id
+            ):
+                raise ValueError("conditional patch requires complete decision fields")
+            if (
+                self.target_node_id
+                or self.add_nodes
+                or self.add_edges
+                or self.replaced_incoming_edge_ids
+                or self.new_binding is not None
+                or self.runtime_node_id is not None
+            ):
+                raise ValueError("conditional patch cannot contain subgraph or binding fields")
         return self
 
     def content_hash(self) -> str:

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from agentos.core.acg.blueprint import ACGBlueprint
+from agentos.core.conditions import BranchDecision
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.trace import TraceStore
 from agentos.core.execution.projection import refresh_run_execution_projection
 from agentos.core.models.enums import StepStatus
-from agentos.core.models.types import TraceEventType, utc_now
+from agentos.core.models.types import TraceEventType, WorkflowStatus, utc_now
 from agentos.core.recovery.errors import PatchConflictError, RuntimeGraphError
 from agentos.core.recovery.models import PatchApplyResult, RuntimeGraphPatch
 from agentos.core.recovery.models import PatchOperationType
@@ -142,6 +143,8 @@ class RuntimeController:
         replay = self._check_replay(graph, patch)
         if replay is not None:
             return loaded_run.model_copy(deep=True), replay
+        if loaded_run.status == WorkflowStatus.CANCELLED:
+            raise PatchConflictError("RUN_CANCELLED", "cancelled runs cannot apply graph patches")
         if patch.source_event_id in graph.processed_event_ids:
             raise PatchConflictError(
                 "EVENT_ALREADY_PROCESSED",
@@ -162,6 +165,8 @@ class RuntimeController:
         candidate_graph.graph_version += 1
         candidate_graph.updated_at = utc_now()
         patch_node_id = patch.target_node_id or patch.runtime_node_id
+        if patch.operation_type == PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH:
+            patch_node_id = patch.control_node_id
         if patch.operation_type == PatchOperationType.RETRY_ALTERNATE_BINDING:
             binding_node = candidate_graph.get_node(str(patch.runtime_node_id))
             for item in reversed(binding_node.binding_history):
@@ -178,6 +183,24 @@ class RuntimeController:
                     "selectedAt": utc_now().isoformat(),
                     "supersededAt": None,
                 }
+            )
+        elif patch.operation_type == PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH:
+            candidate_graph.branch_decisions.append(
+                BranchDecision(
+                    decisionId=f"decision_{patch.patch_id.removeprefix('patch_')}",
+                    controlNodeId=patch.control_node_id,
+                    sourceNodeId=str(patch.metadata.get("sourceNodeId") or ""),
+                    sourceOutputVersion=patch.expected_source_output_version,
+                    inputHash=patch.input_hash,
+                    selectedCaseKey=patch.selected_case_key,
+                    selectedEdgeIds=patch.selected_edge_ids,
+                    terminatedEdgeIds=patch.terminated_edge_ids,
+                    skippedNodeIds=sorted(patch.node_state_updates),
+                    joinNodeId=patch.join_node_id,
+                    sourceEventId=patch.source_event_id,
+                    sourcePatchId=patch.patch_id,
+                    decidedAtGraphVersion=candidate_graph.graph_version,
+                )
             )
         candidate_graph.processed_event_ids.append(patch.source_event_id)
         candidate_graph.applied_patch_ids.append(patch.patch_id)
@@ -224,6 +247,8 @@ class RuntimeController:
                 "resultGraphVersion": candidate_graph.graph_version,
                 "runtimeNodeId": patch_node_id,
                 "targetNodeId": patch_node_id,
+                "selectedEdgeIds": patch.selected_edge_ids,
+                "terminatedEdgeIds": patch.terminated_edge_ids,
             },
         )
         return candidate_run, PatchApplyResult(
@@ -240,6 +265,8 @@ class RuntimeController:
         graph = candidate_run.runtime_graph
         assert graph is not None
         patch_node_id = patch.target_node_id or patch.runtime_node_id
+        if patch.operation_type == PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH:
+            patch_node_id = str(patch.metadata.get("sourceNodeId") or "")
         checkpoint = self.checkpoint_store.create(candidate_run, str(patch_node_id))
         record = graph.patch_record_by_id(patch.patch_id)
         assert record is not None

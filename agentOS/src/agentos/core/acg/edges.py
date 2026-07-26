@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from enum import Enum
+from typing import Any, Dict
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentos.core.acg.enums import EdgeType
+
+
+class EdgeActivation(str, Enum):
+    INACTIVE = "inactive"
+    ACTIVE = "active"
+    TERMINATED = "terminated"
 
 
 def _edge_id() -> str:
@@ -29,9 +36,10 @@ class ACGEdge(BaseModel):
     target_id: str = Field(alias="targetId")
     edge_type: EdgeType = Field(default=EdgeType.DEPENDENCY, alias="edgeType")
     condition: str = ""
+    activation: EdgeActivation = EdgeActivation.ACTIVE
     # 通信边可声明下游需要从上游 output 提取哪些字段（低熵“按需投递”清单）
     data_fields: list[str] = Field(default_factory=list, alias="dataFields")
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-__all__ = ["ACGEdge", "_edge_id"]
+__all__ = ["ACGEdge", "EdgeActivation", "_edge_id"]

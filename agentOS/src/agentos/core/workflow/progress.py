@@ -44,6 +44,8 @@ class WorkflowProgress(CoreModel):
     graph_version: Optional[int] = Field(default=None, alias="graphVersion")
     dynamic_step_count: int = Field(default=0, alias="dynamicStepCount")
     binding_switch_count: int = Field(default=0, alias="bindingSwitchCount")
+    skipped_by_condition_count: int = Field(default=0, alias="skippedByConditionCount")
+    conditional_decision_count: int = Field(default=0, alias="conditionalDecisionCount")
     started_at: Optional[datetime] = Field(default=None, alias="startedAt")
     updated_at: Optional[datetime] = Field(default=None, alias="updatedAt")
     # Deprecated compatibility fields. `progress` is the 0..1 ratio and
@@ -114,7 +116,12 @@ class ProgressAssembler:
             message = run.lifecycle_message
         else:
             message = self._message(phase, step_name)
-        percent = self._percent(phase, counts[StepStatus.COMPLETED], len(steps))
+        skipped_by_condition_count = counts[StepStatus.SKIPPED_BY_CONDITION]
+        percent = self._percent(
+            phase,
+            counts[StepStatus.COMPLETED] + skipped_by_condition_count,
+            len(steps),
+        )
         runtime_graph = run.runtime_graph
         graph_version = runtime_graph.graph_version if runtime_graph is not None else None
         dynamic_step_count = (
@@ -154,6 +161,10 @@ class ProgressAssembler:
             graphVersion=graph_version,
             dynamicStepCount=dynamic_step_count,
             bindingSwitchCount=binding_switch_count,
+            skippedByConditionCount=skipped_by_condition_count,
+            conditionalDecisionCount=(
+                len(runtime_graph.branch_decisions) if runtime_graph is not None else 0
+            ),
             startedAt=run.started_at,
             updatedAt=run.updated_at,
             **self._compatibility_values(percent),

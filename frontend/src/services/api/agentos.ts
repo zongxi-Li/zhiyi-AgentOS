@@ -25,6 +25,7 @@ export type WorkflowStatus =
   | 'failed'
   | 'completed'
   | 'cancelled'
+  | 'skipped_by_condition'
 
 export type WorkflowProgressPhase =
   | 'understanding'
@@ -59,6 +60,8 @@ export interface WorkflowProgress {
   graphVersion?: number | null
   dynamicStepCount?: number
   bindingSwitchCount?: number
+  skippedByConditionCount?: number
+  conditionalDecisionCount?: number
   startedAt: string | null
   updatedAt: string | null
   progress: number
@@ -179,6 +182,9 @@ export interface WorkflowRun {
   dynamicStepCount?: number
   appliedPatches?: Array<Record<string, any>>
   runtimeEvents?: Array<Record<string, any>>
+  branchDecisions?: BranchDecision[]
+  skippedByConditionCount?: number
+  conditionalDecisionCount?: number
   createdAt?: string
   updatedAt?: string
 }
@@ -305,6 +311,7 @@ export interface AcgEdge {
   targetId: string
   edgeType: 'dependency' | 'communication' | 'control_flow' | 'execution' | 'write' | 'read' | 'support'
   condition?: string
+  activation?: 'inactive' | 'active' | 'terminated'
   metadata?: Record<string, any>
 }
 
@@ -332,6 +339,23 @@ export interface ProvenanceProduction {
   eventHash?: string
   createdAt?: string
   evidenceRefs?: string[]
+}
+
+export interface BranchDecision {
+  decisionId: string
+  controlNodeId: string
+  sourceNodeId: string
+  sourceOutputVersion: number
+  inputHash: string
+  selectedCaseKey: string
+  selectedEdgeIds: string[]
+  terminatedEdgeIds: string[]
+  skippedNodeIds: string[]
+  joinNodeId: string
+  sourceEventId: string
+  sourcePatchId: string
+  decidedAtGraphVersion: number
+  decidedAt: string
 }
 
 export interface AsyncWorkflowStartRequest extends WorkflowStartRequest {
@@ -445,6 +469,11 @@ export interface AcgView {
   graphVersion?: number | null
   dynamicStepCount?: number
   bindingSwitchCount?: number
+  skippedByConditionCount?: number
+  conditionalDecisionCount?: number
+  branchDecisions?: BranchDecision[]
+  selectedEdgeIds?: string[]
+  terminatedEdgeIds?: string[]
   appliedPatches?: Array<Record<string, any>>
   runtimeEvents?: Array<Record<string, any>>
   completedStepIds: string[]

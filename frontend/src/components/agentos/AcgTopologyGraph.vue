@@ -690,6 +690,7 @@ onBeforeUnmount(() => {
 .node-status.running { color: var(--info); }
 .node-status.waiting_review, .node-status.retrying { color: var(--warning); }
 .node-status.failed { color: var(--danger); }
+.node-status.skipped_by_condition { color: var(--text-secondary); }
 .node-description { margin: 0 0 14px; font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
 .connection-group { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
 .connection-group strong { font-size: 11px; color: var(--text-primary); }

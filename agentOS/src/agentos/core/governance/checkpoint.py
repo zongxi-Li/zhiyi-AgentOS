@@ -72,6 +72,17 @@ class CheckpointStore:
             "eventToPatch": (
                 dict(runtime_graph.event_to_patch) if runtime_graph is not None else {}
             ),
+            "branchDecisions": (
+                [
+                    item.model_dump(by_alias=True, mode="json")
+                    for item in runtime_graph.branch_decisions
+                ]
+                if runtime_graph is not None
+                else []
+            ),
+            "conditionalDecisionCount": (
+                len(runtime_graph.branch_decisions) if runtime_graph is not None else 0
+            ),
         }
         checkpoint = Checkpoint(
             runId=run.run_id,

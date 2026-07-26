@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentos.core.acg.enums import ControlType, NodeType
+from agentos.core.conditions import ConditionSpec
 
 
 def _node_id(prefix: str) -> str:
@@ -98,6 +99,9 @@ class ControlNode(ACGNodeBase):
     node_type: Literal[NodeType.CONTROL] = Field(default=NodeType.CONTROL, alias="nodeType")
     control_type: ControlType = Field(default=ControlType.START, alias="controlType")
     condition: str = ""
+    condition_spec: Optional[ConditionSpec] = Field(default=None, alias="conditionSpec")
+    branch_edge_ids: List[str] = Field(default_factory=list, alias="branchEdgeIds")
+    join_node_id: Optional[str] = Field(default=None, alias="joinNodeId")
 
 
 ACGNode = Union[StepNode, AgentNode, SkillNode, MemoryNode, EvidenceNode, ControlNode]

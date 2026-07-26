@@ -392,6 +392,8 @@ class AgentOsGatewayControllerTest {
         response.put("graphVersion", 2);
         response.put("dynamicStepCount", 2);
         response.put("bindingSwitchCount", 1);
+        response.put("skippedByConditionCount", 2);
+        response.put("conditionalDecisionCount", 1);
         response.put("startedAt", "2026-07-22T01:06:26Z");
         response.put("updatedAt", "2026-07-22T01:07:20Z");
         response.put("progress", 0.4286);
@@ -408,6 +410,8 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.graphVersion").value(2))
                 .andExpect(jsonPath("$.dynamicStepCount").value(2))
                 .andExpect(jsonPath("$.bindingSwitchCount").value(1))
+                .andExpect(jsonPath("$.skippedByConditionCount").value(2))
+                .andExpect(jsonPath("$.conditionalDecisionCount").value(1))
                 .andExpect(jsonPath("$.startedAt").value("2026-07-22T01:06:26Z"))
                 .andExpect(jsonPath("$.updatedAt").value("2026-07-22T01:07:20Z"));
 

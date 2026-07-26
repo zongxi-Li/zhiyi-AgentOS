@@ -27,6 +27,7 @@ class StepStatus(str, Enum):
     FAILED = "failed"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    SKIPPED_BY_CONDITION = "skipped_by_condition"
 
 
 __all__ = ["StepStatus", "WorkflowProgressPhase"]

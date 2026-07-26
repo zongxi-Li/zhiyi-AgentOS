@@ -11,6 +11,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from agentos.core.acg.edges import ACGEdge
 from agentos.core.acg.enums import EdgeType
 from agentos.core.acg.nodes import StepNode
+from agentos.core.conditions import (
+    ConditionalEvaluationResult,
+    conditional_branch_exclusive_nodes,
+)
 from agentos.core.models.types import utc_now
 from agentos.core.recovery.bindings import CandidateResolver, ExecutionBinding
 from agentos.core.recovery.events import RuntimeEvent, stable_hash
@@ -23,6 +27,7 @@ from agentos.core.runtime_graph import RuntimeGraph
 class GraphChangeType(str, Enum):
     ADD_SUBGRAPH = "ADD_SUBGRAPH"
     RETRY_ALTERNATE_BINDING = "RETRY_ALTERNATE_BINDING"
+    ACTIVATE_CONDITIONAL_BRANCH = "ACTIVATE_CONDITIONAL_BRANCH"
 
 
 class GraphChangeProposal(BaseModel):
@@ -55,6 +60,14 @@ class GraphChangeProposal(BaseModel):
     excluded_binding_ids: list[str] = Field(default_factory=list, alias="excludedBindingIds")
     expected_node_status: str | None = Field(default=None, alias="expectedNodeStatus")
     expected_attempt_id: str | None = Field(default=None, alias="expectedAttemptId")
+    control_node_id: str | None = Field(default=None, alias="controlNodeId")
+    source_node_id: str | None = Field(default=None, alias="sourceNodeId")
+    source_output_version: int | None = Field(default=None, alias="sourceOutputVersion")
+    input_hash: str | None = Field(default=None, alias="inputHash")
+    selected_case_key: str | None = Field(default=None, alias="selectedCaseKey")
+    selected_edge_ids: list[str] = Field(default_factory=list, alias="selectedEdgeIds")
+    terminated_edge_ids: list[str] = Field(default_factory=list, alias="terminatedEdgeIds")
+    join_node_id: str | None = Field(default=None, alias="joinNodeId")
 
 
 class DeterministicProposalFactory:
@@ -174,11 +187,46 @@ class DeterministicProposalFactory:
             createdAt=event.created_at,
         )
 
+    def propose_conditional(
+        self,
+        evaluation: ConditionalEvaluationResult,
+        graph: RuntimeGraph,
+    ) -> GraphChangeProposal:
+        proposal_key = stable_hash(
+            graph.run_id,
+            evaluation.control_node_id,
+            evaluation.source_output_version,
+            evaluation.input_hash,
+            evaluation.selected_edge_ids,
+            evaluation.terminated_edge_ids,
+        )
+        return GraphChangeProposal(
+            proposalId=f"proposal_{proposal_key[:24]}",
+            idempotencyKey=proposal_key,
+            runId=graph.run_id,
+            graphId=graph.graph_id,
+            baseGraphVersion=graph.graph_version,
+            sourceEventId=f"condition_{proposal_key[:24]}",
+            changeType=GraphChangeType.ACTIVATE_CONDITIONAL_BRANCH,
+            controlNodeId=evaluation.control_node_id,
+            sourceNodeId=evaluation.source_node_id,
+            sourceOutputVersion=evaluation.source_output_version,
+            inputHash=evaluation.input_hash,
+            selectedCaseKey=evaluation.selected_case_key,
+            selectedEdgeIds=evaluation.selected_edge_ids,
+            terminatedEdgeIds=evaluation.terminated_edge_ids,
+            joinNodeId=evaluation.join_node_id,
+            reason="DETERMINISTIC_CONDITION_MATCH",
+            createdAt=graph.get_node(evaluation.source_node_id).updated_at,
+        )
+
 
 class RuntimeGraphPatchCompiler:
     """Compile only ADD_SUBGRAPH/INSERT_BEFORE_TARGET against the latest graph view."""
 
     def compile(self, proposal: GraphChangeProposal, graph: RuntimeGraph) -> RuntimeGraphPatch:
+        if proposal.change_type == GraphChangeType.ACTIVATE_CONDITIONAL_BRANCH:
+            return self._compile_conditional(proposal, graph)
         if proposal.change_type == GraphChangeType.RETRY_ALTERNATE_BINDING:
             node = graph.get_node(str(proposal.runtime_node_id))
             current_id = str((node.current_binding or {}).get("bindingId") or "")
@@ -257,6 +305,53 @@ class RuntimeGraphPatchCompiler:
             replacedIncomingEdgeIds=[edge.edge_id for edge in incoming],
             addNodes=[node.model_copy(deep=True) for node in proposal.proposed_nodes],
             addEdges=[*predecessor_edges, *[edge.model_copy(deep=True) for edge in proposal.proposed_edges]],
+        )
+
+    @staticmethod
+    def _compile_conditional(
+        proposal: GraphChangeProposal, graph: RuntimeGraph
+    ) -> RuntimeGraphPatch:
+        control = graph.get_node(str(proposal.control_node_id))
+        control_spec = graph.to_blueprint(effective_only=False).get_node(control.node_id)
+        exclusive = conditional_branch_exclusive_nodes(graph, control_spec)
+        skipped = sorted(
+            {
+                node_id
+                for edge_id in proposal.terminated_edge_ids
+                for node_id in exclusive[edge_id]
+            }
+        )
+        patch_key = stable_hash(
+            proposal.proposal_id,
+            proposal.input_hash,
+            proposal.selected_edge_ids,
+            proposal.terminated_edge_ids,
+        )
+        return RuntimeGraphPatch(
+            patchId=f"patch_{patch_key[:24]}",
+            idempotencyKey=proposal.idempotency_key,
+            runId=proposal.run_id,
+            graphId=proposal.graph_id,
+            baseGraphVersion=graph.graph_version,
+            operationType=GraphChangeType.ACTIVATE_CONDITIONAL_BRANCH,
+            sourceEventId=proposal.source_event_id,
+            proposalId=proposal.proposal_id,
+            reason=proposal.reason,
+            expectedNodeStates={control.node_id: control.status},
+            budgetImpact={"addedNodes": 0, "replanDepthIncrement": 0},
+            controlNodeId=control.node_id,
+            expectedControlNodeState=control.status,
+            expectedSourceOutputVersion=proposal.source_output_version,
+            inputHash=proposal.input_hash,
+            selectedCaseKey=proposal.selected_case_key,
+            selectedEdgeIds=proposal.selected_edge_ids,
+            terminatedEdgeIds=proposal.terminated_edge_ids,
+            joinNodeId=proposal.join_node_id,
+            nodeStateUpdates={node_id: "skipped_by_condition" for node_id in skipped},
+            metadata={
+                "sourceNodeId": proposal.source_node_id,
+                "sourceOutputVersion": proposal.source_output_version,
+            },
         )
 
 

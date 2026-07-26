@@ -52,7 +52,8 @@ const statusLabel = (status: StepStatus) => {
     retrying: '重试',
     failed: '失败',
     completed: '完成',
-    cancelled: '取消'
+    cancelled: '取消',
+    skipped_by_condition: '条件跳过'
   }
   return labels[status] || status
 }

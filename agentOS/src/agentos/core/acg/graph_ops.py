@@ -13,8 +13,12 @@ from __future__ import annotations
 from typing import Dict, List, Set
 
 from agentos.core.acg.blueprint import ACGBlueprint
-from agentos.core.acg.enums import EdgeType, NodeType
+from agentos.core.acg.enums import ControlType, EdgeType, NodeType
 from agentos.core.acg.nodes import ControlNode, StepNode
+from agentos.core.conditions import (
+    ConditionEvaluationError,
+    conditional_branch_exclusive_nodes,
+)
 from agentos.core.data_contracts import check_contract_schema
 
 
@@ -141,6 +145,61 @@ def _validate_edge_endpoints(blueprint: ACGBlueprint) -> None:
             raise ACGValidationError(f"ACG dependency edge {edge.edge_id} cannot target itself")
 
 
+def _validate_conditional_control(blueprint: ACGBlueprint, node: ControlNode) -> None:
+    if node.condition_spec is None or not node.join_node_id:
+        raise ACGValidationError(f"IF control {node.node_id} requires conditionSpec and joinNodeId")
+    if not 2 <= len(node.branch_edge_ids) <= 4:
+        raise ACGValidationError(f"IF control {node.node_id} requires 2..4 branch edges")
+    if len(set(node.branch_edge_ids)) != len(node.branch_edge_ids):
+        raise ACGValidationError(f"IF control {node.node_id} has duplicate branchEdgeIds")
+    if not blueprint.has_node(node.condition_spec.source_node_id):
+        raise ACGValidationError(f"IF source node missing: {node.condition_spec.source_node_id}")
+    if not blueprint.has_node(node.join_node_id):
+        raise ACGValidationError(f"IF join node missing: {node.join_node_id}")
+    source_node = blueprint.get_node(node.condition_spec.source_node_id)
+    if source_node.node_type != NodeType.STEP:
+        raise ACGValidationError(f"IF source must be a Step: {source_node.node_id}")
+    join_node = blueprint.get_node(node.join_node_id)
+    if not isinstance(join_node, ControlNode) or join_node.control_type in {
+        ControlType.IF,
+        ControlType.LOOP,
+    }:
+        raise ACGValidationError(f"IF join must be an unconditional Control: {node.join_node_id}")
+    incoming = blueprint.incoming(node.node_id, EdgeType.DEPENDENCY)
+    if len(incoming) != 1 or incoming[0].source_id != node.condition_spec.source_node_id:
+        raise ACGValidationError(f"IF control {node.node_id} requires its single declared source")
+    outgoing = [
+        edge
+        for edge in blueprint.outgoing(node.node_id)
+        if edge.edge_type in {EdgeType.DEPENDENCY, EdgeType.CONTROL_FLOW}
+    ]
+    if {edge.edge_id for edge in outgoing} != set(node.branch_edge_ids):
+        raise ACGValidationError(f"IF control {node.node_id} has undeclared branch edges")
+    declared = set(node.branch_edge_ids)
+    case_edges = set(node.condition_spec.cases.values())
+    if not case_edges or not case_edges.issubset(declared):
+        raise ACGValidationError(f"IF control {node.node_id} has invalid condition cases")
+    if node.condition_spec.default_edge_id and node.condition_spec.default_edge_id not in declared:
+        raise ACGValidationError(f"IF control {node.node_id} has invalid defaultEdgeId")
+    selectable = case_edges | (
+        {node.condition_spec.default_edge_id} if node.condition_spec.default_edge_id else set()
+    )
+    if selectable != declared:
+        raise ACGValidationError(f"IF control {node.node_id} has an unreachable branch")
+    try:
+        exclusive = conditional_branch_exclusive_nodes(blueprint, node)
+    except ConditionEvaluationError as exc:
+        raise ACGValidationError(f"{exc.code}: {exc}") from exc
+    for node_ids in exclusive.values():
+        for node_id in node_ids:
+            branch_node = blueprint.get_node(node_id)
+            if isinstance(branch_node, ControlNode) and branch_node.control_type in {
+                ControlType.IF,
+                ControlType.LOOP,
+            }:
+                raise ACGValidationError(f"nested IF/LOOP is unsupported: {branch_node.node_id}")
+
+
 def validate_blueprint(blueprint: ACGBlueprint) -> None:
     """规划器交付前的图级验证。非法则抛 ACGValidationError。"""
     step_nodes = blueprint.step_nodes()
@@ -162,8 +221,10 @@ def validate_blueprint(blueprint: ACGBlueprint) -> None:
         raise ACGValidationError(f"ACG contains a cycle: {' -> '.join(cycle)}")
 
     for node in blueprint.nodes:
-        if isinstance(node, ControlNode) and node.control_type.value in {"if", "loop"}:
-            raise ACGValidationError(f"unsupported control node: {node.node_id} ({node.control_type.value})")
+        if isinstance(node, ControlNode) and node.control_type == ControlType.LOOP:
+            raise ACGValidationError(f"unsupported control node: {node.node_id} (loop)")
+        if isinstance(node, ControlNode) and node.control_type == ControlType.IF:
+            _validate_conditional_control(blueprint, node)
         if not isinstance(node, StepNode):
             continue
         if not node.agent_name:

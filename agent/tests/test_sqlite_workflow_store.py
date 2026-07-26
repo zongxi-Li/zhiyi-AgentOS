@@ -8,7 +8,8 @@ from agentos.core.models.types import (
     WorkflowStatus,
     WorkflowStep,
 )
-from agentos.core.acg import ACGBlueprint, ACGEdge, StepNode
+from agentos.core.acg import ACGBlueprint, ACGEdge, EdgeActivation, StepNode
+from agentos.core.conditions import BranchDecision
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.runtime_graph import (
     AppliedPatchRecord,
@@ -136,6 +137,25 @@ def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkp
             error="unavailable",
         )
     ]
+    graph.edges[0].activation = EdgeActivation.TERMINATED
+    binding_node.status = StepStatus.SKIPPED_BY_CONDITION
+    graph.branch_decisions = [
+        BranchDecision(
+            decisionId="decision_sqlite",
+            controlNodeId="route",
+            sourceNodeId="a",
+            sourceOutputVersion=1,
+            inputHash="input_hash",
+            selectedCaseKey="high",
+            selectedEdgeIds=["selected_edge"],
+            terminatedEdgeIds=["a_b"],
+            skippedNodeIds=["b"],
+            joinNodeId="join",
+            sourceEventId="condition_sqlite",
+            sourcePatchId="patch_sqlite",
+            decidedAtGraphVersion=2,
+        )
+    ]
     run = WorkflowRun(
         runId="run_sqlite",
         taskId="task_sqlite",
@@ -169,6 +189,10 @@ def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkp
     assert reloaded_binding.binding_switch_count == 1
     assert reloaded_binding.binding_history[0]["sourcePatchId"] == "patch_sqlite"
     assert reloaded_binding.attempts[0].binding_id == "binding_primary"
+    assert reloaded_binding.status == StepStatus.SKIPPED_BY_CONDITION
+    assert reloaded.runtime_graph.edges[0].activation == EdgeActivation.TERMINATED
+    assert reloaded.runtime_graph.branch_decisions[0].decision_id == "decision_sqlite"
+    assert reloaded.checkpoints[-1].state_snapshot["conditionalDecisionCount"] == 1
     assert reloaded.checkpoints[-1].state_snapshot["graphVersion"] == 2
     assert reloaded.checkpoints[-1].state_snapshot["appliedPatchIds"] == ["patch_sqlite"]
     assert reloaded.checkpoints[-1].state_snapshot["runtimeGraph"]["graphVersion"] == 2

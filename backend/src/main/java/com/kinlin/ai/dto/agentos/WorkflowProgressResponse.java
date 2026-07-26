@@ -31,6 +31,8 @@ public record WorkflowProgressResponse(
         Integer graphVersion,
         Integer dynamicStepCount,
         Integer bindingSwitchCount,
+        Integer skippedByConditionCount,
+        Integer conditionalDecisionCount,
         @JsonFormat(shape = JsonFormat.Shape.STRING) OffsetDateTime startedAt,
         @JsonFormat(shape = JsonFormat.Shape.STRING) OffsetDateTime updatedAt,
         BigDecimal progress,

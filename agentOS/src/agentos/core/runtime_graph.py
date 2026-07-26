@@ -17,9 +17,10 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentos.core.acg.blueprint import ACGBlueprint
-from agentos.core.acg.edges import ACGEdge
-from agentos.core.acg.enums import EdgeType, NodeType
-from agentos.core.acg.nodes import AgentNode, StepNode, parse_node
+from agentos.core.acg.edges import ACGEdge, EdgeActivation
+from agentos.core.acg.enums import ControlType, EdgeType, NodeType
+from agentos.core.acg.nodes import AgentNode, ControlNode, StepNode, parse_node
+from agentos.core.conditions import BranchDecision
 from agentos.core.models.enums import StepStatus
 
 
@@ -38,7 +39,7 @@ RuntimeNodeStatus = StepStatus
 
 
 class RuntimeNodeActivation(str, Enum):
-    """Activation state reserved for later conditional-branch support."""
+    """Runtime node activation state used by controlled graph execution."""
 
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -227,6 +228,9 @@ class RuntimeGraph(BaseModel):
     applied_patches: list[AppliedPatchRecord] = Field(
         default_factory=list, alias="appliedPatches"
     )
+    branch_decisions: list[BranchDecision] = Field(
+        default_factory=list, alias="branchDecisions"
+    )
     patch_budget: RuntimePatchBudget = Field(
         default_factory=RuntimePatchBudget, alias="patchBudget"
     )
@@ -255,6 +259,15 @@ class RuntimeGraph(BaseModel):
             ],
             edges=[edge.model_copy(deep=True) for edge in blueprint.edges],
         )
+        branch_edge_ids = {
+            edge_id
+            for node in blueprint.nodes
+            if isinstance(node, ControlNode) and node.control_type == ControlType.IF
+            for edge_id in node.branch_edge_ids
+        }
+        for edge in graph.edges:
+            if edge.edge_id in branch_edge_ids:
+                edge.activation = EdgeActivation.INACTIVE
         graph.enrich_bindings(agent_registry=agent_registry, domain=domain)
         return graph
 
@@ -270,9 +283,18 @@ class RuntimeGraph(BaseModel):
     def dependency_sources(self, node_id: str) -> list[str]:
         return [
             edge.source_id
-            for edge in self.effective_edges(EdgeType.DEPENDENCY)
+            for edge in self.effective_edges()
             if edge.target_id == node_id
+            and edge.edge_type in {EdgeType.DEPENDENCY, EdgeType.CONTROL_FLOW}
+            and edge.activation == EdgeActivation.ACTIVE
+            and self.get_node(edge.source_id).status != StepStatus.SKIPPED_BY_CONDITION
         ]
+
+    def branch_decision_for(self, control_node_id: str) -> BranchDecision | None:
+        return next(
+            (item for item in self.branch_decisions if item.control_node_id == control_node_id),
+            None,
+        )
 
     def ready_set(self) -> list[RuntimeNode]:
         """Return executable nodes whose effective dependencies are completed."""
@@ -284,6 +306,14 @@ class RuntimeGraph(BaseModel):
             if node.activation != RuntimeNodeActivation.ACTIVE:
                 continue
             if node.status not in {StepStatus.PENDING, StepStatus.RETRYING}:
+                continue
+            incoming = [
+                edge
+                for edge in self.effective_edges()
+                if edge.target_id == node.node_id
+                and edge.edge_type in {EdgeType.DEPENDENCY, EdgeType.CONTROL_FLOW}
+            ]
+            if any(edge.activation == EdgeActivation.INACTIVE for edge in incoming):
                 continue
             dependencies = self.dependency_sources(node.node_id)
             if all(self.get_node(source_id).status == StepStatus.COMPLETED for source_id in dependencies):
@@ -302,13 +332,22 @@ class RuntimeGraph(BaseModel):
     def is_terminal(self) -> bool:
         steps = [node for node in self.nodes if node.node_type == NodeType.STEP]
         return bool(steps) and all(
-            node.status in {StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.CANCELLED}
+            node.status
+            in {
+                StepStatus.COMPLETED,
+                StepStatus.FAILED,
+                StepStatus.CANCELLED,
+                StepStatus.SKIPPED_BY_CONDITION,
+            }
             for node in steps
         )
 
     def all_steps_completed(self) -> bool:
         steps = [node for node in self.nodes if node.node_type == NodeType.STEP]
-        return bool(steps) and all(node.status == StepStatus.COMPLETED for node in steps)
+        return bool(steps) and all(
+            node.status in {StepStatus.COMPLETED, StepStatus.SKIPPED_BY_CONDITION}
+            for node in steps
+        )
 
     def resolve_ready_control_nodes(self) -> bool:
         """Complete dependency-ready, unconditional control nodes without versioning."""
@@ -318,6 +357,9 @@ class RuntimeGraph(BaseModel):
             completed_one = False
             for node in self.nodes:
                 if node.node_type != NodeType.CONTROL or node.status != StepStatus.PENDING:
+                    continue
+                parsed = parse_node(node.spec)
+                if isinstance(parsed, ControlNode) and parsed.control_type == ControlType.IF:
                     continue
                 if all(
                     self.get_node(source_id).status == StepStatus.COMPLETED

@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from agentos.core.acg.enums import EdgeType, NodeType
+from agentos.core.acg.edges import EdgeActivation
+from agentos.core.acg.enums import ControlType, EdgeType, NodeType
 from agentos.core.acg.graph_ops import ACGValidationError, validate_blueprint
-from agentos.core.acg.nodes import StepNode
-from agentos.core.recovery.errors import PatchValidationError
+from agentos.core.acg.nodes import ControlNode, StepNode, parse_node
 from agentos.core.recovery.bindings import CandidateResolver
+from agentos.core.conditions import (
+    ConditionEvaluationError,
+    ConditionEvaluator,
+    conditional_branch_exclusive_nodes,
+)
 from agentos.core.recovery.constants import MAX_BINDING_SWITCHES_PER_NODE
+from agentos.core.recovery.errors import PatchValidationError
 from agentos.core.recovery.models import (
     PatchOperationType,
     RuntimeGraphPatch,
@@ -43,6 +49,9 @@ class PatchValidator:
         self._validate_identity(graph, patch)
         if patch.operation_type == PatchOperationType.RETRY_ALTERNATE_BINDING:
             return self._validate_alternate_binding(graph, patch, domain=domain)
+        if patch.operation_type == PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH:
+            self._validate_budget(graph, patch)
+            return self._validate_conditional(graph, patch)
         self._validate_budget(graph, patch)
         self._validate_target_and_replaced_edges(graph, patch)
         self._validate_ids(graph, patch)
@@ -97,11 +106,15 @@ class PatchValidator:
         if patch.operation_type not in {
             PatchOperationType.ADD_SUBGRAPH,
             PatchOperationType.RETRY_ALTERNATE_BINDING,
+            PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH,
         }:
             raise PatchValidationError(
                 "UNSUPPORTED_PATCH_OPERATION", str(patch.operation_type)
             )
-        if patch.insertion_mode != SubgraphInsertionMode.INSERT_BEFORE_TARGET:
+        if (
+            patch.operation_type == PatchOperationType.ADD_SUBGRAPH
+            and patch.insertion_mode != SubgraphInsertionMode.INSERT_BEFORE_TARGET
+        ):
             raise PatchValidationError(
                 "UNSUPPORTED_INSERTION_MODE", str(patch.insertion_mode)
             )
@@ -153,6 +166,87 @@ class PatchValidator:
         candidate_node.status = RuntimeNodeStatus.RETRYING
         candidate_node.error = None
         candidate_node.binding_switch_count += 1
+        return candidate
+
+    @staticmethod
+    def _validate_conditional(graph, patch) -> RuntimeGraph:
+        try:
+            control_runtime = graph.get_node(str(patch.control_node_id))
+        except KeyError as exc:
+            raise PatchValidationError("CONTROL_NODE_NOT_FOUND", str(patch.control_node_id)) from exc
+        control = parse_node(control_runtime.spec)
+        if not isinstance(control, ControlNode) or control.control_type != ControlType.IF:
+            raise PatchValidationError("INVALID_CONDITIONAL_CONTROL", control_runtime.node_id)
+        if control_runtime.status != RuntimeNodeStatus.PENDING:
+            raise PatchValidationError("CONTROL_STATE_CONFLICT", control_runtime.status.value)
+        if patch.expected_control_node_state != control_runtime.status:
+            raise PatchValidationError("EXPECTED_CONTROL_STATE_CONFLICT", control_runtime.node_id)
+        if graph.branch_decision_for(control_runtime.node_id) is not None:
+            raise PatchValidationError("CONDITIONAL_ALREADY_DECIDED", control_runtime.node_id)
+        if control.condition_spec is None or control.join_node_id != patch.join_node_id:
+            raise PatchValidationError("CONDITION_SPEC_CONFLICT", control_runtime.node_id)
+        source = graph.get_node(control.condition_spec.source_node_id)
+        if source.status != RuntimeNodeStatus.COMPLETED:
+            raise PatchValidationError("CONDITION_SOURCE_NOT_COMPLETED", source.node_id)
+        if source.output_version <= 0:
+            raise PatchValidationError("CONDITION_SOURCE_OUTPUT_MISSING", source.node_id)
+        if source.output_version != patch.expected_source_output_version:
+            raise PatchValidationError("SOURCE_OUTPUT_VERSION_CONFLICT", source.node_id)
+        try:
+            evaluation = ConditionEvaluator().evaluate(
+                control.condition_spec,
+                source.output,
+                graph,
+                control_node_id=control.node_id,
+                join_node_id=control.join_node_id,
+                branch_edge_ids=control.branch_edge_ids,
+            )
+            exclusive = conditional_branch_exclusive_nodes(graph, control)
+        except ConditionEvaluationError as exc:
+            raise PatchValidationError(exc.code, str(exc)) from exc
+        if evaluation.input_hash != patch.input_hash:
+            raise PatchValidationError("CONDITION_INPUT_HASH_CONFLICT", control.node_id)
+        if evaluation.selected_case_key != patch.selected_case_key:
+            raise PatchValidationError("CONDITION_CASE_CONFLICT", control.node_id)
+        if set(evaluation.selected_edge_ids) != set(patch.selected_edge_ids):
+            raise PatchValidationError("SELECTED_BRANCH_CONFLICT", control.node_id)
+        if set(evaluation.terminated_edge_ids) != set(patch.terminated_edge_ids):
+            raise PatchValidationError("TERMINATED_BRANCH_CONFLICT", control.node_id)
+        declared = set(control.branch_edge_ids)
+        selected = set(patch.selected_edge_ids)
+        terminated = set(patch.terminated_edge_ids)
+        if selected & terminated or selected | terminated != declared:
+            raise PatchValidationError("INCOMPLETE_BRANCH_PARTITION", control.node_id)
+        skipped = {
+            node_id for edge_id in terminated for node_id in exclusive[edge_id]
+        }
+        expected_updates = {
+            node_id: RuntimeNodeStatus.SKIPPED_BY_CONDITION for node_id in skipped
+        }
+        if patch.node_state_updates != expected_updates:
+            raise PatchValidationError("INVALID_CONDITIONAL_NODE_UPDATES", control.node_id)
+        if control.join_node_id in skipped:
+            raise PatchValidationError("CONDITIONAL_JOIN_SKIPPED", control.join_node_id)
+        for node_id in skipped:
+            if graph.get_node(node_id).status != RuntimeNodeStatus.PENDING:
+                raise PatchValidationError("BRANCH_ALREADY_STARTED", node_id)
+
+        node_count = len(graph.nodes)
+        edge_count = len(graph.edges)
+        bindings = {node.node_id: node.current_binding for node in graph.nodes}
+        candidate = graph.model_copy(deep=True)
+        candidate.get_node(control.node_id).status = RuntimeNodeStatus.COMPLETED
+        for edge in candidate.edges:
+            if edge.edge_id in selected:
+                edge.activation = EdgeActivation.ACTIVE
+            elif edge.edge_id in terminated:
+                edge.activation = EdgeActivation.TERMINATED
+        for node_id in skipped:
+            candidate.get_node(node_id).status = RuntimeNodeStatus.SKIPPED_BY_CONDITION
+        if len(candidate.nodes) != node_count or len(candidate.edges) != edge_count:
+            raise PatchValidationError("CONDITIONAL_STRUCTURE_CHANGED", control.node_id)
+        if {node.node_id: node.current_binding for node in candidate.nodes} != bindings:
+            raise PatchValidationError("CONDITIONAL_BINDING_CHANGED", control.node_id)
         return candidate
 
     @staticmethod

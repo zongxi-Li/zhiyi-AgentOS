@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from agentos.core.acg.blueprint import ACGBlueprint
-from agentos.core.acg.edges import ACGEdge
+from agentos.core.acg.edges import ACGEdge, EdgeActivation
 from agentos.core.acg.enums import (
     ComplexityLevel,
     ControlType,
@@ -37,6 +37,7 @@ from agentos.core.acg.nodes import (
     parse_node,
 )
 from agentos.core.acg.promote import promote_workflow_to_acg
+from agentos.core.conditions import ConditionOperator, ConditionSpec
 
 __all__ = [
     # enums
@@ -44,6 +45,8 @@ __all__ = [
     "EdgeType",
     "ControlType",
     "ComplexityLevel",
+    "ConditionOperator",
+    "ConditionSpec",
     # nodes
     "ACGNodeBase",
     "StepNode",
@@ -56,6 +59,7 @@ __all__ = [
     "parse_node",
     # edges
     "ACGEdge",
+    "EdgeActivation",
     # blueprint
     "ACGBlueprint",
     # graph ops

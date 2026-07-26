@@ -5,13 +5,22 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from agentos.core.acg import ACGBlueprint, AgentNode, EdgeType, StepNode, validate_blueprint
+from agentos.core.acg import (
+    ACGBlueprint,
+    AgentNode,
+    ControlNode,
+    ControlType,
+    EdgeType,
+    StepNode,
+    validate_blueprint,
+)
 from agentos.core.communication import (
     ContextAssembler,
     ContextContractError,
     ProvenanceLedger,
     validate_contract_payload,
 )
+from agentos.core.conditions import ConditionEvaluationError, ConditionEvaluator
 from agentos.core.execution.fault_injection import FaultInjector, InjectedFault
 from agentos.core.execution.package import StepExecutionOutcome, StepExecutionPackage
 from agentos.core.execution.projection import refresh_run_execution_projection
@@ -109,7 +118,27 @@ class ACGExecutor:
             graph = candidate.runtime_graph
             assert graph is not None
             graph.resolve_ready_control_nodes()
-            candidate, _ = self._apply_next_pending_event(candidate)
+            candidate, event_patch = self._apply_next_pending_event(candidate)
+            if event_patch is None and not any(
+                node.status == StepStatus.FAILED for node in candidate.runtime_graph.nodes
+            ):
+                try:
+                    candidate, _ = self._apply_next_ready_condition(candidate)
+                except (ConditionEvaluationError, PatchValidationError, PatchConflictError) as exc:
+                    self.runtime._transition_run_if_needed(candidate, WorkflowStatus.FAILED)
+                    self.runtime.task_manager.mark_failed(task)
+                    candidate.error = getattr(exc, "code", "CONDITION_EVALUATION_FAILED")
+                    self.runtime.trace_store.append(
+                        run=candidate,
+                        event_type=TraceEventType.RUN_FAILED,
+                        observation=str(exc),
+                        payload={
+                            "errorCode": candidate.error,
+                            "graphVersion": candidate.runtime_graph.graph_version,
+                        },
+                    )
+                    self.runtime.workflow_store.save_run(candidate)
+                    return None
             graph = candidate.runtime_graph
             assert graph is not None
             refresh_run_execution_projection(candidate)
@@ -679,6 +708,61 @@ class ACGExecutor:
                     },
                 )
                 return candidate, None
+
+    def _apply_next_ready_condition(self, candidate):
+        """Evaluate and apply at most one ready IF patch inside the scheduler barrier."""
+
+        graph = candidate.runtime_graph
+        assert graph is not None
+        for runtime_node in graph.nodes:
+            if runtime_node.node_type.value != "control" or runtime_node.status != StepStatus.PENDING:
+                continue
+            control = ControlNode.model_validate(runtime_node.spec)
+            if control.control_type != ControlType.IF:
+                continue
+            if graph.branch_decision_for(control.node_id) is not None:
+                continue
+            dependencies = graph.dependency_sources(control.node_id)
+            if not dependencies or not all(
+                graph.get_node(node_id).status == StepStatus.COMPLETED
+                for node_id in dependencies
+            ):
+                continue
+            assert control.condition_spec is not None and control.join_node_id is not None
+            source = graph.get_node(control.condition_spec.source_node_id)
+            if source.status != StepStatus.COMPLETED:
+                continue
+            evaluation = ConditionEvaluator().evaluate(
+                control.condition_spec,
+                source.output,
+                graph,
+                control_node_id=control.node_id,
+                join_node_id=control.join_node_id,
+                branch_edge_ids=control.branch_edge_ids,
+            )
+            proposal = self.runtime.proposal_factory.propose_conditional(evaluation, graph)
+            self.runtime.trace_store.append(
+                run=candidate,
+                event_type=TraceEventType.GRAPH_CHANGE_PROPOSED,
+                step_id=source.node_id,
+                observation=f"Proposed conditional branch {proposal.proposal_id}",
+                payload={
+                    "proposalId": proposal.proposal_id,
+                    "controlNodeId": control.node_id,
+                    "sourceNodeId": source.node_id,
+                    "selectedEdgeIds": evaluation.selected_edge_ids,
+                    "terminatedEdgeIds": evaluation.terminated_edge_ids,
+                    "baseGraphVersion": graph.graph_version,
+                },
+            )
+            patch = self.runtime.patch_compiler.compile(proposal, graph)
+            candidate, result = self.runtime.runtime_controller.apply_patch_to_candidate(
+                candidate, patch
+            )
+            if result.applied:
+                self.runtime.runtime_controller.create_patch_checkpoint(candidate, patch)
+            return candidate, patch if result.applied else None
+        return candidate, None
 
     @staticmethod
     def _runtime_event_trace_payload(event: RuntimeEvent) -> dict[str, Any]:
