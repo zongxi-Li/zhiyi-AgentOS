@@ -12,7 +12,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.execution import RunExecutionCoordinator
-from agentos.core.models.types import ReviewDecision, ReviewDecisionType, WorkflowRun
+from agentos.core.models.types import ReviewDecision, ReviewDecisionType, WorkflowRun, WorkflowStatus
 from agentos.core.runtime import ReviewConflictError, WorkflowRuntime
 from agentos.core.workflow.progress import ProgressAssembler
 from app.execution.runtime import build_default_runtime
@@ -1757,15 +1757,22 @@ def create_router(
         )
         if not summary:
             return _page_to_json(result)
-        return {
-            "items": [
+        summary_items = []
+        for run in result.items:
+            try:
+                task_title = runtime.workflow_store.get_task(run.task_id).title
+            except KeyError:
+                task_title = None
+            summary_items.append(
                 {
                     **_to_json(progress_assembler.assemble(run)),
                     "source": run.input.get("source"),
+                    "title": task_title,
                     "createdAt": run.created_at,
                 }
-                for run in result.items
-            ],
+            )
+        return {
+            "items": summary_items,
             "total": result.total,
             "page": result.page,
             "pageSize": result.page_size,
@@ -1792,7 +1799,11 @@ def create_router(
         try:
             run = runtime.get_status(run_id)
             _require_run_access(run)
-            return _to_json(run)
+            try:
+                task_title = runtime.workflow_store.get_task(run.task_id).title
+            except KeyError:
+                task_title = None
+            return {**_to_json(run), "title": task_title}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -2003,6 +2014,35 @@ def create_router(
         try:
             _require_run_access(runtime.get_status(run_id))
             return _to_json(runtime.cancel(run_id))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @router.delete("/core/workflows/runs/{run_id}")
+    async def delete_workflow_run(run_id: str):
+        try:
+            run = runtime.get_status(run_id)
+            _require_run_access(run)
+            if execution_coordinator.is_active(run_id) or run.status in {
+                WorkflowStatus.PENDING,
+                WorkflowStatus.PLANNING,
+                WorkflowStatus.RUNNING,
+                WorkflowStatus.RETRYING,
+            }:
+                raise HTTPException(
+                    status_code=409,
+                    detail="running workflow cannot be deleted; cancel it first",
+                )
+            if run.status == WorkflowStatus.WAITING_REVIEW:
+                runtime.cancel(run_id)
+            result = runtime.workflow_store.delete_run(run_id)
+            if result.task_deleted:
+                runtime.trace_store.delete_task_events(result.task_id)
+            return {
+                "runId": result.run_id,
+                "taskId": result.task_id,
+                "deleted": True,
+                "taskDeleted": result.task_deleted,
+            }
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

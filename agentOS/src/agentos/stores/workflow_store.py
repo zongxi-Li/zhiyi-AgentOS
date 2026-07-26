@@ -29,6 +29,15 @@ class WorkflowStorePage(Generic[T]):
         return len(self.items)
 
 
+@dataclass(frozen=True)
+class WorkflowRunDeleteResult:
+    """Result of deleting one run and, when orphaned, its parent task."""
+
+    run_id: str
+    task_id: str
+    task_deleted: bool
+
+
 def paginate_items(items: Sequence[T], *, page: int = 1, page_size: int = 20) -> WorkflowStorePage[T]:
     safe_page = max(1, page)
     safe_page_size = max(1, page_size)
@@ -71,6 +80,10 @@ class WorkflowStore(ABC):
 
     @abstractmethod
     def get_run(self, run_id: str) -> WorkflowRun:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_run(self, run_id: str, *, delete_orphan_task: bool = True) -> WorkflowRunDeleteResult:
         raise NotImplementedError
 
     @abstractmethod

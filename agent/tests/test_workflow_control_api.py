@@ -159,6 +159,7 @@ def test_summary_list_is_bounded_owner_scoped_prioritized_and_safe():
     assert payload["total"] == 3
     assert payload["items"][0]["runId"] == review.run_id
     assert payload["items"][0]["phase"] == "review"
+    assert "title" in payload["items"][0]
     assert any(item["percent"] is None for item in payload["items"])
     for item in payload["items"]:
         assert not {"input", "output", "steps", "trace", "checkpoints", "acgBlueprint"}.intersection(item)
@@ -170,6 +171,9 @@ def test_run_detail_and_review_hide_other_owners():
     run = _waiting_review_run(runtime, "user-a")
     client = _client(runtime)
 
+    owner_run = client.get(f"/ai/core/workflows/runs/{run.run_id}", headers=_headers("user-a"))
+    assert owner_run.status_code == 200
+    assert owner_run.json()["title"] == "Review task"
     assert client.get(f"/ai/core/workflows/runs/{run.run_id}", headers=_headers("user-b")).status_code == 404
     denied = client.post(
         f"/ai/core/workflows/runs/{run.run_id}/reviews",
@@ -249,3 +253,50 @@ def test_unknown_review_run_returns_404():
         headers=_headers("user-a"),
     )
     assert response.status_code == 404
+
+
+def test_owner_can_delete_waiting_review_run_and_orphan_task():
+    runtime = _runtime()
+    run = _waiting_review_run(runtime, "user-a")
+    client = _client(runtime)
+
+    denied = client.delete(
+        f"/ai/core/workflows/runs/{run.run_id}",
+        headers=_headers("user-b"),
+    )
+    deleted = client.delete(
+        f"/ai/core/workflows/runs/{run.run_id}",
+        headers=_headers("user-a"),
+    )
+
+    assert denied.status_code == 404
+    assert deleted.status_code == 200
+    assert deleted.json() == {
+        "runId": run.run_id,
+        "taskId": run.task_id,
+        "deleted": True,
+        "taskDeleted": True,
+    }
+    assert client.get(
+        f"/ai/core/workflows/runs/{run.run_id}",
+        headers=_headers("user-a"),
+    ).status_code == 404
+
+
+def test_running_workflow_must_be_cancelled_before_delete():
+    runtime = _runtime()
+    run = _save_summary_run(
+        runtime,
+        user_id="user-a",
+        status=WorkflowStatus.RUNNING,
+        phase=WorkflowProgressPhase.EXECUTING,
+        suffix="a5",
+    )
+
+    response = _client(runtime).delete(
+        f"/ai/core/workflows/runs/{run.run_id}",
+        headers=_headers("user-a"),
+    )
+
+    assert response.status_code == 409
+    assert runtime.get_status(run.run_id).status == WorkflowStatus.RUNNING

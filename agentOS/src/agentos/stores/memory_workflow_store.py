@@ -6,7 +6,14 @@ from __future__ import annotations
 from typing import Dict
 
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
-from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value, status_values
+from agentos.stores.workflow_store import (
+    WorkflowRunDeleteResult,
+    WorkflowStore,
+    WorkflowStorePage,
+    paginate_items,
+    status_value,
+    status_values,
+)
 
 
 class MemoryWorkflowStore(WorkflowStore):
@@ -48,6 +55,21 @@ class MemoryWorkflowStore(WorkflowStore):
             return self._runs[run_id].model_copy(deep=True)
         except KeyError as exc:
             raise KeyError(f"workflow run not found: {run_id}") from exc
+
+    def delete_run(self, run_id: str, *, delete_orphan_task: bool = True) -> WorkflowRunDeleteResult:
+        try:
+            run = self._runs.pop(run_id)
+        except KeyError as exc:
+            raise KeyError(f"workflow run not found: {run_id}") from exc
+        self._terminal_run_statuses.pop(run_id, None)
+        task_deleted = False
+        if delete_orphan_task and not any(item.task_id == run.task_id for item in self._runs.values()):
+            task_deleted = self._tasks.pop(run.task_id, None) is not None
+        return WorkflowRunDeleteResult(
+            run_id=run_id,
+            task_id=run.task_id,
+            task_deleted=task_deleted,
+        )
 
     def list_tasks(
         self,

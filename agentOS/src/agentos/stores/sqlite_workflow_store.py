@@ -9,7 +9,14 @@ import sqlite3
 from pathlib import Path
 
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
-from agentos.stores.workflow_store import WorkflowStore, WorkflowStorePage, paginate_items, status_value, status_values
+from agentos.stores.workflow_store import (
+    WorkflowRunDeleteResult,
+    WorkflowStore,
+    WorkflowStorePage,
+    paginate_items,
+    status_value,
+    status_values,
+)
 
 
 class SQLiteWorkflowStore(WorkflowStore):
@@ -163,6 +170,30 @@ class SQLiteWorkflowStore(WorkflowStore):
         if row is None:
             return None
         return WorkflowRun.model_validate(json.loads(row["payload"]))
+
+    def delete_run(self, run_id: str, *, delete_orphan_task: bool = True) -> WorkflowRunDeleteResult:
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT task_id FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"workflow run not found: {run_id}")
+            task_id = str(row["task_id"])
+            conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
+            task_deleted = False
+            if delete_orphan_task:
+                referenced = conn.execute(
+                    "SELECT 1 FROM runs WHERE task_id = ? LIMIT 1",
+                    (task_id,),
+                ).fetchone()
+                if referenced is None:
+                    cursor = conn.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
+                    task_deleted = cursor.rowcount > 0
+            conn.commit()
+        return WorkflowRunDeleteResult(
+            run_id=run_id,
+            task_id=task_id,
+            task_deleted=task_deleted,
+        )
 
     def _init_schema(self) -> None:
         with self._connect() as conn:

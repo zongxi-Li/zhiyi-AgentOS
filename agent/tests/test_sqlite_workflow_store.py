@@ -127,3 +127,33 @@ def test_sqlite_workflow_store_enables_wal_and_verified_backup(tmp_path, monkeyp
     assert result["taskCount"] == 1
     assert result["runCount"] == 0
     assert SQLiteWorkflowStore(backup).get_task(task.task_id).title == "持久化测试"
+
+
+def test_delete_run_keeps_shared_task_then_removes_orphan_task(tmp_path):
+    store = SQLiteWorkflowStore(tmp_path / "workflow.db")
+    task = AgentTask(title="共享任务", domain="legal", intent="contract_review")
+    store.save_task(task)
+    first = WorkflowRun(
+        taskId=task.task_id,
+        workflowId="legal_contract_review_v1",
+        domain="legal",
+        runtimeEngine="acg",
+    )
+    second = first.model_copy(deep=True)
+    second.run_id = "run_second"
+    store.save_run(first)
+    store.save_run(second)
+
+    first_result = store.delete_run(first.run_id)
+    assert first_result.task_deleted is False
+    assert store.get_task(task.task_id).task_id == task.task_id
+    assert store.get_run(second.run_id).run_id == second.run_id
+
+    second_result = store.delete_run(second.run_id)
+    assert second_result.task_deleted is True
+    try:
+        store.get_task(task.task_id)
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("orphan task should be deleted")
