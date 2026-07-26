@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentos.core.execution.package import StepExecutionOutcome
 from agentos.core.models.types import TraceEventType
+from agentos.core.recovery.constants import MAX_SAME_BINDING_RETRIES
 from agentos.core.runtime_graph import RuntimeEvent, RuntimeEventStatus, RuntimeEventType
 if TYPE_CHECKING:
     from agentos.core.runtime_graph import RuntimeGraph, RuntimeNode
@@ -23,6 +24,22 @@ class RuntimeEventClassifier:
     """Purely classify outcomes and structured runtimeSignals; never mutate graph state."""
 
     classification_version = "1"
+    max_same_binding_transient_retries = MAX_SAME_BINDING_RETRIES
+    _IMMEDIATE_BINDING_ERRORS = {
+        "AGENTNOTFOUND",
+        "AGENT_NOT_FOUND",
+        "AGENT_DISABLED",
+        "BINDING_NOT_REGISTERED",
+        "MODEL_ENDPOINT_REMOVED",
+    }
+    _TRANSIENT_BINDING_ERRORS = {
+        "TIMEOUTERROR",
+        "MODEL_TIMEOUT",
+        "TRANSPORT_ERROR",
+        "CONNECTIONERROR",
+        "RATE_LIMIT",
+        "REMOTE_ENDPOINT_UNAVAILABLE",
+    }
 
     def classify(
         self,
@@ -38,7 +55,55 @@ class RuntimeEventClassifier:
                 continue
             events.append(self._build(outcome, runtime_node, runtime_graph, event_type, signal))
 
-        if outcome.error_type == "ContextContractError":
+        error_category = str(outcome.error_code or outcome.error_type).strip().upper()
+        binding_id = runtime_node.attempts[-1].binding_id if runtime_node.attempts else ""
+        same_binding_failures = sum(
+            1
+            for attempt in runtime_node.attempts
+            if attempt.binding_id == binding_id and attempt.error
+        )
+        if outcome.error and (
+            error_category in self._IMMEDIATE_BINDING_ERRORS
+            or outcome.error_type.strip().upper() in self._IMMEDIATE_BINDING_ERRORS
+            or (
+                error_category in self._TRANSIENT_BINDING_ERRORS
+                or outcome.error_type.strip().upper() in self._TRANSIENT_BINDING_ERRORS
+            )
+            and same_binding_failures > self.max_same_binding_transient_retries
+        ):
+            excluded = list(
+                dict.fromkeys(
+                    attempt.binding_id
+                    for attempt in runtime_node.attempts
+                    if attempt.error and attempt.binding_id
+                )
+            )
+            events.append(
+                self._build(
+                    outcome,
+                    runtime_node,
+                    runtime_graph,
+                    RuntimeEventType.BINDING_UNAVAILABLE,
+                    {
+                        "reasonCode": (
+                            "BINDING_RETRY_EXHAUSTED"
+                            if same_binding_failures > self.max_same_binding_transient_retries
+                            else "BINDING_UNAVAILABLE"
+                        ),
+                        "targetNodeId": runtime_node.node_id,
+                        "failedBindingId": binding_id,
+                        "agentName": runtime_node.attempts[-1].agent_name,
+                        "modelName": runtime_node.attempts[-1].model_name,
+                        "capability": runtime_node.spec.get("capability") or "",
+                        "failureCategory": error_category,
+                        "attemptNumber": runtime_node.attempts[-1].attempt_number,
+                        "sameBindingRetryCount": same_binding_failures,
+                        "excludedBindingIds": excluded,
+                        "safeError": str(outcome.error)[:240],
+                    },
+                )
+            )
+        elif outcome.error_type == "ContextContractError":
             event_type = (
                 RuntimeEventType.INPUT_CONTRACT_VIOLATION
                 if outcome.error_direction == "input"
@@ -98,6 +163,19 @@ class RuntimeEventClassifier:
                 )
             ),
         }
+        for field in (
+            "failedBindingId",
+            "agentName",
+            "modelName",
+            "capability",
+            "failureCategory",
+            "attemptNumber",
+            "sameBindingRetryCount",
+            "excludedBindingIds",
+            "safeError",
+        ):
+            if field in signal:
+                payload[field] = signal[field]
         source_trace = next(
             (
                 str(item.get("eventId"))

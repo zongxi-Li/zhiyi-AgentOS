@@ -46,6 +46,7 @@ class RuntimeNodeActivation(str, Enum):
 
 
 class RuntimeEventType(str, Enum):
+    BINDING_UNAVAILABLE = "BINDING_UNAVAILABLE"
     EVIDENCE_MISSING = "EVIDENCE_MISSING"
     INPUT_CONTRACT_VIOLATION = "INPUT_CONTRACT_VIOLATION"
     OUTPUT_CONTRACT_VIOLATION = "OUTPUT_CONTRACT_VIOLATION"
@@ -142,6 +143,8 @@ class RuntimeNode(BaseModel):
     binding_candidates: list[dict[str, Any]] = Field(
         default_factory=list, alias="bindingCandidates"
     )
+    binding_history: list[dict[str, Any]] = Field(default_factory=list, alias="bindingHistory")
+    binding_switch_count: int = Field(default=0, alias="bindingSwitchCount", ge=0)
     attempts: list[RuntimeAttempt] = Field(default_factory=list)
     output: dict[str, Any] = Field(default_factory=dict)
     output_version: int = Field(default=0, alias="outputVersion", ge=0)
@@ -390,14 +393,60 @@ class RuntimeGraph(BaseModel):
             if assigned_id and assigned_id in agent_nodes:
                 binding["modelName"] = agent_nodes[assigned_id].model_name
             if agent_registry is not None:
-                agent = agent_registry.resolve(
+                from agentos.core.recovery.bindings import CandidateResolver
+
+                resolver = CandidateResolver(agent_registry)
+                candidates = resolver.resolve_candidates(
                     domain=domain,
-                    agent_name=acg_node.agent_name,
-                    capability=acg_node.capability,
+                    capability=str(acg_node.capability or ""),
+                    required_skills=list(acg_node.skill_ids),
                 )
-                binding["allowedSkills"] = list(
-                    dict.fromkeys(agent.profile.allowed_skills)
+                selected = next(
+                    (
+                        item
+                        for item in candidates
+                        if not acg_node.agent_name
+                        or item.agent_name.strip().lower()
+                        == acg_node.agent_name.strip().lower()
+                    ),
+                    candidates[0] if candidates else None,
                 )
+                if selected is None:
+                    explicit_agent = agent_registry.resolve(
+                        domain=domain,
+                        agent_name=acg_node.agent_name,
+                        capability=acg_node.capability,
+                    )
+                    from agentos.core.recovery.bindings import ExecutionBinding
+
+                    registration_order = next(
+                        index
+                        for index, item in enumerate(agent_registry.all())
+                        if item is explicit_agent
+                    )
+                    selected = ExecutionBinding.from_agent(
+                        explicit_agent,
+                        capability=str(acg_node.capability or ""),
+                        registration_order=registration_order,
+                    )
+                    candidates = [selected]
+                if selected is not None:
+                    binding = selected.model_dump(by_alias=True, mode="json")
+                    runtime_node.binding_candidates = [
+                        item.model_dump(by_alias=True, mode="json") for item in candidates
+                    ]
+                    if not runtime_node.binding_history:
+                        runtime_node.binding_history.append(
+                            {
+                                "bindingId": selected.binding_id,
+                                "selectedAtGraphVersion": self.graph_version,
+                                "reasonCode": "INITIAL_BINDING",
+                                "selectedAt": _utc_now().isoformat(),
+                                "sourceEventId": None,
+                                "sourcePatchId": None,
+                                "supersededAt": None,
+                            }
+                        )
             runtime_node.current_binding = binding
 
     def structure_hash(self) -> str:

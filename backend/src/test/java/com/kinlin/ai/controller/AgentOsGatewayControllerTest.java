@@ -391,6 +391,7 @@ class AgentOsGatewayControllerTest {
         response.put("recoveryCount", 0);
         response.put("graphVersion", 2);
         response.put("dynamicStepCount", 2);
+        response.put("bindingSwitchCount", 1);
         response.put("startedAt", "2026-07-22T01:06:26Z");
         response.put("updatedAt", "2026-07-22T01:07:20Z");
         response.put("progress", 0.4286);
@@ -406,6 +407,7 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.activeStepIds[1]").value("legal_match"))
                 .andExpect(jsonPath("$.graphVersion").value(2))
                 .andExpect(jsonPath("$.dynamicStepCount").value(2))
+                .andExpect(jsonPath("$.bindingSwitchCount").value(1))
                 .andExpect(jsonPath("$.startedAt").value("2026-07-22T01:06:26Z"))
                 .andExpect(jsonPath("$.updatedAt").value("2026-07-22T01:07:20Z"));
 

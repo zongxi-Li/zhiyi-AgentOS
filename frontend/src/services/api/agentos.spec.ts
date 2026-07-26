@@ -48,7 +48,8 @@ describe('AgentOS async workflow API', () => {
   it('queries progress through Java, preserves null percent, and forwards cancellation', async () => {
     const signal = new AbortController().signal
     const payload = {
-      runId: 'run/1', phase: 'planning', percent: null, graphVersion: 2, dynamicStepCount: 2
+      runId: 'run/1', phase: 'planning', percent: null, graphVersion: 2,
+      dynamicStepCount: 2, bindingSwitchCount: 1
     }
     const get = vi.spyOn(agentosRequest, 'get').mockResolvedValue({ data: payload } as never)
 
@@ -57,6 +58,7 @@ describe('AgentOS async workflow API', () => {
     expect(result.percent).toBeNull()
     expect(result.graphVersion).toBe(2)
     expect(result.dynamicStepCount).toBe(2)
+    expect(result.bindingSwitchCount).toBe(1)
     expect(get).toHaveBeenCalledWith('/core/workflows/runs/run%2F1/progress', { signal })
   })
 

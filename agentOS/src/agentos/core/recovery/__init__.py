@@ -1,6 +1,13 @@
 """Controlled runtime-graph change models and services."""
 
 from agentos.core.recovery.controller import RuntimeController
+from agentos.core.recovery.bindings import (
+    BindingAvailabilityProvider,
+    BindingHistoryRecord,
+    BindingType,
+    ExecutionBinding,
+    RegistryBindingAvailabilityProvider,
+)
 from agentos.core.recovery.errors import (
     PatchConflictError,
     PatchValidationError,
@@ -52,6 +59,11 @@ __all__ = [
     "EventPolicyAction",
     "EventPolicyDecision",
     "CandidateResolver",
+    "BindingAvailabilityProvider",
+    "BindingHistoryRecord",
+    "BindingType",
+    "ExecutionBinding",
+    "RegistryBindingAvailabilityProvider",
     "DeterministicProposalFactory",
     "GraphChangeProposal",
     "GraphChangeType",

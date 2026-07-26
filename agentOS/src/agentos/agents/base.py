@@ -18,6 +18,10 @@ class AgentProfile(BaseModel):
     allowed_skills: List[str] = Field(default_factory=list, alias="allowedSkills")
     risk_level: str = Field(default="normal", alias="riskLevel")
     description: str = ""
+    agent_id: Optional[str] = Field(default=None, alias="agentId")
+    model_name: Optional[str] = Field(default=None, alias="modelName")
+    binding_priority: int = Field(default=0, alias="bindingPriority")
+    enabled: bool = True
 
 
 class AgentOutput(BaseModel):

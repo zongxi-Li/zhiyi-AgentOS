@@ -87,6 +87,11 @@ def test_acg_view_endpoint_exposes_topology_and_provenance():
     assert view["provenance"]["integrityStatus"] == "valid"
     assert view["interactions"]
     assert len(view["stepStates"]) == 3
+    assert {
+        "currentBinding",
+        "bindingHistory",
+        "bindingSwitchCount",
+    }.issubset(view["stepStates"][0])
     # 低熵指标存在
     metrics = view["lowEntropyMetrics"]
     assert "averageSavingRatio" in metrics

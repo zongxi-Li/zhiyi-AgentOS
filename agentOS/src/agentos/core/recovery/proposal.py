@@ -12,6 +12,7 @@ from agentos.core.acg.edges import ACGEdge
 from agentos.core.acg.enums import EdgeType
 from agentos.core.acg.nodes import StepNode
 from agentos.core.models.types import utc_now
+from agentos.core.recovery.bindings import CandidateResolver, ExecutionBinding
 from agentos.core.recovery.events import RuntimeEvent, stable_hash
 from agentos.core.recovery.models import RuntimeGraphPatch, SubgraphInsertionMode
 from agentos.core.recovery.policy import EventPolicyAction, EventPolicyDecision
@@ -21,29 +22,7 @@ from agentos.core.runtime_graph import RuntimeGraph
 
 class GraphChangeType(str, Enum):
     ADD_SUBGRAPH = "ADD_SUBGRAPH"
-
-
-class CandidateBinding(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    capability: str
-    agent_name: str = Field(alias="agentName")
-    binding_id: str = Field(alias="bindingId")
-
-
-class CandidateResolver:
-    """Minimal in-memory capability resolver backed by the existing AgentRegistry."""
-
-    def __init__(self, agent_registry) -> None:
-        self.agent_registry = agent_registry
-
-    def resolve(self, *, domain: str, capability: str) -> CandidateBinding:
-        agent = self.agent_registry.resolve(domain=domain, capability=capability)
-        return CandidateBinding(
-            capability=capability,
-            agentName=agent.profile.agent_name,
-            bindingId=f"agent::{domain}::{agent.profile.agent_name}",
-        )
+    RETRY_ALTERNATE_BINDING = "RETRY_ALTERNATE_BINDING"
 
 
 class GraphChangeProposal(BaseModel):
@@ -60,16 +39,22 @@ class GraphChangeProposal(BaseModel):
         default=SubgraphInsertionMode.INSERT_BEFORE_TARGET,
         alias="insertionMode",
     )
-    recipe_id: str = Field(alias="recipeId")
-    recipe_version: str = Field(alias="recipeVersion")
-    target_node_id: str = Field(alias="targetNodeId")
+    recipe_id: str | None = Field(default=None, alias="recipeId")
+    recipe_version: str | None = Field(default=None, alias="recipeVersion")
+    target_node_id: str | None = Field(default=None, alias="targetNodeId")
     reason: str
-    required_capabilities: list[str] = Field(alias="requiredCapabilities")
-    proposed_nodes: list[StepNode] = Field(alias="proposedNodes")
-    proposed_edges: list[ACGEdge] = Field(alias="proposedEdges")
+    required_capabilities: list[str] = Field(default_factory=list, alias="requiredCapabilities")
+    proposed_nodes: list[StepNode] = Field(default_factory=list, alias="proposedNodes")
+    proposed_edges: list[ACGEdge] = Field(default_factory=list, alias="proposedEdges")
     input_mappings: dict[str, Any] = Field(default_factory=dict, alias="inputMappings")
     output_mappings: dict[str, Any] = Field(default_factory=dict, alias="outputMappings")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
+    runtime_node_id: str | None = Field(default=None, alias="runtimeNodeId")
+    failed_binding_id: str | None = Field(default=None, alias="failedBindingId")
+    candidate_binding: ExecutionBinding | None = Field(default=None, alias="candidateBinding")
+    excluded_binding_ids: list[str] = Field(default_factory=list, alias="excludedBindingIds")
+    expected_node_status: str | None = Field(default=None, alias="expectedNodeStatus")
+    expected_attempt_id: str | None = Field(default=None, alias="expectedAttemptId")
 
 
 class DeterministicProposalFactory:
@@ -85,6 +70,40 @@ class DeterministicProposalFactory:
         *,
         domain: str,
     ) -> GraphChangeProposal:
+        if decision.patch_operation == GraphChangeType.RETRY_ALTERNATE_BINDING.value:
+            node = graph.get_node(event.runtime_node_id)
+            failed_binding_id = str(event.payload.get("failedBindingId") or "")
+            excluded = list(dict.fromkeys(event.payload.get("excludedBindingIds") or []))
+            required_skills = list(node.spec.get("skillIds") or [])
+            candidates = candidate_resolver.resolve_candidates(
+                domain=domain,
+                capability=str(node.spec.get("capability") or event.payload.get("capability") or ""),
+                required_skills=required_skills,
+                excluded_binding_ids=excluded,
+            )
+            if not candidates:
+                raise KeyError("ALTERNATE_BINDING_EXHAUSTED")
+            candidate = candidates[0]
+            proposal_key = stable_hash(
+                event.event_id, node.node_id, failed_binding_id, candidate.binding_id
+            )
+            return GraphChangeProposal(
+                proposalId=f"proposal_{proposal_key[:24]}",
+                idempotencyKey=proposal_key,
+                runId=graph.run_id,
+                graphId=graph.graph_id,
+                baseGraphVersion=graph.graph_version,
+                sourceEventId=event.event_id,
+                changeType=GraphChangeType.RETRY_ALTERNATE_BINDING,
+                runtimeNodeId=node.node_id,
+                failedBindingId=failed_binding_id,
+                candidateBinding=candidate,
+                excludedBindingIds=excluded,
+                expectedNodeStatus=node.status.value,
+                expectedAttemptId=node.attempts[-1].attempt_id if node.attempts else None,
+                reason=decision.reason,
+                createdAt=event.created_at,
+            )
         if decision.action != EventPolicyAction.PROPOSE_PATCH or not decision.recipe_id:
             raise ValueError("policy decision does not authorize a graph proposal")
         recipe = recipe_registry.get(decision.recipe_id, decision.recipe_version)
@@ -160,6 +179,35 @@ class RuntimeGraphPatchCompiler:
     """Compile only ADD_SUBGRAPH/INSERT_BEFORE_TARGET against the latest graph view."""
 
     def compile(self, proposal: GraphChangeProposal, graph: RuntimeGraph) -> RuntimeGraphPatch:
+        if proposal.change_type == GraphChangeType.RETRY_ALTERNATE_BINDING:
+            node = graph.get_node(str(proposal.runtime_node_id))
+            current_id = str((node.current_binding or {}).get("bindingId") or "")
+            patch_key = stable_hash(
+                proposal.proposal_id,
+                proposal.runtime_node_id,
+                proposal.failed_binding_id,
+                proposal.candidate_binding.binding_id,
+            )
+            return RuntimeGraphPatch(
+                patchId=f"patch_{patch_key[:24]}",
+                idempotencyKey=proposal.idempotency_key,
+                runId=proposal.run_id,
+                graphId=proposal.graph_id,
+                baseGraphVersion=graph.graph_version,
+                operationType=GraphChangeType.RETRY_ALTERNATE_BINDING,
+                sourceEventId=proposal.source_event_id,
+                proposalId=proposal.proposal_id,
+                reason=proposal.reason,
+                createdAt=proposal.created_at,
+                expectedNodeStates={node.node_id: node.status},
+                budgetImpact={"addedNodes": 0, "replanDepthIncrement": 0},
+                runtimeNodeId=node.node_id,
+                expectedAttemptId=proposal.expected_attempt_id,
+                expectedCurrentBindingId=current_id,
+                newBinding=proposal.candidate_binding,
+                excludedBindingIds=proposal.excluded_binding_ids,
+                metadata={"failureCategory": "BINDING_UNAVAILABLE"},
+            )
         if proposal.change_type != GraphChangeType.ADD_SUBGRAPH:
             raise ValueError(f"unsupported change type: {proposal.change_type}")
         if proposal.insertion_mode != SubgraphInsertionMode.INSERT_BEFORE_TARGET:
@@ -213,7 +261,6 @@ class RuntimeGraphPatchCompiler:
 
 
 __all__ = [
-    "CandidateBinding",
     "CandidateResolver",
     "DeterministicProposalFactory",
     "GraphChangeProposal",

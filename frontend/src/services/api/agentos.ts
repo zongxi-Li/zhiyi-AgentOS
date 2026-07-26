@@ -58,6 +58,7 @@ export interface WorkflowProgress {
   recoveryCount: number
   graphVersion?: number | null
   dynamicStepCount?: number
+  bindingSwitchCount?: number
   startedAt: string | null
   updatedAt: string | null
   progress: number
@@ -412,6 +413,9 @@ export interface AcgStepState {
   agentName: string
   attempt: number
   retryCount: number
+  currentBinding?: Record<string, any> | null
+  bindingHistory?: Array<Record<string, any>>
+  bindingSwitchCount?: number
 }
 
 export interface AcgLowEntropyMetrics {
@@ -440,6 +444,7 @@ export interface AcgView {
   acgBlueprint: AcgBlueprint | null
   graphVersion?: number | null
   dynamicStepCount?: number
+  bindingSwitchCount?: number
   appliedPatches?: Array<Record<string, any>>
   runtimeEvents?: Array<Record<string, any>>
   completedStepIds: string[]

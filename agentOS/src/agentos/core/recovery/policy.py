@@ -28,12 +28,14 @@ class EventPolicyDecision(BaseModel):
     target_node_id: str = Field(alias="targetNodeId")
     priority: int = 0
     reason: str = ""
+    patch_operation: str | None = Field(default=None, alias="patchOperation")
 
 
 class RuntimeEventPolicy:
     """Select only registered recipes; it cannot modify RuntimeGraph."""
 
     _PRIORITY = {
+        RuntimeEventType.BINDING_UNAVAILABLE: 500,
         RuntimeEventType.INPUT_CONTRACT_VIOLATION: 400,
         RuntimeEventType.OUTPUT_CONTRACT_VIOLATION: 300,
         RuntimeEventType.EVIDENCE_MISSING: 200,
@@ -47,6 +49,14 @@ class RuntimeEventPolicy:
     def decide(self, event: RuntimeEvent, graph: RuntimeGraph) -> EventPolicyDecision:
         target = event.target_node_id
         priority = self._PRIORITY[event.event_type]
+        if event.event_type == RuntimeEventType.BINDING_UNAVAILABLE:
+            return EventPolicyDecision(
+                action=EventPolicyAction.PROPOSE_PATCH,
+                patchOperation="RETRY_ALTERNATE_BINDING",
+                targetNodeId=target,
+                priority=500,
+                reason="current execution binding is unavailable",
+            )
         if event.event_type == RuntimeEventType.STEP_EXECUTION_FAILED:
             return EventPolicyDecision(
                 action=EventPolicyAction.RETRY_EXISTING,

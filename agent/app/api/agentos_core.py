@@ -1820,6 +1820,9 @@ def create_router(
                 "appliedPatches": [_to_json(item) for item in graph.applied_patches] if graph is not None else [],
                 "runtimeEvents": [_to_json(item) for item in graph.runtime_events] if graph is not None else [],
                 "dynamicStepCount": dynamic_step_count,
+                "bindingSwitchCount": (
+                    sum(node.binding_switch_count for node in graph.nodes) if graph is not None else 0
+                ),
             }
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1969,6 +1972,9 @@ def create_router(
             "appliedPatches": [_to_json(item) for item in graph.applied_patches] if graph is not None else [],
             "runtimeEvents": [_to_json(item) for item in graph.runtime_events] if graph is not None else [],
             "dynamicStepCount": dynamic_step_count,
+            "bindingSwitchCount": (
+                sum(node.binding_switch_count for node in graph.nodes) if graph is not None else 0
+            ),
             "completedStepIds": run.completed_step_ids,
             "activeStepIds": run.active_step_ids,
             "stepStates": [
@@ -1978,6 +1984,15 @@ def create_router(
                     "agentName": step.agent_name,
                     "attempt": step.attempt,
                     "retryCount": step.retry_count,
+                    "currentBinding": (
+                        graph.get_node(step.step_id).current_binding if graph is not None else None
+                    ),
+                    "bindingHistory": (
+                        graph.get_node(step.step_id).binding_history if graph is not None else []
+                    ),
+                    "bindingSwitchCount": (
+                        graph.get_node(step.step_id).binding_switch_count if graph is not None else 0
+                    ),
                 }
                 for step in run.steps
             ],

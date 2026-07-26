@@ -8,6 +8,8 @@ from agentos.core.acg.enums import EdgeType, NodeType
 from agentos.core.acg.graph_ops import ACGValidationError, validate_blueprint
 from agentos.core.acg.nodes import StepNode
 from agentos.core.recovery.errors import PatchValidationError
+from agentos.core.recovery.bindings import CandidateResolver
+from agentos.core.recovery.constants import MAX_BINDING_SWITCHES_PER_NODE
 from agentos.core.recovery.models import (
     PatchOperationType,
     RuntimeGraphPatch,
@@ -27,6 +29,7 @@ class PatchValidator:
 
     def __init__(self, agent_registry) -> None:
         self.agent_registry = agent_registry
+        self.candidate_resolver = CandidateResolver(agent_registry)
 
     def validate(
         self,
@@ -38,6 +41,8 @@ class PatchValidator:
         """Return a validated candidate graph without advancing its version."""
 
         self._validate_identity(graph, patch)
+        if patch.operation_type == PatchOperationType.RETRY_ALTERNATE_BINDING:
+            return self._validate_alternate_binding(graph, patch, domain=domain)
         self._validate_budget(graph, patch)
         self._validate_target_and_replaced_edges(graph, patch)
         self._validate_ids(graph, patch)
@@ -89,7 +94,10 @@ class PatchValidator:
                 "GRAPH_VERSION_CONFLICT",
                 f"expected graphVersion {graph.graph_version}, got {patch.base_graph_version}",
             )
-        if patch.operation_type != PatchOperationType.ADD_SUBGRAPH:
+        if patch.operation_type not in {
+            PatchOperationType.ADD_SUBGRAPH,
+            PatchOperationType.RETRY_ALTERNATE_BINDING,
+        }:
             raise PatchValidationError(
                 "UNSUPPORTED_PATCH_OPERATION", str(patch.operation_type)
             )
@@ -101,6 +109,51 @@ class PatchValidator:
             raise PatchValidationError(
                 "INVALID_PATCH_IDENTITY", "patchId and idempotencyKey are required"
             )
+
+    def _validate_alternate_binding(self, graph, patch, *, domain: str) -> RuntimeGraph:
+        node = graph.get_node(str(patch.runtime_node_id))
+        if node.node_type != NodeType.STEP:
+            raise PatchValidationError("INVALID_BINDING_TARGET", node.node_id)
+        if node.status not in {RuntimeNodeStatus.FAILED, RuntimeNodeStatus.RETRYING}:
+            raise PatchValidationError("TARGET_STATE_CONFLICT", node.status.value)
+        if patch.expected_node_states.get(node.node_id) != node.status:
+            raise PatchValidationError("EXPECTED_NODE_STATE_CONFLICT", node.node_id)
+        if not node.attempts or node.attempts[-1].attempt_id != patch.expected_attempt_id:
+            raise PatchValidationError("EXPECTED_ATTEMPT_CONFLICT", node.node_id)
+        current_id = str((node.current_binding or {}).get("bindingId") or "")
+        if current_id != patch.expected_current_binding_id:
+            raise PatchValidationError("CURRENT_BINDING_CONFLICT", node.node_id)
+        new_binding = patch.new_binding
+        assert new_binding is not None
+        if new_binding.binding_id == current_id:
+            raise PatchValidationError("SAME_BINDING", new_binding.binding_id)
+        if new_binding.binding_id in patch.excluded_binding_ids:
+            raise PatchValidationError("EXCLUDED_BINDING", new_binding.binding_id)
+        capability = str(node.spec.get("capability") or "")
+        required_skills = list(node.spec.get("skillIds") or [])
+        if new_binding.domain.strip().lower() != domain.strip().lower():
+            raise PatchValidationError("BINDING_DOMAIN_MISMATCH", new_binding.domain)
+        if new_binding.capability.strip().lower() != capability.strip().lower():
+            raise PatchValidationError("BINDING_CAPABILITY_MISMATCH", new_binding.capability)
+        if not self.candidate_resolver.validate_binding(
+            domain=domain,
+            capability=capability,
+            required_skills=required_skills,
+            binding=new_binding,
+        ):
+            raise PatchValidationError("INVALID_BINDING", new_binding.binding_id)
+        retry_limit = int(node.spec.get("retryLimit") or 0)
+        if len(node.attempts) > retry_limit:
+            raise PatchValidationError("RETRY_LIMIT_EXCEEDED", node.node_id)
+        if node.binding_switch_count >= MAX_BINDING_SWITCHES_PER_NODE:
+            raise PatchValidationError("BINDING_SWITCH_BUDGET_EXCEEDED", node.node_id)
+        candidate = graph.model_copy(deep=True)
+        candidate_node = candidate.get_node(node.node_id)
+        candidate_node.current_binding = new_binding.model_dump(by_alias=True, mode="json")
+        candidate_node.status = RuntimeNodeStatus.RETRYING
+        candidate_node.error = None
+        candidate_node.binding_switch_count += 1
+        return candidate
 
     @staticmethod
     def _validate_budget(graph: RuntimeGraph, patch: RuntimeGraphPatch) -> None:

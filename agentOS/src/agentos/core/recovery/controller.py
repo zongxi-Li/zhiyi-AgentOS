@@ -10,6 +10,7 @@ from agentos.core.models.enums import StepStatus
 from agentos.core.models.types import TraceEventType, utc_now
 from agentos.core.recovery.errors import PatchConflictError, RuntimeGraphError
 from agentos.core.recovery.models import PatchApplyResult, RuntimeGraphPatch
+from agentos.core.recovery.models import PatchOperationType
 from agentos.core.recovery.validator import PatchValidator
 from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import AppliedPatchRecord, RuntimeGraph
@@ -160,6 +161,24 @@ class RuntimeController:
         )
         candidate_graph.graph_version += 1
         candidate_graph.updated_at = utc_now()
+        patch_node_id = patch.target_node_id or patch.runtime_node_id
+        if patch.operation_type == PatchOperationType.RETRY_ALTERNATE_BINDING:
+            binding_node = candidate_graph.get_node(str(patch.runtime_node_id))
+            for item in reversed(binding_node.binding_history):
+                if item.get("supersededAt") is None:
+                    item["supersededAt"] = utc_now().isoformat()
+                    break
+            binding_node.binding_history.append(
+                {
+                    "bindingId": patch.new_binding.binding_id,
+                    "selectedAtGraphVersion": candidate_graph.graph_version,
+                    "sourceEventId": patch.source_event_id,
+                    "sourcePatchId": patch.patch_id,
+                    "reasonCode": str(patch.metadata.get("failureCategory") or "BINDING_UNAVAILABLE"),
+                    "selectedAt": utc_now().isoformat(),
+                    "supersededAt": None,
+                }
+            )
         candidate_graph.processed_event_ids.append(patch.source_event_id)
         candidate_graph.applied_patch_ids.append(patch.patch_id)
         candidate_graph.applied_patch_idempotency_keys.append(patch.idempotency_key)
@@ -195,7 +214,7 @@ class RuntimeController:
                 else TraceEventType.RUNTIME_PATCH_APPLIED
             ),
             observation=f"Applied runtime graph patch {patch.patch_id}",
-            step_id=patch.target_node_id,
+            step_id=patch_node_id,
             payload={
                 "eventId": patch.source_event_id,
                 "proposalId": patch.proposal_id,
@@ -203,8 +222,8 @@ class RuntimeController:
                 "recipeId": recipe_id,
                 "baseGraphVersion": patch.base_graph_version,
                 "resultGraphVersion": candidate_graph.graph_version,
-                "runtimeNodeId": patch.target_node_id,
-                "targetNodeId": patch.target_node_id,
+                "runtimeNodeId": patch_node_id,
+                "targetNodeId": patch_node_id,
             },
         )
         return candidate_run, PatchApplyResult(
@@ -220,7 +239,8 @@ class RuntimeController:
 
         graph = candidate_run.runtime_graph
         assert graph is not None
-        checkpoint = self.checkpoint_store.create(candidate_run, patch.target_node_id)
+        patch_node_id = patch.target_node_id or patch.runtime_node_id
+        checkpoint = self.checkpoint_store.create(candidate_run, str(patch_node_id))
         record = graph.patch_record_by_id(patch.patch_id)
         assert record is not None
         record.checkpoint_id = checkpoint.checkpoint_id
@@ -230,7 +250,7 @@ class RuntimeController:
             run=candidate_run,
             event_type=TraceEventType.CHECKPOINT_CREATED,
             observation=f"Checkpoint created after patch {patch.patch_id}",
-            step_id=patch.target_node_id,
+            step_id=patch_node_id,
             payload={
                 "checkpointId": checkpoint.checkpoint_id,
                 "graphVersion": graph.graph_version,

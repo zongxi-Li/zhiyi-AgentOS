@@ -30,6 +30,7 @@ public record WorkflowProgressResponse(
         Integer recoveryCount,
         Integer graphVersion,
         Integer dynamicStepCount,
+        Integer bindingSwitchCount,
         @JsonFormat(shape = JsonFormat.Shape.STRING) OffsetDateTime startedAt,
         @JsonFormat(shape = JsonFormat.Shape.STRING) OffsetDateTime updatedAt,
         BigDecimal progress,

@@ -1,7 +1,13 @@
 from datetime import datetime, timezone
 import sqlite3
 
-from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus, WorkflowStep
+from agentos.core.models.types import (
+    AgentTask,
+    StepStatus,
+    WorkflowRun,
+    WorkflowStatus,
+    WorkflowStep,
+)
 from agentos.core.acg import ACGBlueprint, ACGEdge, StepNode
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.runtime_graph import (
@@ -10,6 +16,7 @@ from agentos.core.runtime_graph import (
     RuntimeEventStatus,
     RuntimeEventType,
     RuntimeGraph,
+    RuntimeAttempt,
 )
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
@@ -101,6 +108,34 @@ def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkp
             sourceEventId="event_sqlite",
         )
     ]
+    binding_node = graph.get_node("b")
+    binding_node.current_binding = {
+        "bindingId": "binding_alternate",
+        "agentName": "alternate",
+        "agentId": "alternate",
+        "domain": "test",
+        "capability": "work",
+    }
+    binding_node.binding_candidates = [dict(binding_node.current_binding)]
+    binding_node.binding_history = [
+        {
+            "bindingId": "binding_alternate",
+            "selectedAtGraphVersion": 2,
+            "sourcePatchId": "patch_sqlite",
+            "reasonCode": "BINDING_UNAVAILABLE",
+        }
+    ]
+    binding_node.binding_switch_count = 1
+    binding_node.attempts = [
+        RuntimeAttempt(
+            attemptNumber=1,
+            graphVersion=1,
+            bindingId="binding_primary",
+            agentName="primary",
+            status=StepStatus.FAILED,
+            error="unavailable",
+        )
+    ]
     run = WorkflowRun(
         runId="run_sqlite",
         taskId="task_sqlite",
@@ -129,6 +164,11 @@ def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkp
     assert reloaded.runtime_graph.applied_recipe_scopes == [
         "evidence_retrieval_and_validation.v1::b"
     ]
+    reloaded_binding = reloaded.runtime_graph.get_node("b")
+    assert reloaded_binding.current_binding["bindingId"] == "binding_alternate"
+    assert reloaded_binding.binding_switch_count == 1
+    assert reloaded_binding.binding_history[0]["sourcePatchId"] == "patch_sqlite"
+    assert reloaded_binding.attempts[0].binding_id == "binding_primary"
     assert reloaded.checkpoints[-1].state_snapshot["graphVersion"] == 2
     assert reloaded.checkpoints[-1].state_snapshot["appliedPatchIds"] == ["patch_sqlite"]
     assert reloaded.checkpoints[-1].state_snapshot["runtimeGraph"]["graphVersion"] == 2

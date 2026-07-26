@@ -43,6 +43,7 @@ class WorkflowProgress(CoreModel):
     recovery_count: int = Field(default=0, alias="recoveryCount")
     graph_version: Optional[int] = Field(default=None, alias="graphVersion")
     dynamic_step_count: int = Field(default=0, alias="dynamicStepCount")
+    binding_switch_count: int = Field(default=0, alias="bindingSwitchCount")
     started_at: Optional[datetime] = Field(default=None, alias="startedAt")
     updated_at: Optional[datetime] = Field(default=None, alias="updatedAt")
     # Deprecated compatibility fields. `progress` is the 0..1 ratio and
@@ -125,6 +126,11 @@ class ProgressAssembler:
             if runtime_graph is not None
             else 0
         )
+        binding_switch_count = (
+            sum(node.binding_switch_count for node in runtime_graph.nodes)
+            if runtime_graph is not None
+            else 0
+        )
 
         return WorkflowProgress(
             taskId=run.task_id,
@@ -147,6 +153,7 @@ class ProgressAssembler:
             recoveryCount=run.recovery_count,
             graphVersion=graph_version,
             dynamicStepCount=dynamic_step_count,
+            bindingSwitchCount=binding_switch_count,
             startedAt=run.started_at,
             updatedAt=run.updated_at,
             **self._compatibility_values(percent),

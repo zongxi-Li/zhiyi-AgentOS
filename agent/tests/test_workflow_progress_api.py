@@ -293,6 +293,7 @@ def test_progress_api_exposes_runtime_graph_version_and_dynamic_step_count():
     graph = RuntimeGraph.from_blueprint(run_id=run.run_id, blueprint=blueprint)
     graph.graph_version = 2
     graph.nodes[-1].created_graph_version = 2
+    graph.nodes[-1].binding_switch_count = 1
     run.runtime_graph = graph
     runtime.workflow_store.save_run(run)
 
@@ -302,6 +303,7 @@ def test_progress_api_exposes_runtime_graph_version_and_dynamic_step_count():
 
     assert payload["graphVersion"] == 2
     assert payload["dynamicStepCount"] == 1
+    assert payload["bindingSwitchCount"] == 1
     assert payload["totalSteps"] == 2
 
 

@@ -152,7 +152,12 @@ class ACGExecutor:
             for node in selected:
                 self.runtime.runtime_controller.transition_node_state(node, StepStatus.RUNNING)
                 binding = dict(node.current_binding or {})
-                binding_id = str(binding.get("assignedAgentId") or binding.get("agentName") or node.node_id)
+                binding_id = str(
+                    binding.get("bindingId")
+                    or binding.get("assignedAgentId")
+                    or binding.get("agentName")
+                    or node.node_id
+                )
                 attempt = RuntimeAttempt(
                     attemptNumber=len(node.attempts) + 1,
                     graphVersion=graph.graph_version,
@@ -232,7 +237,12 @@ class ACGExecutor:
         node = graph.get_node(package.runtime_node_id)
         step_node = StepNode.model_validate(package.node_spec)
         step = local_run.get_step(package.runtime_node_id)
-        binding_id = str(package.binding.get("assignedAgentId") or package.binding.get("agentName") or node.node_id)
+        binding_id = str(
+            package.binding.get("bindingId")
+            or package.binding.get("assignedAgentId")
+            or package.binding.get("agentName")
+            or node.node_id
+        )
         ledger = ProvenanceLedger(run_id=package.run_id, task_id=package.task_id)
         assembler = ContextAssembler(ledger)
         resolved: dict[str, Any] = {}
@@ -505,7 +515,9 @@ class ACGExecutor:
                     StepStatus.WAITING_REVIEW,
                     StepStatus.RETRYING,
                 }:
-                    if applied_patch is not None and outcome.runtime_node_id == applied_patch.target_node_id:
+                    if applied_patch is not None and outcome.runtime_node_id == (
+                        applied_patch.target_node_id or applied_patch.runtime_node_id
+                    ):
                         continue
                     try:
                         self.runtime._create_checkpoint(candidate, candidate.get_step(outcome.runtime_node_id))

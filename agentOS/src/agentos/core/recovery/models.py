@@ -8,12 +8,13 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agentos.core.acg.edges import ACGEdge
 from agentos.core.acg.nodes import ACGNode, parse_node
 from agentos.core.models.types import utc_now
 from agentos.core.runtime_graph import RuntimeGraph, RuntimeNodeStatus
+from agentos.core.recovery.bindings import ExecutionBinding
 
 
 def _hash(payload: dict[str, Any]) -> str:
@@ -25,6 +26,7 @@ def _hash(payload: dict[str, Any]) -> str:
 
 class PatchOperationType(str, Enum):
     ADD_SUBGRAPH = "ADD_SUBGRAPH"
+    RETRY_ALTERNATE_BINDING = "RETRY_ALTERNATE_BINDING"
 
 
 class SubgraphInsertionMode(str, Enum):
@@ -63,15 +65,36 @@ class RuntimeGraphPatch(BaseModel):
         default=SubgraphInsertionMode.INSERT_BEFORE_TARGET,
         alias="insertionMode",
     )
-    target_node_id: str = Field(alias="targetNodeId", min_length=1)
-    replaced_incoming_edge_ids: list[str] = Field(alias="replacedIncomingEdgeIds")
-    add_nodes: list[ACGNode] = Field(alias="addNodes", min_length=1)
-    add_edges: list[ACGEdge] = Field(alias="addEdges", min_length=1)
+    target_node_id: str | None = Field(default=None, alias="targetNodeId")
+    replaced_incoming_edge_ids: list[str] = Field(default_factory=list, alias="replacedIncomingEdgeIds")
+    add_nodes: list[ACGNode] = Field(default_factory=list, alias="addNodes")
+    add_edges: list[ACGEdge] = Field(default_factory=list, alias="addEdges")
+    runtime_node_id: str | None = Field(default=None, alias="runtimeNodeId")
+    expected_attempt_id: str | None = Field(default=None, alias="expectedAttemptId")
+    expected_current_binding_id: str | None = Field(
+        default=None, alias="expectedCurrentBindingId"
+    )
+    new_binding: ExecutionBinding | None = Field(default=None, alias="newBinding")
+    excluded_binding_ids: list[str] = Field(default_factory=list, alias="excludedBindingIds")
 
     @field_validator("add_nodes", mode="before")
     @classmethod
     def _parse_nodes(cls, value):
-        return [parse_node(item) for item in value]
+        return [parse_node(item) for item in (value or [])]
+
+    @model_validator(mode="after")
+    def _validate_operation_payload(self):
+        if self.operation_type == PatchOperationType.ADD_SUBGRAPH:
+            if not self.target_node_id or not self.add_nodes or not self.add_edges:
+                raise ValueError("ADD_SUBGRAPH requires targetNodeId, addNodes, and addEdges")
+            if self.new_binding is not None or self.runtime_node_id is not None:
+                raise ValueError("ADD_SUBGRAPH payload cannot contain binding fields")
+        elif self.operation_type == PatchOperationType.RETRY_ALTERNATE_BINDING:
+            if not self.runtime_node_id or self.new_binding is None:
+                raise ValueError("RETRY_ALTERNATE_BINDING requires runtimeNodeId and newBinding")
+            if self.target_node_id or self.add_nodes or self.add_edges or self.replaced_incoming_edge_ids:
+                raise ValueError("binding patch cannot contain subgraph fields")
+        return self
 
     def content_hash(self) -> str:
         return _hash(self.model_dump(by_alias=True, mode="json"))
