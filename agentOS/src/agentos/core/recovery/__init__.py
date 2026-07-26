@@ -14,6 +14,25 @@ from agentos.core.recovery.models import (
     SubgraphInsertionMode,
 )
 from agentos.core.recovery.validator import PatchValidator
+from agentos.core.recovery.events import (
+    RuntimeEvent,
+    RuntimeEventClassifier,
+    RuntimeEventStatus,
+    RuntimeEventType,
+)
+from agentos.core.recovery.policy import EventPolicyAction, EventPolicyDecision, RuntimeEventPolicy
+from agentos.core.recovery.proposal import (
+    CandidateResolver,
+    DeterministicProposalFactory,
+    GraphChangeProposal,
+    GraphChangeType,
+    RuntimeGraphPatchCompiler,
+)
+from agentos.core.recovery.recipes import (
+    RecoveryNodeTemplate,
+    RecoveryRecipe,
+    RecoveryRecipeRegistry,
+)
 
 __all__ = [
     "PatchApplyResult",
@@ -25,5 +44,20 @@ __all__ = [
     "RuntimeController",
     "RuntimeGraphError",
     "RuntimeGraphPatch",
+    "RuntimeEvent",
+    "RuntimeEventClassifier",
+    "RuntimeEventStatus",
+    "RuntimeEventType",
+    "RuntimeEventPolicy",
+    "EventPolicyAction",
+    "EventPolicyDecision",
+    "CandidateResolver",
+    "DeterministicProposalFactory",
+    "GraphChangeProposal",
+    "GraphChangeType",
+    "RuntimeGraphPatchCompiler",
+    "RecoveryNodeTemplate",
+    "RecoveryRecipe",
+    "RecoveryRecipeRegistry",
     "SubgraphInsertionMode",
 ]

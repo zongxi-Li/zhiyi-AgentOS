@@ -117,103 +117,128 @@ class RuntimeController:
 
         async with self.lock_manager.lock_for(run_id):
             latest = self.workflow_store.get_run(run_id)
-            graph = latest.runtime_graph
-            if graph is None:
-                raise RuntimeGraphError(
-                    "RUNTIME_GRAPH_MISSING", "initialize the run before patching"
-                )
-
-            replay = self._check_replay(graph, patch)
-            if replay is not None:
-                return replay
-            if patch.source_event_id in graph.processed_event_ids:
-                raise PatchConflictError(
-                    "EVENT_ALREADY_PROCESSED",
-                    f"source event {patch.source_event_id} already produced a patch",
-                )
-            if patch.base_graph_version != graph.graph_version:
-                raise PatchConflictError(
-                    "GRAPH_VERSION_CONFLICT",
-                    f"expected graphVersion {graph.graph_version}, got {patch.base_graph_version}",
-                )
-
-            candidate_run = latest.model_copy(deep=True)
-            candidate_graph = self.validator.validate(
-                candidate_run.runtime_graph,
-                patch,
-                domain=candidate_run.domain,
-            )
-            candidate_graph.graph_version += 1
-            candidate_graph.updated_at = utc_now()
-            candidate_graph.processed_event_ids.append(patch.source_event_id)
-            candidate_graph.applied_patch_ids.append(patch.patch_id)
-            candidate_graph.applied_patch_idempotency_keys.append(patch.idempotency_key)
-            record = AppliedPatchRecord(
-                patchId=patch.patch_id,
-                idempotencyKey=patch.idempotency_key,
-                contentHash=patch.content_hash(),
-                semanticHash=patch.semantic_hash(),
-                operationType=patch.operation_type.value,
-                baseGraphVersion=patch.base_graph_version,
-                resultGraphVersion=candidate_graph.graph_version,
-                sourceEventId=patch.source_event_id,
-            )
-            candidate_graph.applied_patches.append(record)
-            candidate_run.runtime_graph = candidate_graph
-            refresh_run_execution_projection(candidate_run)
-            candidate_run.execution_state["graphId"] = candidate_graph.graph_id
-            candidate_run.execution_state["graphVersion"] = (
-                candidate_graph.graph_version
-            )
-            candidate_run.execution_state["sourceBlueprintVersion"] = (
-                candidate_graph.source_blueprint_version
-            )
-            candidate_run.updated_at = utc_now()
-
-            self.trace_store.append(
-                run=candidate_run,
-                event_type=TraceEventType.RUNTIME_PATCH_APPLIED,
-                observation=f"Applied runtime graph patch {patch.patch_id}",
-                step_id=patch.target_node_id,
-                payload={
-                    "patchId": patch.patch_id,
-                    "operationType": patch.operation_type.value,
-                    "baseGraphVersion": patch.base_graph_version,
-                    "resultGraphVersion": candidate_graph.graph_version,
-                    "sourceEventId": patch.source_event_id,
-                },
-            )
-            checkpoint = self.checkpoint_store.create(
-                candidate_run, patch.target_node_id
-            )
-            record.checkpoint_id = checkpoint.checkpoint_id
-            checkpoint.state_snapshot["runtimeGraph"] = candidate_graph.model_dump(
-                by_alias=True,
-                mode="json",
-            )
-            checkpoint.state_snapshot["appliedPatchIds"] = list(
-                candidate_graph.applied_patch_ids
-            )
-            self.trace_store.append(
-                run=candidate_run,
-                event_type=TraceEventType.CHECKPOINT_CREATED,
-                observation=f"Checkpoint created after patch {patch.patch_id}",
-                step_id=patch.target_node_id,
-                payload={
-                    "checkpointId": checkpoint.checkpoint_id,
-                    "graphVersion": candidate_graph.graph_version,
-                },
-            )
-
+            candidate_run, result = self.apply_patch_to_candidate(latest, patch)
+            if not result.applied:
+                return result
+            checkpoint = self.create_patch_checkpoint(candidate_run, patch)
+            result.checkpoint_id = checkpoint.checkpoint_id
+            result.runtime_graph = candidate_run.runtime_graph.model_copy(deep=True)
             self.workflow_store.save_run(candidate_run)
-            return PatchApplyResult(
-                applied=True,
-                idempotentReplay=False,
-                graphVersion=candidate_graph.graph_version,
-                patchId=patch.patch_id,
-                checkpointId=checkpoint.checkpoint_id,
-                runtimeGraph=candidate_graph.model_copy(deep=True),
+            return result
+
+    def apply_patch_to_candidate(
+        self,
+        loaded_run,
+        patch: RuntimeGraphPatch,
+    ) -> tuple[object, PatchApplyResult]:
+        """Apply to a deep run copy without locking or saving; callers own the barrier lock."""
+
+        graph = loaded_run.runtime_graph
+        if graph is None:
+            raise RuntimeGraphError(
+                "RUNTIME_GRAPH_MISSING", "initialize the run before patching"
             )
+        replay = self._check_replay(graph, patch)
+        if replay is not None:
+            return loaded_run.model_copy(deep=True), replay
+        if patch.source_event_id in graph.processed_event_ids:
+            raise PatchConflictError(
+                "EVENT_ALREADY_PROCESSED",
+                f"source event {patch.source_event_id} already produced a patch",
+            )
+        if patch.base_graph_version != graph.graph_version:
+            raise PatchConflictError(
+                "GRAPH_VERSION_CONFLICT",
+                f"expected graphVersion {graph.graph_version}, got {patch.base_graph_version}",
+            )
+
+        candidate_run = loaded_run.model_copy(deep=True)
+        candidate_graph = self.validator.validate(
+            candidate_run.runtime_graph,
+            patch,
+            domain=candidate_run.domain,
+        )
+        candidate_graph.graph_version += 1
+        candidate_graph.updated_at = utc_now()
+        candidate_graph.processed_event_ids.append(patch.source_event_id)
+        candidate_graph.applied_patch_ids.append(patch.patch_id)
+        candidate_graph.applied_patch_idempotency_keys.append(patch.idempotency_key)
+        recipe_id = str(patch.metadata.get("recipeId") or "")
+        if recipe_id:
+            scope = candidate_graph.recipe_scope(recipe_id, patch.target_node_id)
+            if scope not in candidate_graph.applied_recipe_scopes:
+                candidate_graph.applied_recipe_scopes.append(scope)
+        record = AppliedPatchRecord(
+            patchId=patch.patch_id,
+            idempotencyKey=patch.idempotency_key,
+            contentHash=patch.content_hash(),
+            semanticHash=patch.semantic_hash(),
+            operationType=patch.operation_type.value,
+            baseGraphVersion=patch.base_graph_version,
+            resultGraphVersion=candidate_graph.graph_version,
+            sourceEventId=patch.source_event_id,
+        )
+        candidate_graph.applied_patches.append(record)
+        candidate_run.runtime_graph = candidate_graph
+        refresh_run_execution_projection(candidate_run)
+        candidate_run.execution_state["graphId"] = candidate_graph.graph_id
+        candidate_run.execution_state["graphVersion"] = candidate_graph.graph_version
+        candidate_run.execution_state["sourceBlueprintVersion"] = (
+            candidate_graph.source_blueprint_version
+        )
+        candidate_run.updated_at = utc_now()
+        self.trace_store.append(
+            run=candidate_run,
+            event_type=(
+                TraceEventType.GRAPH_PATCH_APPLIED
+                if recipe_id
+                else TraceEventType.RUNTIME_PATCH_APPLIED
+            ),
+            observation=f"Applied runtime graph patch {patch.patch_id}",
+            step_id=patch.target_node_id,
+            payload={
+                "eventId": patch.source_event_id,
+                "proposalId": patch.proposal_id,
+                "patchId": patch.patch_id,
+                "recipeId": recipe_id,
+                "baseGraphVersion": patch.base_graph_version,
+                "resultGraphVersion": candidate_graph.graph_version,
+                "runtimeNodeId": patch.target_node_id,
+                "targetNodeId": patch.target_node_id,
+            },
+        )
+        return candidate_run, PatchApplyResult(
+            applied=True,
+            idempotentReplay=False,
+            graphVersion=candidate_graph.graph_version,
+            patchId=patch.patch_id,
+            runtimeGraph=candidate_graph.model_copy(deep=True),
+        )
+
+    def create_patch_checkpoint(self, candidate_run, patch: RuntimeGraphPatch):
+        """Create the patch checkpoint after event state/mapping has been finalized."""
+
+        graph = candidate_run.runtime_graph
+        assert graph is not None
+        checkpoint = self.checkpoint_store.create(candidate_run, patch.target_node_id)
+        record = graph.patch_record_by_id(patch.patch_id)
+        assert record is not None
+        record.checkpoint_id = checkpoint.checkpoint_id
+        checkpoint.state_snapshot["runtimeGraph"] = graph.model_dump(by_alias=True, mode="json")
+        checkpoint.state_snapshot["appliedPatchIds"] = list(graph.applied_patch_ids)
+        self.trace_store.append(
+            run=candidate_run,
+            event_type=TraceEventType.CHECKPOINT_CREATED,
+            observation=f"Checkpoint created after patch {patch.patch_id}",
+            step_id=patch.target_node_id,
+            payload={
+                "checkpointId": checkpoint.checkpoint_id,
+                "graphVersion": graph.graph_version,
+                "eventId": patch.source_event_id,
+                "patchId": patch.patch_id,
+            },
+        )
+        return checkpoint
 
     @staticmethod
     def _check_replay(

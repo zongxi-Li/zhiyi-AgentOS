@@ -389,6 +389,8 @@ class AgentOsGatewayControllerTest {
         response.put("currentStepId", "risk_detect");
         response.put("activeStepIds", java.util.List.of("risk_detect", "legal_match"));
         response.put("recoveryCount", 0);
+        response.put("graphVersion", 2);
+        response.put("dynamicStepCount", 2);
         response.put("startedAt", "2026-07-22T01:06:26Z");
         response.put("updatedAt", "2026-07-22T01:07:20Z");
         response.put("progress", 0.4286);
@@ -402,6 +404,8 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.percent").value(42.86))
                 .andExpect(jsonPath("$.activeStepIds[0]").value("risk_detect"))
                 .andExpect(jsonPath("$.activeStepIds[1]").value("legal_match"))
+                .andExpect(jsonPath("$.graphVersion").value(2))
+                .andExpect(jsonPath("$.dynamicStepCount").value(2))
                 .andExpect(jsonPath("$.startedAt").value("2026-07-22T01:06:26Z"))
                 .andExpect(jsonPath("$.updatedAt").value("2026-07-22T01:07:20Z"));
 

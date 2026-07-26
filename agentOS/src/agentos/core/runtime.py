@@ -42,6 +42,14 @@ from agentos.core.models.types import (
 from agentos.core.models.enums import WorkflowProgressPhase
 from agentos.core.recovery.controller import RuntimeController
 from agentos.core.recovery.errors import RuntimeGraphError
+from agentos.core.recovery.events import RuntimeEventClassifier
+from agentos.core.recovery.policy import RuntimeEventPolicy
+from agentos.core.recovery.proposal import (
+    CandidateResolver,
+    DeterministicProposalFactory,
+    RuntimeGraphPatchCompiler,
+)
+from agentos.core.recovery.recipes import RecoveryRecipeRegistry
 from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
 from agentos.packs.registry import register_installed_packs
@@ -93,6 +101,7 @@ class WorkflowRuntime:
         task_manager: Optional[TaskManager] = None,
         execution_adapter_factories: Optional[Mapping[str, ExecutionAdapterFactory]] = None,
         run_lock_manager: Optional[RunLockManager] = None,
+        recovery_recipe_registry: Optional[RecoveryRecipeRegistry] = None,
     ):
         self.agent_registry = agent_registry or AgentRegistry()
         self.workflow_registry = workflow_registry or WorkflowRegistry()
@@ -117,6 +126,14 @@ class WorkflowRuntime:
             trace_store=self.trace_store,
             lock_manager=self.run_lock_manager,
         )
+        self.recovery_recipe_registry = (
+            recovery_recipe_registry or RecoveryRecipeRegistry.with_defaults()
+        )
+        self.runtime_event_classifier = RuntimeEventClassifier()
+        self.runtime_event_policy = RuntimeEventPolicy(self.recovery_recipe_registry)
+        self.candidate_resolver = CandidateResolver(self.agent_registry)
+        self.proposal_factory = DeterministicProposalFactory()
+        self.patch_compiler = RuntimeGraphPatchCompiler()
         self._runtime_adapters: dict[str, object] = {}
         self.execution_adapter_factories: dict[str, ExecutionAdapterFactory] = {
             self._normalize_runtime_engine(engine): factory

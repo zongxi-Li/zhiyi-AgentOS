@@ -1384,7 +1384,7 @@ def _legacy_programmer_answer(artifacts: Dict[str, Any], request_text: str) -> s
     lines = [
         "## 1. 功能规格",
         "",
-        f"目标：基于 Python FastAPI + JWT 实现简单的用户认证与权限管理模块。",
+        "目标：基于 Python FastAPI + JWT 实现简单的用户认证与权限管理模块。",
         "",
         "### 功能清单",
         *[f"- {item}" for item in functional_requirements],
@@ -1803,7 +1803,24 @@ def create_router(
                 task_title = runtime.workflow_store.get_task(run.task_id).title
             except KeyError:
                 task_title = None
-            return {**_to_json(run), "title": task_title}
+            graph = run.runtime_graph
+            dynamic_step_count = (
+                sum(
+                    1
+                    for node in graph.nodes
+                    if node.node_type.value == "step" and node.created_graph_version > 1
+                )
+                if graph is not None
+                else 0
+            )
+            return {
+                **_to_json(run),
+                "title": task_title,
+                "graphVersion": graph.graph_version if graph is not None else None,
+                "appliedPatches": [_to_json(item) for item in graph.applied_patches] if graph is not None else [],
+                "runtimeEvents": [_to_json(item) for item in graph.runtime_events] if graph is not None else [],
+                "dynamicStepCount": dynamic_step_count,
+            }
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -1892,6 +1909,31 @@ def create_router(
         if not isinstance(interactions, list):
             interactions = []
         contract_violations = _by_type("contract_violation")
+        graph = run.runtime_graph
+        runtime_blueprint = run.acg_blueprint
+        if graph is not None:
+            structure = graph.to_blueprint(effective_only=True).model_dump(
+                by_alias=True, mode="json"
+            )
+            runtime_blueprint = {
+                **dict(run.acg_blueprint or {}),
+                "graphId": graph.graph_id,
+                "nodes": structure["nodes"],
+                "edges": structure["edges"],
+                "metadata": {
+                    **dict((run.acg_blueprint or {}).get("metadata") or {}),
+                    "runtimeGraphVersion": graph.graph_version,
+                },
+            }
+        dynamic_step_count = (
+            sum(
+                1
+                for node in graph.nodes
+                if node.node_type.value == "step" and node.created_graph_version > 1
+            )
+            if graph is not None
+            else 0
+        )
 
         # 交付物：把每个步骤的实际产出（风险/证据/建议/报告等）汇总，
         # 供前端「审查结论」面板展示真正交付给用户的成果，而非仅引擎内部视角。
@@ -1922,7 +1964,11 @@ def create_router(
             "runId": run.run_id,
             "status": run.status.value,
             "engine": run.runtime_engine,
-            "acgBlueprint": run.acg_blueprint,
+            "acgBlueprint": runtime_blueprint,
+            "graphVersion": graph.graph_version if graph is not None else None,
+            "appliedPatches": [_to_json(item) for item in graph.applied_patches] if graph is not None else [],
+            "runtimeEvents": [_to_json(item) for item in graph.runtime_events] if graph is not None else [],
+            "dynamicStepCount": dynamic_step_count,
             "completedStepIds": run.completed_step_ids,
             "activeStepIds": run.active_step_ids,
             "stepStates": [

@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import pytest
 
+from agentos.core.acg import ACGBlueprint, StepNode
 from agentos.core.models.types import (
     AgentTask,
     StepStatus,
@@ -19,6 +20,7 @@ from agentos.core.workflow.progress import (
 from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.core.workflow.task_manager import TaskManager
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
+from agentos.core.runtime_graph import RuntimeGraph
 
 
 def _workflow() -> WorkflowDefinition:
@@ -125,6 +127,35 @@ def test_normal_execution_uses_completed_steps_only():
     assert progress.percent == pytest.approx(50.0)
     assert progress.current_step_id == "step_3"
     assert progress.message == "正在执行 ACG 步骤：Step 3"
+
+
+def test_runtime_patch_expands_progress_total_and_reports_graph_metadata():
+    run = _run(
+        WorkflowStatus.RUNNING,
+        [
+            StepStatus.COMPLETED,
+            StepStatus.COMPLETED,
+            StepStatus.RETRYING,
+            StepStatus.PENDING,
+            StepStatus.PENDING,
+        ],
+    )
+    blueprint = ACGBlueprint(
+        graphId="progress_graph",
+        nodes=[StepNode(nodeId=f"step_{index}") for index in range(1, 6)],
+    )
+    graph = RuntimeGraph.from_blueprint(run_id=run.run_id, blueprint=blueprint)
+    graph.graph_version = 2
+    graph.nodes[-2].created_graph_version = 2
+    graph.nodes[-1].created_graph_version = 2
+    run.runtime_graph = graph
+
+    progress = ProgressAssembler().assemble(run)
+
+    assert progress.total_steps == 5
+    assert progress.percent == pytest.approx(40.0)
+    assert progress.graph_version == 2
+    assert progress.dynamic_step_count == 2
 
 
 def test_parallel_active_steps_preserve_run_order_then_definition_order():

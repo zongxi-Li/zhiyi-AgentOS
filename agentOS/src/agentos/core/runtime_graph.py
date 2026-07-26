@@ -45,6 +45,51 @@ class RuntimeNodeActivation(str, Enum):
     TERMINATED = "terminated"
 
 
+class RuntimeEventType(str, Enum):
+    EVIDENCE_MISSING = "EVIDENCE_MISSING"
+    INPUT_CONTRACT_VIOLATION = "INPUT_CONTRACT_VIOLATION"
+    OUTPUT_CONTRACT_VIOLATION = "OUTPUT_CONTRACT_VIOLATION"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    STEP_EXECUTION_FAILED = "STEP_EXECUTION_FAILED"
+
+
+class RuntimeEventStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSED = "PROCESSED"
+    IGNORED = "IGNORED"
+    REJECTED = "REJECTED"
+
+
+class RuntimeEvent(BaseModel):
+    """Persisted classification of one immutable execution outcome."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    event_id: str = Field(alias="eventId")
+    idempotency_key: str = Field(alias="idempotencyKey")
+    run_id: str = Field(alias="runId")
+    graph_id: str = Field(alias="graphId")
+    graph_version: int = Field(alias="graphVersion", ge=1)
+    event_type: RuntimeEventType = Field(alias="eventType")
+    runtime_node_id: str = Field(alias="runtimeNodeId")
+    attempt_id: str = Field(alias="attemptId")
+    binding_id: str = Field(default="", alias="bindingId")
+    source_trace_event_id: str | None = Field(default=None, alias="sourceTraceEventId")
+    payload: dict[str, Any] = Field(default_factory=dict)
+    classification_version: str = Field(default="1", alias="classificationVersion")
+    created_at: datetime = Field(default_factory=_utc_now, alias="createdAt")
+    status: RuntimeEventStatus = RuntimeEventStatus.PENDING
+    status_reason: str = Field(default="", alias="statusReason")
+
+    @property
+    def reason_code(self) -> str:
+        return str(self.payload.get("reasonCode") or self.event_type.value).strip().upper()
+
+    @property
+    def target_node_id(self) -> str:
+        return str(self.payload.get("targetNodeId") or self.runtime_node_id)
+
+
 class RuntimePatchBudget(BaseModel):
     """Testable safety limits for controlled local replanning."""
 
@@ -79,6 +124,8 @@ class RuntimeAttempt(BaseModel):
     output: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
     trace_context: dict[str, Any] = Field(default_factory=dict, alias="traceContext")
+    logical_completion_accepted: bool = Field(default=True, alias="logicalCompletionAccepted")
+    runtime_event_ids: list[str] = Field(default_factory=list, alias="runtimeEventIds")
 
 
 class RuntimeNode(BaseModel):
@@ -163,6 +210,12 @@ class RuntimeGraph(BaseModel):
     processed_event_ids: list[str] = Field(
         default_factory=list, alias="processedEventIds"
     )
+    runtime_events: list[RuntimeEvent] = Field(default_factory=list, alias="runtimeEvents")
+    pending_runtime_event_ids: list[str] = Field(
+        default_factory=list, alias="pendingRuntimeEventIds"
+    )
+    event_to_patch: dict[str, str] = Field(default_factory=dict, alias="eventToPatch")
+    applied_recipe_scopes: list[str] = Field(default_factory=list, alias="appliedRecipeScopes")
     applied_patch_ids: list[str] = Field(default_factory=list, alias="appliedPatchIds")
     applied_patch_idempotency_keys: list[str] = Field(
         default_factory=list,
@@ -300,6 +353,13 @@ class RuntimeGraph(BaseModel):
             (item for item in self.applied_patches if item.patch_id == patch_id), None
         )
 
+    def runtime_event_by_id(self, event_id: str) -> RuntimeEvent | None:
+        return next((event for event in self.runtime_events if event.event_id == event_id), None)
+
+    @staticmethod
+    def recipe_scope(recipe_id: str, target_node_id: str) -> str:
+        return f"{recipe_id}::{target_node_id}"
+
     def patch_record_by_idempotency_key(self, key: str) -> AppliedPatchRecord | None:
         return next(
             (item for item in self.applied_patches if item.idempotency_key == key), None
@@ -360,6 +420,9 @@ __all__ = [
     "AppliedPatchRecord",
     "RuntimeGraph",
     "RuntimeAttempt",
+    "RuntimeEvent",
+    "RuntimeEventStatus",
+    "RuntimeEventType",
     "RuntimeNode",
     "RuntimeNodeActivation",
     "RuntimeNodeStatus",

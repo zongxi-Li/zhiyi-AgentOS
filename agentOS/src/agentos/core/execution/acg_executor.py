@@ -24,7 +24,15 @@ from agentos.core.models.types import (
     WorkflowStatus,
     utc_now,
 )
-from agentos.core.runtime_graph import RuntimeAttempt, RuntimeGraph, RuntimeNode
+from agentos.core.recovery.errors import PatchConflictError, PatchValidationError
+from agentos.core.recovery.policy import EventPolicyAction
+from agentos.core.runtime_graph import (
+    RuntimeAttempt,
+    RuntimeEvent,
+    RuntimeEventStatus,
+    RuntimeGraph,
+    RuntimeNode,
+)
 from agentos.memory.workflow_memory import WorkflowMemory
 
 if TYPE_CHECKING:
@@ -101,6 +109,9 @@ class ACGExecutor:
             graph = candidate.runtime_graph
             assert graph is not None
             graph.resolve_ready_control_nodes()
+            candidate, _ = self._apply_next_pending_event(candidate)
+            graph = candidate.runtime_graph
+            assert graph is not None
             refresh_run_execution_projection(candidate)
 
             if graph.has_waiting_review():
@@ -252,6 +263,11 @@ class ACGExecutor:
             )
             result, _ = await asyncio.wait_for(dispatch, timeout=package.timeout) if package.timeout > 0 else await dispatch
             output = dict(result.output)
+            runtime_signals = [
+                dict(item)
+                for item in (output.get("runtimeSignals") or [])
+                if isinstance(item, dict)
+            ]
             validate_contract_payload(output, step_node.output_spec, step_id=node.node_id, direction="output")
             status = StepStatus.WAITING_REVIEW if step.requires_review and local_run.review_mode != "auto" else StepStatus.COMPLETED
             events = [
@@ -269,14 +285,18 @@ class ACGExecutor:
                     "observation": f"Context assembled: {pack.tokens_delivered}/{pack.tokens_available} tokens (saved {pack.saving_ratio:.1%})",
                     "payload": pack.model_dump(by_alias=True, mode="json")})
             return self._outcome(package, status, started_at, output=output, resolved=resolved,
-                                 events=events, provenance={"pack": pack.model_dump(by_alias=True, mode="json") if pack else None})
+                                 events=events, provenance={"pack": pack.model_dump(by_alias=True, mode="json") if pack else None},
+                                 runtime_signals=runtime_signals)
         except Exception as exc:
             recoverable = isinstance(exc, InjectedFault) or package.attempt_number <= int(step_node.retry_limit)
             event_type = TraceEventType.CONTRACT_VIOLATION if isinstance(exc, ContextContractError) else TraceEventType.STEP_FAILED
             return self._outcome(package, StepStatus.RETRYING if recoverable else StepStatus.FAILED,
                                  started_at, error=str(exc), resolved=resolved, recoverable=recoverable,
                                  events=[{"eventType": event_type, "observation": str(exc),
-                                          "payload": {"recoverable": recoverable, "attempt": package.attempt_number}}])
+                                          "payload": {"recoverable": recoverable, "attempt": package.attempt_number}}],
+                                 error_type=type(exc).__name__,
+                                 error_code=getattr(exc, "code", type(exc).__name__),
+                                 error_direction=getattr(exc, "direction", ""))
 
     async def _commit_batch(self, task, outcomes: list[StepExecutionOutcome]) -> bool:
         """Merge all accepted outcomes into one copy and persist once."""
@@ -311,18 +331,95 @@ class ACGExecutor:
                 attempt.ended_at = outcome.ended_at
                 attempt.status = StepStatus.FAILED if outcome.status == StepStatus.RETRYING else outcome.status
                 node.error = outcome.error
-                if outcome.output:
+
+                runtime_events = self.runtime.runtime_event_classifier.classify(
+                    outcome, node, graph
+                )
+                structural_event = False
+                blocked_reapplication = False
+                for runtime_event in runtime_events:
+                    persisted_event = graph.runtime_event_by_id(runtime_event.event_id)
+                    if persisted_event is None:
+                        graph.runtime_events.append(runtime_event)
+                        persisted_event = runtime_event
+                        self.runtime.trace_store.append(
+                            run=candidate,
+                            event_type=TraceEventType.RUNTIME_EVENT_CLASSIFIED,
+                            step_id=node.node_id,
+                            agent_name=attempt.agent_name,
+                            observation=(
+                                f"Runtime event classified: {runtime_event.event_type.value}"
+                            ),
+                            payload=self._runtime_event_trace_payload(runtime_event),
+                        )
+                    if persisted_event.event_id not in attempt.runtime_event_ids:
+                        attempt.runtime_event_ids.append(persisted_event.event_id)
+                    decision = self.runtime.runtime_event_policy.decide(
+                        persisted_event, graph
+                    )
+                    if decision.action == EventPolicyAction.PROPOSE_PATCH:
+                        structural_event = True
+                        if persisted_event.event_id not in graph.pending_runtime_event_ids:
+                            graph.pending_runtime_event_ids.append(persisted_event.event_id)
+                    elif decision.action == EventPolicyAction.REQUEST_HUMAN:
+                        blocked_reapplication = True
+                        persisted_event.status = RuntimeEventStatus.REJECTED
+                        persisted_event.status_reason = decision.reason
+                        self.runtime.trace_store.append(
+                            run=candidate,
+                            event_type=TraceEventType.RUNTIME_RECIPE_REAPPLICATION_BLOCKED,
+                            step_id=node.node_id,
+                            observation=decision.reason,
+                            payload=self._runtime_event_trace_payload(persisted_event)
+                            | {"recipeId": decision.recipe_id},
+                        )
+                    else:
+                        persisted_event.status = RuntimeEventStatus.IGNORED
+                        persisted_event.status_reason = decision.reason
+                        self.runtime.trace_store.append(
+                            run=candidate,
+                            event_type=TraceEventType.RUNTIME_EVENT_IGNORED,
+                            step_id=node.node_id,
+                            observation=decision.reason,
+                            payload=self._runtime_event_trace_payload(persisted_event),
+                        )
+
+                if structural_event:
+                    attempt.logical_completion_accepted = False
+                    node.output = {}
+                    node.error = outcome.error
+                    self.runtime.runtime_controller.transition_node_state(
+                        node, StepStatus.RETRYING
+                    )
+                elif blocked_reapplication:
+                    attempt.logical_completion_accepted = False
+                    node.output = {}
+                    node.error = "RECIPE_REAPPLICATION_BLOCKED"
+                    self.runtime.runtime_controller.transition_node_state(
+                        node, StepStatus.FAILED
+                    )
+                    fatal = True
+                elif outcome.output:
                     node.output = dict(outcome.output)
                     node.output_version += 1
                     self._record_degraded_output(candidate, node, attempt, outcome.output)
-                self.runtime.runtime_controller.transition_node_state(node, outcome.status)
+                    self.runtime.runtime_controller.transition_node_state(node, outcome.status)
+                else:
+                    self.runtime.runtime_controller.transition_node_state(node, outcome.status)
+                outcome_trace_ids: list[str] = []
                 for event in outcome.trace_events:
-                    self.runtime.trace_store.append(
+                    trace_event = self.runtime.trace_store.append(
                         run=candidate, event_type=event["eventType"], step_id=node.node_id,
                         agent_name=attempt.agent_name, observation=event.get("observation", ""),
                         payload=dict(event.get("payload") or {}) | self._correlation(graph, node, attempt, scheduled=outcome.scheduled_graph_version),
                         duration_ms=int(event.get("durationMs") or 0),
                     )
+                    outcome_trace_ids.append(trace_event.event_id)
+                if outcome_trace_ids:
+                    for runtime_event in runtime_events:
+                        persisted_event = graph.runtime_event_by_id(runtime_event.event_id)
+                        if persisted_event is not None and persisted_event.source_trace_event_id is None:
+                            persisted_event.source_trace_event_id = outcome_trace_ids[-1]
                 pack = outcome.provenance_events.get("pack")
                 if pack:
                     source_ids = list(pack.get("sourceStepIds") or [])
@@ -366,7 +463,9 @@ class ACGExecutor:
                 if outcome.output:
                     ledger.record_production(node.node_id, dict(outcome.output), 0,
                                              agent_name=attempt.agent_name, attempt=attempt.attempt_number)
-                if outcome.status == StepStatus.WAITING_REVIEW:
+                if structural_event:
+                    candidate.recovery_count += 1
+                elif outcome.status == StepStatus.WAITING_REVIEW:
                     waiting_review = True
                 elif outcome.status == StepStatus.RETRYING:
                     candidate.recovery_count += 1
@@ -378,12 +477,18 @@ class ACGExecutor:
                     )
                 elif outcome.status == StepStatus.FAILED:
                     fatal = True
+            applied_patch = None
             if accepted:
                 candidate.provenance = ledger.to_graph()
                 candidate.execution_state["faultInjectionTriggered"] = self.fault_injector.triggered_count
+                candidate, applied_patch = self._apply_next_pending_event(candidate)
+                graph = candidate.runtime_graph
+                assert graph is not None
                 refresh_run_execution_projection(candidate)
                 candidate.output = self.runtime.orchestrator.compose_final_output(candidate)
             candidate.updated_at = utc_now()
+            waiting_review = graph.has_waiting_review()
+            fatal = any(node.status == StepStatus.FAILED for node in graph.nodes)
             if fatal:
                 self.runtime._transition_run_if_needed(candidate, WorkflowStatus.FAILED)
                 self.runtime.task_manager.mark_failed(task)
@@ -400,12 +505,180 @@ class ACGExecutor:
                     StepStatus.WAITING_REVIEW,
                     StepStatus.RETRYING,
                 }:
+                    if applied_patch is not None and outcome.runtime_node_id == applied_patch.target_node_id:
+                        continue
                     try:
                         self.runtime._create_checkpoint(candidate, candidate.get_step(outcome.runtime_node_id))
                     except KeyError:
                         pass
             self.runtime.workflow_store.save_run(candidate)
             return accepted and not waiting_review and not fatal and candidate.status != WorkflowStatus.CANCELLED
+
+    def _apply_next_pending_event(self, loaded_run):
+        """Apply at most one structural event to a caller-owned run copy.
+
+        The caller must hold the shared run lock.  This method never saves; the
+        surrounding schedule or batch barrier persists execution facts, event
+        state, patch audit, checkpoint, and the new graph in one ``save_run``.
+        """
+
+        candidate = loaded_run
+        while True:
+            graph = candidate.runtime_graph
+            assert graph is not None
+            pending = [
+                event
+                for event_id in graph.pending_runtime_event_ids
+                if (event := graph.runtime_event_by_id(event_id)) is not None
+                and event.status == RuntimeEventStatus.PENDING
+            ]
+            if not pending:
+                return candidate, None
+            pending.sort(
+                key=lambda event: (
+                    -self.runtime.runtime_event_policy.decide(event, graph).priority,
+                    event.created_at,
+                    event.event_id,
+                )
+            )
+            event = pending[0]
+            decision = self.runtime.runtime_event_policy.decide(event, graph)
+            if decision.action != EventPolicyAction.PROPOSE_PATCH:
+                graph.pending_runtime_event_ids = [
+                    event_id
+                    for event_id in graph.pending_runtime_event_ids
+                    if event_id != event.event_id
+                ]
+                event.status = (
+                    RuntimeEventStatus.REJECTED
+                    if decision.action in {EventPolicyAction.REQUEST_HUMAN, EventPolicyAction.FAIL}
+                    else RuntimeEventStatus.IGNORED
+                )
+                event.status_reason = decision.reason
+                trace_type = (
+                    TraceEventType.RUNTIME_RECIPE_REAPPLICATION_BLOCKED
+                    if decision.reason == "RECIPE_REAPPLICATION_BLOCKED"
+                    else TraceEventType.RUNTIME_EVENT_IGNORED
+                )
+                self.runtime.trace_store.append(
+                    run=candidate,
+                    event_type=trace_type,
+                    step_id=event.runtime_node_id,
+                    observation=decision.reason,
+                    payload=self._runtime_event_trace_payload(event)
+                    | {"recipeId": decision.recipe_id},
+                )
+                if event.status == RuntimeEventStatus.REJECTED:
+                    target = graph.get_node(event.target_node_id)
+                    if target.status == StepStatus.RETRYING:
+                        target.error = decision.reason
+                        self.runtime.runtime_controller.transition_node_state(
+                            target, StepStatus.FAILED
+                        )
+                continue
+
+            proposal = None
+            patch = None
+            try:
+                self.runtime.trace_store.append(
+                    run=candidate,
+                    event_type=TraceEventType.RUNTIME_RECIPE_SELECTED,
+                    step_id=event.runtime_node_id,
+                    observation=f"Selected runtime recovery recipe {decision.recipe_id}",
+                    payload=self._runtime_event_trace_payload(event)
+                    | {
+                        "recipeId": decision.recipe_id,
+                        "recipeVersion": decision.recipe_version,
+                        "baseGraphVersion": graph.graph_version,
+                    },
+                )
+                proposal = self.runtime.proposal_factory.propose(
+                    event,
+                    decision,
+                    graph,
+                    self.runtime.recovery_recipe_registry,
+                    self.runtime.candidate_resolver,
+                    domain=candidate.domain,
+                )
+                self.runtime.trace_store.append(
+                    run=candidate,
+                    event_type=TraceEventType.GRAPH_CHANGE_PROPOSED,
+                    step_id=event.runtime_node_id,
+                    observation=f"Proposed runtime graph change {proposal.proposal_id}",
+                    payload=self._runtime_event_trace_payload(event)
+                    | {
+                        "proposalId": proposal.proposal_id,
+                        "recipeId": proposal.recipe_id,
+                        "baseGraphVersion": proposal.base_graph_version,
+                        "targetNodeId": proposal.target_node_id,
+                    },
+                )
+                patch = self.runtime.patch_compiler.compile(proposal, graph)
+                candidate, result = self.runtime.runtime_controller.apply_patch_to_candidate(
+                    candidate, patch
+                )
+                if not result.applied:
+                    return candidate, None
+                applied_graph = candidate.runtime_graph
+                assert applied_graph is not None
+                applied_event = applied_graph.runtime_event_by_id(event.event_id)
+                assert applied_event is not None
+                applied_event.status = RuntimeEventStatus.PROCESSED
+                applied_event.status_reason = "PATCH_APPLIED"
+                applied_graph.pending_runtime_event_ids = [
+                    event_id
+                    for event_id in applied_graph.pending_runtime_event_ids
+                    if event_id != event.event_id
+                ]
+                applied_graph.event_to_patch[event.event_id] = patch.patch_id
+                self.runtime.runtime_controller.create_patch_checkpoint(candidate, patch)
+                return candidate, patch
+            except (KeyError, ValueError, PatchValidationError, PatchConflictError) as exc:
+                graph = candidate.runtime_graph
+                assert graph is not None
+                rejected = graph.runtime_event_by_id(event.event_id)
+                assert rejected is not None
+                rejected.status = RuntimeEventStatus.REJECTED
+                rejected.status_reason = getattr(exc, "code", type(exc).__name__)
+                graph.pending_runtime_event_ids = [
+                    event_id
+                    for event_id in graph.pending_runtime_event_ids
+                    if event_id != event.event_id
+                ]
+                target = graph.get_node(rejected.target_node_id)
+                if target.status == StepStatus.RETRYING:
+                    target.error = rejected.status_reason
+                    self.runtime.runtime_controller.transition_node_state(
+                        target, StepStatus.FAILED
+                    )
+                self.runtime.trace_store.append(
+                    run=candidate,
+                    event_type=TraceEventType.GRAPH_PATCH_REJECTED,
+                    step_id=rejected.runtime_node_id,
+                    observation=str(exc),
+                    payload=self._runtime_event_trace_payload(rejected)
+                    | {
+                        "proposalId": proposal.proposal_id if proposal else None,
+                        "patchId": patch.patch_id if patch else None,
+                        "recipeId": decision.recipe_id,
+                        "baseGraphVersion": graph.graph_version,
+                        "targetNodeId": rejected.target_node_id,
+                        "errorCode": rejected.status_reason,
+                    },
+                )
+                return candidate, None
+
+    @staticmethod
+    def _runtime_event_trace_payload(event: RuntimeEvent) -> dict[str, Any]:
+        return {
+            "eventId": event.event_id,
+            "runtimeNodeId": event.runtime_node_id,
+            "targetNodeId": event.target_node_id,
+            "attemptId": event.attempt_id,
+            "bindingId": event.binding_id,
+            "baseGraphVersion": event.graph_version,
+            "reasonCode": event.reason_code,
+        }
 
     def _select_batch(self, graph: RuntimeGraph, ready: list[RuntimeNode]) -> list[RuntimeNode]:
         selected: list[RuntimeNode] = []
@@ -440,13 +713,16 @@ class ACGExecutor:
 
     @staticmethod
     def _outcome(package, status, started_at, *, output=None, error=None, resolved=None,
-                 events=None, provenance=None, recoverable=False) -> StepExecutionOutcome:
+                 events=None, provenance=None, recoverable=False, runtime_signals=None,
+                 error_type="", error_code="", error_direction="") -> StepExecutionOutcome:
         return StepExecutionOutcome(
             runId=package.run_id, graphId=package.graph_id,
             scheduledGraphVersion=package.graph_version, runtimeNodeId=package.runtime_node_id,
             attemptId=package.attempt_id, status=status, output=output or {}, error=error,
             resolvedInput=resolved or {}, startedAt=started_at, endedAt=utc_now(),
             traceEvents=events or [], provenanceEvents=provenance or {}, recoverable=recoverable,
+            runtimeSignals=runtime_signals or [], errorType=error_type, errorCode=error_code,
+            errorDirection=error_direction,
         )
 
     def _late_outcome_trace(self, run, graph, node, outcome, reason: str) -> None:

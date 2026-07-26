@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
+from agentos.core.acg import ACGBlueprint, StepNode
 from agentos.core.execution import RunExecutionCoordinator
 from agentos.core.models.enums import WorkflowProgressPhase
 from agentos.core.models.types import (
@@ -20,6 +21,7 @@ from agentos.core.models.types import (
     WorkflowStepDefinition,
 )
 from agentos.core.runtime import WorkflowRuntime
+from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.workflow.progress import ProgressAssembler
 from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
@@ -274,6 +276,33 @@ def test_progress_contract_for_every_phase(
     else:
         assert payload["percentage"] == expected_percent
     assert payload["updatedAt"] == "2026-07-22T01:07:20Z"
+
+
+def test_progress_api_exposes_runtime_graph_version_and_dynamic_step_count():
+    runtime = _runtime()
+    run = _save_run(
+        runtime,
+        status=WorkflowStatus.RUNNING,
+        phase=WorkflowProgressPhase.RECOVERY,
+        steps=[_step(1, StepStatus.COMPLETED), _step(2, StepStatus.RETRYING)],
+    )
+    blueprint = ACGBlueprint(
+        graphId="progress_api_graph",
+        nodes=[StepNode(nodeId="step_1"), StepNode(nodeId="step_2")],
+    )
+    graph = RuntimeGraph.from_blueprint(run_id=run.run_id, blueprint=blueprint)
+    graph.graph_version = 2
+    graph.nodes[-1].created_graph_version = 2
+    run.runtime_graph = graph
+    runtime.workflow_store.save_run(run)
+
+    payload = _client(runtime).get(
+        f"/ai/core/workflows/runs/{run.run_id}/progress"
+    ).json()
+
+    assert payload["graphVersion"] == 2
+    assert payload["dynamicStepCount"] == 1
+    assert payload["totalSteps"] == 2
 
 
 def test_repeated_progress_query_is_read_only_and_stable():

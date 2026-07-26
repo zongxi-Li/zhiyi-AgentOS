@@ -4,7 +4,13 @@ import sqlite3
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus, WorkflowStep
 from agentos.core.acg import ACGBlueprint, ACGEdge, StepNode
 from agentos.core.governance.checkpoint import CheckpointStore
-from agentos.core.runtime_graph import AppliedPatchRecord, RuntimeGraph
+from agentos.core.runtime_graph import (
+    AppliedPatchRecord,
+    RuntimeEvent,
+    RuntimeEventStatus,
+    RuntimeEventType,
+    RuntimeGraph,
+)
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 
@@ -67,6 +73,22 @@ def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkp
     graph.applied_patch_ids = ["patch_sqlite"]
     graph.applied_patch_idempotency_keys = ["idem_sqlite"]
     graph.processed_event_ids = ["event_sqlite"]
+    graph.runtime_events = [
+        RuntimeEvent(
+            eventId="event_sqlite",
+            idempotencyKey="event_key",
+            runId="run_sqlite",
+            graphId="graph_sqlite",
+            graphVersion=1,
+            eventType=RuntimeEventType.EVIDENCE_MISSING,
+            runtimeNodeId="b",
+            attemptId="attempt_sqlite",
+            payload={"reasonCode": "EVIDENCE_MISSING", "targetNodeId": "b"},
+            status=RuntimeEventStatus.PROCESSED,
+        )
+    ]
+    graph.event_to_patch = {"event_sqlite": "patch_sqlite"}
+    graph.applied_recipe_scopes = ["evidence_retrieval_and_validation.v1::b"]
     graph.applied_patches = [
         AppliedPatchRecord(
             patchId="patch_sqlite",
@@ -102,6 +124,11 @@ def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkp
     assert reloaded.runtime_graph.applied_patch_ids == ["patch_sqlite"]
     assert reloaded.runtime_graph.applied_patch_idempotency_keys == ["idem_sqlite"]
     assert reloaded.runtime_graph.processed_event_ids == ["event_sqlite"]
+    assert reloaded.runtime_graph.runtime_events[0].status == RuntimeEventStatus.PROCESSED
+    assert reloaded.runtime_graph.event_to_patch == {"event_sqlite": "patch_sqlite"}
+    assert reloaded.runtime_graph.applied_recipe_scopes == [
+        "evidence_retrieval_and_validation.v1::b"
+    ]
     assert reloaded.checkpoints[-1].state_snapshot["graphVersion"] == 2
     assert reloaded.checkpoints[-1].state_snapshot["appliedPatchIds"] == ["patch_sqlite"]
     assert reloaded.checkpoints[-1].state_snapshot["runtimeGraph"]["graphVersion"] == 2

@@ -41,6 +41,8 @@ class WorkflowProgress(CoreModel):
     current_step_id: Optional[str] = Field(default=None, alias="currentStepId")
     active_step_ids: list[str] = Field(default_factory=list, alias="activeStepIds")
     recovery_count: int = Field(default=0, alias="recoveryCount")
+    graph_version: Optional[int] = Field(default=None, alias="graphVersion")
+    dynamic_step_count: int = Field(default=0, alias="dynamicStepCount")
     started_at: Optional[datetime] = Field(default=None, alias="startedAt")
     updated_at: Optional[datetime] = Field(default=None, alias="updatedAt")
     # Deprecated compatibility fields. `progress` is the 0..1 ratio and
@@ -112,6 +114,17 @@ class ProgressAssembler:
         else:
             message = self._message(phase, step_name)
         percent = self._percent(phase, counts[StepStatus.COMPLETED], len(steps))
+        runtime_graph = run.runtime_graph
+        graph_version = runtime_graph.graph_version if runtime_graph is not None else None
+        dynamic_step_count = (
+            sum(
+                1
+                for node in runtime_graph.nodes
+                if node.node_type.value == "step" and node.created_graph_version > 1
+            )
+            if runtime_graph is not None
+            else 0
+        )
 
         return WorkflowProgress(
             taskId=run.task_id,
@@ -132,6 +145,8 @@ class ProgressAssembler:
             currentStepId=current_step_id,
             activeStepIds=active_step_ids,
             recoveryCount=run.recovery_count,
+            graphVersion=graph_version,
+            dynamicStepCount=dynamic_step_count,
             startedAt=run.started_at,
             updatedAt=run.updated_at,
             **self._compatibility_values(percent),

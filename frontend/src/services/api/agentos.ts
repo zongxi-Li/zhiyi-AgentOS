@@ -56,6 +56,8 @@ export interface WorkflowProgress {
   currentStepId: string | null
   activeStepIds: string[]
   recoveryCount: number
+  graphVersion?: number | null
+  dynamicStepCount?: number
   startedAt: string | null
   updatedAt: string | null
   progress: number
@@ -171,6 +173,11 @@ export interface WorkflowRun {
   activeStepIds?: string[]
   provenance?: Record<string, any>
   executionState?: Record<string, any>
+  runtimeGraph?: Record<string, any> | null
+  graphVersion?: number | null
+  dynamicStepCount?: number
+  appliedPatches?: Array<Record<string, any>>
+  runtimeEvents?: Array<Record<string, any>>
   createdAt?: string
   updatedAt?: string
 }
@@ -431,6 +438,10 @@ export interface AcgView {
   status: WorkflowStatus
   engine: string
   acgBlueprint: AcgBlueprint | null
+  graphVersion?: number | null
+  dynamicStepCount?: number
+  appliedPatches?: Array<Record<string, any>>
+  runtimeEvents?: Array<Record<string, any>>
   completedStepIds: string[]
   activeStepIds: string[]
   stepStates: AcgStepState[]
@@ -452,6 +463,8 @@ export interface AcgView {
 
 const normalizeAcgView = (view: AcgView): AcgView => ({
   ...view,
+  appliedPatches: Array.isArray(view.appliedPatches) ? view.appliedPatches : [],
+  runtimeEvents: Array.isArray(view.runtimeEvents) ? view.runtimeEvents : [],
   completedStepIds: Array.isArray(view.completedStepIds) ? view.completedStepIds : [],
   activeStepIds: Array.isArray(view.activeStepIds) ? view.activeStepIds : [],
   stepStates: Array.isArray(view.stepStates) ? view.stepStates : [],

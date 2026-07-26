@@ -51,6 +51,10 @@ class StepExecutionOutcome(BaseModel):
     provenance_events: dict[str, Any] = Field(default_factory=dict, alias="provenanceEvents")
     review_required: bool = Field(default=False, alias="reviewRequired")
     recoverable: bool = False
+    runtime_signals: list[dict[str, Any]] = Field(default_factory=list, alias="runtimeSignals")
+    error_type: str = Field(default="", alias="errorType")
+    error_code: str = Field(default="", alias="errorCode")
+    error_direction: str = Field(default="", alias="errorDirection")
 
 
 __all__ = ["StepExecutionOutcome", "StepExecutionPackage"]

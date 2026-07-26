@@ -51,6 +51,27 @@ class CheckpointStore:
             "appliedPatchIds": (
                 list(runtime_graph.applied_patch_ids) if runtime_graph is not None else []
             ),
+            "runtimeEvents": (
+                [
+                    event.model_dump(by_alias=True, mode="json")
+                    for event in runtime_graph.runtime_events
+                ]
+                if runtime_graph is not None
+                else []
+            ),
+            "pendingRuntimeEventIds": (
+                list(runtime_graph.pending_runtime_event_ids)
+                if runtime_graph is not None
+                else []
+            ),
+            "processedEventIds": (
+                list(runtime_graph.processed_event_ids)
+                if runtime_graph is not None
+                else []
+            ),
+            "eventToPatch": (
+                dict(runtime_graph.event_to_patch) if runtime_graph is not None else {}
+            ),
         }
         checkpoint = Checkpoint(
             runId=run.run_id,
