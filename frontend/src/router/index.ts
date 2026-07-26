@@ -121,7 +121,7 @@ const routes: RouteRecordRaw[] = [
     name: 'AgentOsConsole',
     component: () => import('@/views/AgentOsConsoleView.vue'),
     meta: {
-      title: 'AgentOS 运维',
+      title: 'ACG 历史记录',
       requiresAuth: true
     }
   },
@@ -175,7 +175,7 @@ const normalizeRedirect = (redirect?: string) => {
 
 // Global route guard
 router.beforeEach(async (to, _from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - 联邦智能枢` : '联邦智能枢'
+  document.title = to.meta.title ? `${to.meta.title} - 知弈AgentOS` : '知弈AgentOS'
 
   const token = localStorage.getItem('token')
   const requiresAuth = Boolean(to.meta.requiresAuth)

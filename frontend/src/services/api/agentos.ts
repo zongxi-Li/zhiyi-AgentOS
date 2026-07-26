@@ -64,7 +64,15 @@ export interface WorkflowProgress {
 
 export interface WorkflowRunSummary extends WorkflowProgress {
   source?: string | null
+  title?: string | null
   createdAt?: string | null
+}
+
+export interface WorkflowRunDeleteResponse {
+  runId: string
+  taskId: string
+  deleted: boolean
+  taskDeleted: boolean
 }
 
 export type StepStatus =
@@ -144,6 +152,7 @@ export interface TraceEvent {
 export interface WorkflowRun {
   runId: string
   taskId: string
+  title?: string | null
   workflowId: string
   domain: string
   runtimeEngine?: string
@@ -534,6 +543,17 @@ export const agentosApi = {
     const response = await agentosRequest.get<WorkflowRun>(`/core/workflows/runs/${runId}`, {
       signal: options.signal
     })
+    return response.data
+  },
+
+  async deleteWorkflowRun(
+    runId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<WorkflowRunDeleteResponse> {
+    const response = await agentosRequest.delete<WorkflowRunDeleteResponse>(
+      `/core/workflows/runs/${encodeURIComponent(runId)}`,
+      { signal: options.signal }
+    )
     return response.data
   },
 

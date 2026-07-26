@@ -22,6 +22,7 @@ import {
   type WorkflowProgress,
   type WorkflowProgressPhase,
   type WorkflowRunSummary,
+  type WorkflowRunDeleteResponse,
   type ReviewDecision,
   type StepStatus,
   type TraceEvent,
@@ -55,6 +56,7 @@ export type {
   WorkflowProgress,
   WorkflowProgressPhase,
   WorkflowRunSummary,
+  WorkflowRunDeleteResponse,
   ReviewDecision,
   StepStatus,
   TraceEvent,
@@ -93,6 +95,13 @@ export const workflowApi = {
 
   getRun(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowRun> {
     return agentosApi.getWorkflowRun(runId, options)
+  },
+
+  deleteRun(
+    runId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<WorkflowRunDeleteResponse> {
+    return agentosApi.deleteWorkflowRun(runId, options)
   },
 
   getTrace(runId: string, options: { signal?: AbortSignal } = {}): Promise<WorkflowTraceExport> {

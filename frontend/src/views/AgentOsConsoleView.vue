@@ -4,7 +4,7 @@
       <div class="console-title">
         <span class="ui-icon-badge"><el-icon><Monitor /></el-icon></span>
         <div>
-          <h3 class="ui-hero__title">全局运行控制面</h3>
+          <h3 class="ui-hero__title">ACG 历史记录</h3>
         </div>
       </div>
       <button class="console-refresh" type="button" :disabled="listLoading" @click="refreshAll">
@@ -35,7 +35,7 @@
 
         <p v-if="listError" class="sync-warning" role="status">{{ listError }}</p>
         <div class="run-list-head">
-          <strong>运行列表</strong>
+          <strong>ACG 运行记录</strong>
           <span>{{ totalRuns }} 条</span>
         </div>
 
@@ -47,32 +47,43 @@
               <strong>{{ group.label }}</strong>
               <span>{{ group.items.length }}</span>
             </header>
-            <button
+            <div
               v-for="run in group.items"
               :key="run.runId"
-              type="button"
-              class="run-item"
+              class="run-item-shell"
               :class="{ active: run.runId === selectedRunId }"
-              @click="activateRun(run.runId, true)"
             >
-              <span class="run-item__top">
-                <span class="run-status" :class="run.phase || run.status">{{ phaseLabel(run.phase, run.status) }}</span>
-                <time>{{ formatRelativeTime(run.updatedAt) }}</time>
-              </span>
-              <strong>{{ run.workflowId }}</strong>
-              <small :title="run.runId">{{ shortRunId(run.runId) }}</small>
-              <p>{{ run.message }}</p>
-              <span v-if="run.percent != null" class="run-mini-progress" aria-hidden="true">
-                <span :style="{ width: `${clampPercent(run.percent)}%` }"></span>
-              </span>
-              <span v-else class="run-mini-progress indeterminate" aria-hidden="true"><span></span></span>
-              <span class="run-item__metrics">
-                <span>{{ run.totalSteps > 0 ? `${run.completedSteps}/${run.totalSteps} 步` : '规模计算中' }}</span>
-                <span>恢复 {{ run.recoveryCount }}</span>
-                <span v-if="run.source === 'chat'">来自 Chat</span>
-                <span v-else-if="run.source === 'acg'">来自 ACG</span>
-              </span>
-            </button>
+              <button type="button" class="run-item" @click="activateRun(run.runId, true)">
+                <span class="run-item__top">
+                  <span class="run-status" :class="run.phase || run.status">{{ phaseLabel(run.phase, run.status) }}</span>
+                  <time>{{ formatRelativeTime(run.updatedAt) }}</time>
+                </span>
+                <strong>{{ run.workflowId }}</strong>
+                <small :title="run.runId">{{ shortRunId(run.runId) }}</small>
+                <p>{{ run.message }}</p>
+                <span v-if="run.percent != null" class="run-mini-progress" aria-hidden="true">
+                  <span :style="{ width: `${clampPercent(run.percent)}%` }"></span>
+                </span>
+                <span v-else class="run-mini-progress indeterminate" aria-hidden="true"><span></span></span>
+                <span class="run-item__metrics">
+                  <span>{{ run.totalSteps > 0 ? `${run.completedSteps}/${run.totalSteps} 步` : '规模计算中' }}</span>
+                  <span>恢复 {{ run.recoveryCount }}</span>
+                  <span v-if="run.source === 'chat'">来自 Chat</span>
+                  <span v-else-if="run.source === 'acg'">来自 ACG</span>
+                </span>
+              </button>
+              <button
+                v-if="canDeleteRun(run)"
+                class="run-item-delete"
+                type="button"
+                title="删除运行记录"
+                :aria-label="`删除运行：${run.runId}`"
+                :disabled="deletingRunId === run.runId"
+                @click="deleteRun(run.runId)"
+              >
+                <el-icon><DeleteIcon /></el-icon>
+              </button>
+            </div>
           </section>
         </div>
 
@@ -98,6 +109,16 @@
             <nav aria-label="运行页面导航">
               <button type="button" @click="openAcg">进入 ACG</button>
               <button v-if="selectedReference?.conversationId" type="button" @click="openChat">返回 Chat</button>
+              <button
+                class="run-toolbar__delete"
+                type="button"
+                :disabled="!selectedCanDelete || Boolean(deletingRunId)"
+                :title="selectedCanDelete ? '删除当前运行记录' : '运行中的任务需先取消后才能删除'"
+                @click="deleteRun(selectedRunId)"
+              >
+                <el-icon><DeleteIcon /></el-icon>
+                删除
+              </button>
               <button type="button" :disabled="detailLoading" @click="toggleDetails">
                 {{ detailExpanded ? '收起详情' : '加载详情' }}
               </button>
@@ -175,8 +196,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
-import { Monitor, Refresh, Search } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Delete as DeleteIcon, Monitor, Refresh, Search } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import CheckpointPanel from '@/components/agentos/CheckpointPanel.vue'
 import TraceEventTimeline from '@/components/agentos/TraceEventTimeline.vue'
@@ -218,6 +239,7 @@ const reviews = ref<ReviewRecord[]>([])
 const listLoading = ref(false)
 const detailLoading = ref(false)
 const detailExpanded = ref(false)
+const deletingRunId = ref('')
 const listError = ref('')
 const runError = ref('')
 const terminalDetailsLoaded = new Set<string>()
@@ -263,6 +285,13 @@ const runGroups = computed(() => [
 ])
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRuns.value / PAGE_SIZE)))
 const selectedReference = computed(() => workflowRunsStore.getReference(selectedRunId.value))
+const selectedSummary = computed(() => runs.value.find(run => run.runId === selectedRunId.value))
+const selectedCanDelete = computed(() => {
+  const status = selectedSummary.value?.status || progressTracker.progress.value?.status || selectedRun.value?.status
+  return status === 'waiting_review' || Boolean(status && TERMINAL.has(status))
+})
+
+const canDeleteRun = (run: WorkflowRunSummary) => isWorkflowReviewPending(run) || TERMINAL.has(run.status)
 
 const listParams = () => {
   const query = filters.query.trim()
@@ -484,6 +513,53 @@ const refreshAll = async () => {
   await loadRuns(true)
   if (selectedRunId.value) await progressTracker.refresh()
 }
+const deleteRun = async (runId: string) => {
+  const summary = runs.value.find(run => run.runId === runId)
+  if (summary && !canDeleteRun(summary)) {
+    ElMessage.warning('运行中的任务需先取消后才能删除')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `删除运行 ${shortRunId(runId)}？拓扑、执行记录、数据血缘和审计轨迹将一并永久删除。`,
+      '删除 ACG 运行',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        distinguishCancelAndClose: true
+      }
+    )
+    deletingRunId.value = runId
+    const wasSelected = selectedRunId.value === runId
+    const nextRunId = runs.value.find(run => run.runId !== runId)?.runId || ''
+    await workflowApi.deleteRun(runId)
+    terminalDetailsLoaded.delete(runId)
+    reviewDetailsLoaded.delete(runId)
+    terminalDetailCache.delete(runId)
+    workflowRunsStore.markInvalid(runId)
+    runs.value = runs.value.filter(run => run.runId !== runId)
+    totalRuns.value = Math.max(0, totalRuns.value - 1)
+    if (wasSelected) {
+      progressTracker.reset()
+      clearSelectedDetails()
+      selectedRunId.value = ''
+      const query = { ...route.query }
+      delete query.runId
+      await router.replace({ query })
+      if (nextRunId) await activateRun(nextRunId, true)
+    }
+    window.dispatchEvent(new Event('acg-runs-refresh'))
+    ElMessage.success('ACG 运行记录已删除')
+    await loadRuns(true)
+  } catch (error: unknown) {
+    if (error === 'cancel' || error === 'close') return
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    ElMessage.error(detail || '删除失败，请稍后重试')
+  } finally {
+    deletingRunId.value = ''
+  }
+}
 const openAcg = () => void router.push({ path: '/agentos/acg', query: { runId: selectedRunId.value } })
 const openChat = () => {
   const conversationId = selectedReference.value?.conversationId
@@ -575,9 +651,16 @@ select:focus, input:focus { border-color: var(--primary-line); box-shadow: 0 0 0
 .run-groups { display: grid; gap: 14px; margin-top: 10px; }
 .run-group { display: grid; gap: 7px; }
 .run-group > header { justify-content: space-between; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
-.run-item { display: grid; gap: 5px; width: 100%; padding: 10px; border: 1px solid var(--border-light); border-radius: 7px; background: color-mix(in srgb, var(--bg-card) 76%, transparent); color: var(--text-primary); text-align: left; cursor: pointer; transition: var(--transition); }
+.run-item-shell { position: relative; border-radius: 7px; }
+.run-item { display: grid; gap: 5px; width: 100%; padding: 10px; border: 1px solid var(--border-light); border-radius: inherit; background: color-mix(in srgb, var(--bg-card) 76%, transparent); color: var(--text-primary); text-align: left; cursor: pointer; transition: var(--transition); }
 .run-item:hover { border-color: var(--border-hover); }
-.run-item.active { border-color: var(--primary-line); background: var(--surface-solid); box-shadow: inset 2px 0 var(--primary-color); }
+.run-item-shell.active .run-item { border-color: var(--primary-line); background: var(--surface-solid); box-shadow: inset 2px 0 var(--primary-color); }
+.run-item-delete { position: absolute; top: 7px; right: 34px; display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--bg-card) 90%, transparent); color: var(--text-disabled); cursor: pointer; opacity: 0; transition: var(--transition); }
+.run-item-shell:hover .run-item-delete, .run-item-shell.active .run-item-delete, .run-item-delete:focus-visible { opacity: 1; }
+.run-item-delete:hover { background: var(--danger-fade); color: var(--danger); }
+.run-item-delete:disabled { cursor: wait; opacity: .55; }
+.run-toolbar__delete { color: var(--danger) !important; }
+.run-toolbar__delete:hover:not(:disabled) { border-color: color-mix(in srgb, var(--danger) 38%, var(--border-light)) !important; background: var(--danger-fade) !important; }
 .run-item__top { justify-content: space-between; gap: 8px; }
 .run-item__top time, .run-item small, .run-item p, .run-item__metrics { color: var(--text-secondary); font-size: 11px; }
 .run-item strong, .run-item small, .run-item p { overflow-wrap: anywhere; }

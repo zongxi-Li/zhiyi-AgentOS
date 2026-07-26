@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ElMessageBox } from 'element-plus'
 import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun, type WorkflowRunSummary } from '@/services/api/workflow'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
@@ -14,7 +15,8 @@ vi.mock('@/services/api/workflow', async importOriginal => {
     workflowApi: {
       ...actual.workflowApi,
       listRuns: vi.fn(), getWorkflowProgress: vi.fn(), getRun: vi.fn(), getAcgView: vi.fn(),
-      listReviews: vi.fn(), getTrace: vi.fn(), listCheckpoints: vi.fn(), startWorkflowAsync: vi.fn()
+      listReviews: vi.fn(), getTrace: vi.fn(), listCheckpoints: vi.fn(), startWorkflowAsync: vi.fn(),
+      deleteRun: vi.fn()
     }
   }
 })
@@ -69,6 +71,7 @@ describe('AgentOsConsoleView control plane', () => {
     vi.mocked(workflowApi.listReviews).mockResolvedValue({ items: [], total: 0, runId: 'run_1' })
     vi.mocked(workflowApi.getTrace).mockResolvedValue({ runId: 'run_1', taskId: 'task_1', workflowId: 'workflow_1', domain: 'test', status: 'completed', eventCount: 0, events: [] })
     vi.mocked(workflowApi.listCheckpoints).mockResolvedValue({ items: [], total: 0, runId: 'run_1' })
+    vi.mocked(workflowApi.deleteRun).mockResolvedValue({ runId: 'run_1', taskId: 'task_1', deleted: true, taskDeleted: true })
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
   })
 
@@ -167,6 +170,31 @@ describe('AgentOsConsoleView control plane', () => {
     expect(wrapper.findComponent(WorkflowProgressBar).props('syncError')).toContain('不存在或当前账户无权访问')
     expect(workflowApi.startWorkflowAsync).not.toHaveBeenCalled()
     expect(JSON.parse(localStorage.getItem('workflow.run.references.v1') || '{}').run_missing.invalid).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('confirms deletion from history and removes the selected terminal Run', async () => {
+    vi.mocked(workflowApi.listRuns)
+      .mockResolvedValueOnce({
+        items: [summary({ status: 'completed', phase: 'completed', percent: 100 })],
+        total: 1,
+        page: 1,
+        pageSize: 50
+      })
+      .mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 50 })
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(progress({
+      status: 'completed', phase: 'completed', percent: 100, completedSteps: 4
+    }))
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const { wrapper } = await mountConsole('?runId=run_1')
+    await flushPromises()
+
+    await wrapper.find('.run-toolbar__delete').trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalled()
+    expect(workflowApi.deleteRun).toHaveBeenCalledWith('run_1')
+    expect(wrapper.find('.run-item-shell').exists()).toBe(false)
     wrapper.unmount()
   })
 })
