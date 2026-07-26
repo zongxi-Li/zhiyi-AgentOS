@@ -5,12 +5,15 @@ from __future__ import annotations
 from agentos.core.acg.blueprint import ACGBlueprint
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.trace import TraceStore
+from agentos.core.execution.projection import refresh_run_execution_projection
+from agentos.core.models.enums import StepStatus
 from agentos.core.models.types import TraceEventType, utc_now
 from agentos.core.recovery.errors import PatchConflictError, RuntimeGraphError
 from agentos.core.recovery.models import PatchApplyResult, RuntimeGraphPatch
 from agentos.core.recovery.validator import PatchValidator
 from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import AppliedPatchRecord, RuntimeGraph
+from agentos.core.workflow.state_machine import StateMachine
 
 
 class RuntimeController:
@@ -32,6 +35,17 @@ class RuntimeController:
         self.trace_store = trace_store
         self.lock_manager = lock_manager
         self.validator = validator or PatchValidator(agent_registry)
+        self.state_machine = StateMachine()
+
+    def transition_node_state(self, node, target: StepStatus) -> None:
+        """Apply the shared Step state machine to an authoritative RuntimeNode."""
+
+        node.status = self.state_machine.transition(node.status, target)
+        node.updated_at = utc_now()
+
+    @staticmethod
+    def refresh_execution_projection(run) -> None:
+        refresh_run_execution_projection(run)
 
     async def initialize_from_blueprint(
         self,
@@ -51,6 +65,8 @@ class RuntimeController:
                 agent_registry=self.agent_registry,
                 domain=run.domain,
             )
+            self._import_legacy_execution_state(candidate)
+            refresh_run_execution_projection(candidate)
             candidate.execution_state["graphId"] = candidate.runtime_graph.graph_id
             candidate.execution_state["graphVersion"] = (
                 candidate.runtime_graph.graph_version
@@ -81,6 +97,8 @@ class RuntimeController:
                 agent_registry=self.agent_registry,
                 domain=run.domain,
             )
+            self._import_legacy_execution_state(candidate)
+            refresh_run_execution_projection(candidate)
             candidate.execution_state["graphId"] = candidate.runtime_graph.graph_id
             candidate.execution_state["graphVersion"] = (
                 candidate.runtime_graph.graph_version
@@ -124,9 +142,6 @@ class RuntimeController:
                 candidate_run.runtime_graph,
                 patch,
                 domain=candidate_run.domain,
-                authoritative_step_states={
-                    step.step_id: step.status.value for step in candidate_run.steps
-                },
             )
             candidate_graph.graph_version += 1
             candidate_graph.updated_at = utc_now()
@@ -145,6 +160,7 @@ class RuntimeController:
             )
             candidate_graph.applied_patches.append(record)
             candidate_run.runtime_graph = candidate_graph
+            refresh_run_execution_projection(candidate_run)
             candidate_run.execution_state["graphId"] = candidate_graph.graph_id
             candidate_run.execution_state["graphVersion"] = (
                 candidate_graph.graph_version
@@ -236,6 +252,23 @@ class RuntimeController:
                 runtimeGraph=graph.model_copy(deep=True),
             )
         return None
+
+    @staticmethod
+    def _import_legacy_execution_state(run) -> None:
+        """One-time compatibility import used only while initializing an old run."""
+
+        graph = run.runtime_graph
+        if graph is None:
+            return
+        legacy = {step.step_id: step for step in run.steps}
+        for node in graph.nodes:
+            step = legacy.get(node.node_id)
+            if step is None:
+                continue
+            node.status = step.status
+            node.output = dict(step.output)
+            node.output_version = 1 if step.output else 0
+            node.error = step.error
 
 
 __all__ = ["RuntimeController"]

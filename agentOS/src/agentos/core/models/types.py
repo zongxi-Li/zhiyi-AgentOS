@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from agentos.core.models.enums import WorkflowProgressPhase
+from agentos.core.models.enums import StepStatus, WorkflowProgressPhase
 from agentos.core.runtime_graph import RuntimeGraph
 
 
@@ -29,16 +29,6 @@ class CoreModel(BaseModel):
 class WorkflowStatus(str, Enum):
     PENDING = "pending"
     PLANNING = "planning"
-    RUNNING = "running"
-    WAITING_REVIEW = "waiting_review"
-    RETRYING = "retrying"
-    FAILED = "failed"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-
-
-class StepStatus(str, Enum):
-    PENDING = "pending"
     RUNNING = "running"
     WAITING_REVIEW = "waiting_review"
     RETRYING = "retrying"

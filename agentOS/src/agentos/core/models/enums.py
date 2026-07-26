@@ -17,4 +17,16 @@ class WorkflowProgressPhase(str, Enum):
     CANCELLED = "cancelled"
 
 
-__all__ = ["WorkflowProgressPhase"]
+class StepStatus(str, Enum):
+    """Shared persisted lifecycle for WorkflowStep projections and RuntimeNodes."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    WAITING_REVIEW = "waiting_review"
+    RETRYING = "retrying"
+    FAILED = "failed"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+__all__ = ["StepStatus", "WorkflowProgressPhase"]

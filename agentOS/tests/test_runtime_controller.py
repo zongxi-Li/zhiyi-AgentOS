@@ -9,7 +9,6 @@ from agentos.core.governance.trace import TraceStore
 from agentos.core.models.types import StepStatus, WorkflowRun, WorkflowStep
 from agentos.core.recovery import (
     PatchConflictError,
-    PatchValidationError,
     RuntimeController,
     RuntimeGraphPatch,
 )
@@ -219,7 +218,7 @@ async def test_stale_patch_is_rejected():
     assert caught.value.code == "GRAPH_VERSION_CONFLICT"
 
 
-async def test_controller_uses_workflow_step_as_stage_one_status_authority():
+async def test_controller_ignores_workflow_step_projection_when_validating_patch():
     store = MemoryWorkflowStore()
     controller, _ = await _initialized(store)
     persisted = store.get_run("run_1")
@@ -227,9 +226,9 @@ async def test_controller_uses_workflow_step_as_stage_one_status_authority():
     assert persisted.runtime_graph.get_node("target").status.value == "pending"
     store.save_run(persisted)
 
-    with pytest.raises(PatchValidationError) as caught:
-        await controller.apply_patch("run_1", _patch())
-    assert caught.value.code == "TARGET_STATE_CONFLICT"
+    result = await controller.apply_patch("run_1", _patch())
+    assert result.applied is True
+    assert result.runtime_graph.get_node("target").status == StepStatus.PENDING
 
 
 async def test_same_patch_id_and_content_is_an_idempotent_replay():

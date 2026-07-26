@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping
 
 from agentos.core.acg.enums import EdgeType, NodeType
 from agentos.core.acg.graph_ops import ACGValidationError, validate_blueprint
@@ -35,17 +34,12 @@ class PatchValidator:
         patch: RuntimeGraphPatch,
         *,
         domain: str,
-        authoritative_step_states: Mapping[str, str] | None = None,
     ) -> RuntimeGraph:
         """Return a validated candidate graph without advancing its version."""
 
         self._validate_identity(graph, patch)
         self._validate_budget(graph, patch)
-        self._validate_target_and_replaced_edges(
-            graph,
-            patch,
-            authoritative_step_states=authoritative_step_states,
-        )
+        self._validate_target_and_replaced_edges(graph, patch)
         self._validate_ids(graph, patch)
         self._validate_capabilities(patch, domain=domain)
 
@@ -137,8 +131,6 @@ class PatchValidator:
     def _validate_target_and_replaced_edges(
         graph: RuntimeGraph,
         patch: RuntimeGraphPatch,
-        *,
-        authoritative_step_states: Mapping[str, str] | None,
     ) -> None:
         try:
             target = graph.get_node(patch.target_node_id)
@@ -150,9 +142,7 @@ class PatchValidator:
             raise PatchValidationError(
                 "INVALID_TARGET_NODE", "target must be a Step node"
             )
-        target_status = RuntimeNodeStatus(
-            (authoritative_step_states or {}).get(target.node_id, target.status.value)
-        )
+        target_status = target.status
         if target_status in _IMMUTABLE_TARGET_STATES:
             raise PatchValidationError(
                 "TARGET_STATE_CONFLICT", f"target is {target_status.value}"
@@ -162,9 +152,7 @@ class PatchValidator:
                 runtime_status = graph.get_node(node_id).status
             except KeyError as exc:
                 raise PatchValidationError("EXPECTED_NODE_NOT_FOUND", node_id) from exc
-            actual = RuntimeNodeStatus(
-                (authoritative_step_states or {}).get(node_id, runtime_status.value)
-            )
+            actual = runtime_status
             if actual != expected:
                 raise PatchValidationError(
                     "EXPECTED_NODE_STATE_CONFLICT",

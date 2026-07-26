@@ -468,56 +468,56 @@ class WorkflowRuntime:
             run.current_step_id = synced[0].step_id if synced else None
 
     async def _apply_acg_review(self, decision: ReviewDecision, *, executor) -> WorkflowRun:
-        run = self.workflow_store.get_run(decision.run_id)
-        task = self.task_manager.get_task(run.task_id)
-        workflow = self.workflow_registry.get(run.workflow_id)
-        step = run.get_step(decision.step_id)
-
-        self.review_manager.record(run, decision)
-        blueprint = ACGBlueprint.model_validate(run.acg_blueprint) if run.acg_blueprint else promote_workflow_to_acg(workflow, task_id=task.task_id)
-
-        if decision.decision == ReviewDecisionType.APPROVED:
-            self._transition_step(step, StepStatus.COMPLETED)
-            completed = set(run.completed_step_ids)
-            completed.add(step.step_id)
-            run.completed_step_ids = sorted(completed)
-            self._transition_run(run, WorkflowStatus.RUNNING)
-            self.task_manager.mark_running(task)
-            self.workflow_store.save_run(run)
-            return await executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
-
-        if decision.decision == ReviewDecisionType.RERUN:
-            step.retry_count += 1
-            self._transition_step(step, StepStatus.RETRYING)
-            self._transition_run(run, WorkflowStatus.RETRYING)
-            self.task_manager.mark_retrying(task)
-            self.workflow_store.save_run(run)
-            return await executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
-
         if decision.decision == ReviewDecisionType.CANCELLED:
-            return self.cancel(run.run_id)
+            return self.cancel(decision.run_id)
+        should_resume = False
+        async with self.run_lock_manager.lock_for(decision.run_id):
+            latest = self.workflow_store.get_run(decision.run_id)
+            run = latest.model_copy(deep=True)
+            task = self.task_manager.get_task(run.task_id)
+            workflow = self.workflow_registry.get(run.workflow_id)
+            graph = run.runtime_graph
+            if graph is None:
+                raise RuntimeGraphError("RUNTIME_GRAPH_MISSING", "review requires RuntimeGraph")
+            node = graph.get_node(decision.step_id)
+            if node.status != StepStatus.WAITING_REVIEW:
+                raise ReviewConflictError("runtime node is no longer waiting for review")
+            self.review_manager.record(run, decision)
 
-        if decision.decision == ReviewDecisionType.NEED_MORE_INFO:
-            step.status = StepStatus.WAITING_REVIEW
-            self._transition_run_if_needed(run, WorkflowStatus.WAITING_REVIEW)
-            run.error = decision.comment or "Reviewer requested more information."
-            self.task_manager.mark_waiting_review(task)
+            if decision.decision == ReviewDecisionType.APPROVED:
+                self.runtime_controller.transition_node_state(node, StepStatus.COMPLETED)
+                if node.attempts:
+                    node.attempts[-1].status = StepStatus.COMPLETED
+                    node.attempts[-1].ended_at = utc_now()
+                self._transition_run(run, WorkflowStatus.RUNNING)
+                self.task_manager.mark_running(task)
+                should_resume = True
+            elif decision.decision == ReviewDecisionType.RERUN:
+                self.runtime_controller.transition_node_state(node, StepStatus.RETRYING)
+                self._transition_run(run, WorkflowStatus.RETRYING)
+                self.task_manager.mark_retrying(task)
+                should_resume = True
+            elif decision.decision == ReviewDecisionType.NEED_MORE_INFO:
+                run.error = decision.comment or "Reviewer requested more information."
+                self.task_manager.mark_waiting_review(task)
+            else:
+                self.runtime_controller.transition_node_state(node, StepStatus.FAILED)
+                self._transition_run(run, WorkflowStatus.FAILED)
+                run.error = decision.comment or "Review rejected workflow step."
+                self.task_manager.mark_failed(task)
+                self.trace_store.append(
+                    run=run, event_type=TraceEventType.RUN_FAILED,
+                    step_id=node.node_id, observation=run.error,
+                )
+            from agentos.core.execution.projection import refresh_run_execution_projection
+
+            refresh_run_execution_projection(run)
+            self._create_checkpoint(run, run.get_step(decision.step_id))
             self.workflow_store.save_run(run)
+        if not should_resume:
             return run
-
-        # REJECTED
-        self._transition_step(step, StepStatus.FAILED)
-        self._transition_run(run, WorkflowStatus.FAILED)
-        run.error = decision.comment or "Review rejected workflow step."
-        self.task_manager.mark_failed(task)
-        self.trace_store.append(
-            run=run,
-            event_type=TraceEventType.RUN_FAILED,
-            step_id=step.step_id,
-            observation=run.error,
-        )
-        self.workflow_store.save_run(run)
-        return run
+        blueprint = ACGBlueprint.model_validate(run.acg_blueprint) if run.acg_blueprint else promote_workflow_to_acg(workflow, task_id=task.task_id)
+        return await executor.resume(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
     def _transition_run_if_needed(self, run: WorkflowRun, status: WorkflowStatus) -> None:
         if run.status != status:
@@ -714,8 +714,7 @@ class WorkflowRuntime:
         )
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
-        lock = self.run_lock_manager.lock_for(decision.run_id)
-        async with lock:
+        async with self.run_lock_manager.lock_for(decision.run_id):
             run = self.workflow_store.get_run(decision.run_id)
             existing = self._find_review_operation(run, decision.operation_id)
             if existing is not None:
@@ -744,9 +743,9 @@ class WorkflowRuntime:
             ):
                 raise ReviewConflictError("workflow step state changed")
 
-            workflow = self.workflow_registry.get(run.workflow_id)
-            adapter = self._workflow_adapter(workflow)
-            return await adapter.apply_review(decision)
+        workflow = self.workflow_registry.get(run.workflow_id)
+        adapter = self._workflow_adapter(workflow)
+        return await adapter.apply_review(decision)
 
     @staticmethod
     def _find_review_operation(run: WorkflowRun, operation_id: str | None) -> dict | None:
@@ -811,17 +810,6 @@ class WorkflowRuntime:
                     f"graphVersion {current_graph.graph_version}",
                 )
 
-            snapshot_steps = snapshot.get("steps")
-            if isinstance(snapshot_steps, list):
-                run.steps = [WorkflowStep.model_validate(step) for step in snapshot_steps]
-            completed = snapshot.get("completedStepIds")
-            if isinstance(completed, list):
-                run.completed_step_ids = sorted({str(step_id) for step_id in completed})
-            else:
-                run.completed_step_ids = sorted(
-                    step.step_id for step in run.steps if step.status == StepStatus.COMPLETED
-                )
-            run.current_step_id = snapshot.get("currentStepId") or checkpoint.step_id
             if "provenance" in snapshot:
                 run.provenance = snapshot["provenance"]
             if isinstance(snapshot.get("executionState"), dict):
@@ -830,7 +818,6 @@ class WorkflowRuntime:
             run.execution_state["graphId"] = checkpoint_graph.graph_id
             run.execution_state["graphVersion"] = checkpoint_graph.graph_version
             run.execution_state["sourceBlueprintVersion"] = checkpoint_graph.source_blueprint_version
-            run.active_step_ids = []
             if "output" in snapshot:
                 run.output = dict(snapshot["output"] or {})
             blueprint = (
@@ -839,9 +826,17 @@ class WorkflowRuntime:
                 else promote_workflow_to_acg(workflow, task_id=task.task_id)
             )
 
-            for step in run.steps:
-                if step.status == StepStatus.RUNNING:
-                    step.status = StepStatus.RETRYING
+            for node in run.runtime_graph.nodes:
+                if node.status in {StepStatus.RUNNING, StepStatus.FAILED}:
+                    if node.status == StepStatus.RUNNING and node.attempts:
+                        node.attempts[-1].status = StepStatus.FAILED
+                        node.attempts[-1].error = "interrupted by checkpoint recovery"
+                        node.attempts[-1].ended_at = utc_now()
+                    self.runtime_controller.transition_node_state(node, StepStatus.RETRYING)
+
+            from agentos.core.execution.projection import refresh_run_execution_projection
+
+            refresh_run_execution_projection(run)
 
             self._transition_run(run, WorkflowStatus.RETRYING)
             run.error = None
@@ -865,24 +860,33 @@ class WorkflowRuntime:
         )
 
     def cancel(self, run_id: str) -> WorkflowRun:
-        run = self.workflow_store.get_run(run_id)
-        self._transition_run(run, WorkflowStatus.CANCELLED)
-        for step in run.steps:
-            if step.status in {
-                StepStatus.PENDING,
-                StepStatus.RUNNING,
-                StepStatus.RETRYING,
-                StepStatus.WAITING_REVIEW,
-            }:
-                self._transition_step(step, StepStatus.CANCELLED)
-        self.task_manager.mark_cancelled(run.task_id)
-        self.trace_store.append(
-            run=run,
-            event_type=TraceEventType.RUN_CANCELLED,
-            observation="Workflow cancelled.",
-        )
-        self.workflow_store.save_run(run)
-        return run
+        with self.run_lock_manager.lock_for(run_id):
+            latest = self.workflow_store.get_run(run_id)
+            run = latest.model_copy(deep=True)
+            self._transition_run(run, WorkflowStatus.CANCELLED)
+            if run.runtime_graph is not None:
+                for node in run.runtime_graph.nodes:
+                    if node.status in {
+                        StepStatus.PENDING,
+                        StepStatus.RUNNING,
+                        StepStatus.RETRYING,
+                        StepStatus.WAITING_REVIEW,
+                    }:
+                        self.runtime_controller.transition_node_state(node, StepStatus.CANCELLED)
+                        if node.attempts and node.attempts[-1].status == StepStatus.RUNNING:
+                            node.attempts[-1].status = StepStatus.CANCELLED
+                            node.attempts[-1].ended_at = utc_now()
+                from agentos.core.execution.projection import refresh_run_execution_projection
+
+                refresh_run_execution_projection(run)
+            self.task_manager.mark_cancelled(run.task_id)
+            self.trace_store.append(
+                run=run,
+                event_type=TraceEventType.RUN_CANCELLED,
+                observation="Workflow cancelled.",
+            )
+            self.workflow_store.save_run(run)
+            return run
 
     def _resolve_workflow(self, task: AgentTask, workflow_id: Optional[str]) -> WorkflowDefinition:
         return self.task_manager.bind_workflow(task, workflow_id=workflow_id)

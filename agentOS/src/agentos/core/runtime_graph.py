@@ -1,8 +1,8 @@
 """Versioned runtime graph models derived from immutable ACG blueprints.
 
-Stage one makes this graph authoritative for runtime *structure*, graph
-versions, and patch history.  ``WorkflowStep`` remains the execution-state
-authority until the executor migration in a later stage.
+The graph is authoritative for runtime structure, execution state, outputs,
+bindings, attempts, graph versions, and patch history. ``WorkflowStep`` is a
+one-way compatibility projection only.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import json
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +20,7 @@ from agentos.core.acg.blueprint import ACGBlueprint
 from agentos.core.acg.edges import ACGEdge
 from agentos.core.acg.enums import EdgeType, NodeType
 from agentos.core.acg.nodes import AgentNode, StepNode, parse_node
+from agentos.core.models.enums import StepStatus
 
 
 def _utc_now() -> datetime:
@@ -32,16 +34,7 @@ def _canonical_hash(payload: Any) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-class RuntimeNodeStatus(str, Enum):
-    """Persisted runtime-node status vocabulary for the migration period."""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    WAITING_REVIEW = "waiting_review"
-    RETRYING = "retrying"
-    FAILED = "failed"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+RuntimeNodeStatus = StepStatus
 
 
 class RuntimeNodeActivation(str, Enum):
@@ -66,6 +59,28 @@ class RuntimePatchBudget(BaseModel):
     current_replan_depth: int = Field(default=0, alias="currentReplanDepth", ge=0)
 
 
+class RuntimeAttempt(BaseModel):
+    """Append-only record of one real execution of a RuntimeNode."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    attempt_id: str = Field(
+        default_factory=lambda: f"attempt_{uuid4().hex}", alias="attemptId"
+    )
+    attempt_number: int = Field(alias="attemptNumber", ge=1)
+    graph_version: int = Field(alias="graphVersion", ge=1)
+    binding_id: str = Field(default="", alias="bindingId")
+    agent_name: str = Field(default="", alias="agentName")
+    model_name: str = Field(default="", alias="modelName")
+    status: StepStatus = StepStatus.RUNNING
+    started_at: datetime = Field(default_factory=_utc_now, alias="startedAt")
+    ended_at: datetime | None = Field(default=None, alias="endedAt")
+    resolved_input: dict[str, Any] = Field(default_factory=dict, alias="resolvedInput")
+    output: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    trace_context: dict[str, Any] = Field(default_factory=dict, alias="traceContext")
+
+
 class RuntimeNode(BaseModel):
     """Runtime copy of one ACG node plus migration-safe execution metadata."""
 
@@ -74,15 +89,16 @@ class RuntimeNode(BaseModel):
     node_id: str = Field(alias="nodeId")
     node_type: NodeType = Field(alias="nodeType")
     spec: dict[str, Any] = Field(default_factory=dict)
-    status: RuntimeNodeStatus = RuntimeNodeStatus.PENDING
+    status: StepStatus = StepStatus.PENDING
     activation: RuntimeNodeActivation = RuntimeNodeActivation.ACTIVE
     current_binding: dict[str, Any] | None = Field(default=None, alias="currentBinding")
     binding_candidates: list[dict[str, Any]] = Field(
         default_factory=list, alias="bindingCandidates"
     )
-    attempts: list[dict[str, Any]] = Field(default_factory=list)
+    attempts: list[RuntimeAttempt] = Field(default_factory=list)
     output: dict[str, Any] = Field(default_factory=dict)
     output_version: int = Field(default=0, alias="outputVersion", ge=0)
+    error: str | None = None
     source_patch_id: str | None = Field(default=None, alias="sourcePatchId")
     created_graph_version: int = Field(default=1, alias="createdGraphVersion", ge=1)
     updated_at: datetime = Field(default_factory=_utc_now, alias="updatedAt")
@@ -195,6 +211,68 @@ class RuntimeGraph(BaseModel):
     def has_node(self, node_id: str) -> bool:
         return any(node.node_id == node_id for node in self.nodes)
 
+    def dependency_sources(self, node_id: str) -> list[str]:
+        return [
+            edge.source_id
+            for edge in self.effective_edges(EdgeType.DEPENDENCY)
+            if edge.target_id == node_id
+        ]
+
+    def ready_set(self) -> list[RuntimeNode]:
+        """Return executable nodes whose effective dependencies are completed."""
+
+        ready: list[RuntimeNode] = []
+        for node in self.nodes:
+            if node.node_type != NodeType.STEP:
+                continue
+            if node.activation != RuntimeNodeActivation.ACTIVE:
+                continue
+            if node.status not in {StepStatus.PENDING, StepStatus.RETRYING}:
+                continue
+            dependencies = self.dependency_sources(node.node_id)
+            if all(self.get_node(source_id).status == StepStatus.COMPLETED for source_id in dependencies):
+                ready.append(node)
+        return sorted(ready, key=lambda item: (-int(item.spec.get("priority", 0)), item.node_id))
+
+    def has_waiting_review(self) -> bool:
+        return any(node.status == StepStatus.WAITING_REVIEW for node in self.nodes)
+
+    def has_runnable_nodes(self) -> bool:
+        return bool(self.ready_set())
+
+    def has_running_nodes(self) -> bool:
+        return any(node.status == StepStatus.RUNNING for node in self.nodes)
+
+    def is_terminal(self) -> bool:
+        steps = [node for node in self.nodes if node.node_type == NodeType.STEP]
+        return bool(steps) and all(
+            node.status in {StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.CANCELLED}
+            for node in steps
+        )
+
+    def all_steps_completed(self) -> bool:
+        steps = [node for node in self.nodes if node.node_type == NodeType.STEP]
+        return bool(steps) and all(node.status == StepStatus.COMPLETED for node in steps)
+
+    def resolve_ready_control_nodes(self) -> bool:
+        """Complete dependency-ready, unconditional control nodes without versioning."""
+
+        changed = False
+        while True:
+            completed_one = False
+            for node in self.nodes:
+                if node.node_type != NodeType.CONTROL or node.status != StepStatus.PENDING:
+                    continue
+                if all(
+                    self.get_node(source_id).status == StepStatus.COMPLETED
+                    for source_id in self.dependency_sources(node.node_id)
+                ):
+                    node.status = StepStatus.COMPLETED
+                    node.updated_at = _utc_now()
+                    changed = completed_one = True
+            if not completed_one:
+                return changed
+
     def effective_edges(self, edge_type: EdgeType | None = None) -> list[ACGEdge]:
         """Return edges not superseded by an applied runtime patch."""
 
@@ -281,6 +359,7 @@ class RuntimeGraph(BaseModel):
 __all__ = [
     "AppliedPatchRecord",
     "RuntimeGraph",
+    "RuntimeAttempt",
     "RuntimeNode",
     "RuntimeNodeActivation",
     "RuntimeNodeStatus",

@@ -10,6 +10,7 @@ input_spec 这份“数据采购清单”精准取用，引擎不做全盘倾倒
 from __future__ import annotations
 
 import json
+import hashlib
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -57,6 +58,17 @@ class ContextPack(BaseModel):
     tokens_available: int = Field(default=0, alias="tokensAvailable")
     saving_ratio: float = Field(default=0.0, alias="savingRatio")
     source_step_ids: List[str] = Field(default_factory=list, alias="sourceStepIds")
+    graph_version: int = Field(default=0, alias="graphVersion")
+    attempt_id: str = Field(default="", alias="attemptId")
+    binding_id: str = Field(default="", alias="bindingId")
+    input_revision: str = Field(default="", alias="inputRevision")
 
 
-__all__ = ["estimate_tokens", "ContextPack"]
+def input_revision(payload: Any) -> str:
+    """Return a stable revision for one attempt's resolved context."""
+
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+__all__ = ["estimate_tokens", "input_revision", "ContextPack"]

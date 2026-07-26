@@ -8,18 +8,38 @@ compare-and-set substitute.
 
 from __future__ import annotations
 
-import asyncio
 from threading import Lock
 
 
-class RunLockManager:
-    """Own one reusable ``asyncio.Lock`` for each workflow run id."""
+class RunLock:
+    """Short critical-section lock usable by async and legacy sync entry points."""
 
     def __init__(self) -> None:
-        self._locks: dict[str, asyncio.Lock] = {}
+        self._lock = Lock()
+
+    def __enter__(self):
+        self._lock.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        self._lock.release()
+
+    async def __aenter__(self):
+        self._lock.acquire()
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback) -> None:
+        self._lock.release()
+
+
+class RunLockManager:
+    """Own one short-section lock shared by async and legacy sync run paths."""
+
+    def __init__(self) -> None:
+        self._locks: dict[str, RunLock] = {}
         self._registry_lock = Lock()
 
-    def lock_for(self, run_id: str) -> asyncio.Lock:
+    def lock_for(self, run_id: str) -> RunLock:
         """Return the process-wide lock associated with ``run_id``."""
 
         normalized = str(run_id or "").strip()
@@ -28,7 +48,7 @@ class RunLockManager:
         with self._registry_lock:
             lock = self._locks.get(normalized)
             if lock is None:
-                lock = asyncio.Lock()
+                lock = RunLock()
                 self._locks[normalized] = lock
             return lock
 

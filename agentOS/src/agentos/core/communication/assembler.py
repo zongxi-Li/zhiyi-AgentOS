@@ -21,7 +21,8 @@ from typing import Any, Dict, List
 
 from agentos.core.acg import ACGBlueprint, EdgeType, StepNode
 from agentos.core.communication.audit import ProvenanceLedger
-from agentos.core.communication.contract import ContextPack, estimate_tokens
+from agentos.core.communication.contract import ContextPack, estimate_tokens, input_revision
+from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.data_contracts import ContextContractError, validate_contract_payload
 
 
@@ -35,7 +36,8 @@ class ContextAssembler:
         self,
         *,
         run_id: str,
-        blueprint: ACGBlueprint,
+        blueprint: ACGBlueprint | None = None,
+        runtime_graph: RuntimeGraph | None = None,
         step_node: StepNode,
         objective: str,
         upstream_outputs: Dict[str, Dict[str, Any]],
@@ -43,12 +45,18 @@ class ContextAssembler:
         consumer_agent_name: str = "",
         producer_agent_names: Dict[str, str] | None = None,
         attempt: int = 1,
+        attempt_id: str = "",
+        binding_id: str = "",
     ) -> ContextPack:
         """为 step_node 装配 ContextPack。
 
         upstream_outputs: {step_id -> 该上游 Step 的完整输出}，由执行器提供。
         """
         # 1) 确定数据来源：优先通信边上游，回退到依赖边上游，再回退到全部已知上游
+        if runtime_graph is not None:
+            blueprint = runtime_graph.to_blueprint()
+        if blueprint is None:
+            raise ValueError("blueprint or runtime_graph is required")
         comm_edges = blueprint.incoming(step_node.node_id, EdgeType.COMMUNICATION)
         comm_sources = [edge.source_id for edge in comm_edges]
         dep_sources = blueprint.dependency_sources(step_node.node_id)
@@ -152,6 +160,10 @@ class ContextAssembler:
             tokensAvailable=tokens_available,
             savingRatio=saving_ratio,
             sourceStepIds=source_ids,
+            graphVersion=runtime_graph.graph_version if runtime_graph is not None else 0,
+            attemptId=attempt_id,
+            bindingId=binding_id,
+            inputRevision=input_revision(delivered),
         )
 
         # 5) 血缘与运行时交互记账。即使契约无效也保留装配尝试，便于审计。

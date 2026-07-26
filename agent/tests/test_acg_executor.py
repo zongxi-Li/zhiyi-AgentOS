@@ -82,6 +82,12 @@ def test_acg_engine_runs_linear_workflow():
         assert run.runtime_engine == "acg"
         assert run.acg_blueprint is not None
         assert set(run.completed_step_ids) == {"a", "b", "c"}
+        assert run.runtime_graph.graph_version == 1
+        assert all(
+            run.runtime_graph.get_node(node_id).status == StepStatus.COMPLETED
+            for node_id in ("a", "b", "c")
+        )
+        assert run.runtime_graph.get_node("c").output == run.get_step("c").output
 
     asyncio.run(_run())
 
@@ -166,6 +172,10 @@ def test_acg_engine_persists_running_step_before_awaiting_agent():
         assert persisted.active_step_ids == ["slow"]
         assert persisted.get_step("slow").status == StepStatus.RUNNING
         assert persisted.get_step("slow").attempt == 1
+        runtime_node = persisted.runtime_graph.get_node("slow")
+        assert runtime_node.status == StepStatus.RUNNING
+        assert runtime_node.attempts[-1].attempt_id
+        assert runtime_node.attempts[-1].status == StepStatus.RUNNING
 
         release.set()
         completed = await execution
@@ -705,7 +715,62 @@ def test_declared_retry_limit_retries_real_agent_failure():
         assert run.status == WorkflowStatus.COMPLETED
         assert run.get_step("retry").attempt == 2
         assert run.get_step("retry").retry_count == 1
+        attempts = run.runtime_graph.get_node("retry").attempts
+        assert len(attempts) == 2
+        assert attempts[0].status == StepStatus.FAILED
+        assert attempts[1].status == StepStatus.COMPLETED
+        assert attempts[0].attempt_id != attempts[1].attempt_id
+        assert run.runtime_graph.graph_version == 1
         assert run.recovery_count == 1
         assert TraceEventType.RUN_FAILED not in {event.event_type for event in run.trace}
+
+    asyncio.run(_run())
+
+
+def test_cancelled_runtime_node_rejects_late_agent_outcome():
+    class _BlockingAgent(BaseAgent):
+        def __init__(self, started: asyncio.Event, release: asyncio.Event):
+            super().__init__(AgentProfile(agentName="slow", domain="test", capabilities=["slow"]))
+            self.started = started
+            self.release = release
+
+        async def run(self, context):
+            self.started.set()
+            await self.release.wait()
+            return AgentOutput(output={"late": True}, summary="late")
+
+    async def _run():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        agents = AgentRegistry()
+        agents.register(_BlockingAgent(started, release))
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="cancel_late",
+                name="Cancel late",
+                domain="test",
+                intent="demo",
+                runtimeEngine="acg",
+                steps=[WorkflowStepDefinition(stepId="slow", name="Slow", agentName="slow")],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        task = runtime.create_task(title="cancel", domain="test", intent="demo")
+        execution = asyncio.create_task(runtime.start(task.task_id, workflow_id="cancel_late"))
+        await asyncio.wait_for(started.wait(), timeout=1)
+        runtime.cancel(runtime.workflow_store.list_runs(page=1, page_size=1).items[0].run_id)
+        release.set()
+        result = await execution
+
+        node = result.runtime_graph.get_node("slow")
+        assert result.status == WorkflowStatus.CANCELLED
+        assert node.status == StepStatus.CANCELLED
+        assert node.output == {}
+        assert node.attempts[-1].status == StepStatus.CANCELLED
+        assert any(
+            event.payload.get("ignored") is True and event.payload.get("reason") == "run cancelled"
+            for event in result.trace
+        )
 
     asyncio.run(_run())
