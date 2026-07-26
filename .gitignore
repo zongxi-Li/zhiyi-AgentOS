@@ -144,3 +144,9 @@ build_agentos_innovation_doc.py
 
 # draw.io temporary backup files
 *.drawio.bkp
+
+# 其他
+完成稿_提取.txt
+
+# 浏览器视觉验收产物
+output/playwright/
