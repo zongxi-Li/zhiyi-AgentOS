@@ -98,6 +98,20 @@ describe('WorkflowProgressBar', () => {
     wrapper.unmount()
   })
 
+  it('renders lifecycle messages as escaped text instead of executable markup', () => {
+    vi.useFakeTimers()
+    const message = '<img src=x onerror="window.__workflowXss = true"><script>alert(1)</script>'
+    const wrapper = mount(WorkflowProgressBar, {
+      props: { progress: makeProgress({ message }) }
+    })
+
+    expect(wrapper.get('.workflow-progress__message').text()).toBe(message)
+    expect(wrapper.find('.workflow-progress__message img').exists()).toBe(false)
+    expect(wrapper.find('.workflow-progress__message script').exists()).toBe(false)
+    expect(wrapper.get('.workflow-progress__message').html()).toContain('&lt;script&gt;')
+    wrapper.unmount()
+  })
+
   it('supports compact Chat rendering without changing progress semantics', () => {
     vi.useFakeTimers()
     const wrapper = mount(WorkflowProgressBar, {

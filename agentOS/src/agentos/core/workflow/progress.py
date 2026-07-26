@@ -50,7 +50,13 @@ class WorkflowProgress(CoreModel):
 
 
 class ProgressAssembler:
-    """Pure projection from a WorkflowRun to a user-facing progress snapshot."""
+    """Pure projection from a WorkflowRun to a user-facing progress snapshot.
+
+    ``WorkflowRun.lifecycle_message`` is an optional base lifecycle description.
+    The projected ``message`` is authoritative for display: an explicit
+    ``phase_message`` wins, active execution/review/recovery phases name the
+    current step, and otherwise the matching base lifecycle message is kept.
+    """
 
     _ACTIVE_STEP_STATUSES = {
         StepStatus.RUNNING,
@@ -99,6 +105,7 @@ class ProgressAssembler:
             WorkflowProgressPhase.RECOVERY,
             WorkflowProgressPhase.REVIEW,
         }:
+            # Active work is more useful to the UI than the run's base phase text.
             message = self._message(phase, step_name)
         elif run.lifecycle_phase == phase and run.lifecycle_message:
             message = run.lifecycle_message

@@ -147,15 +147,44 @@ def test_unknown_run_returns_404_and_store_failure_returns_503():
 
 
 @pytest.mark.parametrize(
-    ("status", "phase", "statuses", "expected_percent", "expected_completed"),
+    (
+        "status",
+        "phase",
+        "statuses",
+        "expected_message",
+        "expected_percent",
+        "expected_completed",
+    ),
     [
-        (WorkflowStatus.PENDING, WorkflowProgressPhase.UNDERSTANDING, [], None, 0),
-        (WorkflowStatus.RUNNING, WorkflowProgressPhase.PLANNING, [], None, 0),
-        (WorkflowStatus.RUNNING, WorkflowProgressPhase.GRAPH_BUILDING, [], None, 0),
+        (
+            WorkflowStatus.PENDING,
+            WorkflowProgressPhase.UNDERSTANDING,
+            [],
+            "Safe lifecycle message",
+            None,
+            0,
+        ),
+        (
+            WorkflowStatus.RUNNING,
+            WorkflowProgressPhase.PLANNING,
+            [],
+            "Safe lifecycle message",
+            None,
+            0,
+        ),
+        (
+            WorkflowStatus.RUNNING,
+            WorkflowProgressPhase.GRAPH_BUILDING,
+            [],
+            "Safe lifecycle message",
+            None,
+            0,
+        ),
         (
             WorkflowStatus.RUNNING,
             WorkflowProgressPhase.EXECUTING,
             [StepStatus.COMPLETED, StepStatus.COMPLETED, StepStatus.RUNNING, StepStatus.PENDING],
+            "正在执行 ACG 步骤：Step 2",
             50.0,
             2,
         ),
@@ -163,6 +192,7 @@ def test_unknown_run_returns_404_and_store_failure_returns_503():
             WorkflowStatus.WAITING_REVIEW,
             WorkflowProgressPhase.REVIEW,
             [StepStatus.COMPLETED, StepStatus.COMPLETED, StepStatus.WAITING_REVIEW, StepStatus.PENDING],
+            "正在等待步骤审核：Step 2",
             50.0,
             2,
         ),
@@ -170,6 +200,7 @@ def test_unknown_run_returns_404_and_store_failure_returns_503():
             WorkflowStatus.RETRYING,
             WorkflowProgressPhase.RECOVERY,
             [StepStatus.COMPLETED, StepStatus.RETRYING, StepStatus.PENDING, StepStatus.PENDING],
+            "正在恢复 ACG 步骤：Step 1",
             25.0,
             1,
         ),
@@ -177,6 +208,7 @@ def test_unknown_run_returns_404_and_store_failure_returns_503():
             WorkflowStatus.COMPLETED,
             WorkflowProgressPhase.COMPLETED,
             [StepStatus.COMPLETED, StepStatus.COMPLETED],
+            "Safe lifecycle message",
             100.0,
             2,
         ),
@@ -184,6 +216,7 @@ def test_unknown_run_returns_404_and_store_failure_returns_503():
             WorkflowStatus.FAILED,
             WorkflowProgressPhase.FAILED,
             [StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.PENDING, StepStatus.PENDING],
+            "Safe lifecycle message",
             25.0,
             1,
         ),
@@ -191,6 +224,7 @@ def test_unknown_run_returns_404_and_store_failure_returns_503():
             WorkflowStatus.CANCELLED,
             WorkflowProgressPhase.CANCELLED,
             [StepStatus.COMPLETED, StepStatus.CANCELLED, StepStatus.PENDING, StepStatus.PENDING],
+            "Safe lifecycle message",
             25.0,
             1,
         ),
@@ -200,6 +234,7 @@ def test_progress_contract_for_every_phase(
     status,
     phase,
     statuses,
+    expected_message,
     expected_percent,
     expected_completed,
 ):
@@ -227,7 +262,7 @@ def test_progress_contract_for_every_phase(
     payload = response.json()
     assert payload["status"] == status.value
     assert payload["phase"] == phase.value
-    assert payload["message"] == "Safe lifecycle message"
+    assert payload["message"] == expected_message
     assert payload["percent"] == expected_percent
     assert payload["completedSteps"] == expected_completed
     assert payload["totalSteps"] == len(statuses)
