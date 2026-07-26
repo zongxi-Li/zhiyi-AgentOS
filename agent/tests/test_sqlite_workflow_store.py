@@ -2,6 +2,9 @@ from datetime import datetime, timezone
 import sqlite3
 
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus, WorkflowStep
+from agentos.core.acg import ACGBlueprint, ACGEdge, StepNode
+from agentos.core.governance.checkpoint import CheckpointStore
+from agentos.core.runtime_graph import AppliedPatchRecord, RuntimeGraph
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 
@@ -46,6 +49,62 @@ def test_sqlite_workflow_store_persists_tasks_and_runs(tmp_path):
     assert loaded_run.current_step_id == "case_intake"
     assert loaded_run.status == WorkflowStatus.RUNNING
     assert [item.run_id for item in reopened.list_runs()] == [run.run_id]
+
+
+def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkpoint(tmp_path):
+    store = SQLiteWorkflowStore(tmp_path / "runtime-graph.db")
+    blueprint = ACGBlueprint(
+        graphId="graph_sqlite",
+        version=8,
+        nodes=[
+            StepNode(nodeId="a", agentName="worker"),
+            StepNode(nodeId="b", agentName="worker"),
+        ],
+        edges=[ACGEdge(edgeId="a_b", sourceId="a", targetId="b")],
+    )
+    graph = RuntimeGraph.from_blueprint(run_id="run_sqlite", blueprint=blueprint)
+    graph.graph_version = 2
+    graph.applied_patch_ids = ["patch_sqlite"]
+    graph.applied_patch_idempotency_keys = ["idem_sqlite"]
+    graph.processed_event_ids = ["event_sqlite"]
+    graph.applied_patches = [
+        AppliedPatchRecord(
+            patchId="patch_sqlite",
+            idempotencyKey="idem_sqlite",
+            contentHash="content_hash",
+            semanticHash="semantic_hash",
+            operationType="ADD_SUBGRAPH",
+            baseGraphVersion=1,
+            resultGraphVersion=2,
+            sourceEventId="event_sqlite",
+        )
+    ]
+    run = WorkflowRun(
+        runId="run_sqlite",
+        taskId="task_sqlite",
+        workflowId="workflow_sqlite",
+        domain="test",
+        runtimeEngine="acg",
+        acgBlueprint=blueprint.model_dump(by_alias=True, mode="json"),
+        runtimeGraph=graph,
+        steps=[
+            WorkflowStep(stepId="a", name="A", agentName="worker"),
+            WorkflowStep(stepId="b", name="B", agentName="worker"),
+        ],
+    )
+    CheckpointStore().create(run, "b")
+
+    store.save_run(run)
+    reloaded = SQLiteWorkflowStore(tmp_path / "runtime-graph.db").get_run("run_sqlite")
+
+    assert reloaded.runtime_graph.graph_version == 2
+    assert reloaded.runtime_graph.source_blueprint_version == 8
+    assert reloaded.runtime_graph.applied_patch_ids == ["patch_sqlite"]
+    assert reloaded.runtime_graph.applied_patch_idempotency_keys == ["idem_sqlite"]
+    assert reloaded.runtime_graph.processed_event_ids == ["event_sqlite"]
+    assert reloaded.checkpoints[-1].state_snapshot["graphVersion"] == 2
+    assert reloaded.checkpoints[-1].state_snapshot["appliedPatchIds"] == ["patch_sqlite"]
+    assert reloaded.checkpoints[-1].state_snapshot["runtimeGraph"]["graphVersion"] == 2
 
 
 def test_sqlite_workflow_store_queries_tasks_and_runs_with_filters_and_pagination(tmp_path):

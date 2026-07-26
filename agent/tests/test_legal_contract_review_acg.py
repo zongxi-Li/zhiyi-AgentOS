@@ -277,7 +277,16 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         edges = blueprint["edges"]
         assert len(nodes) == 22
         assert all(node["nodeType"] != "skill" for node in nodes)
-        assert all(node.get("metadata", {}).get("allowedSkills") for node in nodes if node["nodeType"] == "step")
+        assert all(
+            "allowedSkills" not in node.get("metadata", {})
+            for node in nodes
+            if node["nodeType"] == "step"
+        )
+        assert run.runtime_graph is not None
+        runtime_steps = [
+            node for node in run.runtime_graph.nodes if node.node_type.value == "step"
+        ]
+        assert all(node.current_binding.get("allowedSkills") for node in runtime_steps)
         review_node = next(node for node in nodes if node["nodeId"] == "human_review")
         assert review_node["reviewRequired"] is True
         connected_ids = {

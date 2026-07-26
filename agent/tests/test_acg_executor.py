@@ -28,6 +28,7 @@ from agentos.core.models.types import (
     WorkflowStepDefinition,
 )
 from agentos.core.runtime import WorkflowRuntime
+from agentos.core.recovery import RuntimeGraphError, RuntimeGraphPatch
 from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
@@ -257,11 +258,93 @@ def test_acg_checkpoint_resume_keeps_completed_diamond_branch():
         )
 
         assert recovered.status == WorkflowStatus.COMPLETED
+        assert recovered.runtime_graph.graph_version == checkpoint.state_snapshot["graphVersion"]
         assert recovered.runtime_engine == "acg"
         assert calls.count("a") == 1
         assert calls.count("b") == 1
         assert calls.count("c") == 2
         assert calls.count("d") == 1
+
+    asyncio.run(_run())
+
+
+def test_older_checkpoint_cannot_overwrite_newer_runtime_graph():
+    class _FailOnceAgent(_Agent):
+        def __init__(self, name, calls, *, fail_once=False):
+            super().__init__(name, calls)
+            self.fail_once = fail_once
+            self.failed = False
+
+        async def run(self, context):
+            if self.fail_once and not self.failed:
+                self.failed = True
+                self.calls.append(context.step.step_id)
+                raise RuntimeError("planned failure")
+            return await super().run(context)
+
+    async def _run():
+        calls: list[str] = []
+        agents = AgentRegistry()
+        for name, fail_once in [("a", False), ("b", False), ("c", True)]:
+            agents.register(_FailOnceAgent(name, calls, fail_once=fail_once))
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="versioned_resume",
+                name="Versioned Resume",
+                domain="test",
+                intent="demo",
+                runtimeEngine="acg",
+                steps=[WorkflowStepDefinition(stepId=node, name=node, agentName=node) for node in "abc"],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        blueprint = ACGBlueprint(graphId="versioned_graph", objective="checkpoint versioning")
+        for node_id in "abc":
+            blueprint.nodes.append(StepNode(nodeId=node_id, name=node_id, agentName=node_id))
+        blueprint.edges.extend(
+            [
+                ACGEdge(edgeId="a_b", sourceId="a", targetId="b"),
+                ACGEdge(edgeId="a_c", sourceId="a", targetId="c"),
+            ]
+        )
+        task = runtime.create_task(
+            title="versioned resume",
+            domain="test",
+            intent="demo",
+            input={"acgBlueprint": blueprint.model_dump(by_alias=True, mode="json")},
+        )
+        failed = await runtime.start(task.task_id, workflow_id="versioned_resume")
+        old_checkpoint = next(item for item in failed.checkpoints if item.step_id == "b")
+        assert old_checkpoint.state_snapshot["graphVersion"] == 1
+
+        patch = RuntimeGraphPatch(
+            patchId="patch_before_c",
+            idempotencyKey="idem_before_c",
+            runId=failed.run_id,
+            graphId="versioned_graph",
+            baseGraphVersion=1,
+            operationType="ADD_SUBGRAPH",
+            sourceEventId="event_before_c",
+            proposalId="proposal_before_c",
+            targetNodeId="c",
+            replacedIncomingEdgeIds=["a_c"],
+            budgetImpact={"addedNodes": 1, "replanDepthIncrement": 1},
+            addNodes=[StepNode(nodeId="remedy", agentName="c", capability="c")],
+            addEdges=[
+                ACGEdge(edgeId="a_remedy", sourceId="a", targetId="remedy"),
+                ACGEdge(edgeId="remedy_c", sourceId="remedy", targetId="c"),
+            ],
+        )
+        await runtime.runtime_controller.apply_patch(failed.run_id, patch)
+
+        with pytest.raises(RuntimeGraphError) as caught:
+            await runtime.resume_from_checkpoint(
+                run_id=failed.run_id,
+                checkpoint_id=old_checkpoint.checkpoint_id,
+            )
+        assert caught.value.code == "CHECKPOINT_GRAPH_VERSION_CONFLICT"
+        assert runtime.workflow_store.get_run(failed.run_id).runtime_graph.graph_version == 2
 
     asyncio.run(_run())
 

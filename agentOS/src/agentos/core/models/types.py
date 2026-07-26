@@ -11,6 +11,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.models.enums import WorkflowProgressPhase
+from agentos.core.runtime_graph import RuntimeGraph
 
 
 def utc_now() -> datetime:
@@ -60,6 +61,7 @@ class TraceEventType(str, Enum):
     DATA_CONSUMED = "data_consumed"
     CONTRACT_VIOLATION = "contract_violation"
     CHECKPOINT_CREATED = "checkpoint_created"
+    RUNTIME_PATCH_APPLIED = "runtime_patch_applied"
     REVIEW_REQUIRED = "review_required"
     REVIEW_DECIDED = "review_decided"
     STEP_FAILED = "step_failed"
@@ -232,6 +234,9 @@ class WorkflowRun(CoreModel):
     # acg_blueprint 存规划器产物 / 升格结果；completed_step_ids 记录就绪集调度
     # 已完成的 StepNode，用于并行调度时计算下一批就绪集，不影响线性路径。
     acg_blueprint: Optional[Dict[str, Any]] = Field(default=None, alias="acgBlueprint")
+    # Stage one: authoritative runtime structure/version/patch history.  WorkflowStep
+    # remains the execution-state authority until the executor is migrated.
+    runtime_graph: Optional[RuntimeGraph] = Field(default=None, alias="runtimeGraph")
     completed_step_ids: List[str] = Field(default_factory=list, alias="completedStepIds")
     active_step_ids: List[str] = Field(default_factory=list, alias="activeStepIds")
     # 数据血缘图（低熵通信审计产物，ACG 路径填充）：生产/消费事件，供前端血缘面板。

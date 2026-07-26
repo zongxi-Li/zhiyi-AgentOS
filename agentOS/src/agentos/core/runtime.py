@@ -13,8 +13,6 @@ from typing import Mapping, Optional
 from agentos.agents import AgentRegistry
 from agentos.core.acg import (
     ACGBlueprint,
-    AgentNode,
-    EdgeType,
     promote_workflow_to_acg,
 )
 from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory
@@ -42,6 +40,10 @@ from agentos.core.models.types import (
     utc_now,
 )
 from agentos.core.models.enums import WorkflowProgressPhase
+from agentos.core.recovery.controller import RuntimeController
+from agentos.core.recovery.errors import RuntimeGraphError
+from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
+from agentos.core.runtime_graph import RuntimeGraph
 from agentos.packs.registry import register_installed_packs
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
@@ -90,6 +92,7 @@ class WorkflowRuntime:
         evaluator: Optional[WorkflowEvaluator] = None,
         task_manager: Optional[TaskManager] = None,
         execution_adapter_factories: Optional[Mapping[str, ExecutionAdapterFactory]] = None,
+        run_lock_manager: Optional[RunLockManager] = None,
     ):
         self.agent_registry = agent_registry or AgentRegistry()
         self.workflow_registry = workflow_registry or WorkflowRegistry()
@@ -106,8 +109,15 @@ class WorkflowRuntime:
             state_machine=self.state_machine,
             trace_store=self.trace_store,
         )
+        self.run_lock_manager = run_lock_manager or GLOBAL_RUN_LOCK_MANAGER
+        self.runtime_controller = RuntimeController(
+            workflow_store=self.workflow_store,
+            agent_registry=self.agent_registry,
+            checkpoint_store=self.checkpoint_store,
+            trace_store=self.trace_store,
+            lock_manager=self.run_lock_manager,
+        )
         self._runtime_adapters: dict[str, object] = {}
-        self._review_locks: dict[str, asyncio.Lock] = {}
         self.execution_adapter_factories: dict[str, ExecutionAdapterFactory] = {
             self._normalize_runtime_engine(engine): factory
             for engine, factory in (execution_adapter_factories or {}).items()
@@ -336,7 +346,8 @@ class WorkflowRuntime:
         self._validate_blueprint_agents(blueprint, domain=workflow.domain or task.domain)
         run.execution_state["workflowVersion"] = workflow.version
         run.execution_state["graphId"] = blueprint.graph_id
-        run.execution_state["graphVersion"] = blueprint.version
+        run.execution_state["sourceBlueprintVersion"] = blueprint.version
+        run.execution_state["graphVersion"] = 1
         thinking_mode = str(task.input.get("thinkingMode") or "").strip()
         if thinking_mode:
             run.execution_state["thinkingMode"] = thinking_mode
@@ -344,6 +355,8 @@ class WorkflowRuntime:
         run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
         run.updated_at = utc_now()
         self.workflow_store.save_run(run)
+        await self.runtime_controller.initialize_from_blueprint(run.run_id, blueprint)
+        run = self.workflow_store.get_run(run.run_id)
         run = self._set_run_lifecycle(
             run,
             phase=WorkflowProgressPhase.EXECUTING,
@@ -357,32 +370,15 @@ class WorkflowRuntime:
         missing: list[str] = []
         for step in blueprint.step_nodes():
             try:
-                agent = self.agent_registry.resolve(
+                self.agent_registry.resolve(
                     domain=domain,
                     agent_name=step.agent_name,
                     capability=step.capability,
                 )
             except KeyError:
                 missing.append(step.agent_name or step.node_id)
-                continue
-
-            execution_edges = blueprint.incoming(step.node_id, EdgeType.EXECUTION)
-            if execution_edges:
-                step.assigned_agent_id = execution_edges[0].source_id
-            allowed_skills = list(dict.fromkeys(agent.profile.allowed_skills))
-            if allowed_skills:
-                step.metadata["allowedSkills"] = allowed_skills
-            if step.assigned_agent_id:
-                agent_node = blueprint.get_node(step.assigned_agent_id)
-                if isinstance(agent_node, AgentNode) and allowed_skills:
-                    existing = agent_node.metadata.get("allowedSkills")
-                    existing_skills = existing if isinstance(existing, list) else []
-                    agent_node.metadata["allowedSkills"] = list(
-                        dict.fromkeys([*existing_skills, *allowed_skills])
-                    )
         if missing:
             raise ValueError("ACG references unregistered Agents: " + ", ".join(sorted(set(missing))))
-        blueprint.touch()
 
     def _build_acg_blueprint(
         self,
@@ -401,7 +397,7 @@ class WorkflowRuntime:
         if isinstance(provided, dict) and provided.get("nodes"):
             blueprint = ACGBlueprint.model_validate(provided)
             if not blueprint.task_id:
-                blueprint.task_id = task.task_id
+                blueprint = blueprint.model_copy(deep=True, update={"task_id": task.task_id})
             return blueprint
 
         planning_mode = str(task.input.get("planningMode") or "").strip().lower()
@@ -718,7 +714,7 @@ class WorkflowRuntime:
         )
 
     async def apply_review(self, decision: ReviewDecision) -> WorkflowRun:
-        lock = self._review_locks.setdefault(decision.run_id, asyncio.Lock())
+        lock = self.run_lock_manager.lock_for(decision.run_id)
         async with lock:
             run = self.workflow_store.get_run(decision.run_id)
             existing = self._find_review_operation(run, decision.operation_id)
@@ -765,69 +761,100 @@ class WorkflowRuntime:
         return None
 
     async def resume_from_checkpoint(self, *, run_id: str, checkpoint_id: str) -> WorkflowRun:
-        run = self.workflow_store.get_run(run_id)
-        task = self.task_manager.get_task(run.task_id)
-        workflow = self.workflow_registry.get(run.workflow_id)
-        checkpoint = self.checkpoint_store.find(run, checkpoint_id)
-        if run.runtime_engine != "acg" or workflow.effective_runtime_engine != "acg":
+        # Explicitly initialize legacy ACG runs before comparing checkpoint graph
+        # versions.  No checkpoint field is copied into the run before this check.
+        initial_run = self.workflow_store.get_run(run_id)
+        initial_workflow = self.workflow_registry.get(initial_run.workflow_id)
+        if initial_run.runtime_engine != "acg" or initial_workflow.effective_runtime_engine != "acg":
             raise ValueError("Only acg workflow runs can be resumed from checkpoints")
+        await self.runtime_controller.load(run_id)
+        async with self.run_lock_manager.lock_for(run_id):
+            run = self.workflow_store.get_run(run_id)
+            task = self.task_manager.get_task(run.task_id)
+            workflow = self.workflow_registry.get(run.workflow_id)
+            checkpoint = self.checkpoint_store.find(run, checkpoint_id)
+            snapshot = checkpoint.state_snapshot or {}
+            snapshot_workflow_version = snapshot.get("workflowVersion")
+            if snapshot_workflow_version and snapshot_workflow_version != workflow.version:
+                raise ValueError(
+                    f"Checkpoint workflow version mismatch: {snapshot_workflow_version} != {workflow.version}"
+                )
 
-        snapshot = checkpoint.state_snapshot or {}
-        snapshot_workflow_version = snapshot.get("workflowVersion")
-        if snapshot_workflow_version and snapshot_workflow_version != workflow.version:
-            raise ValueError(
-                f"Checkpoint workflow version mismatch: {snapshot_workflow_version} != {workflow.version}"
-            )
-        snapshot_steps = snapshot.get("steps")
-        if isinstance(snapshot_steps, list):
-            run.steps = [WorkflowStep.model_validate(step) for step in snapshot_steps]
-        run.acg_blueprint = snapshot.get("acgBlueprint") or run.acg_blueprint
-        completed = snapshot.get("completedStepIds")
-        if isinstance(completed, list):
-            run.completed_step_ids = sorted({str(step_id) for step_id in completed})
-        else:
-            run.completed_step_ids = sorted(
-                step.step_id for step in run.steps if step.status == StepStatus.COMPLETED
-            )
-        run.current_step_id = snapshot.get("currentStepId") or checkpoint.step_id
-        if "provenance" in snapshot:
-            run.provenance = snapshot["provenance"]
-        if isinstance(snapshot.get("executionState"), dict):
-            run.execution_state = dict(snapshot["executionState"])
-        run.active_step_ids = []
-        if "output" in snapshot:
-            run.output = dict(snapshot["output"] or {})
-        blueprint = (
-            ACGBlueprint.model_validate(run.acg_blueprint)
-            if run.acg_blueprint
-            else promote_workflow_to_acg(workflow, task_id=task.task_id)
-        )
-        run.acg_blueprint = blueprint.model_dump(by_alias=True, mode="json")
-        snapshot_graph_id = snapshot.get("graphId")
-        snapshot_graph_version = snapshot.get("graphVersion")
-        if snapshot_graph_id and snapshot_graph_id != blueprint.graph_id:
-            raise ValueError(f"Checkpoint graph mismatch: {snapshot_graph_id} != {blueprint.graph_id}")
-        if snapshot_graph_version is not None and int(snapshot_graph_version) != blueprint.version:
-            raise ValueError(
-                f"Checkpoint graph version mismatch: {snapshot_graph_version} != {blueprint.version}"
+            current_graph = run.runtime_graph
+            assert current_graph is not None
+            raw_checkpoint_graph = snapshot.get("runtimeGraph")
+            if isinstance(raw_checkpoint_graph, dict):
+                checkpoint_graph = RuntimeGraph.model_validate(raw_checkpoint_graph)
+            else:
+                legacy_blueprint_data = snapshot.get("acgBlueprint") or run.acg_blueprint
+                if not legacy_blueprint_data:
+                    raise RuntimeGraphError(
+                        "CHECKPOINT_RUNTIME_GRAPH_MISSING",
+                        "legacy checkpoint has neither RuntimeGraph nor ACG blueprint",
+                    )
+                checkpoint_graph = RuntimeGraph.from_blueprint(
+                    run_id=run_id,
+                    blueprint=ACGBlueprint.model_validate(legacy_blueprint_data),
+                    agent_registry=self.agent_registry,
+                    domain=run.domain,
+                )
+            if checkpoint_graph.graph_id != current_graph.graph_id:
+                raise RuntimeGraphError(
+                    "CHECKPOINT_GRAPH_ID_CONFLICT",
+                    f"checkpoint {checkpoint_graph.graph_id} != current {current_graph.graph_id}",
+                )
+            if checkpoint_graph.graph_version != current_graph.graph_version:
+                relation = "older" if checkpoint_graph.graph_version < current_graph.graph_version else "newer"
+                raise RuntimeGraphError(
+                    "CHECKPOINT_GRAPH_VERSION_CONFLICT",
+                    f"checkpoint graphVersion {checkpoint_graph.graph_version} is {relation} than current "
+                    f"graphVersion {current_graph.graph_version}",
+                )
+
+            snapshot_steps = snapshot.get("steps")
+            if isinstance(snapshot_steps, list):
+                run.steps = [WorkflowStep.model_validate(step) for step in snapshot_steps]
+            completed = snapshot.get("completedStepIds")
+            if isinstance(completed, list):
+                run.completed_step_ids = sorted({str(step_id) for step_id in completed})
+            else:
+                run.completed_step_ids = sorted(
+                    step.step_id for step in run.steps if step.status == StepStatus.COMPLETED
+                )
+            run.current_step_id = snapshot.get("currentStepId") or checkpoint.step_id
+            if "provenance" in snapshot:
+                run.provenance = snapshot["provenance"]
+            if isinstance(snapshot.get("executionState"), dict):
+                run.execution_state = dict(snapshot["executionState"])
+            run.runtime_graph = checkpoint_graph.model_copy(deep=True)
+            run.execution_state["graphId"] = checkpoint_graph.graph_id
+            run.execution_state["graphVersion"] = checkpoint_graph.graph_version
+            run.execution_state["sourceBlueprintVersion"] = checkpoint_graph.source_blueprint_version
+            run.active_step_ids = []
+            if "output" in snapshot:
+                run.output = dict(snapshot["output"] or {})
+            blueprint = (
+                ACGBlueprint.model_validate(run.acg_blueprint)
+                if run.acg_blueprint
+                else promote_workflow_to_acg(workflow, task_id=task.task_id)
             )
 
-        for step in run.steps:
-            if step.status == StepStatus.RUNNING:
-                step.status = StepStatus.RETRYING
+            for step in run.steps:
+                if step.status == StepStatus.RUNNING:
+                    step.status = StepStatus.RETRYING
 
-        self._transition_run(run, WorkflowStatus.RETRYING)
-        run.error = None
-        run.recovery_count += 1
-        self.task_manager.mark_retrying(task)
-        self.trace_store.append(
-            run=run,
-            event_type=TraceEventType.RUN_RECOVERED,
-            step_id=checkpoint.step_id,
-            observation=f"Recovered from checkpoint: {checkpoint.checkpoint_id}",
-            payload=checkpoint.model_dump(by_alias=True, mode="json"),
-        )
-        self.workflow_store.save_run(run)
+            self._transition_run(run, WorkflowStatus.RETRYING)
+            run.error = None
+            run.recovery_count += 1
+            self.task_manager.mark_retrying(task)
+            self.trace_store.append(
+                run=run,
+                event_type=TraceEventType.RUN_RECOVERED,
+                step_id=checkpoint.step_id,
+                observation=f"Recovered from checkpoint: {checkpoint.checkpoint_id}",
+                payload=checkpoint.model_dump(by_alias=True, mode="json"),
+            )
+            self.workflow_store.save_run(run)
         adapter = self._workflow_adapter(workflow)
         assert isinstance(adapter, ACGWorkflowAdapter)
         return await adapter.new_executor().resume(
