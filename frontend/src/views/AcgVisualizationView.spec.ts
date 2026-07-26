@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AcgVisualizationView from './AcgVisualizationView.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun } from '@/services/api/workflow'
+import { DEFAULT_ACG_PROMPT_PRESET } from '@/test/fixtures/acgPromptPresets'
 
 vi.mock('@/services/api/workflow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api/workflow')>()
@@ -57,7 +58,10 @@ const buttonStub = {
 const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Router }> => {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/agentos/acg', component: { template: '<div />' } }]
+    routes: [
+      { path: '/agentos/acg', component: { template: '<div />' } },
+      { path: '/agentos-console', component: { template: '<div />' } }
+    ]
   })
   await router.push(`/agentos/acg${query}`)
   await router.isReady()
@@ -108,30 +112,51 @@ describe('AcgVisualizationView async progress loop', () => {
     vi.useRealTimers()
   })
 
+  it('uses the fixed ACG engine header and routes to history operations', async () => {
+    const { wrapper, router } = await mountPage()
+
+    expect(wrapper.find('.hero-left h3').text()).toBe('ACG 动态群体智能引擎')
+    expect(wrapper.find('.hero-run-chip').text()).toContain('RUN')
+    expect(wrapper.find('.hero-engine').text()).toBe('engine: acg')
+
+    await wrapper.find('.hero-operations').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/agentos-console')
+    expect(router.currentRoute.value.query.source).toBe('acg')
+    wrapper.unmount()
+  })
+
   it('uses async start, writes runId to query, and begins progress immediately', async () => {
     const { wrapper, router } = await mountPage()
     await clickStart(wrapper)
 
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledOnce()
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
+      title: DEFAULT_ACG_PROMPT_PRESET.taskName,
       reviewMode: 'human_in_loop',
-      input: expect.objectContaining({ source: 'acg' })
+      input: expect.objectContaining({
+        source: 'acg',
+        contractText: DEFAULT_ACG_PROMPT_PRESET.contractText,
+        userIntent: DEFAULT_ACG_PROMPT_PRESET.userIntent
+      })
     }), expect.any(Object))
     expect(workflowApi.startWorkflow).not.toHaveBeenCalled()
     expect(vi.mocked(workflowApi.startWorkflowAsync).mock.calls[0][0].clientRequestId).toBeTruthy()
     expect(workflowApi.getWorkflowProgress).toHaveBeenCalledWith('run_1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(router.currentRoute.value.query.runId).toBe('run_1')
     expect(workflowApi.getAcgView).not.toHaveBeenCalled()
-    expect(wrapper.find('.input-fields').attributes('style') || '').not.toContain('display: none')
+    expect(wrapper.find('.input-panel-expandable').attributes('style') || '').not.toContain('display: none')
     await vi.advanceTimersByTimeAsync(1400)
+    expect(wrapper.find('.input-summary').exists()).toBe(false)
+    await vi.advanceTimersByTimeAsync(450)
     expect(wrapper.find('.input-summary').exists()).toBe(true)
-    expect(wrapper.find('.input-fields').attributes('style')).toContain('display: none')
+    expect(wrapper.find('.input-panel-expandable').attributes('style')).toContain('display: none')
     expect(wrapper.findComponent(WorkflowProgressBar).exists()).toBe(true)
     expect(wrapper.find('.ctrl-options').exists()).toBe(true)
     expect(wrapper.findAll('.input-panel-toggle')).toHaveLength(1)
     expect(wrapper.find('.input-panel-toggle').attributes('aria-expanded')).toBe('false')
     await wrapper.find('.input-panel-toggle').trigger('click')
-    expect(wrapper.find('.input-fields').attributes('style')).not.toContain('display: none')
+    expect(wrapper.find('.input-panel-expandable').attributes('style')).not.toContain('display: none')
     expect(wrapper.find('.input-panel-toggle').attributes('aria-expanded')).toBe('true')
     wrapper.unmount()
   })
@@ -139,10 +164,14 @@ describe('AcgVisualizationView async progress loop', () => {
   it('keeps the compact header context visible before a Run starts', async () => {
     const { wrapper } = await mountPage()
 
-    expect(wrapper.find('.hero-right').text()).toContain('RUN--')
+    expect(wrapper.find('.hero-left').text()).toContain('ACG 动态群体智能引擎')
+    expect(wrapper.find('.hero-run-chip').text()).toContain('RUN—')
     expect(wrapper.find('.hero-right').text()).toContain('准备中')
-    expect(wrapper.find('.hero-right').text()).toContain('engine: acg')
-    expect(wrapper.findAll('.hero-right button').every(button => button.attributes('disabled') !== undefined)).toBe(true)
+    expect(wrapper.find('.hero-engine').text()).toBe('engine: acg')
+    expect(wrapper.find('.hero-icon-action').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.task-brief').text()).toBe('ACG 动态智能体长程任务')
+    expect(wrapper.find('#acg-task-name').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('测试预设')
     wrapper.unmount()
   })
 

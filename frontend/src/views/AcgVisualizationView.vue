@@ -1,38 +1,30 @@
 <!-- ACG 动态群体智能引擎页面 — 输入合同文本和任务目标，引擎进行解析、分类、风险分析、证据和建议生成 -->
 <template>
-  <div class="acg-view ui-shell" :class="{ 'has-progress': isSubmitting || progressTracker.progress.value || progressTracker.syncError.value }">
+  <div class="acg-view ui-shell" :class="{ 'has-progress': isSubmitting || progressTracker.progress.value || progressTracker.syncError.value, 'is-draft': !activeRunId }">
     <header class="ui-hero ui-hero--compact">
       <div class="hero-left">
         <div class="ui-icon-badge"><el-icon><Cpu /></el-icon></div>
-        <div>
-          <h3>ACG 动态群体智能引擎</h3>
-        </div>
+        <h3>ACG 动态群体智能引擎</h3>
       </div>
       <div class="hero-right">
-        <div class="run-context">
-          <span class="run-id" :title="activeRunId || '暂无运行任务'">
-            <span>RUN</span>
-            <code>{{ activeRunId || '--' }}</code>
-          </span>
-          <el-button circle size="small" title="复制 Run ID" aria-label="复制 Run ID" :disabled="!activeRunId" @click="copyRunId">
-            <el-icon><CopyDocument /></el-icon>
-          </el-button>
-          <el-button size="small" title="在 AgentOS 运维页查看" :disabled="!activeRunId" @click="openInConsole">
-            <el-icon><Monitor /></el-icon>
-            运维查看
-          </el-button>
-          <el-button v-if="activeRunReference?.conversationId" size="small" title="返回关联对话" @click="openLinkedChat">
-            <el-icon><ChatDotRound /></el-icon>
-            返回 Chat
-          </el-button>
-        </div>
-        <el-tag :type="statusTagType" :effect="activeRunId ? 'dark' : 'plain'">{{ statusLabel }}</el-tag>
-        <el-tag type="info" effect="plain">engine: {{ acgView?.engine || 'acg' }}</el-tag>
+        <span class="hero-run-chip" :title="activeRunId || '尚未创建运行'">
+          <span>RUN</span>
+          <code>{{ activeRunId || '—' }}</code>
+        </span>
+        <button class="hero-icon-action" type="button" title="复制 Run ID" aria-label="复制 Run ID" :disabled="!activeRunId" @click="copyRunId">
+          <el-icon><CopyDocument /></el-icon>
+        </button>
+        <button class="hero-operations" type="button" @click="openOperations">
+          <el-icon><Monitor /></el-icon>
+          <span>运维查看</span>
+        </button>
+        <el-tag :type="statusTagType" effect="plain">{{ statusLabel }}</el-tag>
+        <el-tag class="hero-engine" effect="plain">engine: acg</el-tag>
       </div>
     </header>
 
     <!-- 控制台 -->
-    <section class="ui-surface ui-surface--pad control-bar" :class="{ collapsed: !inputPanelExpanded }">
+    <section class="ui-surface ui-surface--pad control-bar" :class="{ collapsed: inputPanelCompact }">
       <button
         class="input-panel-toggle"
         type="button"
@@ -43,14 +35,24 @@
       >
         <el-icon><ArrowUp v-if="inputPanelExpanded" /><ArrowDown v-else /></el-icon>
       </button>
-      <div v-if="!inputPanelExpanded" class="input-summary">
+      <div v-if="inputPanelCompact" class="input-summary">
         <span class="input-summary__copy">
           <el-icon><Document /></el-icon>
-          <strong>软件开发合同审查</strong>
+          <strong>{{ taskName || '未命名 ACG 任务' }}</strong>
           <small>合同文本 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜思考{{ thinkingModeSummary }}</small>
         </span>
       </div>
-      <div v-show="inputPanelExpanded" class="input-fields">
+      <Transition
+        :duration="380"
+        @before-enter="beforeInputPanelEnter"
+        @enter="enterInputPanel"
+        @after-enter="afterInputPanelEnter"
+        @before-leave="beforeInputPanelLeave"
+        @leave="leaveInputPanel"
+        @after-leave="afterInputPanelLeave"
+      >
+        <div v-show="inputPanelExpanded" class="input-panel-expandable">
+      <div class="input-fields">
         <div class="input-pane contract-pane">
           <span class="pane-heading">任务资料</span>
           <div class="ctrl-row">
@@ -72,7 +74,7 @@
           </div>
         </div>
         <div class="input-pane definition-pane">
-          <span class="pane-heading">任务定义 </span>
+          <span class="pane-heading">任务定义</span>
           <div class="ctrl-row">
             <label class="ctrl-label">任务目标</label>
             <el-input class="intent-textarea" v-model="userIntent" type="textarea" :autosize="{ minRows: 8, maxRows: 16 }" placeholder="描述 ACG 需要完成的审查目标" />
@@ -101,6 +103,8 @@
           <label class="advanced-item"><span>故障类型</span><el-select v-model="faultType" size="small"><el-option label="模型超时" value="timeout" /><el-option label="Agent 崩溃" value="crash" /><el-option label="证据为空" value="empty_evidence" /></el-select></label>
         </template>
       </div>
+        </div>
+      </Transition>
       <div class="ctrl-options">
         <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">编排模式</span><el-radio-group v-model="planningMode" size="small"><el-radio-button label="template">模板执行</el-radio-button><el-radio-button label="planner">智能规划</el-radio-button><el-radio-button label="dynamic">动态编排</el-radio-button></el-radio-group></div>
         <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">思考强度</span><el-radio-group v-model="thinkingMode" size="small"><el-radio-button label="disabled">关闭</el-radio-button><el-radio-button label="standard">标准</el-radio-button><el-radio-button label="deep">深度</el-radio-button></el-radio-group></div>
@@ -159,17 +163,16 @@
       </div>
     </div>
 
-    <div v-else class="ui-surface ui-surface--pad placeholder">
-      <el-icon class="ph-icon" :class="{ restoring: isAcgLoading }"><Cpu /></el-icon>
-      <p>{{ placeholderMessage }}</p>
+    <div v-else class="ui-surface task-brief">
+      <strong>ACG 动态智能体长程任务</strong>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch, type DeepReadonly } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type DeepReadonly } from 'vue'
 import axios from 'axios'
-import { ArrowDown, ArrowUp, ChatDotRound, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -191,29 +194,16 @@ import type { ThinkingMode } from '@/config/modelSettings'
 import { fileApi } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
+import { resolveAcgTaskTitle } from '@/utils/acgTaskTitle'
+import { DEFAULT_ACG_PROMPT_PRESET } from '@/test/fixtures/acgPromptPresets'
 
 const WORKFLOW_ID = 'legal_contract_review_v1'
 const TEMPLATE_FAULT_STEPS = ['parse_contract', 'classify_clauses', 'risk_detect', 'legal_evidence_match', 'suggestion_generate', 'human_review', 'report_generate']
 const DYNAMIC_FAULT_STEPS = ['contract_parse', 'clause_classify', 'risk_detect', 'legal_evidence_match', 'revision_suggest', 'human_review', 'report_generate']
 
-const contractText = ref(`甲方：星河科技有限公司。乙方：知弈软件工作室。甲方委托乙方开发客户关系管理 CRM 系统，乙方负责需求梳理、原型设计、系统开发、测试部署和上线支持。
-
-项目总价为人民币 80 万元。甲方在合同签署后 5 个工作日内支付 30%，系统上线后一次性支付剩余 70%。合同未明确阶段性验收、缺陷修复期、发票开具条件和上线失败后的付款处理方式。
-
-乙方应在 60 日内完成交付。验收标准为“系统无重大问题即视为验收通过”，甲方收到交付物后 5 日内未提出书面异议的，也视为验收通过。合同未列明功能清单、性能指标、测试用例、整改次数和最终确认流程。
-
-项目源代码、接口文档、数据库设计、UI 设计稿及相关成果归甲乙双方共同所有。乙方可在后续项目中复用通用模块，涉及第三方开源组件的授权合规由双方另行协商。
-
-任一方逾期履行义务，应按合同总价每日万分之五支付违约金。合同未明确延期交付、质量缺陷、数据泄露、逾期付款、知识产权侵权和保密违约的责任边界及赔偿上限。
-
-双方应对项目资料、客户数据和商业信息承担保密义务，但合同未约定保密期限、数据删除、日志留存、权限控制和安全事件通知机制。争议解决条款仅写明“双方友好协商，协商不成另行处理”。`)
-const userIntent = ref(`请以 ACG 多智能体协作方式审查这份软件开发合同，强制生成差异化任务图，并完整执行合同文本解析、条款分类、风险识别、证据/依据匹配、修改建议生成、人工审核要点提取和最终 Markdown 审查报告生成。
-
-重点审查付款条款、验收标准、知识产权归属、开源组件合规、违约责任、保密义务、数据安全、交付范围和争议解决。请尽量并行分析付款、验收、知识产权、违约责任和数据安全五类风险，再汇聚为统一风险结论。
-
-请用低熵通信方式组织上下文：解析节点只投递合同类型、主体、范围、付款、验收、知识产权和争议解决字段；条款分类节点只投递 clauses；风险识别节点只投递 risks、risk_level、risk_score；证据匹配节点只投递 evidences、citations；修改建议节点只投递 revision_suggestions、manual_review_focus。
-
-最终报告必须包含合同基本信息、条款分类摘要、高中低风险清单、每个风险点的条款位置、风险原因、可能后果、证据依据、修改建议、人工复核关注点和签署前处理结论。`)
+const taskName = ref(DEFAULT_ACG_PROMPT_PRESET.taskName)
+const contractText = ref(DEFAULT_ACG_PROMPT_PRESET.contractText)
+const userIntent = ref(DEFAULT_ACG_PROMPT_PRESET.userIntent)
 const planningMode = ref<'template' | 'planner' | 'dynamic'>('dynamic')
 // 快速模式是可验收的默认路径；深度推理由用户显式选择，不能和进度展示绑定。
 const thinkingMode = ref<ThinkingMode>('disabled')
@@ -232,6 +222,10 @@ watch(planningMode, () => {
   if (!faultStepOptions.value.includes(faultStep.value)) faultStep.value = 'risk_detect'
 })
 
+watch(userIntent, value => {
+  if (!activeRunId.value) taskName.value = resolveAcgTaskTitle({ title: value })
+})
+
 const acgView = ref<AcgView | null>(null)
 const activeRun = ref<WorkflowRun | null>(null)
 const loading = reactive({ upload: false })
@@ -243,6 +237,7 @@ const router = useRouter()
 const workflowRunsStore = useWorkflowRunsStore()
 const activeRunId = ref('')
 const inputPanelExpanded = ref(true)
+const inputPanelCompact = ref(false)
 const loadedRunId = ref('')
 const contractFileInput = ref<HTMLInputElement | null>(null)
 const uploadDragging = ref(false)
@@ -252,6 +247,13 @@ const selectedContractFile = ref<{
   textLength: number
   extractedText: string
 } | null>(null)
+
+const resetDraftContent = () => {
+  taskName.value = DEFAULT_ACG_PROMPT_PRESET.taskName
+  contractText.value = DEFAULT_ACG_PROMPT_PRESET.contractText
+  userIntent.value = DEFAULT_ACG_PROMPT_PRESET.userIntent
+  selectedContractFile.value = null
+}
 
 const progressTracker = useWorkflowProgress({
   intervalMs: 2000,
@@ -263,7 +265,6 @@ const progressTracker = useWorkflowProgress({
   ),
   onTerminal: handleTerminal
 })
-const activeRunReference = computed(() => workflowRunsStore.getReference(activeRunId.value))
 const reviewPending = computed(() => Boolean(
   activeRunId.value && isWorkflowReviewPending(progressTracker.progress.value, activeRun.value)
 ))
@@ -452,10 +453,69 @@ let lastTopologyRefreshAt = 0
 let lastTopologyUpdatedAt: string | null = null
 let submitController: AbortController | null = null
 let inputCollapseTimer: ReturnType<typeof setTimeout> | null = null
+let inputPanelCompactTimer: ReturnType<typeof setTimeout> | null = null
 
 const clearInputCollapseTimer = () => {
   if (inputCollapseTimer !== null) window.clearTimeout(inputCollapseTimer)
   inputCollapseTimer = null
+}
+
+const clearInputPanelCompactTimer = () => {
+  if (inputPanelCompactTimer !== null) window.clearTimeout(inputPanelCompactTimer)
+  inputPanelCompactTimer = null
+}
+
+const inputPanelElement = (element: Element) => element as HTMLElement
+
+const beforeInputPanelEnter = (element: Element) => {
+  const panel = inputPanelElement(element)
+  inputPanelCompact.value = false
+  panel.style.height = '0'
+  panel.style.opacity = '0'
+  panel.style.transform = 'translateY(-8px)'
+}
+
+const enterInputPanel = (element: Element) => {
+  const panel = inputPanelElement(element)
+  window.requestAnimationFrame(() => {
+    panel.style.height = `${panel.scrollHeight}px`
+    panel.style.opacity = '1'
+    panel.style.transform = 'translateY(0)'
+  })
+}
+
+const afterInputPanelEnter = (element: Element) => {
+  clearInputPanelCompactTimer()
+  const panel = inputPanelElement(element)
+  panel.style.height = 'auto'
+  panel.style.opacity = ''
+  panel.style.transform = ''
+}
+
+const beforeInputPanelLeave = (element: Element) => {
+  const panel = inputPanelElement(element)
+  panel.style.height = `${panel.scrollHeight}px`
+  panel.style.opacity = '1'
+  panel.style.transform = 'translateY(0)'
+}
+
+const leaveInputPanel = (element: Element) => {
+  const panel = inputPanelElement(element)
+  void panel.offsetHeight
+  window.requestAnimationFrame(() => {
+    panel.style.height = '0'
+    panel.style.opacity = '0'
+    panel.style.transform = 'translateY(-8px)'
+  })
+}
+
+const afterInputPanelLeave = (element: Element) => {
+  clearInputPanelCompactTimer()
+  const panel = inputPanelElement(element)
+  panel.style.height = ''
+  panel.style.opacity = ''
+  panel.style.transform = ''
+  if (!inputPanelExpanded.value) inputPanelCompact.value = true
 }
 
 const scheduleInputCollapse = (delayMs = 1400) => {
@@ -486,6 +546,20 @@ const clearRunData = () => {
   lastTopologyUpdatedAt = null
 }
 
+const enterNewAcgDraft = () => {
+  submitController?.abort()
+  progressTracker.reset()
+  clearRunData()
+  clearInputCollapseTimer()
+  clearInputPanelCompactTimer()
+  activeRunId.value = ''
+  startError.value = null
+  inputPanelExpanded.value = true
+  inputPanelCompact.value = false
+  advancedSettingsExpanded.value = false
+  resetDraftContent()
+}
+
 async function refreshAcgForRun(runId: string, force = false): Promise<void> {
   if (!runId || runId !== activeRunId.value) return
   if (!force && progressTracker.progress.value?.updatedAt === lastTopologyUpdatedAt) return
@@ -503,6 +577,9 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     if (requestGeneration !== topologyGeneration || runId !== activeRunId.value) return
     acgView.value = hydrateAcgView(view, run)
     activeRun.value = run
+    taskName.value = resolveAcgTaskTitle(run)
+    if (typeof run.input?.contractText === 'string') contractText.value = run.input.contractText
+    if (typeof run.input?.userIntent === 'string') userIntent.value = run.input.userIntent
     loadedRunId.value = runId
     lastTopologyRefreshAt = Date.now()
     lastTopologyUpdatedAt = progressTracker.progress.value?.updatedAt ?? null
@@ -558,7 +635,16 @@ watch(
 )
 
 watch(inputPanelExpanded, value => {
-  if (!value) advancedSettingsExpanded.value = false
+  clearInputPanelCompactTimer()
+  if (value) {
+    inputPanelCompact.value = false
+    return
+  }
+  advancedSettingsExpanded.value = false
+  inputPanelCompactTimer = window.setTimeout(() => {
+    inputPanelCompactTimer = null
+    if (!inputPanelExpanded.value) inputPanelCompact.value = true
+  }, 380)
 })
 
 watch(
@@ -572,6 +658,7 @@ watch(
     startError.value = null
     activeRunId.value = runId
     inputPanelExpanded.value = false
+    inputPanelCompact.value = true
     advancedSettingsExpanded.value = false
     workflowRunsStore.register({ runId, source: 'restored' })
     void progressTracker.start(runId, { fresh: false })
@@ -589,15 +676,11 @@ const copyRunId = async () => {
   }
 }
 
-const openInConsole = () => {
-  if (!activeRunId.value) return
-  void router.push({ path: '/agentos-console', query: { runId: activeRunId.value } })
-}
-
-const openLinkedChat = () => {
-  const conversationId = activeRunReference.value?.conversationId
-  if (!conversationId || !activeRunId.value) return
-  void router.push({ path: '/chat', query: { workspace: 'agent', contextId: conversationId, runId: activeRunId.value } })
+const openOperations = () => {
+  void router.push({
+    path: '/agentos-console',
+    query: activeRunId.value ? { runId: activeRunId.value, source: 'acg' } : { source: 'acg' }
+  })
 }
 
 const scrollToSection = (selector: string) => {
@@ -662,6 +745,10 @@ const startRun = async () => {
     ElMessage.warning('请输入合同文本')
     return
   }
+  if (!taskName.value.trim()) {
+    ElMessage.warning('请输入任务名称')
+    return
+  }
   isSubmitting.value = true
   startError.value = null
   submitController?.abort()
@@ -673,6 +760,7 @@ const startRun = async () => {
     const intentText = userIntent.value.trim() || '审查合同风险并生成报告'
     const input: Record<string, unknown> = {
       source: 'acg',
+      taskName: taskName.value.trim(),
       contractText: contractText.value,
       userIntent: intentText,
       planningMode: planningMode.value,
@@ -688,7 +776,7 @@ const startRun = async () => {
     }
     const clientRequestId = createClientRequestId()
     const res = await workflowApi.startWorkflowAsync({
-      title: intentText,
+      title: taskName.value.trim(),
       domain: 'legal',
       intent: 'contract_review_acg',
       workflowId: WORKFLOW_ID,
@@ -707,6 +795,7 @@ const startRun = async () => {
       status: res.run.status,
       phase: res.run.lifecyclePhase
     })
+    window.dispatchEvent(new Event('acg-runs-refresh'))
     void progressTracker.start(res.run.runId, { fresh: true })
     await router.replace({ query: { ...route.query, runId: res.run.runId } })
   } catch (error: unknown) {
@@ -737,18 +826,8 @@ const startErrorMessage = (error: unknown): string => {
   return '任务未能启动'
 }
 
-const placeholderMessage = computed(() => {
-  if (isSubmitting.value) return '正在创建 ACG 运行...'
-  if (progressTracker.syncError.value === '该运行记录不存在或当前账户无权访问') {
-    return progressTracker.syncError.value
-  }
-  if (progressTracker.progress.value && !acgView.value) {
-    const phase = progressTracker.progress.value.phase
-    if (phase === 'understanding' || phase === 'planning') return '任务正在规划，ACG 拓扑将在构建后显示。'
-    if (phase === 'graph_building') return '正在构建 ACG 拓扑...'
-    return isAcgLoading.value ? '正在加载 ACG 拓扑与审查数据...' : '等待 ACG 数据刷新...'
-  }
-  return '启动一个 ACG 引擎工作流，观察动态拓扑、Token 节省率、数据血缘与故障自愈。'
+onMounted(() => {
+  window.addEventListener('acg-new-task', enterNewAcgDraft)
 })
 
 onBeforeUnmount(() => {
@@ -757,30 +836,49 @@ onBeforeUnmount(() => {
   topologyGeneration += 1
   topologyController?.abort()
   clearInputCollapseTimer()
+  clearInputPanelCompactTimer()
+  window.removeEventListener('acg-new-task', enterNewAcgDraft)
 })
 </script>
 
 <style scoped>
-.acg-view { display: flex; flex-direction: column; gap: 0; }
+.acg-view.ui-shell { display: flex; flex-direction: column; gap: 0; padding: var(--space-sm) var(--space-md); }
+.acg-view.is-draft { min-height: calc(100dvh + 15px); }
 .acg-view > .ui-hero { border-bottom: 0; border-radius: 8px 8px 0 0; }
 .acg-view > .control-bar { border-top: 0; border-radius: 0 0 8px 8px; }
+.acg-view.is-draft > .control-bar { flex: 1 1 auto; }
 .acg-view.has-progress > .control-bar { border-bottom: 0; border-radius: 0; box-shadow: none; }
 .acg-view.has-progress > :deep(.workflow-progress) { border-top: 0; border-radius: 0 0 8px 8px; }
 .hero-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.ui-hero h3 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; color: var(--text-primary); }
+.ui-hero h3 { overflow: hidden; margin: 0; color: var(--text-primary); font-size: 18px; font-weight: 800; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .hero-right { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
-.run-context { display: flex; align-items: center; gap: 6px; }
-.run-id {
-  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
-  padding: 5px 8px; border: 1px solid var(--border-light); border-radius: 6px;
-  background: var(--bg-input); color: var(--text-secondary); font-size: 10px;
-}
-.run-id code { color: var(--text-primary); font-size: 11px; white-space: nowrap; }
+.hero-run-chip { min-width: 0; height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-input); color: var(--text-muted); font-size: 10px; }
+.hero-run-chip code { overflow: hidden; max-width: 150px; color: var(--text-secondary); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.hero-icon-action, .hero-operations { height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-light); background: var(--surface-solid); color: var(--text-secondary); cursor: pointer; transition: var(--transition); }
+.hero-icon-action { width: 32px; padding: 0; border-radius: 50%; }
+.hero-operations { gap: 5px; padding: 0 11px; border-radius: 7px; font: inherit; font-size: 11px; }
+.hero-icon-action:hover:not(:disabled), .hero-operations:hover { border-color: var(--primary-line); background: var(--primary-fade); color: var(--primary-color); }
+.hero-icon-action:disabled { cursor: not-allowed; opacity: .5; }
+.hero-icon-action:focus-visible, .hero-operations:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.hero-engine { color: var(--primary-color); }
 
 .control-bar { position: relative; display: flex; flex-direction: column; gap: var(--space-md); padding-right: 52px; padding-bottom: 10px; }
 .control-bar.collapsed { flex-direction: row; align-items: center; gap: 12px; padding: 9px 52px 9px 14px; }
 .control-bar.collapsed .input-summary { flex: 1 1 auto; }
 .control-bar.collapsed .ctrl-options { flex: 0 0 auto; padding: 0; border: 0; }
+.input-panel-expandable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+  overflow: hidden;
+  transform-origin: top center;
+  transition:
+    height 380ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease,
+    transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: height, opacity, transform;
+}
 .input-panel-toggle {
   position: absolute; top: 10px; right: 12px; z-index: 1;
   width: 28px; height: 28px; display: inline-grid; place-items: center;
@@ -790,15 +888,17 @@ onBeforeUnmount(() => {
 }
 .input-panel-toggle:hover { border-color: var(--primary-line); color: var(--primary-color); background: var(--primary-fade); }
 .input-panel-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-fade); }
-.input-fields { display: grid; grid-template-columns: minmax(0, 13fr) minmax(280px, 7fr); gap: 24px; min-width: 0; }
+.input-fields { display: grid; grid-template-columns: minmax(0, 13fr) minmax(280px, 7fr); align-items: stretch; gap: 24px; min-width: 0; }
 .input-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.definition-pane { min-width: 0; }
+.contract-pane .ctrl-row { flex: 1 1 auto; min-height: 0; }
+.contract-pane .contract-textarea { flex: 1 1 auto; min-height: 0; }
+.definition-pane { min-width: 0; gap: 12px; }
 .pane-heading { color: var(--text-primary); font-size: 13px; font-weight: 750; }
 .pane-heading small { margin-left: 4px; color: var(--text-disabled); font-size: 10px; font-weight: 600; }
 .input-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .input-summary__copy { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--text-secondary); }
 .input-summary__copy .el-icon { flex: 0 0 auto; color: var(--primary-color); }
-.input-summary__copy strong { flex: 0 0 auto; color: var(--text-primary); font-size: 12px; }
+.input-summary__copy strong { flex: 0 1 auto; overflow: hidden; max-width: min(320px, 34vw); color: var(--text-primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .input-summary__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .run-error {
   margin: 0;
@@ -838,8 +938,20 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   resize: vertical;
 }
-.contract-textarea :deep(.el-textarea__inner) { min-height: 280px !important; }
-.intent-textarea :deep(.el-textarea__inner) { min-height: 280px !important; }
+.contract-pane .contract-textarea :deep(.el-textarea__inner) { height: 100% !important; }
+.acg-view.is-draft .input-panel-expandable,
+.acg-view.is-draft .input-fields,
+.acg-view.is-draft .definition-pane .ctrl-row,
+.acg-view.is-draft .contract-textarea,
+.acg-view.is-draft .intent-textarea { flex: 1 1 auto; min-height: 0; }
+.acg-view.is-draft .contract-textarea :deep(.el-textarea__inner),
+.acg-view.is-draft .intent-textarea :deep(.el-textarea__inner) { height: 100% !important; }
+.acg-view.is-draft .ctrl-options { margin-top: auto; }
+.contract-textarea :deep(.el-textarea__inner),
+.intent-textarea :deep(.el-textarea__inner) {
+  height: clamp(330px, 43vh, 480px) !important;
+  min-height: clamp(330px, 43vh, 480px) !important;
+}
 
 .contract-file-input { display: none; }
 .contract-upload {
@@ -850,8 +962,7 @@ onBeforeUnmount(() => {
   padding: 5px 8px;
   border: 0;
   border-radius: 0;
-  background: transparent;
-  box-shadow: inset 0 1px color-mix(in srgb, var(--border-light) 72%, transparent);
+  background: var(--bg-input);
   transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 .contract-upload.dragging {
@@ -887,7 +998,8 @@ onBeforeUnmount(() => {
 .contract-upload__copy small { color: var(--text-secondary); font-size: 10px; }
 .contract-upload__actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 
-.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-lg); align-items: stretch; min-width: 0; }
+.acg-view > :deep(.workflow-review) { margin-top: var(--space-lg); }
+.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 11px; margin-top: 11px; align-items: stretch; min-width: 0; }
 .grid-main { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
 .grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; min-height: 0; }
 .grid-side :deep(.acg-provenance) { flex: 1 1 auto; min-height: 0; }
@@ -899,9 +1011,16 @@ onBeforeUnmount(() => {
 .batch-idx { font-size: 11px; color: var(--text-secondary); font-weight: 600; margin-right: 4px; }
 .batch-node { font-size: 11px; padding: 2px 8px; background: var(--primary-fade); color: var(--primary-color); border-radius: 10px; font-family: monospace; }
 
-.placeholder { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: 48px; text-align: center; color: var(--text-secondary); }
-.ph-icon { font-size: 40px; color: var(--primary-color); opacity: .5; }
-.ph-icon.restoring { animation: restore-pulse 1s ease-in-out infinite alternate; }
+.task-brief {
+  min-height: 62px;
+  display: grid;
+  place-items: center;
+  margin-top: var(--space-md);
+  padding: 12px 20px;
+  border-radius: var(--radius-lg);
+}
+.acg-view.is-draft > .task-brief { flex: 0 0 62px; margin-bottom: var(--space-md); }
+.task-brief strong { color: var(--text-secondary); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
 
 @keyframes restore-pulse {
   to { opacity: 1; }
@@ -916,9 +1035,7 @@ onBeforeUnmount(() => {
   .ui-hero { flex-wrap: wrap; align-items: flex-start; }
   .hero-left { width: 100%; }
   .hero-right { justify-content: flex-start; width: 100%; flex-wrap: wrap; }
-  .run-context { width: 100%; flex-wrap: wrap; }
-  .run-id { max-width: 100%; }
-  .run-id code { overflow: hidden; text-overflow: ellipsis; }
+  .hero-run-chip code { max-width: 120px; }
   .contract-upload { align-items: flex-start; flex-wrap: wrap; }
   .contract-upload__copy { width: calc(100% - 34px); }
   .contract-upload__actions { width: 100%; padding-left: 34px; }
@@ -931,5 +1048,9 @@ onBeforeUnmount(() => {
   .input-summary__copy small { width: 100%; white-space: normal; }
   .control-bar.collapsed { align-items: stretch; flex-direction: column; }
   .control-bar.collapsed .ctrl-options { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input-panel-expandable { transition-duration: 1ms; }
 }
 </style>

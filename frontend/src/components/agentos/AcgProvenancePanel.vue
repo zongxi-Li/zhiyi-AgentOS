@@ -164,7 +164,8 @@ const recoveryLabel = (t: string) => {
 
 .tab-body {
   flex: 1 1 320px; min-width: 0; min-height: 320px;
-  overflow-x: hidden; overflow-y: auto; padding-right: 3px; scrollbar-gutter: stable;
+  box-sizing: border-box; overflow-x: hidden; overflow-y: auto;
+  padding: 2px 8px 10px; scrollbar-gutter: stable;
 }
 .empty {
   min-height: 100%;
