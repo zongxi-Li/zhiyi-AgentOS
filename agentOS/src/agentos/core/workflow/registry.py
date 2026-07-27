@@ -3,7 +3,7 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Optional
 
 from agentos.core.models.types import WorkflowDefinition
 
@@ -19,7 +19,7 @@ class WorkflowRegistry:
     def register(self, workflow: WorkflowDefinition) -> None:
         if not workflow.workflow_id:
             raise ValueError("workflow_id is required")
-        if not workflow.steps:
+        if not workflow.steps and not workflow.is_native_bootstrap:
             raise ValueError(f"workflow {workflow.workflow_id} must define at least one step")
         if workflow.workflow_id in self._aliases:
             return
@@ -43,9 +43,20 @@ class WorkflowRegistry:
         normalized_domain = (domain or "").strip().lower()
         normalized_intent = (intent or "").strip().lower()
 
-        for workflow in self._workflows.values():
-            if workflow.domain.lower() == normalized_domain and workflow.intent.lower() == normalized_intent:
-                return workflow
+        exact_matches = [
+            workflow
+            for workflow in self._workflows.values()
+            if workflow.domain.lower() == normalized_domain
+            and workflow.intent.lower() == normalized_intent
+        ]
+        native_bootstrap = next(
+            (workflow for workflow in exact_matches if workflow.is_native_bootstrap),
+            None,
+        )
+        if native_bootstrap is not None:
+            return native_bootstrap
+        if exact_matches:
+            return exact_matches[0]
 
         for workflow in self._workflows.values():
             if workflow.domain.lower() == normalized_domain:

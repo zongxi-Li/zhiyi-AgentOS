@@ -53,6 +53,7 @@ from agentos.core.recovery.recipes import RecoveryRecipeRegistry
 from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
 from agentos.packs.registry import register_installed_packs
+from agentos.core.native import register_native_runtime
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 from agentos.stores.workflow_store import WorkflowStore
@@ -418,7 +419,11 @@ class WorkflowRuntime:
             return blueprint
 
         planning_mode = str(task.input.get("planningMode") or "").strip().lower()
-        force_dynamic = bool(task.input.get("forceDynamicPlanning")) or planning_mode == "dynamic"
+        force_dynamic = (
+            workflow.is_native_bootstrap
+            or bool(task.input.get("forceDynamicPlanning"))
+            or planning_mode == "dynamic"
+        )
         use_planner = force_dynamic or bool(task.input.get("usePlanner")) or not workflow.steps
         if use_planner:
             intent_text = str(
@@ -1048,6 +1053,10 @@ def build_default_runtime() -> WorkflowRuntime:
         agent_registry=agent_registry,
         workflow_registry=workflow_registry,
         workflow_store=workflow_store,
+    )
+    register_native_runtime(
+        agent_registry=runtime.agent_registry,
+        workflow_registry=runtime.workflow_registry,
     )
     register_installed_packs(
         agent_registry=runtime.agent_registry,

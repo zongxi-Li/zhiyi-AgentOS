@@ -90,6 +90,39 @@ _ROLE_OUTPUT_REQUIRED = {
     "report": ["report_markdown"],
 }
 
+# Native roles deliberately coexist with the legacy domain roles.  They only
+# define the minimum domain-neutral chain required by the Core bootstrap.
+_ROLE_ALIASES.update(
+    {
+        "understand": {"task_understanding"},
+        "analyze": {"analysis"},
+        "deliver": {"artifact_generation"},
+    }
+)
+_ROLE_ORDER.update({"understand": 1, "analyze": 2, "deliver": 3})
+_ROLE_SOURCE_FIELDS.update(
+    {
+        "analyze": {"understand": ["task_summary"]},
+        "deliver": {
+            "understand": ["task_summary"],
+            "analyze": ["analysis"],
+        },
+    }
+)
+_ROLE_REQUIRED_FIELDS.update(
+    {
+        "analyze": ["task_summary"],
+        "deliver": ["task_summary", "analysis"],
+    }
+)
+_ROLE_OUTPUT_REQUIRED.update(
+    {
+        "understand": ["task_summary", "verification"],
+        "analyze": ["analysis", "verification"],
+        "deliver": ["deliverable", "verification"],
+    }
+)
+
 
 def _object_schema(required: List[str]) -> dict:
     return {"type": "object", "required": list(required)}
@@ -266,22 +299,32 @@ class ACGBuilder:
         end = ControlNode(nodeId="ctrl_end", name="END", controlType=ControlType.END)
         blueprint.nodes.extend([start, end])
 
-        parse_nodes = by_role.get("parse") or [step_nodes[0]]
+        parse_nodes = by_role.get("understand") or by_role.get("parse") or [step_nodes[0]]
         first = parse_nodes[0]
         _add_dep(blueprint, start.node_id, first.node_id)
 
         analysis_nodes = _unique_steps(
-            by_role.get("classify", [])
+            by_role.get("analyze", [])
+            + by_role.get("classify", [])
             + by_role.get("risk", [])
             + [
                 s
                 for s in step_nodes
-                if str(s.metadata.get("role"))
-                not in {"parse", "classify", "risk", "evidence", "suggest", "review", "report"}
+                if s.node_id != first.node_id
+                and str(s.metadata.get("role"))
+                not in {
+                    "understand", "analyze", "deliver", "parse", "classify", "risk",
+                    "evidence", "suggest", "review", "report",
+                }
             ]
         )
         evidence_nodes = _unique_steps(by_role.get("evidence", []))
-        post_analysis = _unique_steps(by_role.get("suggest", []) + by_role.get("review", []) + by_role.get("report", []))
+        post_analysis = _unique_steps(
+            by_role.get("deliver", [])
+            + by_role.get("suggest", [])
+            + by_role.get("review", [])
+            + by_role.get("report", [])
+        )
 
         if len(analysis_nodes) >= 2:
             parallel = ControlNode(nodeId="ctrl_parallel_analysis", name="PARALLEL_ANALYSIS", controlType=ControlType.PARALLEL)
@@ -365,6 +408,9 @@ def _step_id(binding, role: str, index: int, used_ids: set[str]) -> str:
 
 def _display_name(capability: str, role: str) -> str:
     defaults = {
+        "understand": "任务理解",
+        "analyze": "通用分析",
+        "deliver": "成果生成",
         "parse": "合同文本解析",
         "classify": "条款分类",
         "risk": "风险识别",

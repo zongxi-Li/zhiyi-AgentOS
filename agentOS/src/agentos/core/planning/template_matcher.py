@@ -54,7 +54,7 @@ class TemplateMatcher:
         # 一级索引：domain + intent 精确命中
         candidates: List[WorkflowDefinition] = []
         for wf in self.registry.all():
-            if wf.domain.lower() == domain:
+            if wf.domain.lower() == domain and not wf.is_native_bootstrap:
                 candidates.append(wf)
 
         if not candidates:

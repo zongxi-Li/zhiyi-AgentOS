@@ -9,7 +9,6 @@ Core 不直接依赖 app 层 LLM 网关（分层铁律）。这里定义最小 I
 
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List, Optional, Protocol
 
 from agentos.core.acg.enums import ComplexityLevel
@@ -245,6 +244,11 @@ class IntentParser:
 
     @staticmethod
     def _infer_capabilities(text: str, domain: str, task_type: str, *, include_defaults: bool = True) -> List[str]:
+        if (domain or "").strip().lower() == "general" and (
+            task_type or ""
+        ).strip().lower() == "general":
+            return ["task_understanding", "analysis", "artifact_generation"]
+
         caps: List[str] = []
         keyword_map = {
             "文本解析": ("解析", "提取", "分析", "合同"),

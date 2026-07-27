@@ -37,6 +37,13 @@ class WorkflowStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class WorkflowDefinitionType(str, Enum):
+    """Controls whether a definition is an executable template or a planner bootstrap."""
+
+    TEMPLATE = "template"
+    NATIVE_BOOTSTRAP = "native_bootstrap"
+
+
 class TraceEventType(str, Enum):
     TASK_CREATED = "task_created"
     TASK_STATUS_CHANGED = "task_status_changed"
@@ -115,6 +122,10 @@ class WorkflowDefinition(CoreModel):
     description: str = ""
     tags: List[str] = Field(default_factory=list)
     runtime_engine: str = Field(alias="runtimeEngine")
+    definition_type: WorkflowDefinitionType = Field(
+        default=WorkflowDefinitionType.TEMPLATE,
+        alias="definitionType",
+    )
     executor_type: Optional[str] = Field(default=None, alias="executorType")
     implementation_id: Optional[str] = Field(default=None, alias="implementationId")
     aliases: List[str] = Field(default_factory=list)
@@ -138,6 +149,13 @@ class WorkflowDefinition(CoreModel):
     @property
     def effective_implementation_id(self) -> str:
         return (self.implementation_id or self.workflow_id).strip()
+
+    @property
+    def is_native_bootstrap(self) -> bool:
+        return (
+            self.effective_runtime_engine == "acg"
+            and self.definition_type == WorkflowDefinitionType.NATIVE_BOOTSTRAP
+        )
 
     def first_step_id(self) -> Optional[str]:
         return self.steps[0].step_id if self.steps else None
