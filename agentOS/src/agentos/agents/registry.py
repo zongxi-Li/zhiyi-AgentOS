@@ -36,14 +36,26 @@ class AgentRegistry:
             agent = self._agents.get((normalized_domain, normalized_name))
             if agent:
                 return agent
+            if normalized_domain != "general":
+                agent = self._agents.get(("general", normalized_name))
+                if agent:
+                    return agent
 
         normalized_capability = (capability or "").strip().lower()
         if normalized_capability:
-            for (agent_domain, _), agent in self._agents.items():
-                if agent_domain != normalized_domain:
-                    continue
-                if normalized_capability in {item.lower() for item in agent.profile.capabilities}:
-                    return agent
+            candidate_domains = (
+                (normalized_domain, "general")
+                if normalized_domain != "general"
+                else ("general",)
+            )
+            for candidate_domain in candidate_domains:
+                for (agent_domain, _), agent in self._agents.items():
+                    if agent_domain != candidate_domain:
+                        continue
+                    if normalized_capability in {
+                        item.lower() for item in agent.profile.capabilities
+                    }:
+                        return agent
 
         raise AgentNotFound(
             f"agent not registered: domain={domain}, agentName={agent_name}, capability={capability}"

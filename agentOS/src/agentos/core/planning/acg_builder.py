@@ -1,19 +1,8 @@
-"""ACG 构建器（设计书 §2.1「ACG构建器」）。
-
-把意图画像 + 认知路由的协作网络物化为可执行的 ACGBlueprint：
-1. 任务目标分解 → 步骤序列（按能力顺序，复杂度控制粒度）
-2. 实例化 StepNode，绑定 assigned_agent
-3. 赋能节点注入：阶段性结论后注入 Memory 节点；需外部依据的步骤注入
-   Evidence 节点
-4. 建立依赖主干 + write/read/support 边
-5. 图级验证：环检测 + 悬空依赖检查
-
-这是“动态补位”一侧：无模板命中时由本构建器动态生成 ACG。
-"""
+"""Generic ACG construction from catalog descriptors and resolved bindings."""
 
 from __future__ import annotations
 
-from typing import List
+from collections import defaultdict
 
 from agentos.core.acg import (
     ACGBlueprint,
@@ -27,109 +16,17 @@ from agentos.core.acg import (
     StepNode,
     validate_blueprint,
 )
-from agentos.core.acg.nodes import _node_id
+from agentos.core.planning.capabilities import CapabilityCatalog
 from agentos.core.planning.cognitive_router import CollaborationNetwork
+from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.profile import TaskSemanticProfile
-
-# 需要证据支撑的能力（产出结论性内容，须可审计）
-_EVIDENCE_CAPABILITIES = {"风险识别", "证据检索", "报告生成", "需求分析"}
-# 产生阶段性结论、值得写入记忆的能力
-_MEMORY_CAPABILITIES = {"风险识别", "需求分析", "报告生成"}
-
-_ROLE_ALIASES = {
-    "parse": {"文本解析", "合同解析", "contract_parse", "parse_contract", "case_intake", "需求分析"},
-    "classify": {"条款分类", "clause_classify", "clause_classifier"},
-    "risk": {"风险识别", "风险评估", "risk_detect", "risk_detection", "risk_assessment"},
-    "evidence": {"证据检索", "依据匹配", "legal_evidence_match", "legal_evidence_search", "evidence_analysis"},
-    "suggest": {"修改建议", "修订建议", "revision_suggest", "revision_suggestion", "suggestion_generate"},
-    "review": {"人工审核", "复核", "human_review", "human_review_gate", "review"},
-    "report": {"报告生成", "文书生成", "report_generate", "report_generation", "draft"},
-}
-
-_ROLE_ORDER = {
-    "parse": 10,
-    "classify": 20,
-    "risk": 30,
-    "evidence": 31,
-    "suggest": 40,
-    "review": 50,
-    "report": 60,
-}
-
-_ROLE_SOURCE_FIELDS = {
-    "classify": {"parse": ["contract_type", "scope", "payment_terms", "acceptance_terms", "ip_terms", "dispute_resolution"]},
-    "risk": {"parse": ["contract_summary", "payment_terms", "acceptance_terms", "ip_terms"], "classify": ["clauses"]},
-    "evidence": {"parse": ["contract_type"], "risk": ["risks", "risk_level", "risk_score"]},
-    "suggest": {"risk": ["risks", "risk_summary"], "evidence": ["evidences", "citations"]},
-    "review": {"risk": ["risks", "risk_summary"], "suggest": ["revision_suggestions", "manual_review_focus"]},
-    "report": {
-        "parse": ["contract_type", "parties", "scope"],
-        "risk": ["risks", "risk_summary"],
-        "evidence": ["evidences"],
-        "suggest": ["revision_suggestions", "manual_review_focus"],
-        "review": ["review_status", "review_focus"],
-    },
-}
-
-_ROLE_REQUIRED_FIELDS = {
-    "classify": ["contract_type"],
-    "risk": ["clauses"],
-    "evidence": ["risks"],
-    "suggest": ["risks", "evidences"],
-    "review": ["risks", "manual_review_focus"],
-    "report": ["contract_type", "risks", "evidences", "revision_suggestions"],
-}
-
-_ROLE_OUTPUT_REQUIRED = {
-    "parse": ["contract_summary", "contract_type", "parties"],
-    "classify": ["clauses"],
-    "risk": ["risks", "risk_level", "risk_score"],
-    "evidence": ["evidences", "citations"],
-    "suggest": ["revision_suggestions", "manual_review_focus"],
-    "review": ["review_status", "review_focus"],
-    "report": ["report_markdown"],
-}
-
-# Native roles deliberately coexist with the legacy domain roles.  They only
-# define the minimum domain-neutral chain required by the Core bootstrap.
-_ROLE_ALIASES.update(
-    {
-        "understand": {"task_understanding"},
-        "analyze": {"analysis"},
-        "deliver": {"artifact_generation"},
-    }
-)
-_ROLE_ORDER.update({"understand": 1, "analyze": 2, "deliver": 3})
-_ROLE_SOURCE_FIELDS.update(
-    {
-        "analyze": {"understand": ["task_summary"]},
-        "deliver": {
-            "understand": ["task_summary"],
-            "analyze": ["analysis"],
-        },
-    }
-)
-_ROLE_REQUIRED_FIELDS.update(
-    {
-        "analyze": ["task_summary"],
-        "deliver": ["task_summary", "analysis"],
-    }
-)
-_ROLE_OUTPUT_REQUIRED.update(
-    {
-        "understand": ["task_summary", "verification"],
-        "analyze": ["analysis", "verification"],
-        "deliver": ["deliverable", "verification"],
-    }
-)
-
-
-def _object_schema(required: List[str]) -> dict:
-    return {"type": "object", "required": list(required)}
 
 
 class ACGBuilder:
-    """动态 ACG 蓝图构建器。"""
+    """Build one executable graph using descriptor dependencies and contracts."""
+
+    def __init__(self, capability_catalog: CapabilityCatalog | None = None) -> None:
+        self.capability_catalog = capability_catalog or build_default_capability_catalog()
 
     def build(
         self,
@@ -138,335 +35,371 @@ class ACGBuilder:
         profile: TaskSemanticProfile,
         network: CollaborationNetwork,
     ) -> ACGBlueprint:
+        self.capability_catalog.validate()
+        if not network.bindings:
+            raise ValueError("ACG planning produced no capability bindings")
+
         blueprint = ACGBlueprint(
             taskId=task_id,
             objective=profile.primary_goal,
             complexityLevel=profile.estimated_complexity,
             metadata={
-                "generatedBy": "acg_builder",
+                "generatedBy": "generic_acg_builder",
                 "domainHint": profile.domain_hint,
                 "entropyBudget": profile.entropy_budget,
                 "estimatedEntropy": network.estimated_entropy,
             },
         )
-
-        # 1) 按能力语义归类并实例化 StepNode。节点 id 优先复用真实 agentName，
-        #    让动态图可以被现有 Pack Agent 直接执行。
-        step_nodes = self._build_step_nodes(blueprint, network)
-
-        # 把抽象角色依赖解析成实际 Step id，形成可执行的字段级通信契约。
-        self._configure_step_contracts(step_nodes)
-
-        # 2) 依赖图生成：解析 → 并行分析 → 汇聚 → 建议/审核/报告。
-        self._wire_task_graph(blueprint, step_nodes)
-
-        # 3) 赋能节点注入
-        for step in step_nodes:
-            cap = step.capability or ""
-            role = str(step.metadata.get("role") or "")
-            if role == "evidence" or cap == "证据检索":
-                ev = EvidenceNode(
-                    nodeId=_node_id("ev"),
-                    name=f"证据:{cap}",
-                    evidenceType="retrieved",
-                    metadata={"producerStepId": step.node_id},
-                )
-                blueprint.nodes.append(ev)
-                step.evidence_ids.append(ev.node_id)
-            if cap in _MEMORY_CAPABILITIES or role in {"risk", "suggest", "report"}:
-                mem = MemoryNode(nodeId=_node_id("mem"), name=f"记忆:{cap}", memoryType="episodic")
-                blueprint.nodes.append(mem)
-                blueprint.edges.append(
-                    ACGEdge(sourceId=step.node_id, targetId=mem.node_id, edgeType=EdgeType.WRITE)
-                )
-                step.memory_ids.append(mem.node_id)
-
-        memory_by_source = {
-            edge.source_id: edge.target_id
-            for edge in blueprint.edges_of_type(EdgeType.WRITE)
+        selected = [binding.capability for binding in network.bindings]
+        selected_set = set(selected)
+        descriptors = {
+            capability_id: self.capability_catalog.get(capability_id)
+            for capability_id in selected
         }
-        evidence_by_source = {
-            str(node.metadata.get("producerStepId")): node.node_id
-            for node in blueprint.nodes
-            if isinstance(node, EvidenceNode) and node.metadata.get("producerStepId")
+        data_dependencies = {
+            capability_id: self._selected_dependencies(
+                capability_id,
+                selected_set,
+                include_optional=True,
+            )
+            for capability_id in selected
         }
-        for target in step_nodes:
-            from_map = target.input_spec.get("from") if isinstance(target.input_spec, dict) else None
-            if not isinstance(from_map, dict):
-                continue
-            for source_id in from_map:
-                if source_id in memory_by_source:
-                    blueprint.edges.append(
-                        ACGEdge(
-                            sourceId=memory_by_source[source_id],
-                            targetId=target.node_id,
-                            edgeType=EdgeType.READ,
-                        )
-                    )
-                if source_id in evidence_by_source:
-                    blueprint.edges.append(
-                        ACGEdge(
-                            sourceId=evidence_by_source[source_id],
-                            targetId=target.node_id,
-                            edgeType=EdgeType.SUPPORT,
-                        )
-                    )
+        control_dependencies = {
+            capability_id: self._minimal_dependencies(
+                data_dependencies[capability_id],
+                data_dependencies,
+            )
+            for capability_id in selected
+        }
 
+        steps, step_by_capability = self._build_steps(
+            blueprint,
+            network,
+            descriptors,
+            data_dependencies,
+        )
+        self._wire_execution_graph(
+            blueprint,
+            selected,
+            steps,
+            step_by_capability,
+            descriptors,
+            control_dependencies,
+        )
+        self._wire_data_contracts(
+            blueprint,
+            selected,
+            step_by_capability,
+            descriptors,
+            data_dependencies,
+        )
         blueprint.touch()
-        # 5) 图级验证（环检测 + 悬空依赖）
         validate_blueprint(blueprint)
         return blueprint
 
-    def _build_step_nodes(self, blueprint: ACGBlueprint, network: CollaborationNetwork) -> List[StepNode]:
+    def _build_steps(
+        self,
+        blueprint,
+        network,
+        descriptors,
+        data_dependencies,
+    ) -> tuple[list[StepNode], dict[str, StepNode]]:
         used_ids: set[str] = set()
         agent_nodes: dict[str, str] = {}
-        step_nodes: List[StepNode] = []
-        sorted_bindings = sorted(
-            enumerate(network.bindings),
-            key=lambda item: (_ROLE_ORDER.get(_role_for(item[1].capability, item[1].agent_name), 90), item[0]),
-        )
+        steps: list[StepNode] = []
+        step_by_capability: dict[str, StepNode] = {}
 
-        for original_index, binding in sorted_bindings:
-            role = _role_for(binding.capability, binding.agent_name)
-            node_id = _step_id(binding, role, original_index, used_ids)
+        for binding in network.bindings:
+            descriptor = descriptors[binding.capability]
+            node_id = self._step_id(binding.agent_name, descriptor.capability_id, used_ids)
             used_ids.add(node_id)
-            display = _display_name(binding.capability, role)
+            from_map = {
+                self._dependency_node_id(network, dependency): self._output_fields(
+                    descriptors[dependency].output_contract
+                )
+                for dependency in data_dependencies[descriptor.capability_id]
+            }
+            input_spec = dict(descriptor.input_contract)
+            if from_map:
+                input_spec = {"from": from_map, "schema": dict(descriptor.input_contract)}
             step = StepNode(
                 nodeId=node_id,
-                name=display,
-                goal=f"完成能力：{display}",
+                name=descriptor.display_name,
+                goal=descriptor.description or f"Execute {descriptor.display_name}",
                 agentName=binding.agent_name,
-                capability=binding.capability,
-                inputSpec={},
-                outputSpec=_object_schema(_ROLE_OUTPUT_REQUIRED.get(role, [])) if role in _ROLE_OUTPUT_REQUIRED else {},
-                reviewRequired=role == "review",
+                capability=descriptor.capability_id,
+                inputSpec=input_spec,
+                outputSpec=dict(descriptor.output_contract),
+                reviewRequired=descriptor.requires_review,
                 metadata={
-                    "ephemeralAgent": binding.ephemeral,
-                    "role": role,
+                    "capabilityId": descriptor.capability_id,
+                    "planningStage": descriptor.planning_stage,
+                    "role": descriptor.planning_stage,
+                    "dependsOn": list(data_dependencies[descriptor.capability_id]),
+                    "parallelizable": descriptor.parallelizable,
+                    "producesArtifact": descriptor.produces_artifact,
+                    "requiresEvidence": descriptor.requires_evidence,
+                    "writesMemory": descriptor.writes_memory,
                     "routerScore": binding.score,
-                    "dynamicOrder": original_index,
                 },
             )
             blueprint.nodes.append(step)
-            step_nodes.append(step)
+            steps.append(step)
+            step_by_capability[descriptor.capability_id] = step
 
             if binding.agent_name not in agent_nodes:
-                agent_node_id = f"agent::{binding.agent_name}"
-                agent_nodes[binding.agent_name] = agent_node_id
+                agent_id = f"agent::{binding.agent_name}"
+                agent_nodes[binding.agent_name] = agent_id
                 blueprint.nodes.append(
                     AgentNode(
-                        nodeId=agent_node_id,
+                        nodeId=agent_id,
                         name=binding.agent_name,
-                        role=display,
-                        capabilityTags=[binding.capability],
+                        role=descriptor.display_name,
+                        capabilityTags=[descriptor.capability_id],
                         ephemeral=binding.ephemeral,
                     )
                 )
+            else:
+                agent_node = blueprint.get_node(agent_nodes[binding.agent_name])
+                if descriptor.capability_id not in agent_node.capability_tags:
+                    agent_node.capability_tags.append(descriptor.capability_id)
             blueprint.edges.append(
-                ACGEdge(sourceId=agent_nodes[binding.agent_name], targetId=step.node_id, edgeType=EdgeType.EXECUTION)
+                ACGEdge(
+                    sourceId=agent_nodes[binding.agent_name],
+                    targetId=node_id,
+                    edgeType=EdgeType.EXECUTION,
+                )
             )
 
-        return step_nodes
+            if descriptor.requires_evidence:
+                evidence = EvidenceNode(
+                    nodeId=f"evidence::{node_id}",
+                    name=f"Evidence:{descriptor.display_name}",
+                    evidenceType="retrieved",
+                    metadata={"producerStepId": node_id, "capabilityId": descriptor.capability_id},
+                )
+                blueprint.nodes.append(evidence)
+                step.evidence_ids.append(evidence.node_id)
+            if descriptor.writes_memory:
+                memory = MemoryNode(
+                    nodeId=f"memory::{node_id}",
+                    name=f"Memory:{descriptor.display_name}",
+                    memoryType="episodic",
+                    metadata={"capabilityId": descriptor.capability_id},
+                )
+                blueprint.nodes.append(memory)
+                blueprint.edges.append(
+                    ACGEdge(sourceId=node_id, targetId=memory.node_id, edgeType=EdgeType.WRITE)
+                )
+                step.memory_ids.append(memory.node_id)
 
-    def _configure_step_contracts(self, step_nodes: List[StepNode]) -> None:
-        by_role: dict[str, List[StepNode]] = {}
-        for step in step_nodes:
-            by_role.setdefault(str(step.metadata.get("role") or "other"), []).append(step)
+        return steps, step_by_capability
 
-        for target_role, source_roles in _ROLE_SOURCE_FIELDS.items():
-            for target in by_role.get(target_role, []):
-                from_map: dict[str, List[str]] = {}
-                for source_role, fields in source_roles.items():
-                    for source in by_role.get(source_role, []):
-                        from_map[source.node_id] = list(fields)
-                if not from_map:
-                    continue
-                required = _ROLE_REQUIRED_FIELDS.get(target_role, [])
-                target.input_spec = {
-                    "from": from_map,
-                    "schema": _object_schema(required),
-                }
-
-    def _wire_task_graph(self, blueprint: ACGBlueprint, step_nodes: List[StepNode]) -> None:
-        if not step_nodes:
-            return
-
-        by_role: dict[str, List[StepNode]] = {}
-        for step in step_nodes:
-            by_role.setdefault(str(step.metadata.get("role") or "other"), []).append(step)
-
+    def _wire_execution_graph(
+        self,
+        blueprint,
+        selected,
+        steps,
+        step_by_capability,
+        descriptors,
+        dependencies,
+    ) -> None:
         start = ControlNode(nodeId="ctrl_start", name="START", controlType=ControlType.START)
         end = ControlNode(nodeId="ctrl_end", name="END", controlType=ControlType.END)
         blueprint.nodes.extend([start, end])
 
-        parse_nodes = by_role.get("understand") or by_role.get("parse") or [step_nodes[0]]
-        first = parse_nodes[0]
-        _add_dep(blueprint, start.node_id, first.node_id)
+        groups: dict[tuple[str, tuple[str, ...]], list[str]] = defaultdict(list)
+        for capability_id in selected:
+            descriptor = descriptors[capability_id]
+            if descriptor.parallelizable:
+                groups[(descriptor.planning_stage, tuple(dependencies[capability_id]))].append(
+                    capability_id
+                )
+        parallel_groups = [items for items in groups.values() if len(items) > 1]
+        group_for = {
+            capability_id: group_index
+            for group_index, group in enumerate(parallel_groups, start=1)
+            for capability_id in group
+        }
+        controls: dict[int, tuple[ControlNode, ControlNode]] = {}
+        for group_index, group in enumerate(parallel_groups, start=1):
+            parallel = ControlNode(
+                nodeId=f"ctrl_parallel_{group_index}",
+                name=f"PARALLEL:{descriptors[group[0]].planning_stage}",
+                controlType=ControlType.PARALLEL,
+            )
+            join = ControlNode(
+                nodeId=f"ctrl_join_{group_index}",
+                name=f"JOIN:{descriptors[group[0]].planning_stage}",
+                controlType=ControlType.CONSENSUS,
+            )
+            controls[group_index] = (parallel, join)
+            blueprint.nodes.extend([parallel, join])
+            for capability_id in group:
+                self._add_dependency(blueprint, parallel.node_id, step_by_capability[capability_id].node_id)
+                self._add_dependency(blueprint, step_by_capability[capability_id].node_id, join.node_id)
 
-        analysis_nodes = _unique_steps(
-            by_role.get("analyze", [])
-            + by_role.get("classify", [])
-            + by_role.get("risk", [])
-            + [
-                s
-                for s in step_nodes
-                if s.node_id != first.node_id
-                and str(s.metadata.get("role"))
-                not in {
-                    "understand", "analyze", "deliver", "parse", "classify", "risk",
-                    "evidence", "suggest", "review", "report",
-                }
-            ]
-        )
-        evidence_nodes = _unique_steps(by_role.get("evidence", []))
-        post_analysis = _unique_steps(
-            by_role.get("deliver", [])
-            + by_role.get("suggest", [])
-            + by_role.get("review", [])
-            + by_role.get("report", [])
-        )
-
-        if len(analysis_nodes) >= 2:
-            parallel = ControlNode(nodeId="ctrl_parallel_analysis", name="PARALLEL_ANALYSIS", controlType=ControlType.PARALLEL)
-            consensus = ControlNode(nodeId="ctrl_consensus_analysis", name="CONSENSUS_ANALYSIS", controlType=ControlType.CONSENSUS)
-            blueprint.nodes.extend([parallel, consensus])
-            _add_dep(blueprint, first.node_id, parallel.node_id)
-            for node in analysis_nodes:
-                _add_dep(blueprint, parallel.node_id, node.node_id)
-                _add_dep(blueprint, node.node_id, consensus.node_id)
-            tail_source = consensus.node_id
-        elif analysis_nodes:
-            _add_dep(blueprint, first.node_id, analysis_nodes[0].node_id)
-            tail_source = analysis_nodes[0].node_id
-        else:
-            tail_source = first.node_id
-
-        previous = tail_source
-        for node in evidence_nodes:
-            _add_dep(blueprint, previous, node.node_id)
-            previous = node.node_id
-
-        for node in post_analysis:
-            _add_dep(blueprint, previous, node.node_id)
-            previous = node.node_id
-        _add_dep(blueprint, previous, end.node_id)
-
-        self._wire_low_entropy_channels(blueprint, by_role, step_nodes)
-
-    def _wire_low_entropy_channels(
-        self,
-        blueprint: ACGBlueprint,
-        by_role: dict[str, List[StepNode]],
-        step_nodes: List[StepNode],
-    ) -> None:
-        del by_role  # contracts already contain concrete source Step ids
-        by_id = {step.node_id: step for step in step_nodes}
-        for target in step_nodes:
-            from_map = target.input_spec.get("from") if isinstance(target.input_spec, dict) else None
-            if not isinstance(from_map, dict):
+        wired_groups: set[int] = set()
+        for capability_id in selected:
+            group_index = group_for.get(capability_id)
+            if group_index is not None:
+                if group_index in wired_groups:
+                    continue
+                wired_groups.add(group_index)
+                parallel, _ = controls[group_index]
+                group_dependencies = dependencies[capability_id]
+                if not group_dependencies:
+                    self._add_dependency(blueprint, start.node_id, parallel.node_id)
+                for dependency in group_dependencies:
+                    source = self._execution_source(dependency, group_for, controls, step_by_capability)
+                    self._add_dependency(blueprint, source, parallel.node_id)
                 continue
-            for source_id, fields in from_map.items():
-                source = by_id.get(str(source_id))
-                if source is not None:
-                    _add_comm(
-                        blueprint,
-                        source,
-                        target,
-                        fields=[str(field) for field in fields] if isinstance(fields, list) else [],
+
+            target = step_by_capability[capability_id].node_id
+            if not dependencies[capability_id]:
+                self._add_dependency(blueprint, start.node_id, target)
+            for dependency in dependencies[capability_id]:
+                source = self._execution_source(dependency, group_for, controls, step_by_capability)
+                self._add_dependency(blueprint, source, target)
+
+        consumed = {dependency for values in dependencies.values() for dependency in values}
+        terminal_sources: set[str] = set()
+        for capability_id in selected:
+            if capability_id in consumed:
+                continue
+            group_index = group_for.get(capability_id)
+            source = (
+                controls[group_index][1].node_id
+                if group_index is not None
+                else step_by_capability[capability_id].node_id
+            )
+            terminal_sources.add(source)
+        for source in terminal_sources:
+            self._add_dependency(blueprint, source, end.node_id)
+
+    def _wire_data_contracts(
+        self,
+        blueprint,
+        selected,
+        step_by_capability,
+        descriptors,
+        dependencies,
+    ) -> None:
+        for target_capability in selected:
+            target = step_by_capability[target_capability]
+            for source_capability in dependencies[target_capability]:
+                source = step_by_capability[source_capability]
+                fields = self._output_fields(descriptors[source_capability].output_contract)
+                blueprint.edges.append(
+                    ACGEdge(
+                        sourceId=source.node_id,
+                        targetId=target.node_id,
+                        edgeType=EdgeType.COMMUNICATION,
+                        dataFields=fields,
+                        metadata={"mode": "catalog_contract"},
+                    )
+                )
+                if source.evidence_ids:
+                    blueprint.edges.append(
+                        ACGEdge(
+                            sourceId=source.evidence_ids[0],
+                            targetId=target.node_id,
+                            edgeType=EdgeType.SUPPORT,
+                        )
+                    )
+                if source.memory_ids:
+                    blueprint.edges.append(
+                        ACGEdge(
+                            sourceId=source.memory_ids[0],
+                            targetId=target.node_id,
+                            edgeType=EdgeType.READ,
+                        )
                     )
 
+    def _selected_dependencies(
+        self,
+        capability_id: str,
+        selected: set[str],
+        *,
+        include_optional: bool,
+    ) -> list[str]:
+        descriptor = self.capability_catalog.get(capability_id)
+        dependencies = list(descriptor.depends_on)
+        if include_optional:
+            dependencies.extend(
+                dependency
+                for dependency in descriptor.optional_dependencies
+                if dependency in selected
+            )
+        return list(dict.fromkeys(dependency for dependency in dependencies if dependency in selected))
 
-def _slug(text: str) -> str:
-    return "".join(c for c in (text or "") if c.isalnum())[:12] or "cap"
+    @staticmethod
+    def _minimal_dependencies(dependencies: list[str], all_dependencies: dict[str, list[str]]) -> list[str]:
+        def ancestors(capability_id: str) -> set[str]:
+            found: set[str] = set()
+            pending = list(all_dependencies.get(capability_id, []))
+            while pending:
+                current = pending.pop()
+                if current in found:
+                    continue
+                found.add(current)
+                pending.extend(all_dependencies.get(current, []))
+            return found
 
+        return [
+            dependency
+            for dependency in dependencies
+            if not any(
+                dependency in ancestors(other)
+                for other in dependencies
+                if other != dependency
+            )
+        ]
 
-def _role_for(capability: str, agent_name: str = "") -> str:
-    terms = {capability, agent_name}
-    lowered = {t.strip().lower() for t in terms if t}
-    for role, aliases in _ROLE_ALIASES.items():
-        alias_lower = {a.lower() for a in aliases}
-        if lowered & alias_lower:
-            return role
-    for role, aliases in _ROLE_ALIASES.items():
-        alias_lower = {a.lower() for a in aliases}
-        if any(term and any(term in alias or alias in term for alias in alias_lower) for term in lowered):
-            return role
-    return "other"
+    @staticmethod
+    def _execution_source(dependency, group_for, controls, step_by_capability) -> str:
+        group_index = group_for.get(dependency)
+        if group_index is not None:
+            return controls[group_index][1].node_id
+        return step_by_capability[dependency].node_id
 
+    @staticmethod
+    def _dependency_node_id(network: CollaborationNetwork, dependency: str) -> str:
+        used: set[str] = set()
+        for binding in network.bindings:
+            node_id = ACGBuilder._step_id(binding.agent_name, binding.capability, used)
+            used.add(node_id)
+            if binding.capability == dependency:
+                return node_id
+        raise KeyError(dependency)
 
-def _step_id(binding, role: str, index: int, used_ids: set[str]) -> str:
-    base = binding.agent_name if binding.agent_name and not binding.agent_name.startswith("ephemeral::") else ""
-    if not base:
-        base = f"{role}_{_slug(binding.capability)}"
-    node_id = base
-    suffix = 2
-    while node_id in used_ids:
-        node_id = f"{base}_{suffix}"
-        suffix += 1
-    return node_id or f"step_{index}_{_slug(binding.capability)}"
+    @staticmethod
+    def _step_id(agent_name: str, capability_id: str, used_ids: set[str]) -> str:
+        base = agent_name.strip() or capability_id.strip() or "step"
+        node_id = base
+        suffix = 2
+        while node_id in used_ids:
+            node_id = f"{base}_{suffix}"
+            suffix += 1
+        return node_id
 
+    @staticmethod
+    def _output_fields(contract: dict) -> list[str]:
+        required = contract.get("required") if isinstance(contract, dict) else None
+        return [str(item) for item in required] if isinstance(required, list) else []
 
-def _display_name(capability: str, role: str) -> str:
-    defaults = {
-        "understand": "任务理解",
-        "analyze": "通用分析",
-        "deliver": "成果生成",
-        "parse": "合同文本解析",
-        "classify": "条款分类",
-        "risk": "风险识别",
-        "evidence": "Evidence 依据匹配",
-        "suggest": "修改建议生成",
-        "review": "人工审核门",
-        "report": "审查报告生成",
-    }
-    return defaults.get(role, capability or "动态任务步骤")
-
-
-def _unique_steps(steps: List[StepNode]) -> List[StepNode]:
-    seen: set[str] = set()
-    unique: List[StepNode] = []
-    for step in steps:
-        if step.node_id in seen:
-            continue
-        seen.add(step.node_id)
-        unique.append(step)
-    return unique
-
-
-def _add_dep(blueprint: ACGBlueprint, source_id: str, target_id: str) -> None:
-    if source_id == target_id:
-        return
-    for edge in blueprint.edges_of_type(EdgeType.DEPENDENCY):
-        if edge.source_id == source_id and edge.target_id == target_id:
+    @staticmethod
+    def _add_dependency(blueprint: ACGBlueprint, source_id: str, target_id: str) -> None:
+        if source_id == target_id:
+            raise ValueError(f"self dependency is not allowed: {source_id}")
+        if any(
+            edge.source_id == source_id and edge.target_id == target_id
+            for edge in blueprint.edges_of_type(EdgeType.DEPENDENCY)
+        ):
             return
-    blueprint.edges.append(ACGEdge(sourceId=source_id, targetId=target_id, edgeType=EdgeType.DEPENDENCY))
-
-
-def _add_comm(
-    blueprint: ACGBlueprint,
-    source: StepNode,
-    target: StepNode,
-    *,
-    fields: List[str] | None = None,
-) -> None:
-    if source.node_id == target.node_id:
-        return
-    for edge in blueprint.edges_of_type(EdgeType.COMMUNICATION):
-        if edge.source_id == source.node_id and edge.target_id == target.node_id:
-            return
-    if fields is None:
-        raw_fields = target.input_spec.get("fields")
-        fields = list(raw_fields) if isinstance(raw_fields, list) else []
-    blueprint.edges.append(
-        ACGEdge(
-            sourceId=source.node_id,
-            targetId=target.node_id,
-            edgeType=EdgeType.COMMUNICATION,
-            dataFields=list(fields),
-            metadata={"mode": "low_entropy", "contract": "input.fields"},
+        blueprint.edges.append(
+            ACGEdge(sourceId=source_id, targetId=target_id, edgeType=EdgeType.DEPENDENCY)
         )
-    )
-    _add_dep(blueprint, source.node_id, target.node_id)
 
 
 __all__ = ["ACGBuilder"]

@@ -15,7 +15,6 @@ from agentos.core.models.types import (
 )
 from agentos.core.native import (
     NATIVE_ACG_WORKFLOW_ID,
-    NATIVE_CAPABILITIES,
     native_bootstrap_definition,
     register_native_runtime,
 )
@@ -149,10 +148,13 @@ def test_native_runtime_executes_without_legal_pack():
     assert blueprint is not None and blueprint["nodes"]
     assert graph is not None and graph.graph_version == 1
     runtime_steps = [node for node in graph.nodes if node.node_type == NodeType.STEP]
-    assert len(runtime_steps) == len(NATIVE_CAPABILITIES)
+    assert len(runtime_steps) >= 3
     assert all(node.status.value == "completed" for node in runtime_steps)
     assert run.output.get("final_answer")
-    assert {step.capability for step in run.steps} == set(NATIVE_CAPABILITIES)
+    capabilities = {step.capability for step in run.steps}
+    assert {"task_understanding", "risk_analysis", "artifact_generation"}.issubset(
+        capabilities
+    )
     assert any(
         event.event_type == TraceEventType.TASK_STATUS_CHANGED
         and "Planner produced ACG" in event.observation

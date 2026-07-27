@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+# Test collection must make the source checkout importable before agentos imports.
+# ruff: noqa: E402
 import sys
 from pathlib import Path
 
@@ -17,7 +19,7 @@ if str(_SRC) not in sys.path:
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
-from agentos.core.acg import ControlType, EdgeType, NodeType, validate_blueprint
+from agentos.core.acg import EdgeType, NodeType, validate_blueprint
 from agentos.core.acg.enums import ComplexityLevel
 from agentos.core.models.types import WorkflowDefinition
 from agentos.core.planning import ACGPlanningError, IntentParser, PlanningEngine, TaskSemanticProfile
@@ -89,14 +91,18 @@ def test_intent_parser_uses_injected_llm():
             return {
                 "data": {
                     "primaryGoal": "LLM目标",
-                    "requiredCapabilities": ["代码生成"],
+                    "requiredCapabilities": ["architecture_design"],
                     "estimatedComplexity": "complex",
                 }
             }
 
-    profile = IntentParser(_LLM()).parse(intent="x", domain="programmer", task_type="impl")
+    profile = IntentParser(_LLM()).parse(intent="x", domain="general", task_type="impl")
     assert profile.primary_goal == "LLM目标"
-    assert profile.required_capabilities == ["代码生成"]
+    assert profile.required_capabilities == [
+        "task_understanding",
+        "requirement_analysis",
+        "architecture_design",
+    ]
     assert profile.estimated_complexity == ComplexityLevel.COMPLEX
 
 
@@ -241,13 +247,14 @@ def test_plan_force_dynamic_bypasses_template_and_adds_data_edges():
         "human_review",
         "report_generate",
     }.issubset(agents)
-    assert any(
-        node.node_type == NodeType.CONTROL and getattr(node, "control_type", None) == ControlType.PARALLEL
-        for node in result.blueprint.nodes
-    )
     communication_edges = result.blueprint.edges_of_type(EdgeType.COMMUNICATION)
     assert communication_edges
     assert any(edge.data_fields for edge in communication_edges)
+    step_ids = {step.node_id for step in result.blueprint.step_nodes()}
+    assert all(
+        edge.source_id in step_ids and edge.target_id in step_ids
+        for edge in communication_edges
+    )
 
 
 def test_dynamic_planner_drops_meta_capabilities_from_llm():

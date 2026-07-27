@@ -18,7 +18,9 @@ from typing import Any, Dict, Optional
 from agentos.agents import AgentRegistry
 from agentos.core.acg import ACGBlueprint, promote_workflow_to_acg
 from agentos.core.planning.acg_builder import ACGBuilder
+from agentos.core.planning.capabilities import CapabilityCatalog
 from agentos.core.planning.cognitive_router import CognitiveRouter
+from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.intent_parser import IntentLLM, IntentParser
 from agentos.core.planning.profile import TaskSemanticProfile
 from agentos.core.planning.template_matcher import TemplateMatcher
@@ -61,13 +63,15 @@ class PlanningEngine:
         *,
         workflow_registry: WorkflowRegistry,
         agent_registry: AgentRegistry,
+        capability_catalog: CapabilityCatalog | None = None,
         intent_llm: Optional[IntentLLM] = None,
         template_threshold: float = 0.85,
     ):
-        self.intent_parser = IntentParser(intent_llm)
+        self.capability_catalog = capability_catalog or build_default_capability_catalog()
+        self.intent_parser = IntentParser(intent_llm, self.capability_catalog)
         self.template_matcher = TemplateMatcher(workflow_registry, threshold=template_threshold)
-        self.cognitive_router = CognitiveRouter(agent_registry)
-        self.acg_builder = ACGBuilder()
+        self.cognitive_router = CognitiveRouter(agent_registry, self.capability_catalog)
+        self.acg_builder = ACGBuilder(self.capability_catalog)
 
     def plan(
         self,

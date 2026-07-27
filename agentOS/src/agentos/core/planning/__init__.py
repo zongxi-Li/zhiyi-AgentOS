@@ -8,6 +8,7 @@ ACG 构建器动态生成认知协作网络。
 from __future__ import annotations
 
 from agentos.core.planning.acg_builder import ACGBuilder
+from agentos.core.planning.capabilities import CapabilityCatalog, PlanningCapabilityDescriptor
 from agentos.core.planning.cognitive_router import (
     CapabilityBinding,
     CognitiveRouter,
@@ -31,4 +32,6 @@ __all__ = [
     "CollaborationNetwork",
     "CapabilityBinding",
     "ACGBuilder",
+    "CapabilityCatalog",
+    "PlanningCapabilityDescriptor",
 ]

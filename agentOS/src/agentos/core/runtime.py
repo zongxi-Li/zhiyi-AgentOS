@@ -52,6 +52,7 @@ from agentos.core.recovery.proposal import (
 from agentos.core.recovery.recipes import RecoveryRecipeRegistry
 from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
+from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.packs.registry import register_installed_packs
 from agentos.core.native import register_native_runtime
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
@@ -144,6 +145,7 @@ class WorkflowRuntime:
         # 让意图解析走 DeepSeek；未注入时规划器用启发式回退。
         self._planning_engine = None
         self._intent_llm = None
+        self.capability_catalog = build_default_capability_catalog()
 
     def set_intent_llm(self, intent_llm) -> None:
         """注入意图解析 LLM（app 层在装配时调用）。重置已构造的规划引擎。"""
@@ -158,6 +160,7 @@ class WorkflowRuntime:
             self._planning_engine = PlanningEngine(
                 workflow_registry=self.workflow_registry,
                 agent_registry=self.agent_registry,
+                capability_catalog=self.capability_catalog,
                 intent_llm=self._intent_llm,
             )
         return self._planning_engine

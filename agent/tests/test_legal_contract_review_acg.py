@@ -275,7 +275,7 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         assert blueprint is not None
         nodes = blueprint["nodes"]
         edges = blueprint["edges"]
-        assert len(nodes) == 22
+        assert sum(node["nodeType"] == "step" for node in nodes) == 7
         assert all(node["nodeType"] != "skill" for node in nodes)
         assert all(
             "allowedSkills" not in node.get("metadata", {})

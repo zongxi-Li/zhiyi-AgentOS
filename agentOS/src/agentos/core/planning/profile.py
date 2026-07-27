@@ -20,6 +20,11 @@ class TaskSemanticProfile(BaseModel):
     primary_goal: str = Field(default="", alias="primaryGoal")
     key_constraints: List[str] = Field(default_factory=list, alias="keyConstraints")
     required_capabilities: List[str] = Field(default_factory=list, alias="requiredCapabilities")
+    expected_artifacts: List[str] = Field(default_factory=list, alias="expectedArtifacts")
+    verification_requirements: List[str] = Field(
+        default_factory=list,
+        alias="verificationRequirements",
+    )
     estimated_complexity: ComplexityLevel = Field(
         default=ComplexityLevel.SIMPLE, alias="estimatedComplexity"
     )
