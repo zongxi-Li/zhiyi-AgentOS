@@ -28,6 +28,7 @@ class PackManifest:
     agents: tuple[str, ...]
     workflows: tuple[str, ...]
     path: Path
+    ui_extension_id: str | None = None
 
     def normalized(self) -> dict[str, Any]:
         """Return formatting- and key-order-independent manifest data."""
@@ -39,6 +40,7 @@ class PackManifest:
             "description": self.description,
             "module": self.module,
             "enabled": self.enabled,
+            "uiExtensionId": self.ui_extension_id,
             "contributions": {
                 "capabilities": sorted(set(self.capabilities)),
                 "agents": sorted(set(self.agents)),
@@ -96,6 +98,9 @@ def load_pack_manifest(path: Path) -> PackManifest:
         agents=tuple(normalized_contributions["agents"]),
         workflows=tuple(normalized_contributions["workflows"]),
         path=path,
+        ui_extension_id=(
+            str(data.get("uiExtensionId") or "").strip() or None
+        ),
     )
 
 

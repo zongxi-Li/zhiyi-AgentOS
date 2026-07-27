@@ -1793,6 +1793,10 @@ def create_router(
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @router.get("/core/plugins")
+    async def list_installed_plugins():
+        return runtime.plugin_scope_resolver.installed_plugin_projection()
+
     @router.post("/core/workflows/start-async", status_code=202)
     async def start_workflow_async(request: WorkflowStartRequest):
         try:

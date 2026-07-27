@@ -139,6 +139,27 @@ class PluginScopeResolver:
     def scoped_workflows(self, scope: RunExecutionScope):
         return self.workflow_registry.scoped(scope.workflow_ids)
 
+    def installed_plugin_projection(self) -> list[dict]:
+        """Return safe read-only metadata for UI plugin selection."""
+
+        projections = []
+        for manifest in sorted(self.manifests, key=lambda item: item.pack_id):
+            contributions = self._actual_contributions(manifest.pack_id)
+            projections.append(
+                {
+                    "pluginId": manifest.pack_id,
+                    "version": manifest.version,
+                    "displayName": manifest.name,
+                    "description": manifest.description,
+                    "available": bool(manifest.enabled),
+                    "capabilityCount": len(contributions["capabilities"]),
+                    "agentCount": len(contributions["agents"]),
+                    "workflowCount": len(contributions["workflows"]),
+                    "uiExtensionId": manifest.ui_extension_id,
+                }
+            )
+        return projections
+
     def _installed_plugin_ids(self) -> set[str]:
         ids = {manifest.pack_id for manifest in self.manifests if manifest.enabled}
         ids.update(

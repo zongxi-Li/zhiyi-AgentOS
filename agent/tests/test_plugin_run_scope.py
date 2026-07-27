@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -13,6 +14,7 @@ from agentos.core.plugin_scope import PluginScopeError
 from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
+from agentos.packs.registry import load_pack_manifest
 from app.api.agentos_core import create_router
 from packs.legal import register_pack as register_legal_pack
 
@@ -118,6 +120,32 @@ def test_async_api_rejects_unknown_plugin_with_structured_error():
         "code": "PLUGIN_NOT_AVAILABLE",
         "message": "missing.plugin",
     }
+
+
+def test_installed_plugins_api_returns_safe_legal_projection():
+    runtime = _runtime()
+    runtime.plugin_manifests = (
+        load_pack_manifest(
+            Path(__file__).parents[1] / "packs" / "legal" / "manifest.yaml"
+        ),
+    )
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+
+    response = TestClient(app).get("/ai/core/plugins")
+
+    assert response.status_code == 200
+    assert response.json() == [{
+        "pluginId": "kinlin.legal",
+        "version": "0.1.0",
+        "displayName": "法律能力包",
+        "description": "合同审查、证据匹配、风险分析与法律报告能力。",
+        "available": True,
+        "capabilityCount": 7,
+        "agentCount": 14,
+        "workflowCount": 2,
+        "uiExtensionId": "kinlin.legal",
+    }]
 
 
 def test_legacy_null_resolves_legal_workflow_owner_and_freezes_checkpoint_scope():

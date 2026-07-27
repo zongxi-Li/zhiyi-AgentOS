@@ -117,6 +117,40 @@ def test_manifest_hash_and_contribution_revision_are_canonical():
     assert changed.contribution_revision != first.contribution_revision
 
 
+def test_installed_plugin_projection_exposes_only_safe_metadata():
+    resolver = _resolver()
+    projection = resolver.installed_plugin_projection()
+
+    assert projection == []
+
+    manifest = PackManifest(
+        pack_id="sample.plugin",
+        name="Sample",
+        version="1.0.0",
+        description="Sample plugin",
+        module="packs.sample",
+        enabled=True,
+        capabilities=("plugin_capability",),
+        agents=("plugin_agent",),
+        workflows=("sample_workflow",),
+        path=Path("manifest.yaml"),
+        ui_extension_id="sample.plugin",
+    )
+    resolver.manifests = (manifest,)
+
+    assert resolver.installed_plugin_projection() == [{
+        "pluginId": "sample.plugin",
+        "version": "1.0.0",
+        "displayName": "Sample",
+        "description": "Sample plugin",
+        "available": True,
+        "capabilityCount": 1,
+        "agentCount": 1,
+        "workflowCount": 1,
+        "uiExtensionId": "sample.plugin",
+    }]
+
+
 def test_enabled_plugin_tristate_and_unknown_rejection():
     resolver = _resolver()
 

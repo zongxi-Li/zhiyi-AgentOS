@@ -1,9 +1,10 @@
 {
   "id": "kinlin.legal",
-  "name": "Legal Demo Pack",
+  "name": "法律能力包",
   "version": "0.1.0",
   "module": "packs.legal",
-  "description": "Demo legal workflow pack used to validate AgentOS Core registration.",
+  "description": "合同审查、证据匹配、风险分析与法律报告能力。",
+  "uiExtensionId": "kinlin.legal",
   "contributions": {
     "agents": [
       "case_intake",
