@@ -1,6 +1,8 @@
 import pytest
 
 from agentos.core.planning import CapabilityCatalog, PlanningCapabilityDescriptor
+from agentos.core.planning.default_catalog import build_default_capability_catalog
+from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
 
 
 def descriptor(capability_id: str, **kwargs) -> PlanningCapabilityDescriptor:
@@ -79,3 +81,13 @@ def test_catalog_expands_dependencies_in_topological_order():
     catalog.validate()
 
     assert catalog.expand_dependencies(["deliver"]) == ["understand", "analyze", "deliver"]
+
+
+def test_default_catalog_contains_only_core_native_capabilities():
+    catalog = build_default_capability_catalog()
+
+    assert {item.capability_id for item in catalog.available()} == set(
+        NATIVE_CAPABILITY_IDS
+    )
+    with pytest.raises(KeyError):
+        catalog.get("风险识别")

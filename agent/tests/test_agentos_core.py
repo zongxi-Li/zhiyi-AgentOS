@@ -88,10 +88,16 @@ def _runtime_with_workflow(steps, agents):
 def _runtime_with_legal_pack():
     agent_registry = AgentRegistry()
     workflow_registry = WorkflowRegistry()
-    register_legal_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
-    return configure_runtime(
-        WorkflowRuntime(agent_registry=agent_registry, workflow_registry=workflow_registry)
+    runtime = WorkflowRuntime(
+        agent_registry=agent_registry,
+        workflow_registry=workflow_registry,
     )
+    register_legal_pack(
+        agent_registry=runtime.agent_registry,
+        workflow_registry=runtime.workflow_registry,
+        capability_catalog=runtime.capability_catalog,
+    )
+    return configure_runtime(runtime)
 
 
 def test_state_machine_blocks_illegal_transitions():
@@ -830,8 +836,12 @@ def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
 
     calls = []
 
-    def fake_register_installed_packs(agent_registry, workflow_registry):
-        calls.append((agent_registry, workflow_registry))
+    def fake_register_installed_packs(
+        agent_registry,
+        workflow_registry,
+        capability_catalog,
+    ):
+        calls.append((agent_registry, workflow_registry, capability_catalog))
         return []
 
     monkeypatch.setattr(core_runtime, "register_installed_packs", fake_register_installed_packs)
@@ -839,4 +849,6 @@ def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
 
     runtime = core_runtime.build_default_runtime()
 
-    assert calls == [(runtime.agent_registry, runtime.workflow_registry)]
+    assert calls == [
+        (runtime.agent_registry, runtime.workflow_registry, runtime.capability_catalog)
+    ]

@@ -53,6 +53,7 @@ from agentos.core.recovery.recipes import RecoveryRecipeRegistry
 from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.planning.default_catalog import build_default_capability_catalog
+from agentos.core.planning.capabilities import CapabilityCatalog
 from agentos.packs.registry import register_installed_packs
 from agentos.core.native import register_native_runtime
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
@@ -104,6 +105,7 @@ class WorkflowRuntime:
         execution_adapter_factories: Optional[Mapping[str, ExecutionAdapterFactory]] = None,
         run_lock_manager: Optional[RunLockManager] = None,
         recovery_recipe_registry: Optional[RecoveryRecipeRegistry] = None,
+        capability_catalog: CapabilityCatalog | None = None,
     ):
         self.agent_registry = agent_registry or AgentRegistry()
         self.workflow_registry = workflow_registry or WorkflowRegistry()
@@ -145,7 +147,7 @@ class WorkflowRuntime:
         # 让意图解析走 DeepSeek；未注入时规划器用启发式回退。
         self._planning_engine = None
         self._intent_llm = None
-        self.capability_catalog = build_default_capability_catalog()
+        self.capability_catalog = capability_catalog or build_default_capability_catalog()
 
     def set_intent_llm(self, intent_llm) -> None:
         """注入意图解析 LLM（app 层在装配时调用）。重置已构造的规划引擎。"""
@@ -1064,6 +1066,7 @@ def build_default_runtime() -> WorkflowRuntime:
     register_installed_packs(
         agent_registry=runtime.agent_registry,
         workflow_registry=runtime.workflow_registry,
+        capability_catalog=runtime.capability_catalog,
     )
     return runtime
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import os
 import sys
@@ -22,6 +23,7 @@ class PackManifest:
     description: str
     module: str
     enabled: bool
+    capabilities: tuple[str, ...]
     path: Path
 
 
@@ -43,6 +45,13 @@ def load_pack_manifest(path: Path) -> PackManifest:
         raise ValueError(f"pack manifest missing id: {path}")
 
     module = str(data.get("module") or f"packs.{pack_id}").strip()
+    contributions = data.get("contributions") or {}
+    if not isinstance(contributions, dict):
+        raise ValueError(f"pack manifest contributions must be an object: {path}")
+    capabilities = contributions.get("capabilities") or []
+    if not isinstance(capabilities, list):
+        raise ValueError(f"pack manifest capabilities must be an array: {path}")
+
     return PackManifest(
         pack_id=pack_id,
         name=str(data.get("name") or pack_id),
@@ -50,6 +59,7 @@ def load_pack_manifest(path: Path) -> PackManifest:
         description=str(data.get("description") or ""),
         module=module,
         enabled=bool(data.get("enabled", True)),
+        capabilities=tuple(str(item).strip() for item in capabilities if str(item).strip()),
         path=path,
     )
 
@@ -58,6 +68,7 @@ def register_installed_packs(
     *,
     agent_registry,
     workflow_registry,
+    capability_catalog=None,
     packs_dir: Path | None = None,
 ) -> tuple[PackManifest, ...]:
     root = (packs_dir or default_packs_dir()).resolve()
@@ -71,7 +82,17 @@ def register_installed_packs(
         register_pack = getattr(module, "register_pack", None)
         if register_pack is None:
             raise ValueError(f"pack module missing register_pack: {manifest.module}")
-        register_pack(agent_registry=agent_registry, workflow_registry=workflow_registry)
+        kwargs = {
+            "agent_registry": agent_registry,
+            "workflow_registry": workflow_registry,
+        }
+        if "capability_catalog" in inspect.signature(register_pack).parameters:
+            if capability_catalog is None:
+                raise ValueError(
+                    f"pack requires capability catalog: {manifest.module}"
+                )
+            kwargs["capability_catalog"] = capability_catalog
+        register_pack(**kwargs)
         registered.append(manifest)
     return tuple(registered)
 

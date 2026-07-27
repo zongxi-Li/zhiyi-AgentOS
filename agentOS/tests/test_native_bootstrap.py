@@ -144,6 +144,10 @@ def test_native_runtime_executes_without_legal_pack():
     graph = run.runtime_graph
 
     assert workflows.recommend("legal", "contract_review") is None
+    with pytest.raises(KeyError):
+        runtime.capability_catalog.get("风险识别")
+    with pytest.raises(KeyError):
+        agents.resolve("legal", agent_name="risk_detect")
     assert run.status == WorkflowStatus.COMPLETED
     assert blueprint is not None and blueprint["nodes"]
     assert graph is not None and graph.graph_version == 1
@@ -168,13 +172,16 @@ def test_default_runtime_registers_native_before_application_packs(monkeypatch):
 
     observed: list[str] = []
 
-    def inspect_pack_registration(*, agent_registry, workflow_registry):
+    def inspect_pack_registration(*, agent_registry, workflow_registry, capability_catalog):
         workflow_registry.get(NATIVE_ACG_WORKFLOW_ID)
         agent_registry.resolve(
             domain="general",
             agent_name="native_general_agent",
             capability="task_understanding",
         )
+        assert capability_catalog.get("task_understanding").domain_hints == ["general"]
+        with pytest.raises(KeyError):
+            capability_catalog.get("风险识别")
         observed.append("native_ready")
         return ()
 

@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
+from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.intent_parser import IntentParser
 from packs.legal.agents import contract_review_migration as contract_agents
+from packs.legal.planning import register_legal_capabilities
 
 
 class _IntentLLM:
@@ -21,8 +23,10 @@ class _IntentLLM:
 
 def test_acg_planner_forwards_thinking_mode_to_intent_llm():
     llm = _IntentLLM()
+    catalog = build_default_capability_catalog()
+    register_legal_capabilities(catalog)
 
-    profile = IntentParser(llm).parse(
+    profile = IntentParser(llm, catalog).parse(
         intent="审查合同风险并生成报告",
         domain="legal",
         task_type="contract_review_acg",

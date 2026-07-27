@@ -459,7 +459,13 @@ def test_generic_planning_files_do_not_contain_specialized_contract_fields():
         "legal_evidence_match",
         "revision_suggestions",
     }
-    for filename in ["intent_parser.py", "cognitive_router.py", "acg_builder.py", "engine.py"]:
+    for filename in [
+        "intent_parser.py",
+        "cognitive_router.py",
+        "acg_builder.py",
+        "engine.py",
+        "default_catalog.py",
+    ]:
         text = (root / filename).read_text(encoding="utf-8")
         assert not forbidden.intersection(text.split())
         assert all(value not in text for value in forbidden)
@@ -479,6 +485,12 @@ def test_generic_planning_files_have_no_scenario_capability_presets():
         "build_research_graph",
         "生产线",
     }
-    for filename in ["intent_parser.py", "cognitive_router.py", "acg_builder.py", "engine.py"]:
+    for filename in [
+        "intent_parser.py",
+        "cognitive_router.py",
+        "acg_builder.py",
+        "engine.py",
+        "default_catalog.py",
+    ]:
         text = (root / filename).read_text(encoding="utf-8")
         assert all(value not in text for value in forbidden)

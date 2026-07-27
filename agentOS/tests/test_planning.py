@@ -16,6 +16,9 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
+_AGENT = Path(__file__).resolve().parents[2] / "agent"
+if str(_AGENT) not in sys.path:
+    sys.path.insert(0, str(_AGENT))
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
@@ -25,7 +28,9 @@ from agentos.core.models.types import WorkflowDefinition
 from agentos.core.planning import ACGPlanningError, IntentParser, PlanningEngine, TaskSemanticProfile
 from agentos.core.planning.cognitive_router import CognitiveRouter
 from agentos.core.planning.template_matcher import TemplateMatcher
+from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.workflow.registry import WorkflowRegistry
+from packs.legal.planning import register_legal_capabilities
 
 
 class _Agent(BaseAgent):
@@ -34,6 +39,12 @@ class _Agent(BaseAgent):
 
     async def run(self, context):
         return AgentOutput(output={}, summary="ok")
+
+
+def _legal_catalog():
+    catalog = build_default_capability_catalog()
+    register_legal_capabilities(catalog)
+    return catalog
 
 
 def _registries():
@@ -76,7 +87,7 @@ def _legal_acg_agent_registry():
 
 # ---------- 意图解析 ----------
 def test_intent_parser_heuristic_extracts_capabilities():
-    parser = IntentParser()  # 无 LLM，走启发式
+    parser = IntentParser(capability_catalog=_legal_catalog())  # 无 LLM，走启发式
     profile = parser.parse(intent="审查合同违约风险并生成报告", domain="legal", task_type="contract_review")
     assert isinstance(profile, TaskSemanticProfile)
     assert profile.domain_hint == "legal"
@@ -119,7 +130,7 @@ def test_intent_parser_does_not_accept_entropy_budget_from_llm():
                 }
             }
 
-    profile = IntentParser(_LLM()).parse(
+    profile = IntentParser(_LLM(), _legal_catalog()).parse(
         intent="审查合同并生成报告",
         domain="legal",
         task_type="contract_review",
@@ -133,7 +144,7 @@ def test_intent_parser_can_use_deterministic_fast_path():
         def generate_json(self, prompt, schema, **kwargs):
             raise AssertionError("deterministic parsing must not call the model")
 
-    profile = IntentParser(_UnexpectedLLM()).parse(
+    profile = IntentParser(_UnexpectedLLM(), _legal_catalog()).parse(
         intent="审查合同风险并生成报告",
         domain="legal",
         task_type="contract_review",
@@ -149,7 +160,11 @@ def test_intent_parser_falls_back_when_llm_raises():
         def generate_json(self, prompt, schema, **kwargs):
             raise RuntimeError("llm down")
 
-    profile = IntentParser(_BadLLM()).parse(intent="审查合同", domain="legal", task_type="contract_review")
+    profile = IntentParser(_BadLLM(), _legal_catalog()).parse(
+        intent="审查合同",
+        domain="legal",
+        task_type="contract_review",
+    )
     assert profile.primary_goal  # 回退启发式成功
 
 
@@ -158,7 +173,7 @@ def test_intent_parser_recovers_from_empty_llm_profile():
         def generate_json(self, prompt, schema, **kwargs):
             return {"data": {}}
 
-    profile = IntentParser(_EmptyLLM()).parse(
+    profile = IntentParser(_EmptyLLM(), _legal_catalog()).parse(
         intent="审查合同风险并生成报告",
         domain="legal",
         task_type="contract_review",
@@ -189,7 +204,11 @@ def test_template_matcher_no_domain_returns_none():
 # ---------- 端到端规划 ----------
 def test_plan_static_template_path():
     wr, ar = _registries()
-    engine = PlanningEngine(workflow_registry=wr, agent_registry=ar)
+    engine = PlanningEngine(
+        workflow_registry=wr,
+        agent_registry=ar,
+        capability_catalog=_legal_catalog(),
+    )
     result = engine.plan(
         task_id="t1", intent="审查这份采购合同的违约风险", domain="legal", task_type="contract_review"
     )
@@ -203,7 +222,11 @@ def test_plan_static_template_path():
 
 def test_plan_dynamic_generation_path():
     wr, ar = _registries()
-    engine = PlanningEngine(workflow_registry=wr, agent_registry=ar)
+    engine = PlanningEngine(
+        workflow_registry=wr,
+        agent_registry=ar,
+        capability_catalog=_legal_catalog(),
+    )
     result = engine.plan(
         task_id="t2",
         intent="分析跨境并购的税务合规与风险并生成报告",
@@ -221,7 +244,11 @@ def test_plan_dynamic_generation_path():
 def test_plan_force_dynamic_bypasses_template_and_adds_data_edges():
     wr, _ = _registries()
     ar = _legal_acg_agent_registry()
-    engine = PlanningEngine(workflow_registry=wr, agent_registry=ar)
+    engine = PlanningEngine(
+        workflow_registry=wr,
+        agent_registry=ar,
+        capability_catalog=_legal_catalog(),
+    )
     result = engine.plan(
         task_id="t3",
         intent="审查这份合同中的付款、验收、知识产权和违约责任风险，匹配依据，生成修改建议、人工审核要点和审查报告",
@@ -281,6 +308,7 @@ def test_dynamic_planner_drops_meta_capabilities_from_llm():
     engine = PlanningEngine(
         workflow_registry=wr,
         agent_registry=_legal_acg_agent_registry(),
+        capability_catalog=_legal_catalog(),
         intent_llm=_LLM(),
     )
     result = engine.plan(
@@ -313,6 +341,7 @@ def test_dynamic_planner_normalizes_legal_knowledge_capability_from_llm():
     engine = PlanningEngine(
         workflow_registry=workflows,
         agent_registry=_legal_acg_agent_registry(),
+        capability_catalog=_legal_catalog(),
         intent_llm=_LLM(),
     )
     result = engine.plan(
@@ -344,6 +373,7 @@ def test_dynamic_planner_completes_contract_review_agent_dependencies():
     engine = PlanningEngine(
         workflow_registry=workflows,
         agent_registry=_legal_acg_agent_registry(),
+        capability_catalog=_legal_catalog(),
         intent_llm=_LLM(),
     )
     result = engine.plan(
@@ -362,7 +392,7 @@ def test_dynamic_planner_completes_contract_review_agent_dependencies():
 
 def test_cognitive_router_binds_capabilities():
     _, ar = _registries()
-    router = CognitiveRouter(ar)
+    router = CognitiveRouter(ar, _legal_catalog())
     profile = TaskSemanticProfile(
         primaryGoal="x",
         requiredCapabilities=["文本解析", "风险识别", "未知能力"],
@@ -389,6 +419,7 @@ def test_planner_rejects_unresolved_capability():
     engine = PlanningEngine(
         workflow_registry=workflows,
         agent_registry=agents,
+        capability_catalog=_legal_catalog(),
         intent_llm=_UnknownLLM(),
     )
     with pytest.raises(ACGPlanningError, match="No registered Agent"):

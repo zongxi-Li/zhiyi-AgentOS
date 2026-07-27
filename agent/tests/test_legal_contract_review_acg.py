@@ -17,8 +17,13 @@ from packs.legal import register_pack as register_legal_pack
 def _runtime() -> WorkflowRuntime:
     agents = AgentRegistry()
     workflows = WorkflowRegistry()
-    register_legal_pack(agent_registry=agents, workflow_registry=workflows)
-    return configure_runtime(WorkflowRuntime(agent_registry=agents, workflow_registry=workflows))
+    runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+    register_legal_pack(
+        agent_registry=runtime.agent_registry,
+        workflow_registry=runtime.workflow_registry,
+        capability_catalog=runtime.capability_catalog,
+    )
+    return configure_runtime(runtime)
 
 
 async def _start(runtime: WorkflowRuntime):

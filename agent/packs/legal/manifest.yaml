@@ -2,5 +2,20 @@
   "id": "legal",
   "name": "Legal Demo Pack",
   "version": "0.1.0",
-  "description": "Demo legal workflow pack used to validate AgentOS Core registration."
+  "description": "Demo legal workflow pack used to validate AgentOS Core registration.",
+  "contributions": {
+    "workflows": [
+      "legal_case_analysis_v1",
+      "legal_contract_review_v1"
+    ],
+    "capabilities": [
+      "文本解析",
+      "条款分类",
+      "风险识别",
+      "证据检索",
+      "修改建议",
+      "人工审核",
+      "报告生成"
+    ]
+  }
 }
