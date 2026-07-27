@@ -71,6 +71,12 @@
           <div v-if="selectedStepState?.agentName || selectedNode.agentName"><dt>Agent</dt><dd>{{ selectedStepState?.agentName || selectedNode.agentName }}</dd></div>
           <div v-if="selectedNode.capability"><dt>能力</dt><dd>{{ selectedNode.capability }}</dd></div>
           <div v-if="selectedStepState?.currentBinding"><dt>当前 Binding</dt><dd><code>{{ bindingLabel(selectedStepState.currentBinding) }}</code></dd></div>
+          <div v-if="selectedStepState?.currentBinding"><dt>来源</dt><dd>{{ bindingSourceLabel(selectedStepState.currentBinding) }}</dd></div>
+          <div v-if="selectedStepState?.currentBinding?.pluginId"><dt>插件</dt><dd><code>{{ selectedStepState.currentBinding.pluginId }}</code></dd></div>
+          <div v-if="selectedStepState?.currentBinding?.pluginVersion"><dt>插件版本</dt><dd>{{ selectedStepState.currentBinding.pluginVersion }}</dd></div>
+          <div v-if="selectedStepState?.currentBinding?.modelName"><dt>模型</dt><dd>{{ selectedStepState.currentBinding.modelName }}</dd></div>
+          <div v-if="selectedStepState?.currentBinding?.bindingId"><dt>Binding ID</dt><dd><code>{{ selectedStepState.currentBinding.bindingId }}</code></dd></div>
+          <div v-if="(selectedStepState?.bindingSwitchCount || 0) > 0"><dt>替代 Binding</dt><dd>已切换 {{ selectedStepState?.bindingSwitchCount }} 次</dd></div>
           <div v-if="selectedStepState?.attempt"><dt>Attempt</dt><dd>{{ selectedStepState.attempt }} 次</dd></div>
           <div v-if="selectedStepState?.createdGraphVersion"><dt>创建图版本</dt><dd>v{{ selectedStepState.createdGraphVersion }}</dd></div>
           <div v-if="selectedStepState?.sourcePatchId"><dt>来源 Patch</dt><dd><code>{{ selectedStepState.sourcePatchId }}</code></dd></div>
@@ -233,6 +239,8 @@ const selectedNodeStatus = computed(() => {
 })
 const bindingLabel = (binding: Record<string, any>) =>
   String(binding.agentName || binding.bindingId || binding.assignedAgentId || '默认绑定')
+const bindingSourceLabel = (binding: Record<string, any>) =>
+  binding.source === 'plugin' ? 'Plugin' : 'Native'
 const incomingConnections = computed(() =>
   visibleBlueprint.value?.edges.filter(edge => edge.targetId === selectedNodeId.value) || []
 )

@@ -4,8 +4,9 @@ import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AcgVisualizationView from './AcgVisualizationView.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import PluginExtensionHost from '@/features/acg/PluginExtensionHost.vue'
+import GenericArtifactPanel from '@/features/acg/GenericArtifactPanel.vue'
 import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun } from '@/services/api/workflow'
-import { DEFAULT_ACG_PROMPT_PRESET } from '@/test/fixtures/acgPromptPresets'
 import { fileApi } from '@/services/api/file'
 
 vi.mock('@/services/api/workflow', async (importOriginal) => {
@@ -14,6 +15,7 @@ vi.mock('@/services/api/workflow', async (importOriginal) => {
     ...actual,
     workflowApi: {
       ...actual.workflowApi,
+      listInstalledPlugins: vi.fn(),
       startWorkflow: vi.fn(),
       startWorkflowAsync: vi.fn(),
       getWorkflowProgress: vi.fn(),
@@ -43,8 +45,9 @@ const makeProgress = (overrides: Partial<WorkflowProgress> = {}): WorkflowProgre
 })
 
 const makeRun = (): WorkflowRun => ({
-  runId: 'run_1', taskId: 'task_1', workflowId: 'workflow_1', domain: 'legal',
-  status: 'running', reviewMode: 'manual', input: {}, output: {}, steps: [], checkpoints: [], trace: []
+  runId: 'run_1', taskId: 'task_1', workflowId: 'native_acg_runtime_v1', domain: 'general',
+  status: 'running', reviewMode: 'auto', input: {}, output: {}, steps: [], checkpoints: [], trace: [],
+  enabledPluginIds: [], resolvedEnabledPluginIds: [], pluginSnapshot: [], legacyPluginScope: false
 })
 
 const makeAcg = (): AcgView => ({
@@ -88,7 +91,8 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
         'el-checkbox-group': true,
         'el-checkbox-button': true,
         'el-select': true,
-        'el-option': true
+        'el-option': true,
+        PluginExtensionHost: false
       }
     }
   })
@@ -111,6 +115,11 @@ describe('AcgVisualizationView async progress loop', () => {
       task: { taskId: 'task_1', status: 'pending' },
       run: { runId: 'run_1', status: 'pending', lifecyclePhase: 'understanding' }
     })
+    vi.mocked(workflowApi.listInstalledPlugins).mockResolvedValue([{
+      pluginId: 'kinlin.legal', version: '0.1.0', displayName: '法律能力包',
+      description: '合同审查、证据匹配、风险分析与法律报告能力。', available: true,
+      capabilityCount: 7, agentCount: 14, workflowCount: 2, uiExtensionId: 'kinlin.legal'
+    }])
     vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress())
     vi.mocked(workflowApi.getRun).mockResolvedValue(makeRun())
     vi.mocked(workflowApi.getAcgView).mockResolvedValue(makeAcg())
@@ -122,7 +131,7 @@ describe('AcgVisualizationView async progress loop', () => {
     vi.mocked(fileApi.deleteTaskMaterial).mockResolvedValue()
   })
 
-  it('uploads a selected contract through the task material API and shows the ready state', async () => {
+  it('uploads generic task material through the task material API and shows the ready state', async () => {
     const { wrapper } = await mountPage()
     const input = wrapper.find('input[type="file"]')
     const file = new File(['上传后的合同正文'], '合同.txt', { type: 'text/plain' })
@@ -174,18 +183,21 @@ describe('AcgVisualizationView async progress loop', () => {
     wrapper.unmount()
   })
 
-  it('uses async start, writes runId to query, and begins progress immediately', async () => {
+  it('starts Native explicitly, writes runId to query, and begins progress immediately', async () => {
     const { wrapper, router } = await mountPage()
     await clickStart(wrapper)
 
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledOnce()
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
-      title: DEFAULT_ACG_PROMPT_PRESET.taskName,
-      reviewMode: 'human_in_loop',
+      title: '基础软件项目实施方案',
+      domain: 'general',
+      intent: 'general',
+      workflowId: undefined,
+      enabledPluginIds: [],
+      reviewMode: 'auto',
       input: expect.objectContaining({
-        source: 'acg',
-        contractText: DEFAULT_ACG_PROMPT_PRESET.contractText,
-        userIntent: DEFAULT_ACG_PROMPT_PRESET.userIntent
+        source: 'acg-workbench',
+        userIntent: '设计一个基础软件项目实施方案，包括目标、阶段、风险和交付物'
       })
     }), expect.any(Object))
     expect(workflowApi.startWorkflow).not.toHaveBeenCalled()
@@ -200,6 +212,7 @@ describe('AcgVisualizationView async progress loop', () => {
     expect(wrapper.find('.input-summary').exists()).toBe(true)
     expect(wrapper.find('.input-panel-expandable').attributes('style')).toContain('display: none')
     expect(wrapper.findComponent(WorkflowProgressBar).exists()).toBe(true)
+    expect(wrapper.findAll('.plugin-card').every(item => item.attributes('disabled') !== undefined)).toBe(true)
     expect(wrapper.find('.ctrl-options').exists()).toBe(true)
     expect(wrapper.findAll('.input-panel-toggle')).toHaveLength(1)
     expect(wrapper.find('.input-panel-toggle').attributes('aria-expanded')).toBe('false')
@@ -218,8 +231,88 @@ describe('AcgVisualizationView async progress loop', () => {
     expect(wrapper.find('.hero-engine').text()).toBe('engine: acg')
     expect(wrapper.find('.hero-icon-action').attributes('disabled')).toBeDefined()
     expect(wrapper.find('.task-brief').text()).toBe('ACG 动态智能体长程任务')
+    expect(wrapper.text()).toContain('知弈OS 原生任务工作台')
+    expect(wrapper.text()).toContain('任务材料')
+    expect(wrapper.text()).not.toContain('合同文本')
+    expect(wrapper.text()).not.toContain('法律风险')
+    expect(wrapper.text()).not.toContain('甲方')
+    expect(wrapper.text()).not.toContain('乙方')
     expect(wrapper.find('#acg-task-name').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('测试预设')
+    wrapper.unmount()
+  })
+
+  it('adds the Legal extension to the same workbench and sends an explicit plugin scope', async () => {
+    const { wrapper } = await mountPage()
+    const legalCard = wrapper.findAll('.plugin-card').find(item => item.text().includes('法律能力包'))
+    expect(legalCard).toBeTruthy()
+    await legalCard!.trigger('click')
+    expect(wrapper.findComponent(PluginExtensionHost).props('extensions'))
+      .toEqual([expect.objectContaining({ pluginId: 'kinlin.legal' })])
+
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      configurable: true,
+      value: [new File(['上传后的合同正文'], '合同.txt', { type: 'text/plain' })]
+    })
+    await input.trigger('change')
+    await flushPromises()
+    await clickStart(wrapper)
+
+    expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
+      title: '识别合同风险、核验法律依据并生成修改建议',
+      domain: 'legal',
+      intent: 'contract_review',
+      enabledPluginIds: ['kinlin.legal'],
+      reviewMode: 'human_in_loop',
+      input: expect.objectContaining({
+        userIntent: '识别合同风险、核验法律依据并生成修改建议',
+        contractText: '上传后的合同正文',
+        evidenceFirst: true,
+        riskParallel: true,
+        conservativeReview: true
+      })
+    }), expect.any(Object))
+    wrapper.unmount()
+  })
+
+  it('locks plugin selection to the historical Run snapshot and reports a missing plugin', async () => {
+    vi.mocked(workflowApi.listInstalledPlugins).mockResolvedValueOnce([])
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
+      phase: 'executing', status: 'running'
+    }))
+    vi.mocked(workflowApi.getRun).mockResolvedValue({
+      ...makeRun(), domain: 'legal', workflowId: 'legal_contract_review_v1',
+      enabledPluginIds: ['kinlin.legal'], resolvedEnabledPluginIds: ['kinlin.legal'],
+      pluginSnapshot: [{
+        pluginId: 'kinlin.legal', version: '0.1.0', manifestHash: 'manifest',
+        contributionRevision: 'contribution'
+      }], capabilityCatalogRevision: 'catalog-revision'
+    })
+
+    const { wrapper } = await mountPage('?runId=run_1')
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+
+    expect(wrapper.find('.run-scope').text()).toContain('本次 Run 的能力范围（已冻结）')
+    expect(wrapper.find('.run-scope').text()).toContain('kinlin.legal')
+    expect(wrapper.find('.scope-warning').text()).toContain('原插件当前不可用')
+    expect(wrapper.findAll('.plugin-card').every(item => item.attributes('disabled') !== undefined)).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('labels legacy history without inventing a plugin version', async () => {
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
+      phase: 'executing', status: 'running'
+    }))
+    vi.mocked(workflowApi.getRun).mockResolvedValue({ ...makeRun(), legacyPluginScope: true })
+
+    const { wrapper } = await mountPage('?runId=run_1')
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+
+    expect(wrapper.find('.scope-warning').text()).toContain('插件快照功能之前')
+    expect(wrapper.find('.snapshot-list').text()).toContain('Native only')
     wrapper.unmount()
   })
 
@@ -244,6 +337,7 @@ describe('AcgVisualizationView async progress loop', () => {
 
     expect(workflowApi.getAcgView).toHaveBeenCalledOnce()
     expect(workflowApi.getRun).toHaveBeenCalledOnce()
+    expect(wrapper.findComponent(GenericArtifactPanel).exists()).toBe(true)
     wrapper.unmount()
   })
 

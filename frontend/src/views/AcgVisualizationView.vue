@@ -1,4 +1,4 @@
-<!-- ACG 动态群体智能引擎页面 — 输入合同文本和任务目标，引擎进行解析、分类、风险分析、证据和建议生成 -->
+<!-- 知弈OS 原生 ACG 工作台 — 专业语义通过编译期 Plugin UI Extension 增量注入。 -->
 <template>
   <div class="acg-view ui-shell" :class="{ 'has-progress': isSubmitting || progressTracker.progress.value || progressTracker.syncError.value, 'is-draft': !activeRunId }">
     <header class="ui-hero ui-hero--compact">
@@ -28,8 +28,8 @@
       <button
         class="input-panel-toggle"
         type="button"
-        :title="inputPanelExpanded ? '收起合同文本与任务目标' : '展开合同文本与任务目标'"
-        :aria-label="inputPanelExpanded ? '收起合同文本与任务目标' : '展开合同文本与任务目标'"
+        :title="inputPanelExpanded ? '收起任务配置' : '展开任务配置'"
+        :aria-label="inputPanelExpanded ? '收起任务配置' : '展开任务配置'"
         :aria-expanded="inputPanelExpanded"
         @click="inputPanelExpanded = !inputPanelExpanded"
       >
@@ -39,7 +39,7 @@
         <span class="input-summary__copy">
           <el-icon><Document /></el-icon>
           <strong>{{ taskName || '未命名 ACG 任务' }}</strong>
-          <small>合同文本 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜思考{{ thinkingModeSummary }}</small>
+          <small>任务材料 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜{{ activePluginSummary }}</small>
         </span>
       </div>
       <Transition
@@ -52,65 +52,86 @@
         @after-leave="afterInputPanelLeave"
       >
         <div v-show="inputPanelExpanded" class="input-panel-expandable">
+      <div class="workbench-identity">
+        <div><strong>知弈OS 原生任务工作台</strong><small>默认只使用 Native 能力；专业能力包按 Run 显式启用</small></div>
+        <el-tag effect="plain">Native Core</el-tag>
+      </div>
       <div class="input-fields">
         <div class="input-pane contract-pane">
-          <span class="pane-heading">任务资料</span>
+          <span class="pane-heading">任务材料</span>
           <div class="ctrl-row">
-            <label class="ctrl-label">合同文本</label>
-            <el-input class="contract-textarea" v-model="contractText" type="textarea" :autosize="{ minRows: 8, maxRows: 16 }" placeholder="输入合同文本，引擎将解析→分类→风险→证据→建议→报告" />
+            <label class="ctrl-label">文本材料（可选）</label>
+            <el-input class="contract-textarea" v-model="contractText" type="textarea" :autosize="{ minRows: 6, maxRows: 14 }" placeholder="粘贴需求、背景资料、研究材料或其他任务上下文" />
           </div>
           <div class="contract-upload" :class="{ dragging: uploadDragging, populated: selectedContractFile, loading: loading.upload }" @dragenter.prevent="uploadDragging = true" @dragover.prevent="uploadDragging = true" @dragleave.prevent="uploadDragging = false" @drop.prevent="handleContractDrop">
             <input ref="contractFileInput" class="contract-file-input" type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" @change="handleContractFileSelection" />
             <span class="contract-upload__icon" aria-hidden="true"><el-icon><Document v-if="selectedContractFile" /><UploadFilled v-else /></el-icon></span>
             <span class="contract-upload__copy">
-              <strong>{{ selectedContractFile?.originalFilename || (uploadState === 'parsing' ? '正在解析合同文件' : loading.upload ? '正在上传合同文件' : '上传合同文件') }}</strong>
+              <strong>{{ selectedContractFile?.originalFilename || (uploadState === 'parsing' ? '正在解析任务文件' : loading.upload ? '正在上传任务文件' : '补充任务文件') }}</strong>
               <small v-if="selectedContractFile">{{ formatFileSize(selectedContractFile.size) }} · 已提取 {{ selectedContractFile.textLength.toLocaleString('zh-CN') }} 字</small>
               <small v-if="uploadError" class="contract-upload__error">{{ uploadError }}</small>
               <small v-else-if="!selectedContractFile">拖放到此处，或选择 PDF、DOCX、TXT、MD，最大 10MB</small>
             </span>
             <span class="contract-upload__actions">
               <el-button size="small" :loading="loading.upload" @click="openContractFilePicker"><el-icon><UploadFilled /></el-icon>{{ selectedContractFile ? '替换文件' : '选择文件' }}</el-button>
-              <el-button v-if="selectedContractFile" circle size="small" title="移除合同文件" aria-label="移除合同文件" @click="clearContractFile"><el-icon><Delete /></el-icon></el-button>
+              <el-button v-if="selectedContractFile" circle size="small" title="移除任务文件" aria-label="移除任务文件" @click="clearContractFile"><el-icon><Delete /></el-icon></el-button>
             </span>
           </div>
         </div>
         <div class="input-pane definition-pane">
           <span class="pane-heading">任务定义</span>
+          <label class="ctrl-label">任务名称</label>
+          <el-input v-model="taskName" placeholder="为本次任务命名" />
           <div class="ctrl-row">
             <label class="ctrl-label">任务目标</label>
-            <el-input class="intent-textarea" v-model="userIntent" type="textarea" :autosize="{ minRows: 8, maxRows: 16 }" placeholder="描述 ACG 需要完成的审查目标" />
+            <el-input class="intent-textarea" v-model="userIntent" type="textarea" :autosize="{ minRows: 5, maxRows: 12 }" placeholder="描述目标、范围和成功标准" />
           </div>
+          <label class="ctrl-label">执行约束</label>
+          <el-input v-model="constraintsText" placeholder="使用逗号分隔，例如：两周内完成、控制预算" />
+          <label class="ctrl-label">预期交付物</label>
+          <el-input v-model="expectedArtifactsText" placeholder="使用逗号分隔，例如：实施方案、风险清单" />
         </div>
       </div>
+      <section class="plugin-selector" aria-label="专业能力包">
+        <header><div><strong>专业能力包</strong><small>Native 能力始终可用；选择只对新 Run 生效</small></div><span v-if="pluginsLoading">正在读取...</span></header>
+        <div class="plugin-options">
+          <button type="button" class="plugin-card native-card" :class="{ selected: !draft.enabledPluginIds.length }" :disabled="scopeLocked" @click="clearPlugins">
+            <strong>原生能力</strong><small>通用规划、分析与交付</small><code>enabledPluginIds=[]</code>
+          </button>
+          <button v-for="plugin in installedPlugins" :key="plugin.pluginId" type="button" class="plugin-card" :class="{ selected: draft.enabledPluginIds.includes(plugin.pluginId) }" :disabled="scopeLocked || !plugin.available" @click="togglePlugin(plugin.pluginId)">
+            <strong>{{ plugin.displayName }}</strong><small>{{ plugin.description }}</small><code>{{ plugin.pluginId }} · v{{ plugin.version }}</code>
+          </button>
+        </div>
+      </section>
+      <PluginExtensionHost :extensions="draftExtensions" :draft="draft" :readonly="scopeLocked" @update:plugin-data="draft.pluginData = $event" />
       <div v-if="advancedSettingsExpanded" class="advanced-settings">
-        <label class="advanced-item"><span>故障注入</span><el-checkbox v-model="faultEnabled">启用故障演示与自愈</el-checkbox></label>
         <label class="advanced-item"><span>调试开关</span><el-checkbox v-model="debugTraceEnabled">记录详细调试轨迹</el-checkbox></label>
         <label class="advanced-item advanced-item--wide">
           <span>低熵通信实验项</span>
           <el-checkbox-group v-model="lowEntropyOptions" class="advanced-checks">
             <el-checkbox label="trace_provenance">记录通信血缘</el-checkbox>
-            <el-checkbox label="strict_contracts">严格字段契约</el-checkbox>
           </el-checkbox-group>
         </label>
-        <label class="advanced-item">
-          <span>特殊策略项</span>
-          <el-select v-model="specialStrategy" size="small">
-            <el-option label="标准策略" value="standard" /><el-option label="证据优先" value="evidence_first" />
-            <el-option label="风险并行" value="risk_parallel" /><el-option label="保守复核" value="conservative_review" />
-          </el-select>
-        </label>
-        <template v-if="faultEnabled">
-          <label class="advanced-item"><span>故障节点</span><el-select v-model="faultStep" size="small"><el-option v-for="s in faultStepOptions" :key="s" :label="s" :value="s" /></el-select></label>
-          <label class="advanced-item"><span>故障类型</span><el-select v-model="faultType" size="small"><el-option label="模型超时" value="timeout" /><el-option label="Agent 崩溃" value="crash" /><el-option label="证据为空" value="empty_evidence" /></el-select></label>
-        </template>
       </div>
         </div>
       </Transition>
       <div class="ctrl-options">
-        <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">编排模式</span><el-radio-group v-model="planningMode" size="small"><el-radio-button label="template">模板执行</el-radio-button><el-radio-button label="planner">智能规划</el-radio-button><el-radio-button label="dynamic">动态编排</el-radio-button></el-radio-group></div>
+        <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">规划方式</span><el-radio-group v-model="planningMode" size="small"><el-radio-button label="dynamic">动态规划</el-radio-button><el-radio-button label="template_preferred">模板优先</el-radio-button></el-radio-group></div>
         <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">思考强度</span><el-radio-group v-model="thinkingMode" size="small"><el-radio-button label="disabled">关闭</el-radio-button><el-radio-button label="standard">标准</el-radio-button><el-radio-button label="deep">深度</el-radio-button></el-radio-group></div>
+        <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">审核方式</span><el-radio-group v-model="draft.reviewMode" size="small"><el-radio-button label="auto">自动</el-radio-button><el-radio-button label="human_in_loop">人工介入</el-radio-button></el-radio-group></div>
         <button v-show="inputPanelExpanded" class="advanced-toggle" type="button" :aria-expanded="advancedSettingsExpanded" @click="advancedSettingsExpanded = !advancedSettingsExpanded"><span>高级设置</span><el-icon><ArrowUp v-if="advancedSettingsExpanded" /><ArrowDown v-else /></el-icon></button>
         <el-button :type="mainAction.type" :loading="mainAction.loading" :disabled="mainAction.disabled" @click="handleMainAction">{{ mainAction.label }}</el-button>
+      </div>
+    </section>
+
+    <section v-if="activeRunId" class="run-scope ui-surface ui-surface--pad">
+      <header><strong>本次 Run 的能力范围（已冻结）</strong><el-tag effect="plain" type="info">只读</el-tag></header>
+      <p v-if="activeRun?.legacyPluginScope" class="scope-warning">该运行创建于插件快照功能之前，未伪造插件版本。</p>
+      <p v-else-if="missingSnapshotPlugins.length" class="scope-warning">原插件当前不可用：{{ missingSnapshotPlugins.join('、') }}。历史图和输出仍可查看，不能扩大 Scope 后继续执行。</p>
+      <div class="snapshot-list">
+        <span v-if="!activeRun?.pluginSnapshot?.length">Native only</span>
+        <span v-for="snapshot in activeRun?.pluginSnapshot || []" :key="snapshot.pluginId"><b>{{ snapshot.pluginId }}</b> v{{ snapshot.version }}</span>
+        <code v-if="activeRun?.capabilityCatalogRevision">Catalog {{ activeRun.capabilityCatalogRevision.slice(0, 12) }}</code>
       </div>
     </section>
 
@@ -146,7 +167,10 @@
           :completed-step-ids="acgView.completedStepIds"
           :step-states="acgView.stepStates"
         />
-        <AcgDeliverables :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
+        <template v-if="artifactRenderers.length">
+          <component v-for="renderer in artifactRenderers" :key="renderer.pluginId" :is="renderer.component" :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
+        </template>
+        <GenericArtifactPanel v-else :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
         <div class="schedule-strip ui-surface" v-if="scheduleBatches.length">
           <h4>就绪集调度轨迹（动态拓扑）</h4>
           <div class="batch-row">
@@ -192,13 +216,13 @@ import {
   workflowApi,
   type AcgDeliverable,
   type AcgView,
+  type InstalledPlugin,
   type WorkflowRun,
   type WorkflowProgress
 } from '@/services/api/workflow'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
-import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vue'
 import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
@@ -211,32 +235,32 @@ import { fileApi, type TaskMaterial } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
 import { resolveAcgTaskTitle } from '@/utils/acgTaskTitle'
-import { DEFAULT_ACG_PROMPT_PRESET } from '@/test/fixtures/acgPromptPresets'
+import PluginExtensionHost from '@/features/acg/PluginExtensionHost.vue'
+import GenericArtifactPanel from '@/features/acg/GenericArtifactPanel.vue'
+import {
+  buildWorkbenchStartRequest,
+  createNativeWorkbenchDraft,
+  type WorkbenchDraft
+} from '@/features/acg/workbench'
+import { pluginUiExtensions } from '@/plugins'
 
-const WORKFLOW_ID = 'legal_contract_review_v1'
-const TEMPLATE_FAULT_STEPS = ['parse_contract', 'classify_clauses', 'risk_detect', 'legal_evidence_match', 'suggestion_generate', 'human_review', 'report_generate']
-const DYNAMIC_FAULT_STEPS = ['contract_parse', 'clause_classify', 'risk_detect', 'legal_evidence_match', 'revision_suggest', 'human_review', 'report_generate']
-
-const taskName = ref(DEFAULT_ACG_PROMPT_PRESET.taskName)
-const contractText = ref(DEFAULT_ACG_PROMPT_PRESET.contractText)
-const userIntent = ref(DEFAULT_ACG_PROMPT_PRESET.userIntent)
-const planningMode = ref<'template' | 'planner' | 'dynamic'>('dynamic')
-// 快速模式是可验收的默认路径；深度推理由用户显式选择，不能和进度展示绑定。
-const thinkingMode = ref<ThinkingMode>('disabled')
-const advancedSettingsExpanded = ref(false)
-const faultEnabled = ref(false)
-const faultStep = ref('risk_detect')
-const faultType = ref<'timeout' | 'crash' | 'empty_evidence'>('timeout')
-const debugTraceEnabled = ref(false)
-const lowEntropyOptions = ref(['trace_provenance', 'strict_contracts'])
-const specialStrategy = ref<'standard' | 'evidence_first' | 'risk_parallel' | 'conservative_review'>('standard')
-const faultStepOptions = computed(() =>
-  planningMode.value === 'dynamic' ? DYNAMIC_FAULT_STEPS : TEMPLATE_FAULT_STEPS
-)
-
-watch(planningMode, () => {
-  if (!faultStepOptions.value.includes(faultStep.value)) faultStep.value = 'risk_detect'
+const draft = reactive<WorkbenchDraft>(createNativeWorkbenchDraft())
+const taskName = computed({ get: () => draft.title, set: value => { draft.title = value } })
+const contractText = computed({ get: () => draft.materialText, set: value => { draft.materialText = value } })
+const userIntent = computed({ get: () => draft.taskGoal, set: value => { draft.taskGoal = value } })
+const planningMode = computed({ get: () => draft.planningMode, set: value => { draft.planningMode = value } })
+const thinkingMode = computed<ThinkingMode>({ get: () => draft.thinkingMode, set: value => { draft.thinkingMode = value } })
+const constraintsText = computed({
+  get: () => draft.constraints.join('，'),
+  set: value => { draft.constraints = value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean) }
 })
+const expectedArtifactsText = computed({
+  get: () => draft.expectedArtifacts.join('，'),
+  set: value => { draft.expectedArtifacts = value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean) }
+})
+const advancedSettingsExpanded = ref(false)
+const debugTraceEnabled = ref(false)
+const lowEntropyOptions = ref(['trace_provenance'])
 
 watch(userIntent, value => {
   if (!activeRunId.value) taskName.value = resolveAcgTaskTitle({ title: value })
@@ -252,6 +276,28 @@ const route = useRoute()
 const router = useRouter()
 const workflowRunsStore = useWorkflowRunsStore()
 const activeRunId = ref('')
+const installedPlugins = ref<InstalledPlugin[]>([])
+const pluginsLoading = ref(false)
+const scopeLocked = computed(() => Boolean(activeRunId.value))
+const draftExtensions = computed(() => pluginUiExtensions.resolve(draft.enabledPluginIds))
+const activePluginIds = computed(() => (
+  activeRun.value?.resolvedEnabledPluginIds
+  || activeRun.value?.enabledPluginIds
+  || draft.enabledPluginIds
+))
+const activeExtensions = computed(() => pluginUiExtensions.resolve(activePluginIds.value))
+const artifactRenderers = computed(() => activeExtensions.value
+  .filter(item => item.artifactRenderer)
+  .map(item => ({ pluginId: item.pluginId, component: item.artifactRenderer! })))
+const activePluginSummary = computed(() => activePluginIds.value.length
+  ? activePluginIds.value.join('、')
+  : 'Native only')
+const missingSnapshotPlugins = computed(() => {
+  const available = new Set(installedPlugins.value.filter(item => item.available).map(item => item.pluginId))
+  return (activeRun.value?.pluginSnapshot || [])
+    .map(item => item.pluginId)
+    .filter(pluginId => !available.has(pluginId))
+})
 const inputPanelExpanded = ref(true)
 const inputPanelCompact = ref(false)
 const loadedRunId = ref('')
@@ -263,12 +309,62 @@ const uploadState = ref<'idle' | 'uploading' | 'parsing' | 'ready' | 'error'>('i
 const uploadError = ref('')
 
 const resetDraftContent = () => {
-  taskName.value = DEFAULT_ACG_PROMPT_PRESET.taskName
-  contractText.value = DEFAULT_ACG_PROMPT_PRESET.contractText
-  userIntent.value = DEFAULT_ACG_PROMPT_PRESET.userIntent
+  Object.assign(draft, createNativeWorkbenchDraft())
   selectedContractFile.value = null
   uploadState.value = 'idle'
   uploadError.value = ''
+}
+
+const applyExtensionDefaults = (pluginId: string) => {
+  const defaults = pluginUiExtensions.get(pluginId)?.createDefaults?.()
+  if (!defaults) return
+  const nativeDefaults = createNativeWorkbenchDraft()
+  if (defaults.title && draft.title === nativeDefaults.title) draft.title = defaults.title
+  if (defaults.taskGoal && draft.taskGoal === nativeDefaults.taskGoal) draft.taskGoal = defaults.taskGoal
+  if (defaults.reviewMode) draft.reviewMode = defaults.reviewMode
+  if (defaults.pluginData) draft.pluginData = { ...draft.pluginData, ...defaults.pluginData }
+}
+
+const removeExtensionDefaults = (pluginId: string) => {
+  const defaults = pluginUiExtensions.get(pluginId)?.createDefaults?.()
+  const nativeDefaults = createNativeWorkbenchDraft()
+  if (defaults?.title && draft.title === defaults.title) draft.title = nativeDefaults.title
+  if (defaults?.taskGoal && draft.taskGoal === defaults.taskGoal) draft.taskGoal = nativeDefaults.taskGoal
+}
+
+const togglePlugin = (pluginId: string) => {
+  if (scopeLocked.value) return
+  if (draft.enabledPluginIds.includes(pluginId)) {
+    removeExtensionDefaults(pluginId)
+    draft.enabledPluginIds = draft.enabledPluginIds.filter(item => item !== pluginId)
+    const pluginData = { ...draft.pluginData }
+    delete pluginData[pluginId]
+    draft.pluginData = pluginData
+    if (!draft.enabledPluginIds.length) draft.reviewMode = 'auto'
+    return
+  }
+  draft.enabledPluginIds = [...draft.enabledPluginIds, pluginId]
+  applyExtensionDefaults(pluginId)
+}
+
+const clearPlugins = () => {
+  if (scopeLocked.value) return
+  for (const pluginId of draft.enabledPluginIds) removeExtensionDefaults(pluginId)
+  draft.enabledPluginIds = []
+  draft.pluginData = {}
+  draft.reviewMode = 'auto'
+}
+
+const loadInstalledPlugins = async () => {
+  pluginsLoading.value = true
+  try {
+    installedPlugins.value = await workflowApi.listInstalledPlugins()
+  } catch {
+    installedPlugins.value = []
+    ElMessage.warning('专业能力包列表暂时无法加载，仍可使用 Native 能力')
+  } finally {
+    pluginsLoading.value = false
+  }
 }
 
 const progressTracker = useWorkflowProgress({
@@ -321,12 +417,13 @@ const processContractFile = async (file: File) => {
     if (!extractedText) throw new Error('未能从文件中提取到文本，请确认文档包含可复制文字')
 
     contractText.value = extractedText
+    draft.materialIds = [result.materialId]
     selectedContractFile.value = { ...result, extractedText }
     uploadState.value = 'ready'
     if (previous?.state === 'ready' && previous.materialId !== result.materialId) {
       void fileApi.deleteTaskMaterial(previous.materialId).catch(() => undefined)
     }
-    ElMessage.success(`已载入合同文件：${file.name}`)
+    ElMessage.success(`已载入任务文件：${file.name}`)
   } catch (error: any) {
     const message = materialErrorMessage(error)
     uploadState.value = 'error'
@@ -356,6 +453,7 @@ const clearContractFile = () => {
     void fileApi.deleteTaskMaterial(selected.materialId).catch(() => undefined)
   }
   if (selected?.extractedText && contractText.value === selected.extractedText) contractText.value = ''
+  draft.materialIds = []
   selectedContractFile.value = null
   uploadState.value = 'idle'
   uploadError.value = ''
@@ -365,7 +463,7 @@ const clearContractFile = () => {
 const materialErrorMessage = (error: any): string => {
   const data = error?.response?.data
   const detail = typeof data?.detail === 'string' ? data.detail : data?.detail?.message
-  return data?.message || detail || error?.message || '合同文件上传失败'
+  return data?.message || detail || error?.message || '任务文件上传失败'
 }
 
 const sha256Text = async (value: string): Promise<string> => {
@@ -391,7 +489,10 @@ const statusTagType = computed(() => {
 })
 const effectiveStatus = computed(() => progressTracker.progress.value?.status || acgView.value?.status || '')
 const effectivePhase = computed(() => progressTracker.progress.value?.phase || '')
-const planningModeSummary = computed(() => ({ template: '模板执行', planner: '智能规划', dynamic: '动态编排' })[planningMode.value])
+const planningModeSummary = computed(() => ({
+  template_preferred: '模板优先',
+  dynamic: '动态规划'
+})[planningMode.value])
 const thinkingModeSummary = computed(() => ({ disabled: '关闭', standard: '标准', deep: '深度' })[thinkingMode.value])
 const mainAction = computed<{
   action: 'start' | 'planning' | 'view' | 'review' | 'rerun' | 'retry'
@@ -615,8 +716,18 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     if (requestGeneration !== topologyGeneration || runId !== activeRunId.value) return
     acgView.value = hydrateAcgView(view, run)
     activeRun.value = run
+    draft.enabledPluginIds = [...(run.resolvedEnabledPluginIds || run.enabledPluginIds || [])]
+    draft.pluginData = (
+      run.input?.pluginData && typeof run.input.pluginData === 'object'
+        ? JSON.parse(JSON.stringify(run.input.pluginData)) as Record<string, Record<string, unknown>>
+        : {}
+    )
     taskName.value = resolveAcgTaskTitle(run)
-    if (typeof run.input?.contractText === 'string') contractText.value = run.input.contractText
+    if (typeof run.input?.materialText === 'string') contractText.value = run.input.materialText
+    for (const extension of draftExtensions.value) {
+      const current = draft.pluginData[extension.pluginId] || {}
+      draft.pluginData[extension.pluginId] = extension.hydratePluginData?.(run.input || {}, current) || current
+    }
     if (typeof run.input?.userIntent === 'string') userIntent.value = run.input.userIntent
     const material = Array.isArray(run.input?.sourceMaterials) ? run.input.sourceMaterials[0] : null
     if (material?.materialId) {
@@ -791,13 +902,20 @@ const exportAudit = (format: 'json' | 'csv') => {
 
 const startRun = async () => {
   if (isSubmitting.value) return
-  if (!contractText.value.trim()) {
-    ElMessage.warning('请输入合同文本')
-    return
-  }
   if (!taskName.value.trim()) {
     ElMessage.warning('请输入任务名称')
     return
+  }
+  if (!userIntent.value.trim()) {
+    ElMessage.warning('请输入任务目标')
+    return
+  }
+  for (const extension of draftExtensions.value) {
+    const validation = extension.validateDraft?.(draft)
+    if (validation && !validation.valid) {
+      ElMessage.warning(validation.message || `${extension.displayName}配置不完整`)
+      return
+    }
   }
   isSubmitting.value = true
   startError.value = null
@@ -807,42 +925,25 @@ const startRun = async () => {
   clearRunData()
   activeRunId.value = ''
   try {
-    const intentText = userIntent.value.trim() || '审查合同风险并生成报告'
-    const input: Record<string, unknown> = {
-      source: 'acg',
+    const clientRequestId = createClientRequestId()
+    const request = buildWorkbenchStartRequest(draft, draftExtensions.value, clientRequestId)
+    const requestInput: Record<string, unknown> = {
+      ...request.input,
       taskName: taskName.value.trim(),
-      contractText: contractText.value,
-      userIntent: intentText,
-      planningMode: planningMode.value,
-      thinkingMode: thinkingMode.value,
       debugTrace: debugTraceEnabled.value,
-      lowEntropyOptions: [...lowEntropyOptions.value],
-      specialStrategy: specialStrategy.value
+      lowEntropyOptions: [...lowEntropyOptions.value]
     }
+    request.input = requestInput
     if (selectedContractFile.value) {
       const workingTextSha256 = await sha256Text(contractText.value)
-      input.sourceMaterials = [{
+      requestInput.sourceMaterials = [{
         materialId: selectedContractFile.value.materialId,
-        purpose: 'contract',
+        purpose: 'task_material',
         edited: workingTextSha256 !== selectedContractFile.value.extractedTextSha256,
         workingTextSha256
       }]
     }
-    if (planningMode.value !== 'template') input.usePlanner = true
-    if (planningMode.value === 'dynamic') input.forceDynamicPlanning = true
-    if (faultEnabled.value) {
-      input.faultInjection = { step_id: faultStep.value, fault_type: faultType.value, max_triggers: 1 }
-    }
-    const clientRequestId = createClientRequestId()
-    const res = await workflowApi.startWorkflowAsync({
-      title: taskName.value.trim(),
-      domain: 'legal',
-      intent: 'contract_review_acg',
-      workflowId: WORKFLOW_ID,
-      reviewMode: 'human_in_loop',
-      input,
-      clientRequestId
-    }, { signal: submitController.signal })
+    const res = await workflowApi.startWorkflowAsync(request, { signal: submitController.signal })
     if (selectedContractFile.value) selectedContractFile.value.state = 'bound'
     activeRunId.value = res.run.runId
     scheduleInputCollapse()
@@ -850,7 +951,7 @@ const startRun = async () => {
     workflowRunsStore.register({
       runId: res.run.runId,
       taskId: res.task.taskId,
-      workflowId: res.run.workflowId || WORKFLOW_ID,
+      workflowId: res.run.workflowId || request.workflowId || 'native_acg_runtime_v1',
       source: 'acg',
       status: res.run.status,
       phase: res.run.lifecyclePhase
@@ -888,6 +989,7 @@ const startErrorMessage = (error: unknown): string => {
 
 onMounted(() => {
   window.addEventListener('acg-new-task', enterNewAcgDraft)
+  void loadInstalledPlugins()
 })
 
 onBeforeUnmount(() => {
@@ -926,6 +1028,21 @@ onBeforeUnmount(() => {
 .control-bar.collapsed { flex-direction: row; align-items: center; gap: 12px; padding: 9px 52px 9px 14px; }
 .control-bar.collapsed .input-summary { flex: 1 1 auto; }
 .control-bar.collapsed .ctrl-options { flex: 0 0 auto; padding: 0; border: 0; }
+.workbench-identity, .plugin-selector header, .run-scope header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.workbench-identity div, .plugin-selector header div { display:flex; flex-direction:column; gap:3px; }
+.workbench-identity small, .plugin-selector small, .plugin-selector header span { color:var(--text-secondary); font-size:11px; }
+.plugin-selector { display:flex; flex-direction:column; gap:10px; }
+.plugin-options { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:10px; }
+.plugin-card { display:flex; flex-direction:column; align-items:flex-start; gap:5px; min-height:86px; padding:12px; border:1px solid var(--border-light); border-radius:8px; background:var(--surface-solid); color:var(--text-primary); text-align:left; cursor:pointer; }
+.plugin-card:hover:not(:disabled), .plugin-card.selected { border-color:var(--primary-color); background:var(--primary-fade); }
+.plugin-card:disabled { cursor:not-allowed; opacity:.72; }
+.plugin-card small { min-height:30px; }
+.plugin-card code { color:var(--text-muted); font-size:10px; }
+.run-scope { display:flex; flex-direction:column; gap:8px; }
+.run-scope header strong { font-size:13px; }
+.snapshot-list { display:flex; align-items:center; flex-wrap:wrap; gap:8px; color:var(--text-secondary); font-size:11px; }
+.snapshot-list span, .snapshot-list code { padding:5px 8px; border-radius:6px; background:var(--bg-input); }
+.scope-warning { margin:0; padding:8px 10px; border-left:3px solid var(--el-color-warning); background:color-mix(in srgb, var(--el-color-warning) 8%, transparent); color:var(--text-secondary); font-size:12px; }
 .input-panel-expandable {
   display: flex;
   flex-direction: column;
@@ -1008,10 +1125,7 @@ onBeforeUnmount(() => {
 .acg-view.is-draft .intent-textarea :deep(.el-textarea__inner) { height: 100% !important; }
 .acg-view.is-draft .ctrl-options { margin-top: auto; }
 .contract-textarea :deep(.el-textarea__inner),
-.intent-textarea :deep(.el-textarea__inner) {
-  height: clamp(330px, 43vh, 480px) !important;
-  min-height: clamp(330px, 43vh, 480px) !important;
-}
+.intent-textarea :deep(.el-textarea__inner) { min-height: 150px !important; }
 
 .contract-file-input { display: none; }
 .contract-upload {
