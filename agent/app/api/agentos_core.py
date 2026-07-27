@@ -7,8 +7,8 @@ import uuid
 import logging
 from typing import Any, Dict, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.execution import RunExecutionCoordinator
@@ -20,6 +20,11 @@ from app.llm.gateway import get_llm_gateway
 from app.llm.schemas import CHAT_ROUTE_DECISION_SCHEMA
 from app.security.internal_auth import current_trusted_user
 from app.observability.context import execution_context
+from app.services.taskmaterialservice import (
+    MaterialError,
+    extract_material,
+    task_material_store,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +260,7 @@ async def _create_task_and_start(
     runtime: WorkflowRuntime,
     request: WorkflowStartRequest,
 ) -> Dict[str, Any]:
+    request = _resolve_source_materials(request)
     task = runtime.create_task(
         title=request.title,
         domain=request.domain,
@@ -273,6 +279,7 @@ async def _create_task_and_start(
             workflow_id=request.workflow_id,
             review_mode=request.review_mode,
         )
+        _bind_source_materials(request.input, task_id=task.task_id, run_id=run.run_id)
         logger.info("AgentOS workflow run started")
     return {"task": _to_json(task), "run": _to_json(run)}
 
@@ -312,6 +319,7 @@ async def _create_task_and_submit(
     coordinator: RunExecutionCoordinator,
     request: WorkflowStartRequest,
 ) -> Dict[str, Any]:
+    request = _resolve_source_materials(request)
     idempotency_key = _workflow_start_idempotency_key(request.client_request_id)
     idempotency_fingerprint = _workflow_start_fingerprint(request)
     existing = (
@@ -348,6 +356,7 @@ async def _create_task_and_submit(
         idempotency_key=idempotency_key,
         idempotency_fingerprint=idempotency_fingerprint,
     )
+    _bind_source_materials(request.input, task_id=task.task_id, run_id=run.run_id)
     try:
         await coordinator.submit(run.run_id)
     except Exception as exc:
@@ -359,6 +368,44 @@ async def _create_task_and_submit(
         raise
     latest = runtime.workflow_store.get_run(run.run_id)
     return {"accepted": True, "task": _to_json(task), "run": _to_json(latest)}
+
+
+def _resolve_source_materials(request: WorkflowStartRequest) -> WorkflowStartRequest:
+    raw_materials = request.input.get("sourceMaterials")
+    if raw_materials in (None, []):
+        return request
+    if not isinstance(raw_materials, list) or len(raw_materials) != 1 or not isinstance(raw_materials[0], dict):
+        raise MaterialError("MATERIAL_COUNT_INVALID", "ACG 当前只支持一个合同材料", status_code=422)
+    reference = raw_materials[0]
+    material_id = str(reference.get("materialId") or "").strip()
+    material = task_material_store.get(material_id, include_text=True)
+    extracted_text = str(material.pop("extractedText"))
+    working_text = str(request.input.get("contractText") or extracted_text).strip()
+    if not working_text:
+        raise MaterialError("MATERIAL_TEXT_EMPTY", "合同正文不能为空", status_code=422)
+    working_hash = hashlib.sha256(working_text.encode("utf-8")).hexdigest()
+    canonical = {
+        "materialId": material_id,
+        "purpose": "contract",
+        "originalFilename": material["originalFilename"],
+        "mediaType": material["mediaType"],
+        "size": material["size"],
+        "sha256": material["sha256"],
+        "extractedTextSha256": material["extractedTextSha256"],
+        "workingTextSha256": working_hash,
+        "edited": working_hash != material["extractedTextSha256"],
+        "textLength": len(working_text),
+        "extraction": material["extraction"],
+        "uri": f"material://{material_id}",
+    }
+    normalized_input = {**request.input, "contractText": working_text, "sourceMaterials": [canonical]}
+    return request.model_copy(update={"input": normalized_input})
+
+
+def _bind_source_materials(workflow_input: Dict[str, Any], *, task_id: str, run_id: str) -> None:
+    for material in workflow_input.get("sourceMaterials") or []:
+        if isinstance(material, dict) and material.get("materialId"):
+            task_material_store.bind(str(material["materialId"]), task_id=task_id, run_id=run_id)
 
 
 LEGACY_AGENT_CONFIG: Dict[str, Dict[str, Any]] = {
@@ -1576,6 +1623,35 @@ def create_router(
     execution_coordinator = coordinator or RunExecutionCoordinator(runtime)
     progress_assembler = ProgressAssembler()
 
+    @router.post("/core/materials", status_code=201)
+    async def upload_task_material(file: UploadFile = File(...)):
+        try:
+            task_material_store.cleanup_drafts()
+            content = await file.read(10 * 1024 * 1024 + 1)
+            extraction = await extract_material(content, file.filename or "")
+            return task_material_store.create(
+                filename=file.filename or "unknown",
+                media_type=file.content_type or "application/octet-stream",
+                content=content,
+                extraction=extraction,
+            )
+        except MaterialError as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"error": exc.code, "message": str(exc)},
+            )
+
+    @router.delete("/core/materials/{material_id}", status_code=204)
+    async def delete_task_material(material_id: str):
+        try:
+            task_material_store.delete_draft(material_id)
+            return None
+        except MaterialError as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"error": exc.code, "message": str(exc)},
+            )
+
     @router.post("/core/tasks")
     async def create_task(request: AgentTaskCreateRequest):
         try:
@@ -1633,6 +1709,8 @@ def create_router(
     async def start_workflow_from_workbench(request: WorkflowStartRequest):
         try:
             return await _create_task_and_start(runtime, request)
+        except MaterialError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
@@ -1642,6 +1720,8 @@ def create_router(
     async def start_workflow_async(request: WorkflowStartRequest):
         try:
             return await _create_task_and_submit(runtime, execution_coordinator, request)
+        except MaterialError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except IdempotencyConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except KeyError as exc:
@@ -2117,6 +2197,11 @@ def create_router(
         try:
             run = runtime.get_status(run_id)
             _require_run_access(run)
+            material_ids = [
+                str(item.get("materialId"))
+                for item in (run.input.get("sourceMaterials") or [])
+                if isinstance(item, dict) and item.get("materialId")
+            ]
             if execution_coordinator.is_active(run_id) or run.status in {
                 WorkflowStatus.PENDING,
                 WorkflowStatus.PLANNING,
@@ -2132,6 +2217,7 @@ def create_router(
             result = runtime.workflow_store.delete_run(run_id)
             if result.task_deleted:
                 runtime.trace_store.delete_task_events(result.task_id)
+            task_material_store.release_run(run_id, material_ids)
             return {
                 "runId": result.run_id,
                 "taskId": result.task_id,

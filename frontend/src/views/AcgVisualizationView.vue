@@ -63,9 +63,10 @@
             <input ref="contractFileInput" class="contract-file-input" type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" @change="handleContractFileSelection" />
             <span class="contract-upload__icon" aria-hidden="true"><el-icon><Document v-if="selectedContractFile" /><UploadFilled v-else /></el-icon></span>
             <span class="contract-upload__copy">
-              <strong>{{ selectedContractFile?.name || (loading.upload ? '正在解析合同文件' : '上传合同文件') }}</strong>
+              <strong>{{ selectedContractFile?.originalFilename || (uploadState === 'parsing' ? '正在解析合同文件' : loading.upload ? '正在上传合同文件' : '上传合同文件') }}</strong>
               <small v-if="selectedContractFile">{{ formatFileSize(selectedContractFile.size) }} · 已提取 {{ selectedContractFile.textLength.toLocaleString('zh-CN') }} 字</small>
-              <small v-else>拖放到此处，或选择 PDF、DOCX、TXT、MD，最大 10MB</small>
+              <small v-if="uploadError" class="contract-upload__error">{{ uploadError }}</small>
+              <small v-else-if="!selectedContractFile">拖放到此处，或选择 PDF、DOCX、TXT、MD，最大 10MB</small>
             </span>
             <span class="contract-upload__actions">
               <el-button size="small" :loading="loading.upload" @click="openContractFilePicker"><el-icon><UploadFilled /></el-icon>{{ selectedContractFile ? '替换文件' : '选择文件' }}</el-button>
@@ -191,7 +192,7 @@ import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import type { ThinkingMode } from '@/config/modelSettings'
-import { fileApi } from '@/services/api/file'
+import { fileApi, type TaskMaterial } from '@/services/api/file'
 import { buildAcgAuditCsv, buildAcgAuditExport } from '@/utils/acgAuditExport'
 import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
 import { resolveAcgTaskTitle } from '@/utils/acgTaskTitle'
@@ -241,18 +242,18 @@ const inputPanelCompact = ref(false)
 const loadedRunId = ref('')
 const contractFileInput = ref<HTMLInputElement | null>(null)
 const uploadDragging = ref(false)
-const selectedContractFile = ref<{
-  name: string
-  size: number
-  textLength: number
-  extractedText: string
-} | null>(null)
+type SelectedMaterial = Omit<TaskMaterial, 'extractedText'> & { extractedText?: string }
+const selectedContractFile = ref<SelectedMaterial | null>(null)
+const uploadState = ref<'idle' | 'uploading' | 'parsing' | 'ready' | 'error'>('idle')
+const uploadError = ref('')
 
 const resetDraftContent = () => {
   taskName.value = DEFAULT_ACG_PROMPT_PRESET.taskName
   contractText.value = DEFAULT_ACG_PROMPT_PRESET.contractText
   userIntent.value = DEFAULT_ACG_PROMPT_PRESET.userIntent
   selectedContractFile.value = null
+  uploadState.value = 'idle'
+  uploadError.value = ''
 }
 
 const progressTracker = useWorkflowProgress({
@@ -297,20 +298,25 @@ const processContractFile = async (file: File) => {
   try {
     validateContractFile(file)
     loading.upload = true
-    const result = await fileApi.extractDocumentText(file)
-    const extractedText = (result.text || '').trim()
+    uploadState.value = 'uploading'
+    uploadError.value = ''
+    const previous = selectedContractFile.value
+    const result = await fileApi.uploadTaskMaterial(file, () => { uploadState.value = 'parsing' })
+    const extractedText = (result.extractedText || '').trim()
     if (!extractedText) throw new Error('未能从文件中提取到文本，请确认文档包含可复制文字')
 
     contractText.value = extractedText
-    selectedContractFile.value = {
-      name: file.name,
-      size: file.size,
-      textLength: extractedText.length,
-      extractedText
+    selectedContractFile.value = { ...result, extractedText }
+    uploadState.value = 'ready'
+    if (previous?.state === 'ready' && previous.materialId !== result.materialId) {
+      void fileApi.deleteTaskMaterial(previous.materialId).catch(() => undefined)
     }
     ElMessage.success(`已载入合同文件：${file.name}`)
   } catch (error: any) {
-    ElMessage.error(error?.message || '合同文件上传失败')
+    const message = materialErrorMessage(error)
+    uploadState.value = 'error'
+    uploadError.value = message
+    ElMessage.error(message)
   } finally {
     loading.upload = false
     uploadDragging.value = false
@@ -331,9 +337,25 @@ const handleContractDrop = (event: DragEvent) => {
 
 const clearContractFile = () => {
   const selected = selectedContractFile.value
-  if (selected && contractText.value === selected.extractedText) contractText.value = ''
+  if (selected?.state === 'ready') {
+    void fileApi.deleteTaskMaterial(selected.materialId).catch(() => undefined)
+  }
+  if (selected?.extractedText && contractText.value === selected.extractedText) contractText.value = ''
   selectedContractFile.value = null
+  uploadState.value = 'idle'
+  uploadError.value = ''
   if (contractFileInput.value) contractFileInput.value.value = ''
+}
+
+const materialErrorMessage = (error: any): string => {
+  const data = error?.response?.data
+  const detail = typeof data?.detail === 'string' ? data.detail : data?.detail?.message
+  return data?.message || detail || error?.message || '合同文件上传失败'
+}
+
+const sha256Text = async (value: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 const statusLabel = computed(() => {
@@ -368,6 +390,7 @@ const mainAction = computed<{
   if (isSubmitting.value || (activeRunId.value && ['understanding', 'planning', 'graph_building'].includes(phase))) {
     return { action: 'planning', label: '正在生成编排', type: 'info', loading: true, disabled: true }
   }
+  if (loading.upload) return { action: 'planning', label: '正在解析文件', type: 'info', loading: true, disabled: true }
   if (!activeRunId.value) return { action: 'start', label: '启动 ACG', type: 'primary', loading: false, disabled: false }
   if (status === 'waiting_review' || phase === 'review') return { action: 'review', label: '进入人工审核', type: 'warning', loading: false, disabled: false }
   if (status === 'completed' || phase === 'completed') return { action: 'rerun', label: '基于当前配置重新运行', type: 'primary', loading: false, disabled: false }
@@ -580,6 +603,12 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     taskName.value = resolveAcgTaskTitle(run)
     if (typeof run.input?.contractText === 'string') contractText.value = run.input.contractText
     if (typeof run.input?.userIntent === 'string') userIntent.value = run.input.userIntent
+    const material = Array.isArray(run.input?.sourceMaterials) ? run.input.sourceMaterials[0] : null
+    if (material?.materialId) {
+      selectedContractFile.value = { ...material, state: 'bound' }
+      uploadState.value = 'ready'
+      uploadError.value = ''
+    }
     loadedRunId.value = runId
     lastTopologyRefreshAt = Date.now()
     lastTopologyUpdatedAt = progressTracker.progress.value?.updatedAt ?? null
@@ -769,6 +798,15 @@ const startRun = async () => {
       lowEntropyOptions: [...lowEntropyOptions.value],
       specialStrategy: specialStrategy.value
     }
+    if (selectedContractFile.value) {
+      const workingTextSha256 = await sha256Text(contractText.value)
+      input.sourceMaterials = [{
+        materialId: selectedContractFile.value.materialId,
+        purpose: 'contract',
+        edited: workingTextSha256 !== selectedContractFile.value.extractedTextSha256,
+        workingTextSha256
+      }]
+    }
     if (planningMode.value !== 'template') input.usePlanner = true
     if (planningMode.value === 'dynamic') input.forceDynamicPlanning = true
     if (faultEnabled.value) {
@@ -784,6 +822,7 @@ const startRun = async () => {
       input,
       clientRequestId
     }, { signal: submitController.signal })
+    if (selectedContractFile.value) selectedContractFile.value.state = 'bound'
     activeRunId.value = res.run.runId
     scheduleInputCollapse()
     advancedSettingsExpanded.value = false
@@ -996,6 +1035,7 @@ onBeforeUnmount(() => {
 }
 .contract-upload__copy strong { color: var(--text-primary); font-size: 11px; font-weight: 700; }
 .contract-upload__copy small { color: var(--text-secondary); font-size: 10px; }
+.contract-upload__copy .contract-upload__error { color: var(--el-color-danger); }
 .contract-upload__actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 
 .acg-view > :deep(.workflow-review) { margin-top: var(--space-lg); }

@@ -6,6 +6,7 @@ import AcgVisualizationView from './AcgVisualizationView.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun } from '@/services/api/workflow'
 import { DEFAULT_ACG_PROMPT_PRESET } from '@/test/fixtures/acgPromptPresets'
+import { fileApi } from '@/services/api/file'
 
 vi.mock('@/services/api/workflow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api/workflow')>()
@@ -21,6 +22,14 @@ vi.mock('@/services/api/workflow', async (importOriginal) => {
     }
   }
 })
+
+vi.mock('@/services/api/file', () => ({
+  fileApi: {
+    uploadTaskMaterial: vi.fn(),
+    deleteTaskMaterial: vi.fn(),
+    extractDocumentText: vi.fn()
+  }
+}))
 
 const makeProgress = (overrides: Partial<WorkflowProgress> = {}): WorkflowProgress => ({
   taskId: 'task_1', runId: 'run_1', workflowId: 'workflow_1', status: 'running',
@@ -105,6 +114,45 @@ describe('AcgVisualizationView async progress loop', () => {
     vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress())
     vi.mocked(workflowApi.getRun).mockResolvedValue(makeRun())
     vi.mocked(workflowApi.getAcgView).mockResolvedValue(makeAcg())
+    vi.mocked(fileApi.uploadTaskMaterial).mockResolvedValue({
+      materialId: 'mat_123', state: 'ready', originalFilename: '合同.txt', mediaType: 'text/plain',
+      size: 18, sha256: 'source_hash', extractedTextSha256: 'text_hash', extractedText: '上传后的合同正文',
+      textLength: 8, extraction: { method: 'utf-8', ocrUsed: false, pages: 0 }
+    })
+    vi.mocked(fileApi.deleteTaskMaterial).mockResolvedValue()
+  })
+
+  it('uploads a selected contract through the task material API and shows the ready state', async () => {
+    const { wrapper } = await mountPage()
+    const input = wrapper.find('input[type="file"]')
+    const file = new File(['上传后的合同正文'], '合同.txt', { type: 'text/plain' })
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
+
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(fileApi.uploadTaskMaterial).toHaveBeenCalledWith(file, expect.any(Function))
+    expect(wrapper.find('.contract-upload__copy').text()).toContain('合同.txt')
+    expect(wrapper.find('.contract-upload__copy').text()).toContain('已提取')
+    wrapper.unmount()
+  })
+
+  it('surfaces the backend 422 message without discarding the existing draft text', async () => {
+    vi.mocked(fileApi.uploadTaskMaterial).mockRejectedValueOnce({
+      response: { status: 422, data: { error: 'MATERIAL_FILE_REQUIRED', message: '上传请求缺少 file 字段' } }
+    })
+    const { wrapper } = await mountPage()
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      configurable: true,
+      value: [new File(['probe'], '合同.txt', { type: 'text/plain' })]
+    })
+
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.find('.contract-upload__error').text()).toBe('上传请求缺少 file 字段')
+    wrapper.unmount()
   })
 
   afterEach(() => {

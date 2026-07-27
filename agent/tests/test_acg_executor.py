@@ -92,6 +92,36 @@ def test_acg_engine_runs_linear_workflow():
     asyncio.run(_run())
 
 
+def test_acg_material_input_starts_a_tamper_evident_provenance_chain():
+    async def _run():
+        runtime, _calls = _runtime(
+            [WorkflowStepDefinition(stepId="parse", name="Parse", agentName="parse")],
+            ["parse"],
+        )
+        material_id = "mat_0123456789abcdef0123456789abcdef"
+        task = runtime.create_task(
+            title="material",
+            domain="test",
+            intent="demo",
+            input={
+                "contractText": "合同正文",
+                "sourceMaterials": [{"materialId": material_id, "uri": f"material://{material_id}"}],
+            },
+        )
+        run = await runtime.start(task.task_id, workflow_id="acg_wf")
+
+        productions = run.provenance["productions"]
+        consumptions = run.provenance["consumptions"]
+        source = next(item for item in productions if item["producerStepId"] == "__task_input__")
+        assert source["evidenceRefs"] == [f"material://{material_id}"]
+        assert source["eventHash"]
+        initial_consumption = next(item for item in consumptions if item["consumerStepId"] == "parse")
+        assert initial_consumption["producerStepIds"] == ["__task_input__"]
+        assert initial_consumption["producerEventIds"] == [source["eventId"]]
+
+    asyncio.run(_run())
+
+
 def test_acg_engine_parallel_branch_executes_both():
     """注入菱形 ACG：a -> {b, c} -> d，验证 b、c 并行执行、d 在二者后。"""
 

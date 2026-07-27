@@ -7,13 +7,56 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.mock.web.MockMultipartFile;
 import reactor.core.publisher.Mono;
 
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentOsGatewayServiceTest {
+
+    @Test
+    void materialUploadReconstructsMultipartWithFilenameAndBoundary() throws Exception {
+        AtomicReference<String> contentType = new AtomicReference<>();
+        AtomicReference<byte[]> body = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ai/core/materials", exchange -> {
+            contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+            body.set(exchange.getRequestBody().readAllBytes());
+            byte[] response = "{\"materialId\":\"mat_123\",\"state\":\"ready\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(201, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try {
+            AgentProperties properties = new AgentProperties();
+            properties.setTimeoutMs(5_000);
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            AgentOsGatewayService service = new AgentOsGatewayService(WebClient.builder(), properties, baseUrl);
+
+            Map<String, Object> response = service.postMaterial(
+                    "/ai/core/materials",
+                    new MockMultipartFile("file", "contract.txt", "text/plain", "probe-contract".getBytes(StandardCharsets.UTF_8))
+            );
+
+            assertEquals(201, response.get(AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY));
+            assertTrue(contentType.get().startsWith("multipart/form-data;boundary="));
+            String payload = new String(body.get(), StandardCharsets.UTF_8);
+            assertTrue(payload.contains("name=\"file\""));
+            assertTrue(payload.contains("filename=\"contract.txt\""));
+            assertTrue(payload.contains("probe-contract"));
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test
     void asyncStartPreservesAcceptedStatusWithoutUsingSynchronousTimeoutSemantics() {

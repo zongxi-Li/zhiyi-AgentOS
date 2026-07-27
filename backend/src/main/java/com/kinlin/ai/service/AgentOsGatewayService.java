@@ -9,11 +9,16 @@ import com.kinlin.ai.dto.agentos.AsyncWorkflowStartResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.BodyInserters;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -147,6 +152,61 @@ public class AgentOsGatewayService {
         response.put("upstreamStatus", upstreamStatus);
         response.put(INTERNAL_HTTP_STATUS_KEY, gatewayStatus);
         return response;
+    }
+
+    /** Rebuild multipart bodies after servlet parsing so the upstream always receives a real file part. */
+    public Map<String, Object> postMaterial(String path, MultipartFile file) {
+        if (!agentProperties.isEnabled()) {
+            return disabledResponse(path);
+        }
+        try {
+            MultipartBodyBuilder parts = new MultipartBodyBuilder();
+            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename();
+                }
+            };
+            MediaType partType;
+            try {
+                partType = file.getContentType() == null
+                        ? MediaType.APPLICATION_OCTET_STREAM
+                        : MediaType.parseMediaType(file.getContentType());
+            } catch (IllegalArgumentException ignored) {
+                partType = MediaType.APPLICATION_OCTET_STREAM;
+            }
+            parts.part("file", resource).filename(resource.getFilename()).contentType(partType);
+            return webClient.post()
+                    .uri(path)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(BodyInserters.fromMultipartData(parts.build()))
+                    .exchangeToMono(response -> response.bodyToMono(MAP_BODY)
+                            .defaultIfEmpty(new HashMap<>())
+                            .map(payload -> withHttpStatus(payload, response.statusCode().value())))
+                    .timeout(Duration.ofMillis(timeoutMs))
+                    .onErrorResume(e -> toErrorResponse(e, path))
+                    .block();
+        } catch (Exception e) {
+            return errorResponse(e, path);
+        }
+    }
+
+    public Map<String, Object> delete(String path) {
+        if (!agentProperties.isEnabled()) {
+            return disabledResponse(path);
+        }
+        try {
+            return webClient.delete()
+                    .uri(path)
+                    .exchangeToMono(response -> response.bodyToMono(MAP_BODY)
+                            .defaultIfEmpty(new HashMap<>())
+                            .map(payload -> withHttpStatus(payload, response.statusCode().value())))
+                    .timeout(Duration.ofMillis(timeoutMs))
+                    .onErrorResume(e -> toErrorResponse(e, path))
+                    .block();
+        } catch (Exception e) {
+            return errorResponse(e, path);
+        }
     }
 
     /** Preserve upstream status for the fast asynchronous workflow preparation call. */

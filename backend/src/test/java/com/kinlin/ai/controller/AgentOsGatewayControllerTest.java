@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -18,6 +20,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,6 +51,7 @@ class AgentOsGatewayControllerTest {
         private Object lastPostBody;
         private Object lastAsyncPostBody;
         private String lastTextPath;
+        private MultipartFile lastMaterialFile;
 
         private RecordingAgentOsGatewayService() {
             super(WebClient.builder(), new AgentProperties(), "http://localhost:8000");
@@ -75,6 +80,19 @@ class AgentOsGatewayControllerTest {
             lastPostPath = path;
             lastAsyncPostBody = body;
             return asyncPostResponses.getOrDefault(path, Map.of());
+        }
+
+        @Override
+        public Map<String, Object> postMaterial(String path, MultipartFile file) {
+            lastPostPath = path;
+            lastMaterialFile = file;
+            return postResponses.getOrDefault(path, Map.of());
+        }
+
+        @Override
+        public Map<String, Object> delete(String path) {
+            lastPostPath = path;
+            return postResponses.getOrDefault(path, Map.of());
         }
 
         @Override
@@ -242,6 +260,47 @@ class AgentOsGatewayControllerTest {
                 .andExpect(jsonPath("$.total").value(1));
 
         assertEquals("/ai/core/workflows/runs/run_001/checkpoints", agentOsGatewayService.lastGetPath);
+    }
+
+    @Test
+    void uploadMaterialAcceptsARealMultipartFileAndPreserves201() throws Exception {
+        agentOsGatewayService.postResponses.put("/ai/core/materials", new LinkedHashMap<>(Map.of(
+                AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 201,
+                "materialId", "mat_123",
+                "state", "ready"
+        )));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "合同.txt", "text/plain", "合同正文".getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart("/ai/core/materials").file(file))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.materialId").value("mat_123"));
+
+        assertEquals("/ai/core/materials", agentOsGatewayService.lastPostPath);
+        assertEquals("合同.txt", agentOsGatewayService.lastMaterialFile.getOriginalFilename());
+    }
+
+    @Test
+    void uploadMaterialRejectsMissingFilePartWith422() throws Exception {
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(new AgentOsGatewayController(agentOsGatewayService))
+                .setControllerAdvice(new com.kinlin.ai.exception.GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(multipart("/ai/core/materials"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("MATERIAL_FILE_REQUIRED"));
+    }
+
+    @Test
+    void deleteMaterialForwardsOpaqueId() throws Exception {
+        agentOsGatewayService.postResponses.put("/ai/core/materials/mat_123", new LinkedHashMap<>(Map.of(
+                AgentOsGatewayService.INTERNAL_HTTP_STATUS_KEY, 204
+        )));
+        mockMvc.perform(delete("/ai/core/materials/mat_123"))
+                .andExpect(status().isNoContent());
+        assertEquals("/ai/core/materials/mat_123", agentOsGatewayService.lastPostPath);
     }
 
     @Test

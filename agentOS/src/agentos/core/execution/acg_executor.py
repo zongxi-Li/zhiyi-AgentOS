@@ -68,6 +68,44 @@ class ACGExecutor:
                 "scheduleRound": int(candidate.execution_state.get("scheduleRound", 0)),
                 "faultInjectionTriggered": 0,
             }
+            source_materials = [
+                item for item in (candidate.input.get("sourceMaterials") or []) if isinstance(item, dict)
+            ]
+            if source_materials:
+                ledger = ProvenanceLedger.from_graph(
+                    candidate.provenance,
+                    run_id=candidate.run_id,
+                    task_id=candidate.task_id,
+                )
+                if ledger.latest_production("__task_input__") is None:
+                    contract_text = str(candidate.input.get("contractText") or "")
+                    ledger.record_production(
+                        "__task_input__",
+                        {"contractText": contract_text, "sourceMaterials": source_materials},
+                        max(1, len(contract_text) // 4),
+                        agent_name="material_ingest",
+                        evidence_refs=[
+                            str(item.get("uri") or f"material://{item.get('materialId')}")
+                            for item in source_materials
+                            if item.get("materialId")
+                        ],
+                    )
+                    first_step = next(
+                        (node for node in blueprint.nodes if isinstance(node, StepNode)),
+                        None,
+                    )
+                    if first_step is not None:
+                        ledger.record_consumption(
+                            first_step.node_id,
+                            ["__task_input__"],
+                            ["contractText", "sourceMaterials"],
+                            consumer_agent_name=first_step.agent_name,
+                            fields_by_producer={"__task_input__": ["contractText", "sourceMaterials"]},
+                            data={"contractText": contract_text, "sourceMaterials": source_materials},
+                            tokens_delivered=max(1, len(contract_text) // 4),
+                            tokens_available=max(1, len(contract_text) // 4),
+                        )
+                    candidate.provenance = ledger.to_graph()
             self.runtime._transition_run_if_needed(candidate, WorkflowStatus.RUNNING)
             self.runtime.task_manager.mark_running(task)
             self.runtime.trace_store.append(
