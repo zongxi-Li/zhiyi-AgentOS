@@ -227,6 +227,18 @@ export interface PluginSnapshot {
   contributionRevision: string
 }
 
+export interface InstalledPlugin {
+  pluginId: string
+  version: string
+  displayName: string
+  description: string
+  available: boolean
+  capabilityCount: number
+  agentCount: number
+  workflowCount: number
+  uiExtensionId?: string | null
+}
+
 export interface RunExecutionScope {
   enabledPluginIds: string[]
   capabilityIds: string[]
@@ -605,6 +617,11 @@ const normalizeAcgView = (view: AcgView): AcgView => ({
 })
 
 export const agentosApi = {
+  async listInstalledPlugins(): Promise<InstalledPlugin[]> {
+    const response = await agentosRequest.get<InstalledPlugin[]>('/core/plugins')
+    return response.data
+  },
+
   async listWorkflowRuns(
     params: WorkflowRunQuery = {},
     options: { signal?: AbortSignal } = {}

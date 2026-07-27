@@ -4,6 +4,18 @@ import { agentosApi, agentosRequest, WorkflowApiContractError } from './agentos'
 describe('AgentOS async workflow API', () => {
   beforeEach(() => vi.restoreAllMocks())
 
+  it('loads the installed plugin projection without executable manifest details', async () => {
+    const plugins = [{
+      pluginId: 'kinlin.legal', version: '0.1.0', displayName: '法律能力包',
+      description: '法律能力', available: true, capabilityCount: 7,
+      agentCount: 14, workflowCount: 2, uiExtensionId: 'kinlin.legal'
+    }]
+    const get = vi.spyOn(agentosRequest, 'get').mockResolvedValue({ data: plugins } as never)
+
+    await expect(agentosApi.listInstalledPlugins()).resolves.toEqual(plugins)
+    expect(get).toHaveBeenCalledWith('/core/plugins')
+  })
+
   it('starts through the Java gateway with clientRequestId and AbortSignal', async () => {
     const signal = new AbortController().signal
     const response = {

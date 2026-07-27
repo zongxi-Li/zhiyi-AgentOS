@@ -30,7 +30,8 @@ import {
   type WorkflowRunQuery,
   type WorkflowStep,
   type WorkflowStatus,
-  type WorkflowTraceExport
+  type WorkflowTraceExport,
+  type InstalledPlugin
 } from './agentos'
 
 export type {
@@ -64,10 +65,15 @@ export type {
   WorkflowRunQuery,
   WorkflowStep,
   WorkflowStatus,
-  WorkflowTraceExport
+  WorkflowTraceExport,
+  InstalledPlugin
 }
 
 export const workflowApi = {
+  listInstalledPlugins(): Promise<InstalledPlugin[]> {
+    return agentosApi.listInstalledPlugins()
+  },
+
   startWorkflow(payload: WorkflowStartRequest): Promise<WorkflowStartResponse> {
     return agentosApi.startWorkflow(payload)
   },
