@@ -101,6 +101,7 @@ export interface AgentTask {
   priority: string
   status: WorkflowStatus
   recommendedWorkflow?: string
+  enabledPluginIds?: string[] | null
   createdAt?: string
   updatedAt?: string
 }
@@ -174,6 +175,12 @@ export interface WorkflowRun {
   trace: TraceEvent[]
   error?: string
   recoveryCount?: number
+  enabledPluginIds?: string[]
+  resolvedEnabledPluginIds?: string[]
+  pluginSnapshot?: PluginSnapshot[]
+  capabilityCatalogRevision?: string | null
+  executionScope?: RunExecutionScope | null
+  legacyPluginScope?: boolean
   completedStepIds?: string[]
   activeStepIds?: string[]
   provenance?: Record<string, any>
@@ -210,6 +217,23 @@ export interface WorkflowStartRequest {
   priority?: string
   workflowId?: string
   reviewMode?: string
+  enabledPluginIds?: string[] | null
+}
+
+export interface PluginSnapshot {
+  pluginId: string
+  version: string
+  manifestHash: string
+  contributionRevision: string
+}
+
+export interface RunExecutionScope {
+  enabledPluginIds: string[]
+  capabilityIds: string[]
+  agentIds: string[]
+  workflowIds: string[]
+  pluginSnapshots: PluginSnapshot[]
+  capabilityCatalogRevision: string
 }
 
 export interface WorkflowStartResponse {

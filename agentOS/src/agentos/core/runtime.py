@@ -37,6 +37,7 @@ from agentos.core.models.types import (
     WorkflowRun,
     WorkflowStatus,
     WorkflowStep,
+    RunExecutionScope,
     utc_now,
 )
 from agentos.core.models.enums import WorkflowProgressPhase
@@ -54,6 +55,7 @@ from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.capabilities import CapabilityCatalog
+from agentos.core.plugin_scope import PluginScopeError, PluginScopeResolver
 from agentos.packs.registry import register_installed_packs
 from agentos.core.native import register_native_runtime
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
@@ -106,9 +108,12 @@ class WorkflowRuntime:
         run_lock_manager: Optional[RunLockManager] = None,
         recovery_recipe_registry: Optional[RecoveryRecipeRegistry] = None,
         capability_catalog: CapabilityCatalog | None = None,
+        plugin_manifests: tuple = (),
     ):
         self.agent_registry = agent_registry or AgentRegistry()
         self.workflow_registry = workflow_registry or WorkflowRegistry()
+        self.capability_catalog = capability_catalog or build_default_capability_catalog()
+        self.plugin_manifests = tuple(plugin_manifests)
         self.workflow_store = workflow_store or MemoryWorkflowStore()
         self.trace_store = trace_store or TraceStore()
         self.checkpoint_store = checkpoint_store or CheckpointStore()
@@ -147,7 +152,15 @@ class WorkflowRuntime:
         # 让意图解析走 DeepSeek；未注入时规划器用启发式回退。
         self._planning_engine = None
         self._intent_llm = None
-        self.capability_catalog = capability_catalog or build_default_capability_catalog()
+
+    @property
+    def plugin_scope_resolver(self) -> PluginScopeResolver:
+        return PluginScopeResolver(
+            capability_catalog=self.capability_catalog,
+            agent_registry=self.agent_registry,
+            workflow_registry=self.workflow_registry,
+            manifests=self.plugin_manifests,
+        )
 
     def set_intent_llm(self, intent_llm) -> None:
         """注入意图解析 LLM（app 层在装配时调用）。重置已构造的规划引擎。"""
@@ -185,7 +198,17 @@ class WorkflowRuntime:
         role_type: Optional[str] = None,
         task_type: Optional[str] = None,
         workflow_id: Optional[str] = None,
+        enabled_plugin_ids: Optional[list[str]] = None,
     ) -> AgentTask:
+        task_domain = (role_type or domain or "general").strip()
+        task_intent = (task_type or intent or "general").strip()
+        resolved_plugins = self.plugin_scope_resolver.resolve_enabled_plugin_ids(
+            enabled_plugin_ids,
+            workflow_id=workflow_id,
+            domain=task_domain,
+            intent=task_intent,
+        )
+        scope = self.plugin_scope_resolver.build_scope(resolved_plugins)
         return self.task_manager.create_task(
             title=title,
             domain=domain,
@@ -196,6 +219,8 @@ class WorkflowRuntime:
             role_type=role_type,
             task_type=task_type,
             workflow_id=workflow_id,
+            enabled_plugin_ids=enabled_plugin_ids,
+            allowed_workflow_ids=scope.workflow_ids,
         )
 
     async def start(
@@ -203,11 +228,13 @@ class WorkflowRuntime:
         task_id: str,
         workflow_id: Optional[str] = None,
         review_mode: str = "auto",
+        enabled_plugin_ids: Optional[list[str]] = None,
     ) -> WorkflowRun:
         _, run = self.prepare_run(
             task_id=task_id,
             workflow_id=workflow_id,
             review_mode=review_mode,
+            enabled_plugin_ids=enabled_plugin_ids,
         )
         return await self.execute_prepared_run(run.run_id)
 
@@ -219,6 +246,7 @@ class WorkflowRuntime:
         *,
         idempotency_key: Optional[str] = None,
         idempotency_fingerprint: Optional[str] = None,
+        enabled_plugin_ids: Optional[list[str]] = None,
     ) -> tuple[AgentTask, WorkflowRun]:
         """Persist a queryable run before planning or node execution starts."""
 
@@ -230,7 +258,23 @@ class WorkflowRuntime:
                 return self.task_manager.get_task(existing.task_id), existing
 
         task = self.task_manager.get_task(task_id)
-        workflow = self._resolve_workflow(task, workflow_id)
+        requested_plugins = (
+            enabled_plugin_ids
+            if enabled_plugin_ids is not None
+            else task.enabled_plugin_ids
+        )
+        resolved_plugins = self.plugin_scope_resolver.resolve_enabled_plugin_ids(
+            requested_plugins,
+            workflow_id=workflow_id or task.recommended_workflow,
+            domain=task.domain,
+            intent=task.intent,
+        )
+        scope = self.plugin_scope_resolver.build_scope(resolved_plugins)
+        workflow = self._resolve_workflow(
+            task,
+            workflow_id,
+            allowed_workflow_ids=scope.workflow_ids,
+        )
         is_acg = workflow.effective_runtime_engine == "acg"
         run = WorkflowRun(
             taskId=task.task_id,
@@ -250,6 +294,41 @@ class WorkflowRuntime:
                 if is_acg
                 else [WorkflowStep.from_definition(step) for step in workflow.steps]
             ),
+            enabledPluginIds=list(scope.enabled_plugin_ids),
+            resolvedEnabledPluginIds=list(scope.enabled_plugin_ids),
+            pluginSnapshot=list(scope.plugin_snapshots),
+            capabilityCatalogRevision=scope.capability_catalog_revision,
+            executionScope=scope,
+            legacyPluginScope=False,
+            executionState={
+                "pluginScopeResolution": (
+                    "legacy_compatibility" if requested_plugins is None else "explicit"
+                ),
+                "visibleCapabilityCount": len(scope.capability_ids),
+                "scopeExcludedAgentCount": max(
+                    0, len(tuple(self.agent_registry.all())) - len(scope.agent_ids)
+                ),
+            },
+        )
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.TASK_STATUS_CHANGED,
+            observation="Plugin execution scope resolved",
+            payload={
+                "resolvedEnabledPluginIds": list(scope.enabled_plugin_ids),
+                "pluginSnapshot": [
+                    item.model_dump(by_alias=True, mode="json")
+                    for item in scope.plugin_snapshots
+                ],
+                "capabilityCatalogRevision": scope.capability_catalog_revision,
+                "visibleCapabilityCount": len(scope.capability_ids),
+                "scopeExcludedAgentCount": run.execution_state[
+                    "scopeExcludedAgentCount"
+                ],
+                "resolutionPolicy": run.execution_state[
+                    "pluginScopeResolution"
+                ],
+            },
         )
         self.workflow_store.save_run(run)
         logger.info(
@@ -271,7 +350,15 @@ class WorkflowRuntime:
             return run
 
         task = self.task_manager.get_task(run.task_id)
-        workflow = self.workflow_registry.get(run.workflow_id)
+        try:
+            workflow = self._workflow_for_run(run)
+        except PluginScopeError as exc:
+            await self.fail_run_safely(
+                run.run_id,
+                error_code=exc.code,
+                error_message=exc.detail,
+            )
+            raise
         started = monotonic()
         run = self._set_run_lifecycle(
             run,
@@ -366,7 +453,11 @@ class WorkflowRuntime:
                 "elapsedMs": int((monotonic() - planning_started) * 1000),
             },
         )
-        self._validate_blueprint_agents(blueprint, domain=workflow.domain or task.domain)
+        self._validate_blueprint_agents(
+            blueprint,
+            domain=workflow.domain or task.domain,
+            scope=run.execution_scope,
+        )
         run.execution_state["workflowVersion"] = workflow.version
         run.execution_state["graphId"] = blueprint.graph_id
         run.execution_state["sourceBlueprintVersion"] = blueprint.version
@@ -389,7 +480,13 @@ class WorkflowRuntime:
             return run
         return await executor.run(task=task, run=run, workflow=workflow, blueprint=blueprint)
 
-    def _validate_blueprint_agents(self, blueprint: ACGBlueprint, *, domain: str) -> None:
+    def _validate_blueprint_agents(
+        self,
+        blueprint: ACGBlueprint,
+        *,
+        domain: str,
+        scope: RunExecutionScope | None = None,
+    ) -> None:
         missing: list[str] = []
         for step in blueprint.step_nodes():
             try:
@@ -397,6 +494,7 @@ class WorkflowRuntime:
                     domain=domain,
                     agent_name=step.agent_name,
                     capability=step.capability,
+                    allowed_agent_ids=(scope.agent_ids if scope is not None else None),
                 )
             except KeyError:
                 missing.append(step.agent_name or step.node_id)
@@ -437,7 +535,8 @@ class WorkflowRuntime:
                 or task.title
                 or workflow.description
             )
-            plan = self.planning_engine.plan(
+            planning_engine = self._planning_engine_for_run(run)
+            plan = planning_engine.plan(
                 task_id=task.task_id,
                 intent=intent_text,
                 domain=workflow.domain or task.domain,
@@ -452,7 +551,19 @@ class WorkflowRuntime:
                 run=run,
                 event_type=TraceEventType.TASK_STATUS_CHANGED,
                 observation=f"Planner produced ACG via {plan.strategy}",
-                payload=plan.to_decision(),
+                payload=plan.to_decision()
+                | {
+                    "resolvedEnabledPluginIds": list(run.enabled_plugin_ids),
+                    "capabilityCatalogRevision": run.capability_catalog_revision,
+                    "visibleCapabilityCount": (
+                        len(run.execution_scope.capability_ids)
+                        if run.execution_scope is not None
+                        else len(self.capability_catalog.available())
+                    ),
+                    "scopeExcludedAgentCount": int(
+                        run.execution_state.get("scopeExcludedAgentCount", 0)
+                    ),
+                },
             )
             return plan.blueprint
 
@@ -502,7 +613,7 @@ class WorkflowRuntime:
             latest = self.workflow_store.get_run(decision.run_id)
             run = latest.model_copy(deep=True)
             task = self.task_manager.get_task(run.task_id)
-            workflow = self.workflow_registry.get(run.workflow_id)
+            workflow = self._workflow_for_run(run)
             graph = run.runtime_graph
             if graph is None:
                 raise RuntimeGraphError("RUNTIME_GRAPH_MISSING", "review requires RuntimeGraph")
@@ -770,7 +881,7 @@ class WorkflowRuntime:
             ):
                 raise ReviewConflictError("workflow step state changed")
 
-        workflow = self.workflow_registry.get(run.workflow_id)
+        workflow = self._workflow_for_run(run)
         adapter = self._workflow_adapter(workflow)
         return await adapter.apply_review(decision)
 
@@ -790,16 +901,29 @@ class WorkflowRuntime:
         # Explicitly initialize legacy ACG runs before comparing checkpoint graph
         # versions.  No checkpoint field is copied into the run before this check.
         initial_run = self.workflow_store.get_run(run_id)
-        initial_workflow = self.workflow_registry.get(initial_run.workflow_id)
+        initial_workflow = self._workflow_for_run(initial_run)
         if initial_run.runtime_engine != "acg" or initial_workflow.effective_runtime_engine != "acg":
             raise ValueError("Only acg workflow runs can be resumed from checkpoints")
         await self.runtime_controller.load(run_id)
         async with self.run_lock_manager.lock_for(run_id):
             run = self.workflow_store.get_run(run_id)
             task = self.task_manager.get_task(run.task_id)
-            workflow = self.workflow_registry.get(run.workflow_id)
+            workflow = self._workflow_for_run(run)
             checkpoint = self.checkpoint_store.find(run, checkpoint_id)
             snapshot = checkpoint.state_snapshot or {}
+            snapshot_scope = snapshot.get("executionScope")
+            if snapshot_scope is None:
+                raise PluginScopeError(
+                    "CHECKPOINT_PLUGIN_SNAPSHOT_MISSING",
+                    checkpoint.checkpoint_id,
+                )
+            restored_scope = RunExecutionScope.model_validate(snapshot_scope)
+            if run.execution_scope != restored_scope:
+                raise PluginScopeError(
+                    "CHECKPOINT_PLUGIN_SCOPE_CONFLICT",
+                    checkpoint.checkpoint_id,
+                )
+            self.plugin_scope_resolver.validate_snapshot(restored_scope)
             snapshot_workflow_version = snapshot.get("workflowVersion")
             if snapshot_workflow_version and snapshot_workflow_version != workflow.version:
                 raise ValueError(
@@ -915,8 +1039,50 @@ class WorkflowRuntime:
             self.workflow_store.save_run(run)
             return run
 
-    def _resolve_workflow(self, task: AgentTask, workflow_id: Optional[str]) -> WorkflowDefinition:
-        return self.task_manager.bind_workflow(task, workflow_id=workflow_id)
+    def _resolve_workflow(
+        self,
+        task: AgentTask,
+        workflow_id: Optional[str],
+        *,
+        allowed_workflow_ids: tuple[str, ...] | None = None,
+    ) -> WorkflowDefinition:
+        return self.task_manager.bind_workflow(
+            task,
+            workflow_id=workflow_id,
+            allowed_workflow_ids=allowed_workflow_ids,
+        )
+
+    def _planning_engine_for_run(self, run: WorkflowRun):
+        if run.execution_scope is None:
+            return self.planning_engine
+        from agentos.core.planning import PlanningEngine
+
+        return PlanningEngine(
+            workflow_registry=self.plugin_scope_resolver.scoped_workflows(
+                run.execution_scope
+            ),
+            agent_registry=self.plugin_scope_resolver.scoped_agents(
+                run.execution_scope
+            ),
+            capability_catalog=self.plugin_scope_resolver.scoped_catalog(
+                run.execution_scope
+            ),
+            intent_llm=self._intent_llm,
+        )
+
+    def _workflow_for_run(self, run: WorkflowRun) -> WorkflowDefinition:
+        if run.execution_scope is None:
+            if run.legacy_plugin_scope:
+                raise PluginScopeError(
+                    "LEGACY_PLUGIN_SNAPSHOT_MISSING",
+                    f"run {run.run_id} has no frozen plugin scope",
+                )
+            return self.workflow_registry.get(run.workflow_id)
+        self.plugin_scope_resolver.validate_snapshot(run.execution_scope)
+        return self.workflow_registry.get(
+            run.workflow_id,
+            allowed_workflow_ids=run.execution_scope.workflow_ids,
+        )
 
     def _workflow_adapter(self, workflow: WorkflowDefinition):
         runtime_engine = workflow.effective_runtime_engine
@@ -1063,7 +1229,7 @@ def build_default_runtime() -> WorkflowRuntime:
         agent_registry=runtime.agent_registry,
         workflow_registry=runtime.workflow_registry,
     )
-    register_installed_packs(
+    runtime.plugin_manifests = register_installed_packs(
         agent_registry=runtime.agent_registry,
         workflow_registry=runtime.workflow_registry,
         capability_catalog=runtime.capability_catalog,

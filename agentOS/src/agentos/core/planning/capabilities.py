@@ -39,6 +39,10 @@ class PlanningCapabilityDescriptor(BaseModel):
     parallelizable: bool = True
     domain_hints: list[str] = Field(default_factory=list, alias="domainHints")
     priority: int = 100
+    source: Literal["native", "plugin"] = "native"
+    plugin_id: str | None = Field(default=None, alias="pluginId")
+    plugin_version: str | None = Field(default=None, alias="pluginVersion")
+    contribution_id: str | None = Field(default=None, alias="contributionId")
 
 
 class CapabilityCatalog:
@@ -102,6 +106,18 @@ class CapabilityCatalog:
             or domain in descriptor.domain_hints
         ]
         return tuple(sorted(descriptors, key=lambda item: (item.priority, item.capability_id)))
+
+    def scoped(self, capability_ids: Iterable[str]) -> "CapabilityCatalog":
+        """Build an isolated catalog view without mutating the global catalog."""
+
+        allowed = {self._normalize(item) for item in capability_ids}
+        scoped = CapabilityCatalog(
+            descriptor.model_copy(deep=True)
+            for capability_id, descriptor in self._descriptors.items()
+            if capability_id in allowed
+        )
+        scoped.validate()
+        return scoped
 
     def validate(self) -> None:
         for descriptor in self._descriptors.values():

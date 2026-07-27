@@ -5,13 +5,17 @@ from __future__ import annotations
 from agentos.core.planning import PlanningCapabilityDescriptor
 
 
+LEGAL_PLUGIN_ID = "kinlin.legal"
+LEGAL_PLUGIN_VERSION = "0.1.0"
+
+
 def _schema(*required: str) -> dict:
     return {"type": "object", "required": list(required)}
 
 
 def legal_capability_descriptors() -> tuple[PlanningCapabilityDescriptor, ...]:
     legal = ["legal"]
-    return (
+    descriptors = (
         PlanningCapabilityDescriptor(
             capabilityId="文本解析",
             displayName="合同文本解析",
@@ -142,6 +146,17 @@ def legal_capability_descriptors() -> tuple[PlanningCapabilityDescriptor, ...]:
             priority=60,
         ),
     )
+    return tuple(
+        descriptor.model_copy(
+            update={
+                "source": "plugin",
+                "plugin_id": LEGAL_PLUGIN_ID,
+                "plugin_version": LEGAL_PLUGIN_VERSION,
+                "contribution_id": descriptor.capability_id,
+            }
+        )
+        for descriptor in descriptors
+    )
 
 
 LEGAL_CAPABILITY_IDS = tuple(
@@ -149,4 +164,9 @@ LEGAL_CAPABILITY_IDS = tuple(
 )
 
 
-__all__ = ["LEGAL_CAPABILITY_IDS", "legal_capability_descriptors"]
+__all__ = [
+    "LEGAL_CAPABILITY_IDS",
+    "LEGAL_PLUGIN_ID",
+    "LEGAL_PLUGIN_VERSION",
+    "legal_capability_descriptors",
+]

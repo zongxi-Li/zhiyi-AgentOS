@@ -82,6 +82,7 @@ class DeterministicProposalFactory:
         candidate_resolver: CandidateResolver,
         *,
         domain: str,
+        allowed_agent_ids: list[str] | tuple[str, ...] | None = None,
     ) -> GraphChangeProposal:
         if decision.patch_operation == GraphChangeType.RETRY_ALTERNATE_BINDING.value:
             node = graph.get_node(event.runtime_node_id)
@@ -93,6 +94,7 @@ class DeterministicProposalFactory:
                 capability=str(node.spec.get("capability") or event.payload.get("capability") or ""),
                 required_skills=required_skills,
                 excluded_binding_ids=excluded,
+                allowed_agent_ids=allowed_agent_ids,
             )
             if not candidates:
                 raise KeyError("ALTERNATE_BINDING_EXHAUSTED")
@@ -124,7 +126,11 @@ class DeterministicProposalFactory:
         proposal_key = stable_hash(event.event_id, recipe.recipe_id, recipe.version, decision.target_node_id)
         nodes: list[StepNode] = []
         for template in recipe.node_templates:
-            binding = candidate_resolver.resolve(domain=domain, capability=template.capability)
+            binding = candidate_resolver.resolve(
+                domain=domain,
+                capability=template.capability,
+                allowed_agent_ids=allowed_agent_ids,
+            )
             node_key = stable_hash(scope, template.logical_name)
             nodes.append(
                 StepNode(

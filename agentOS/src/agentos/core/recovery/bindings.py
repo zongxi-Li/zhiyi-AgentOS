@@ -33,7 +33,10 @@ class ExecutionBinding(BaseModel):
     model_name: str = Field(default="", alias="modelName")
     allowed_skills: list[str] = Field(default_factory=list, alias="allowedSkills")
     binding_type: BindingType = Field(default=BindingType.AGENT, alias="bindingType")
-    source: str = "agent_registry"
+    source: str = "native"
+    plugin_id: str | None = Field(default=None, alias="pluginId")
+    plugin_version: str | None = Field(default=None, alias="pluginVersion")
+    contribution_id: str | None = Field(default=None, alias="contributionId")
     priority: int = 0
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -58,6 +61,10 @@ class ExecutionBinding(BaseModel):
             allowedSkills=list(dict.fromkeys(profile.allowed_skills)),
             bindingType=BindingType.AGENT_MODEL if model_name else BindingType.AGENT,
             priority=profile.binding_priority,
+            source=profile.source,
+            pluginId=profile.plugin_id,
+            pluginVersion=profile.plugin_version,
+            contributionId=profile.contribution_id or profile.agent_name,
             metadata={"registrationOrder": registration_order},
         )
 
@@ -110,6 +117,7 @@ class CandidateResolver:
         capability: str,
         required_skills: list[str] | None = None,
         excluded_binding_ids: list[str] | None = None,
+        allowed_agent_ids: list[str] | tuple[str, ...] | None = None,
     ) -> list[ExecutionBinding]:
         normalized_domain = domain.strip().lower()
         normalized_capability = capability.strip().lower()
@@ -118,6 +126,11 @@ class CandidateResolver:
         bindings: list[ExecutionBinding] = []
         for order, agent in enumerate(self.agent_registry.all()):
             profile = agent.profile
+            if (
+                allowed_agent_ids is not None
+                and self.agent_registry.agent_id(agent) not in set(allowed_agent_ids)
+            ):
+                continue
             if profile.domain.strip().lower() != normalized_domain:
                 continue
             capabilities = {item.strip().lower() for item in profile.capabilities}
@@ -141,8 +154,18 @@ class CandidateResolver:
             ),
         )
 
-    def resolve(self, *, domain: str, capability: str):
-        candidates = self.resolve_candidates(domain=domain, capability=capability)
+    def resolve(
+        self,
+        *,
+        domain: str,
+        capability: str,
+        allowed_agent_ids: list[str] | tuple[str, ...] | None = None,
+    ):
+        candidates = self.resolve_candidates(
+            domain=domain,
+            capability=capability,
+            allowed_agent_ids=allowed_agent_ids,
+        )
         if not candidates:
             raise AgentNotFound(f"no binding candidate: {domain}/{capability}")
         return candidates[0]
@@ -154,12 +177,14 @@ class CandidateResolver:
         capability: str,
         required_skills: list[str] | None,
         binding: ExecutionBinding | dict[str, Any],
+        allowed_agent_ids: list[str] | tuple[str, ...] | None = None,
     ) -> bool:
         expected = ExecutionBinding.model_validate(binding)
         candidates = self.resolve_candidates(
             domain=domain,
             capability=capability,
             required_skills=required_skills,
+            allowed_agent_ids=allowed_agent_ids,
         )
         return any(item.binding_id == expected.binding_id for item in candidates)
 

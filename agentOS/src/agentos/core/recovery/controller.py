@@ -61,10 +61,15 @@ class RuntimeController:
             if run.runtime_graph is not None:
                 return run.runtime_graph.model_copy(deep=True)
             candidate = run.model_copy(deep=True)
+            scoped_registry = (
+                self.agent_registry.scoped(run.execution_scope.agent_ids)
+                if run.execution_scope is not None
+                else self.agent_registry
+            )
             candidate.runtime_graph = RuntimeGraph.from_blueprint(
                 run_id=run_id,
                 blueprint=blueprint.model_copy(deep=True),
-                agent_registry=self.agent_registry,
+                agent_registry=scoped_registry,
                 domain=run.domain,
             )
             self._import_legacy_execution_state(candidate)
@@ -93,10 +98,15 @@ class RuntimeController:
                 )
             blueprint = ACGBlueprint.model_validate(run.acg_blueprint)
             candidate = run.model_copy(deep=True)
+            scoped_registry = (
+                self.agent_registry.scoped(run.execution_scope.agent_ids)
+                if run.execution_scope is not None
+                else self.agent_registry
+            )
             candidate.runtime_graph = RuntimeGraph.from_blueprint(
                 run_id=run_id,
                 blueprint=blueprint,
-                agent_registry=self.agent_registry,
+                agent_registry=scoped_registry,
                 domain=run.domain,
             )
             self._import_legacy_execution_state(candidate)
@@ -157,7 +167,13 @@ class RuntimeController:
             )
 
         candidate_run = loaded_run.model_copy(deep=True)
-        candidate_graph = self.validator.validate(
+        validator = self.validator
+        if candidate_run.execution_scope is not None:
+            scoped_registry = self.agent_registry.scoped(
+                candidate_run.execution_scope.agent_ids
+            )
+            validator = PatchValidator(scoped_registry)
+        candidate_graph = validator.validate(
             candidate_run.runtime_graph,
             patch,
             domain=candidate_run.domain,

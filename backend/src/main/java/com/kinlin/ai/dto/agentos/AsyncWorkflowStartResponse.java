@@ -1,5 +1,6 @@
 package com.kinlin.ai.dto.agentos;
 
+import java.util.List;
 import java.util.Objects;
 
 /** Typed response for an accepted asynchronous workflow run. */
@@ -23,7 +24,19 @@ public record AsyncWorkflowStartResponse(
             String runId,
             String status,
             String lifecyclePhase,
-            String lifecycleMessage
+            String lifecycleMessage,
+            List<String> enabledPluginIds,
+            List<String> resolvedEnabledPluginIds,
+            List<PluginSnapshot> pluginSnapshot,
+            String capabilityCatalogRevision
+    ) {
+    }
+
+    public record PluginSnapshot(
+            String pluginId,
+            String version,
+            String manifestHash,
+            String contributionRevision
     ) {
     }
 }

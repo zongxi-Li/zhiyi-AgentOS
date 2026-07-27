@@ -40,12 +40,22 @@ def test_legal_pack_registers_shared_catalog_and_manifest_consistently():
     assert set(LEGAL_CAPABILITY_IDS) == {
         descriptor.capability_id for descriptor in legal_capability_descriptors()
     }
-    assert set(LEGAL_CAPABILITY_IDS) == set(
-        next(
-            manifest for manifest in discover_pack_manifests()
-            if manifest.pack_id == "legal"
-        ).capabilities
+    manifest = next(
+        manifest
+        for manifest in discover_pack_manifests()
+        if manifest.pack_id == "kinlin.legal"
     )
+    assert set(LEGAL_CAPABILITY_IDS) == set(manifest.capabilities)
+    assert set(manifest.agents) == {
+        agent.profile.agent_name
+        for agent in runtime.agent_registry.all()
+        if agent.profile.plugin_id == "kinlin.legal"
+    }
+    assert set(manifest.workflows) == {
+        workflow.workflow_id
+        for workflow in runtime.workflow_registry.all()
+        if workflow.plugin_id == "kinlin.legal"
+    }
     assert runtime.capability_catalog.resolve("法律知识应用").capability_id == "证据检索"
     assert runtime.capability_catalog.get("风险识别").risk_level_hint == "high"
     assert runtime.capability_catalog.get("证据检索").requires_evidence is True

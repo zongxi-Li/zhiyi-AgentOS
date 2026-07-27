@@ -1,9 +1,26 @@
 {
-  "id": "legal",
+  "id": "kinlin.legal",
   "name": "Legal Demo Pack",
   "version": "0.1.0",
+  "module": "packs.legal",
   "description": "Demo legal workflow pack used to validate AgentOS Core registration.",
   "contributions": {
+    "agents": [
+      "case_intake",
+      "clause_classify",
+      "contract_final_review",
+      "contract_parse",
+      "draft",
+      "evidence",
+      "human_review",
+      "legal_evidence_match",
+      "report_generate",
+      "review",
+      "revision_suggest",
+      "risk",
+      "risk_detect",
+      "statute"
+    ],
     "workflows": [
       "legal_case_analysis_v1",
       "legal_contract_review_v1"

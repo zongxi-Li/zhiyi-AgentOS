@@ -35,6 +35,11 @@ class Orchestrator:
             domain=run.domain,
             agent_name=step.agent_name,
             capability=step.capability,
+            allowed_agent_ids=(
+                run.execution_scope.agent_ids
+                if run.execution_scope is not None
+                else None
+            ),
         )
         context = AgentRunContext(
             task=task,

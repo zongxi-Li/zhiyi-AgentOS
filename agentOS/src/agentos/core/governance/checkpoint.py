@@ -45,6 +45,18 @@ class CheckpointStore:
             "activeStepIds": list(run.active_step_ids),
             "provenance": run.provenance,
             "executionState": dict(run.execution_state),
+            "enabledPluginIds": list(run.enabled_plugin_ids),
+            "resolvedEnabledPluginIds": list(run.resolved_enabled_plugin_ids),
+            "pluginSnapshot": [
+                item.model_dump(by_alias=True, mode="json")
+                for item in run.plugin_snapshot
+            ],
+            "capabilityCatalogRevision": run.capability_catalog_revision,
+            "executionScope": (
+                run.execution_scope.model_dump(by_alias=True, mode="json")
+                if run.execution_scope is not None
+                else None
+            ),
             "workflowVersion": run.execution_state.get("workflowVersion"),
             "graphId": graph_id,
             "graphVersion": graph_version,

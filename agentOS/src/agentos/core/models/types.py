@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -24,6 +24,37 @@ def new_id(prefix: str) -> str:
 
 class CoreModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+ContributionSource = Literal["native", "plugin"]
+
+
+class PluginSnapshot(CoreModel):
+    """Stable installed-pack identity frozen into one workflow run."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    plugin_id: str = Field(alias="pluginId")
+    version: str
+    manifest_hash: str = Field(alias="manifestHash")
+    contribution_revision: str = Field(alias="contributionRevision")
+
+
+class RunExecutionScope(CoreModel):
+    """Immutable visibility boundary used throughout one workflow run."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    enabled_plugin_ids: tuple[str, ...] = Field(
+        default_factory=tuple, alias="enabledPluginIds"
+    )
+    capability_ids: tuple[str, ...] = Field(default_factory=tuple, alias="capabilityIds")
+    agent_ids: tuple[str, ...] = Field(default_factory=tuple, alias="agentIds")
+    workflow_ids: tuple[str, ...] = Field(default_factory=tuple, alias="workflowIds")
+    plugin_snapshots: tuple[PluginSnapshot, ...] = Field(
+        default_factory=tuple, alias="pluginSnapshots"
+    )
+    capability_catalog_revision: str = Field(alias="capabilityCatalogRevision")
 
 
 class WorkflowStatus(str, Enum):
@@ -94,6 +125,7 @@ class AgentTask(CoreModel):
     priority: str = "normal"
     status: WorkflowStatus = WorkflowStatus.PENDING
     recommended_workflow: Optional[str] = Field(default=None, alias="recommendedWorkflow")
+    enabled_plugin_ids: Optional[List[str]] = Field(default=None, alias="enabledPluginIds")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
     updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
 
@@ -131,6 +163,10 @@ class WorkflowDefinition(CoreModel):
     aliases: List[str] = Field(default_factory=list)
     artifacts: Dict[str, str] = Field(default_factory=dict)
     steps: List[WorkflowStepDefinition] = Field(default_factory=list)
+    source: ContributionSource = "native"
+    plugin_id: Optional[str] = Field(default=None, alias="pluginId")
+    plugin_version: Optional[str] = Field(default=None, alias="pluginVersion")
+    contribution_id: Optional[str] = Field(default=None, alias="contributionId")
 
     @model_validator(mode="before")
     @classmethod
@@ -246,6 +282,16 @@ class WorkflowRun(CoreModel):
     trace: List[TraceEvent] = Field(default_factory=list)
     error: Optional[str | Dict[str, Any]] = None
     recovery_count: int = Field(default=0, alias="recoveryCount")
+    enabled_plugin_ids: List[str] = Field(default_factory=list, alias="enabledPluginIds")
+    resolved_enabled_plugin_ids: List[str] = Field(
+        default_factory=list, alias="resolvedEnabledPluginIds"
+    )
+    plugin_snapshot: List[PluginSnapshot] = Field(default_factory=list, alias="pluginSnapshot")
+    capability_catalog_revision: Optional[str] = Field(
+        default=None, alias="capabilityCatalogRevision"
+    )
+    execution_scope: Optional[RunExecutionScope] = Field(default=None, alias="executionScope")
+    legacy_plugin_scope: bool = Field(default=False, alias="legacyPluginScope")
     # ACG 执行路径承载字段（可选，仅 runtimeEngine=acg 时填充）。
     # acg_blueprint 存规划器产物 / 升格结果；completed_step_ids 记录就绪集调度
     # 已完成的 StepNode，用于并行调度时计算下一批就绪集，不影响线性路径。
@@ -260,6 +306,17 @@ class WorkflowRun(CoreModel):
     execution_state: Dict[str, Any] = Field(default_factory=dict, alias="executionState")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
     updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
+
+    @model_validator(mode="before")
+    @classmethod
+    def mark_legacy_plugin_scope(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            has_scope = "executionScope" in data or "execution_scope" in data
+            has_plugins = "enabledPluginIds" in data or "enabled_plugin_ids" in data
+            if not has_scope and not has_plugins:
+                data.setdefault("legacyPluginScope", True)
+        return data
 
     def get_step(self, step_id: str) -> WorkflowStep:
         for step in self.steps:

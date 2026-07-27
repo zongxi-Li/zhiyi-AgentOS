@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentos.core.execution import RunExecutionCoordinator
 from agentos.core.models.types import ReviewDecision, ReviewDecisionType, WorkflowRun, WorkflowStatus
+from agentos.core.plugin_scope import PluginScopeError
 from agentos.core.runtime import ReviewConflictError, WorkflowRuntime
 from agentos.core.workflow.progress import ProgressAssembler
 from app.execution.runtime import build_default_runtime
@@ -60,6 +61,10 @@ class AgentTaskCreateRequest(BaseModel):
     security_level: str = "internal"
     priority: str = "normal"
 
+    enabled_plugin_ids: Optional[list[str]] = Field(
+        default=None, alias="enabledPluginIds"
+    )
+
     @model_validator(mode="before")
     @classmethod
     def accept_camel_case(cls, data):
@@ -80,6 +85,9 @@ class WorkflowRunCreateRequest(BaseModel):
     task_id: str
     workflow_id: Optional[str] = None
     review_mode: str = "auto"
+    enabled_plugin_ids: Optional[list[str]] = Field(
+        default=None, alias="enabledPluginIds"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -109,6 +117,9 @@ class WorkflowStartRequest(BaseModel):
     workflow_id: Optional[str] = None
     review_mode: str = "auto"
     client_request_id: Optional[str] = Field(default=None, alias="clientRequestId")
+    enabled_plugin_ids: Optional[list[str]] = Field(
+        default=None, alias="enabledPluginIds"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -162,6 +173,9 @@ class ChatWorkflowUpgradeRequest(BaseModel):
     input: Dict[str, Any] = Field(default_factory=dict)
     security_level: str = "internal"
     priority: str = "normal"
+    enabled_plugin_ids: Optional[list[str]] = Field(
+        default=None, alias="enabledPluginIds"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -327,6 +341,7 @@ async def _create_task_and_start(
         role_type=request.role_type,
         task_type=request.task_type,
         workflow_id=request.workflow_id,
+        enabled_plugin_ids=request.enabled_plugin_ids,
     )
     with execution_context(workflow_id=request.workflow_id or "", task_id=task.task_id):
         logger.info("AgentOS task created; starting workflow")
@@ -334,6 +349,7 @@ async def _create_task_and_start(
             task_id=task.task_id,
             workflow_id=request.workflow_id,
             review_mode=request.review_mode,
+            enabled_plugin_ids=request.enabled_plugin_ids,
         )
         _bind_source_materials(request.input, task_id=task.task_id, run_id=run.run_id)
         logger.info("AgentOS workflow run started")
@@ -365,6 +381,7 @@ def _workflow_start_fingerprint(request: WorkflowStartRequest) -> str:
         "priority": request.priority,
         "workflowId": request.workflow_id,
         "reviewMode": request.review_mode,
+        "enabledPluginIds": request.enabled_plugin_ids,
     }
     canonical = json.dumps(critical, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -404,6 +421,7 @@ async def _create_task_and_submit(
         role_type=request.role_type,
         task_type=request.task_type,
         workflow_id=request.workflow_id,
+        enabled_plugin_ids=request.enabled_plugin_ids,
     )
     _, run = runtime.prepare_run(
         task_id=task.task_id,
@@ -411,6 +429,7 @@ async def _create_task_and_submit(
         review_mode=request.review_mode,
         idempotency_key=idempotency_key,
         idempotency_fingerprint=idempotency_fingerprint,
+        enabled_plugin_ids=request.enabled_plugin_ids,
     )
     _bind_source_materials(request.input, task_id=task.task_id, run_id=run.run_id)
     try:
@@ -1720,6 +1739,7 @@ def create_router(
                 priority=request.priority,
                 role_type=request.role_type,
                 task_type=request.task_type,
+                enabled_plugin_ids=request.enabled_plugin_ids,
             )
             with execution_context(task_id=task.task_id):
                 logger.info("AgentOS task created")
@@ -1753,6 +1773,7 @@ def create_router(
                     task_id=request.task_id,
                     workflow_id=request.workflow_id,
                     review_mode=request.review_mode,
+                    enabled_plugin_ids=request.enabled_plugin_ids,
                 )
                 logger.info("AgentOS workflow run started")
             return _to_json(run)
@@ -1780,6 +1801,11 @@ def create_router(
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except IdempotencyConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except PluginScopeError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": exc.code, "message": exc.detail},
+            ) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
@@ -1813,6 +1839,7 @@ def create_router(
             reviewMode=request.review_mode,
             roleType=request.role_type,
             taskType=request.task_type,
+            enabledPluginIds=request.enabled_plugin_ids,
         )
         try:
             payload = await _create_task_and_start(runtime, start_request)

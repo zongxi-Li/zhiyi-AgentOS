@@ -16,12 +16,20 @@ def test_pack_registry_discovers_installed_manifests():
 
     assert {manifest.pack_id for manifest in manifests} >= {
         "education",
-        "legal",
+        "kinlin.legal",
         "programmer",
         "writer",
     }
-    assert next(manifest for manifest in manifests if manifest.pack_id == "legal").module == "packs.legal"
-    assert set(next(manifest for manifest in manifests if manifest.pack_id == "legal").capabilities) == {
+    assert next(
+        manifest for manifest in manifests if manifest.pack_id == "kinlin.legal"
+    ).module == "packs.legal"
+    assert set(
+        next(
+            manifest
+            for manifest in manifests
+            if manifest.pack_id == "kinlin.legal"
+        ).capabilities
+    ) == {
         "文本解析",
         "条款分类",
         "风险识别",
@@ -43,7 +51,7 @@ def test_pack_registry_registers_enabled_packs_from_manifest():
         capability_catalog=capability_catalog,
     )
 
-    assert "legal" in {manifest.pack_id for manifest in registered}
+    assert "kinlin.legal" in {manifest.pack_id for manifest in registered}
     assert workflow_registry.get("legal_case_analysis_v1").domain == "legal"
     assert agent_registry.resolve("legal", agent_name="case_intake").profile.agent_name == "case_intake"
     assert capability_catalog.resolve("法律知识应用").capability_id == "证据检索"

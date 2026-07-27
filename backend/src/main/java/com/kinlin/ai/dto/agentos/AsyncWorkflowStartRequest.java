@@ -1,5 +1,6 @@
 package com.kinlin.ai.dto.agentos;
 
+import java.util.List;
 import java.util.Map;
 
 /** Request accepted by the asynchronous workflow preparation endpoint. */
@@ -14,7 +15,8 @@ public record AsyncWorkflowStartRequest(
         String priority,
         String workflowId,
         String reviewMode,
-        String clientRequestId
+        String clientRequestId,
+        List<String> enabledPluginIds
 ) {
     public AsyncWorkflowStartRequest {
         domain = domain == null ? "general" : domain;

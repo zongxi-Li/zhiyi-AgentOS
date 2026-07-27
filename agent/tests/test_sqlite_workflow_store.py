@@ -3,6 +3,8 @@ import sqlite3
 
 from agentos.core.models.types import (
     AgentTask,
+    PluginSnapshot,
+    RunExecutionScope,
     StepStatus,
     WorkflowRun,
     WorkflowStatus,
@@ -20,6 +22,43 @@ from agentos.core.runtime_graph import (
     RuntimeAttempt,
 )
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
+
+
+def test_sqlite_roundtrips_frozen_plugin_scope(tmp_path):
+    store = SQLiteWorkflowStore(tmp_path / "plugin-scope.db")
+    snapshot = PluginSnapshot(
+        pluginId="kinlin.legal",
+        version="0.1.0",
+        manifestHash="manifest-hash",
+        contributionRevision="contribution-revision",
+    )
+    scope = RunExecutionScope(
+        enabledPluginIds=("kinlin.legal",),
+        capabilityIds=("文本解析",),
+        agentIds=("contract_parse",),
+        workflowIds=("native_acg_runtime_v1", "legal_contract_review_v1"),
+        pluginSnapshots=(snapshot,),
+        capabilityCatalogRevision="catalog-revision",
+    )
+    run = WorkflowRun(
+        taskId="task_scope",
+        workflowId="legal_contract_review_v1",
+        domain="legal",
+        runtimeEngine="acg",
+        enabledPluginIds=["kinlin.legal"],
+        resolvedEnabledPluginIds=["kinlin.legal"],
+        pluginSnapshot=[snapshot],
+        capabilityCatalogRevision="catalog-revision",
+        executionScope=scope,
+    )
+
+    store.save_run(run)
+    loaded = SQLiteWorkflowStore(tmp_path / "plugin-scope.db").get_run(run.run_id)
+
+    assert loaded.execution_scope == scope
+    assert loaded.plugin_snapshot == [snapshot]
+    assert loaded.resolved_enabled_plugin_ids == ["kinlin.legal"]
+    assert loaded.legacy_plugin_scope is False
 
 
 def test_sqlite_workflow_store_persists_tasks_and_runs(tmp_path):

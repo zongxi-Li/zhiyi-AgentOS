@@ -678,6 +678,11 @@ class ACGExecutor:
                     self.runtime.recovery_recipe_registry,
                     self.runtime.candidate_resolver,
                     domain=candidate.domain,
+                    allowed_agent_ids=(
+                        candidate.execution_scope.agent_ids
+                        if candidate.execution_scope is not None
+                        else None
+                    ),
                 )
                 self.runtime.trace_store.append(
                     run=candidate,
@@ -841,8 +846,13 @@ class ACGExecutor:
 
     @staticmethod
     def _correlation(graph, node, attempt, *, scheduled: int) -> dict[str, Any]:
+        binding = node.current_binding or {}
         return {"graphVersion": graph.graph_version, "runtimeNodeId": node.node_id,
                 "attemptId": attempt.attempt_id, "bindingId": attempt.binding_id,
+                "bindingSource": binding.get("source", "native"),
+                "pluginId": binding.get("pluginId"),
+                "pluginVersion": binding.get("pluginVersion"),
+                "bindingContributionId": binding.get("contributionId"),
                 "scheduledGraphVersion": scheduled, "attempt": attempt.attempt_number}
 
     @staticmethod
