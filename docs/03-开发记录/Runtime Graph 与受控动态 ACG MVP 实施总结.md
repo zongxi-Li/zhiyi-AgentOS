@@ -1,8 +1,8 @@
 # Runtime Graph 与受控动态 ACG MVP 实施总结
 
-> 日期：2026-07-27  
-> 范围：RuntimeGraph 基础、执行权威迁移、事件驱动补救子图、备选执行绑定、确定性条件分支  
-> 代码基线：`158c49c` 之前的静态 ACG 运行能力  
+> 日期：2026-07-27
+> 范围：RuntimeGraph 基础、执行权威迁移、事件驱动补救子图、备选执行绑定、确定性条件分支
+> 代码基线：`158c49c` 之前的静态 ACG 运行能力
 > 最终版本：`5232e19a657bed1007e34dc2fdccd2cfbd2c21b0`
 
 ## 1. 摘要
@@ -575,11 +575,11 @@ flowchart TD
 
 三类 Patch 的变化范围互斥：
 
-| Patch | 节点数量 | 边数量 | Binding | 节点状态 | Edge activation |
-| --- | ---: | ---: | --- | --- | --- |
-| ADD_SUBGRAPH | 增加 | 增加并保留旧边历史 | 新节点初始化 | Target RETRYING、新节点 PENDING | 不负责条件激活 |
-| RETRY_ALTERNATE_BINDING | 不变 | 不变 | 切换 | 原节点 RETRYING | 不变 |
-| ACTIVATE_CONDITIONAL_BRANCH | 不变 | 不变 | 不变 | IF 完成、未选节点 skipped | ACTIVE/TERMINATED |
+| Patch                       | 节点数量 |             边数量 | Binding      | 节点状态                        | Edge activation   |
+| --------------------------- | -------: | -----------------: | ------------ | ------------------------------- | ----------------- |
+| ADD_SUBGRAPH                |     增加 | 增加并保留旧边历史 | 新节点初始化 | Target RETRYING、新节点 PENDING | 不负责条件激活    |
+| RETRY_ALTERNATE_BINDING     |     不变 |               不变 | 切换         | 原节点 RETRYING                 | 不变              |
+| ACTIVATE_CONDITIONAL_BRANCH |     不变 |               不变 | 不变         | IF 完成、未选节点 skipped       | ACTIVE/TERMINATED |
 
 ## 10. Progress、API 与前端兼容
 
@@ -735,16 +735,16 @@ severity = critical
 
 最终版本完整测试结果：
 
-| 测试域 | 结果 |
-| --- | ---: |
-| 阶段 4 Core 精确测试 | 24 passed |
-| 阶段 4 Agent 精确测试 | 50 passed |
-| AgentOS Core 全量 | 134 passed |
-| Agent 应用全量 | 216 passed, 1 skipped |
-| Java Backend | 145 passed |
-| Frontend | 82 passed |
-| ruff | passed |
-| git diff --check | passed |
+| 测试域                |                  结果 |
+| --------------------- | --------------------: |
+| 阶段 4 Core 精确测试  |             24 passed |
+| 阶段 4 Agent 精确测试 |             50 passed |
+| AgentOS Core 全量     |            134 passed |
+| Agent 应用全量        | 216 passed, 1 skipped |
+| Java Backend          |            145 passed |
+| Frontend              |             82 passed |
+| ruff                  |                passed |
+| git diff --check      |                passed |
 
 阶段提交：
 
