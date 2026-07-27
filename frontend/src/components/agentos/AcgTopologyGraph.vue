@@ -68,8 +68,12 @@
         <dl>
           <div><dt>节点 ID</dt><dd><code>{{ selectedNode.nodeId }}</code></dd></div>
           <div v-if="selectedNodeStatus"><dt>运行状态</dt><dd class="node-status" :class="selectedNodeStatus">{{ selectedNodeStatus }}</dd></div>
-          <div v-if="selectedNode.agentName"><dt>Agent</dt><dd>{{ selectedNode.agentName }}</dd></div>
+          <div v-if="selectedStepState?.agentName || selectedNode.agentName"><dt>Agent</dt><dd>{{ selectedStepState?.agentName || selectedNode.agentName }}</dd></div>
           <div v-if="selectedNode.capability"><dt>能力</dt><dd>{{ selectedNode.capability }}</dd></div>
+          <div v-if="selectedStepState?.currentBinding"><dt>当前 Binding</dt><dd><code>{{ bindingLabel(selectedStepState.currentBinding) }}</code></dd></div>
+          <div v-if="selectedStepState?.attempt"><dt>Attempt</dt><dd>{{ selectedStepState.attempt }} 次</dd></div>
+          <div v-if="selectedStepState?.createdGraphVersion"><dt>创建图版本</dt><dd>v{{ selectedStepState.createdGraphVersion }}</dd></div>
+          <div v-if="selectedStepState?.sourcePatchId"><dt>来源 Patch</dt><dd><code>{{ selectedStepState.sourcePatchId }}</code></dd></div>
           <div v-if="selectedAllowedSkills.length">
             <dt>可用技能</dt>
             <dd class="skill-list"><code v-for="skill in selectedAllowedSkills" :key="skill">{{ skill }}</code></dd>
@@ -79,6 +83,20 @@
         <p v-if="selectedNode.goal || selectedNode.description" class="node-description">
           {{ selectedNode.goal || selectedNode.description }}
         </p>
+        <div v-if="selectedStepState?.attempts?.length" class="runtime-detail-group">
+          <strong>Attempt 历史 · {{ selectedStepState.attempts.length }}</strong>
+          <span v-for="attempt in selectedStepState.attempts" :key="attempt.attemptId">
+            #{{ attempt.attemptNumber }} · {{ attempt.status }} · {{ attempt.agentName || attempt.bindingId || '默认绑定' }}
+          </span>
+        </div>
+        <div v-if="selectedStepState?.bindingHistory?.length" class="runtime-detail-group">
+          <strong>Binding 历史 · {{ selectedStepState.bindingHistory.length }}</strong>
+          <span v-for="(binding, index) in selectedStepState.bindingHistory" :key="binding.sourcePatchId || `${binding.bindingId}-${index}`">
+            {{ binding.bindingId }} · v{{ binding.selectedAtGraphVersion || 1 }}
+          </span>
+        </div>
+        <p v-if="selectedStepState?.errorSummary" class="runtime-summary is-error">{{ selectedStepState.errorSummary }}</p>
+        <p v-if="selectedStepState?.outputSummary" class="runtime-summary">{{ selectedStepState.outputSummary }}</p>
         <div class="connection-group">
           <strong>输入关系 · {{ incomingConnections.length }}</strong>
           <span v-if="!incomingConnections.length">无</span>
@@ -106,6 +124,9 @@
       <span class="legend-item"><i class="ring running"></i>执行中</span>
       <span class="legend-item"><i class="ring waiting"></i>待审核/重试</span>
       <span class="legend-item"><i class="ring failed"></i>失败</span>
+      <span class="legend-item"><b class="badge runtime">+</b>运行时新增</span>
+      <span class="legend-item"><b class="badge binding">⇄</b>切换 Binding</span>
+      <span class="legend-item"><b class="badge skipped">Skipped</b>条件跳过</span>
     </div>
   </section>
 </template>
@@ -116,6 +137,7 @@ import { Aim, ArrowDownBold, Close, FullScreen, RefreshRight, Share } from '@ele
 import { DataSet } from 'vis-data'
 import { Network } from 'vis-network'
 import type { AcgBlueprint, AcgNode, AcgEdge, AcgStepState } from '@/services/api/agentos'
+import { mapEdgeVisualState, mapNodeVisualState } from '@/utils/runtimePresentation'
 
 const props = defineProps<{
   blueprint: AcgBlueprint | null
@@ -141,6 +163,7 @@ let graphStructureKey = ''
 let stabilizationTimer: number | undefined
 let themeObserver: MutationObserver | null = null
 let layoutFinalized = false
+let pendingViewState: { position: { x: number; y: number }; scale: number } | null = null
 
 const ENDPOINT_MIN_GAP = 190
 const ENDPOINT_MAX_GAP = 280
@@ -201,14 +224,15 @@ const selectedAllowedSkills = computed(() => {
   const value = selectedNode.value?.metadata?.allowedSkills
   return Array.isArray(value) ? value.map(String).filter(Boolean) : []
 })
-const stateByStep = computed(() =>
-  new Map<string, string>((props.stepStates || []).map(item => [item.stepId, item.status]))
-)
+const stateByStep = computed(() => new Map((props.stepStates || []).map(item => [item.stepId, item])))
+const selectedStepState = computed(() => selectedNode.value ? stateByStep.value.get(selectedNode.value.nodeId) : undefined)
 const selectedNodeStatus = computed(() => {
   if (!selectedNode.value) return ''
-  return stateByStep.value.get(selectedNode.value.nodeId)
+  return stateByStep.value.get(selectedNode.value.nodeId)?.status
     || ((props.completedStepIds || []).includes(selectedNode.value.nodeId) ? 'completed' : '')
 })
+const bindingLabel = (binding: Record<string, any>) =>
+  String(binding.agentName || binding.bindingId || binding.assignedAgentId || '默认绑定')
 const incomingConnections = computed(() =>
   visibleBlueprint.value?.edges.filter(edge => edge.targetId === selectedNodeId.value) || []
 )
@@ -297,7 +321,7 @@ function applyThemeToGraphStyles() {
   })
 }
 
-const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<string, string>) => {
+const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<string, AcgStepState>) => {
   applyThemeToGraphStyles()
   const done = cssColor('--success', '#2f8f5b')
   const textPrimary = cssColor('--text-primary', '#1d2422')
@@ -307,7 +331,9 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<str
   const danger = cssColor('--danger', '#b24a4a')
   return nodes.map((node) => {
     const style = NODE_STYLE[node.nodeType] || NODE_STYLE.step
-    const status = states.get(node.nodeId) || (completed.has(node.nodeId) ? 'completed' : '')
+    const stepState = states.get(node.nodeId)
+    const visual = mapNodeVisualState(stepState)
+    const status = stepState?.status || (completed.has(node.nodeId) ? 'completed' : '')
     const isDone = status === 'completed'
     const role = endpointRole(node)
     const isStart = role === 'start'
@@ -321,25 +347,35 @@ const buildNodeRows = (nodes: AcgNode[], completed: Set<string>, states: Map<str
           ? warning
           : status === 'failed'
             ? danger
+            : status === 'cancelled' || status === 'skipped_by_condition'
+              ? textSecondary
             : style.border)
-    const label = isStart
+    const badges = [
+      visual.runtimeAdded ? '+' : '',
+      visual.bindingSwitched ? '⇄' : '',
+      visual.conditionalSkipped ? 'Skipped' : '',
+      visual.targetRetried ? `A${stepState?.attempt}` : ''
+    ].filter(Boolean).join(' · ')
+    const baseLabel = isStart
       ? '任务起点\nSTART'
       : isEnd
         ? '任务终点\nEND'
         : node.name || node.nodeId
+    const label = badges ? `${baseLabel}\n[${badges}]` : baseLabel
     const isStep = node.nodeType === 'step'
     const isEndpoint = isStart || isEnd
     return {
       id: node.nodeId,
       label,
-      title: `${node.nodeId}\n${node.nodeType}${status ? `\n${status}` : ''}`,
+      title: `${node.nodeId}\n${node.nodeType}${status ? `\n${status}` : ''}${badges ? `\n${badges}` : ''}`,
       shape: isStart ? 'circle' : isEnd ? 'box' : style.shape,
       color: {
         background: endpointColor || style.background,
         border: statusBorder,
         highlight: { background: endpointColor || style.background, border: statusBorder }
       },
-      borderWidth: isEndpoint ? 3 : status ? 3 : 1.5,
+      borderWidth: isEndpoint ? 3 : status || visual.runtimeAdded ? 3 : 1.5,
+      opacity: visual.conditionalSkipped ? 0.42 : status === 'cancelled' ? 0.58 : 1,
       shadow: isEndpoint
         ? { enabled: true, color: endpointColor, size: 12, x: 0, y: 2 }
         : status === 'running'
@@ -365,6 +401,7 @@ const buildEdgeRows = (edges: AcgEdge[]) => {
   const done = cssColor('--success', '#2f8f5b')
   return edges.map((edge, index) => {
     const style = EDGE_STYLE[edge.edgeType] || EDGE_STYLE.dependency
+    const activation = mapEdgeVisualState(edge.activation)
     const isDep = edge.edgeType === 'dependency'
     const length = ({
       dependency: 190,
@@ -382,8 +419,13 @@ const buildEdgeRows = (edges: AcgEdge[]) => {
       arrows: { to: { enabled: true, scaleFactor: 0.72, type: 'arrow' } },
       arrowStrikethrough: false,
       endPointOffset: { from: 2, to: 4 },
-      color: { color: style.color, highlight: done },
-      dashes: style.dashes,
+      color: {
+        color: activation === 'active' ? style.color : cssColor('--text-muted', '#8b938f'),
+        highlight: done,
+        opacity: activation === 'terminated' ? 0.28 : activation === 'superseded' ? 0.2 : activation === 'inactive' ? 0.48 : 1
+      },
+      dashes: activation === 'inactive' ? [6, 5] : activation === 'terminated' ? [2, 6] : style.dashes,
+      label: activation === 'active' ? undefined : activation.toUpperCase(),
       smooth: { enabled: true, type: 'continuous' },
       // 依赖主干边更粗更短（强弹簧），认知关联边更细
       width: isDep ? 2.5 : edge.edgeType === 'execution' ? 1.5 : 1,
@@ -479,7 +521,16 @@ const finalizeGraphLayout = (animation = true) => {
   layoutFinalized = true
   stopPhysics()
   placeEndpointsSafely()
-  fitWithSafePadding(animation)
+  if (pendingViewState) {
+    network?.moveTo({
+      position: pendingViewState.position,
+      scale: pendingViewState.scale,
+      animation: false
+    })
+    pendingViewState = null
+  } else {
+    fitWithSafePadding(animation)
+  }
 }
 
 const render = async () => {
@@ -490,7 +541,7 @@ const render = async () => {
     selectedNodeId.value = ''
   }
   const completed = new Set(props.completedStepIds || [])
-  const states = new Map<string, string>((props.stepStates || []).map(item => [item.stepId, item.status]))
+  const states = new Map<string, AcgStepState>((props.stepStates || []).map(item => [item.stepId, item]))
   const nodeRows = buildNodeRows(blueprint.nodes, completed, states)
   const edgeRows = buildEdgeRows(blueprint.edges)
   const nextStructureKey = getStructureKey(blueprint)
@@ -504,6 +555,9 @@ const render = async () => {
     return
   }
 
+  pendingViewState = network
+    ? { position: network.getViewPosition(), scale: network.getScale() }
+    : null
   stopPhysics()
   if (network) {
     network.destroy()
@@ -515,6 +569,7 @@ const render = async () => {
   layoutFinalized = false
   const data = { nodes: nodesData, edges: edgesData }
   network = new Network(graphRef.value, data as any, options as any)
+  if (selectedNodeId.value) network.selectNodes([selectedNodeId.value])
   network.on('selectNode', params => {
     selectedNodeId.value = String(params.nodes[0] || '')
     window.setTimeout(() => resetView(false), 140)
@@ -692,6 +747,11 @@ onBeforeUnmount(() => {
 .node-status.failed { color: var(--danger); }
 .node-status.skipped_by_condition { color: var(--text-secondary); }
 .node-description { margin: 0 0 14px; font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
+.runtime-detail-group { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; padding: 8px; border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-input); }
+.runtime-detail-group strong { color: var(--text-primary); font-size: 10px; }
+.runtime-detail-group span { color: var(--text-secondary); font: 10px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.runtime-summary { max-height: 90px; margin: 8px 0; padding: 7px; overflow: auto; border-radius: 5px; background: var(--bg-input); color: var(--text-secondary); font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.runtime-summary.is-error { color: var(--danger); }
 .connection-group { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
 .connection-group strong { font-size: 11px; color: var(--text-primary); }
 .connection-group > span { font-size: 10px; color: var(--text-disabled); }
@@ -717,6 +777,10 @@ onBeforeUnmount(() => {
 .ring.running { border-color: var(--info); }
 .ring.waiting { border-color: var(--warning); }
 .ring.failed { border-color: var(--danger); }
+.badge { min-width: 15px; padding: 1px 3px; border-radius: 4px; color: #fff; font-size: 9px; line-height: 13px; text-align: center; }
+.badge.runtime { background: var(--primary-color); }
+.badge.binding { background: var(--info); }
+.badge.skipped { background: var(--text-muted); }
 
 .acg-topology:fullscreen {
   width: 100vw;

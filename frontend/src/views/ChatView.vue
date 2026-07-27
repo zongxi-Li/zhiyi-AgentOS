@@ -188,6 +188,11 @@
               :sync-error="workflowProgressState.syncError.value"
               variant="compact"
             />
+            <DynamicRunSummaryCard
+              :progress="workflowProgressState.progress.value"
+              :run="activeWorkflowRun"
+              :view="activeAcgView"
+            />
           </div>
 
           <p v-if="workflowStartError" class="chat-workflow-error" role="alert">
@@ -383,8 +388,17 @@
             <AcgTopologyGraph
               :blueprint="displayAcgBlueprint"
               :completed-step-ids="displayCompletedStepIds"
+              :step-states="activeAcgView?.stepStates"
               collapsible
               @collapse="setWorkflowPanelOpen(false)"
+            />
+            <RuntimeChangeTimeline
+              v-if="activeAcgView"
+              class="chat-runtime-timeline"
+              :runtime-events="activeAcgView.runtimeEvents"
+              :applied-patches="activeAcgView.appliedPatches"
+              :branch-decisions="activeAcgView.branchDecisions"
+              :step-states="activeAcgView.stepStates"
             />
             <div v-if="isLoadingWorkflowResult && !activeAcgView" class="workflow-acg-loading">正在加载动态拓扑…</div>
           </section>
@@ -812,6 +826,8 @@ import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import RoleTemplateSwitchDialog from '@/components/RoleTemplateSwitchDialog.vue'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vue'
+import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import { agentosApi, type AcgBlueprint, type AcgView, type WorkflowRun } from '@/services/api/agentos'
 import type { WorkflowProgress } from '@/services/api/workflow'
@@ -823,6 +839,7 @@ import { useChatStore, type ChatWorkflowBinding } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
 import { useDebounce } from '@/composables/useDebounce'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
+import { runtimeProjectionChanged } from '@/utils/runtimePresentation'
 import { loadModelSettings } from '@/config/modelSettings'
 import { roleTemplateGroups, type RoleId } from '@/config/agentWorkbench'
 
@@ -1373,6 +1390,11 @@ function handleWorkflowProgressChanged(current: WorkflowProgress, previous: Work
     activeWorkflowBinding.value = { ...activeWorkflowBinding.value, status: current.status }
   }
   syncWorkflowMessageStatus(current.runId, current.status)
+
+  if (runtimeProjectionChanged(current, previous) && !['completed', 'failed', 'cancelled'].includes(current.status)) {
+    void loadActiveAcgView(current.runId, true)
+    return
+  }
 
   const phaseChanged = previous?.phase !== current.phase
   if (current.phase === 'review' && phaseChanged) {

@@ -130,6 +130,11 @@
             :loading="progressTracker.isLoading.value"
             :sync-error="progressTracker.syncError.value"
           />
+          <DynamicRunSummaryCard
+            :progress="progressTracker.progress.value"
+            :run="selectedRun"
+            :view="selectedAcgView"
+          />
 
           <p v-if="runError" class="error-message" role="alert">{{ runError }}</p>
 
@@ -188,6 +193,13 @@
           </div>
           <p v-else>终态、人工审核或展开详情时才读取完整 ACG，不参与列表轮询。</p>
         </section>
+        <RuntimeChangeTimeline
+          v-if="selectedAcgView"
+          :runtime-events="selectedAcgView.runtimeEvents"
+          :applied-patches="selectedAcgView.appliedPatches"
+          :branch-decisions="selectedAcgView.branchDecisions"
+          :step-states="selectedAcgView.stepStates"
+        />
       </aside>
     </section>
   </main>
@@ -202,6 +214,8 @@ import { useRoute, useRouter } from 'vue-router'
 import CheckpointPanel from '@/components/agentos/CheckpointPanel.vue'
 import TraceEventTimeline from '@/components/agentos/TraceEventTimeline.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vue'
+import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import WorkflowRunPanel from '@/components/agentos/WorkflowRunPanel.vue'
 import WorkflowStepList from '@/components/agentos/WorkflowStepList.vue'
@@ -219,6 +233,7 @@ import {
 } from '@/services/api/workflow'
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
+import { runtimeProjectionChanged } from '@/utils/runtimePresentation'
 
 const DEFAULT_STATUSES = ['pending', 'planning', 'running', 'retrying', 'waiting_review', 'completed', 'failed', 'cancelled']
 const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
@@ -453,6 +468,9 @@ function handleProgressChanged(current: WorkflowProgress, previous: WorkflowProg
   workflowRunsStore.updateObservedState(current.runId, current.status, current.phase, current.updatedAt)
   const index = runs.value.findIndex(item => item.runId === current.runId)
   if (index >= 0) runs.value[index] = { ...runs.value[index], ...current }
+  if (runtimeProjectionChanged(current, previous) && !TERMINAL.has(current.status)) {
+    void loadSelectedDetail({ acg: true })
+  }
   if (isWorkflowReviewPending(current) && !isWorkflowReviewPending(previous) && !reviewDetailsLoaded.has(current.runId)) {
     void loadSelectedDetail({ review: true })
   }

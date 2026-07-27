@@ -102,7 +102,8 @@ const statusLabel = (status: WorkflowStatus) => {
     retrying: '重试中',
     failed: '失败',
     completed: '已完成',
-    cancelled: '已取消'
+    cancelled: '已取消',
+    skipped_by_condition: '条件跳过'
   }
   return labels[status] || status
 }

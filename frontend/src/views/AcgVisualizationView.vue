@@ -120,6 +120,12 @@
       :loading="isSubmitting || progressTracker.isLoading.value"
       :sync-error="progressTracker.syncError.value"
     />
+    <DynamicRunSummaryCard
+      v-if="activeRunId"
+      :progress="progressTracker.progress.value"
+      :run="activeRun"
+      :view="acgView"
+    />
 
     <p v-if="startError" class="run-error" role="alert">{{ startError }}</p>
 
@@ -161,6 +167,12 @@
           @export-json="exportAudit('json')"
           @export-csv="exportAudit('csv')"
         />
+        <RuntimeChangeTimeline
+          :runtime-events="acgView.runtimeEvents"
+          :applied-patches="acgView.appliedPatches"
+          :branch-decisions="acgView.branchDecisions"
+          :step-states="acgView.stepStates"
+        />
       </div>
     </div>
 
@@ -188,8 +200,11 @@ import AcgLowEntropyMetrics from '@/components/agentos/AcgLowEntropyMetrics.vue'
 import AcgProvenancePanel from '@/components/agentos/AcgProvenancePanel.vue'
 import AcgDeliverables from '@/components/agentos/AcgDeliverables.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
+import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vue'
+import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
+import { graphVersionChanged, runtimeProjectionChanged } from '@/utils/runtimePresentation'
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import type { ThinkingMode } from '@/config/modelSettings'
 import { fileApi, type TaskMaterial } from '@/services/api/file'
@@ -654,6 +669,12 @@ watch(
     } else if (stateChanged && (value.status === 'waiting_review' || ['review', 'completed', 'cancelled'].includes(value.phase))) {
       scheduleInputCollapse(0)
     }
+    if (graphVersionChanged(value, previous) && !['completed', 'failed', 'cancelled'].includes(value.status)) {
+      clearTopologyTimer()
+      void refreshAcgForRun(value.runId, true)
+      return
+    }
+    if (runtimeProjectionChanged(value, previous)) scheduleTopologyRefresh(value)
     if (isWorkflowReviewPending(value, activeRun.value) && !isWorkflowReviewPending(previous, activeRun.value)) {
       clearTopologyTimer()
       void refreshAcgForRun(value.runId, true)

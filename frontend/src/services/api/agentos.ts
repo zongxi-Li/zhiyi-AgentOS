@@ -89,6 +89,7 @@ export type StepStatus =
   | 'failed'
   | 'completed'
   | 'cancelled'
+  | 'skipped_by_condition'
 
 export interface AgentTask {
   taskId: string
@@ -180,8 +181,9 @@ export interface WorkflowRun {
   runtimeGraph?: Record<string, any> | null
   graphVersion?: number | null
   dynamicStepCount?: number
-  appliedPatches?: Array<Record<string, any>>
-  runtimeEvents?: Array<Record<string, any>>
+  bindingSwitchCount?: number
+  appliedPatches?: AppliedPatchProjection[]
+  runtimeEvents?: RuntimeEventProjection[]
   branchDecisions?: BranchDecision[]
   skippedByConditionCount?: number
   conditionalDecisionCount?: number
@@ -239,6 +241,41 @@ export interface ReviewRequest {
   operationId?: string
   expectedRunUpdatedAt?: string
   expectedStepStatus?: StepStatus
+}
+
+export interface RuntimeEventProjection {
+  eventId: string
+  eventType: string
+  graphVersion?: number
+  runtimeNodeId?: string
+  attemptId?: string
+  bindingId?: string
+  payload?: Record<string, any>
+  status?: string
+  statusReason?: string
+  createdAt?: string
+}
+
+export interface AppliedPatchProjection {
+  patchId: string
+  operationType: string
+  baseGraphVersion?: number
+  resultGraphVersion?: number
+  sourceEventId?: string
+  appliedAt?: string
+}
+
+export interface RuntimeAttemptProjection {
+  attemptId: string
+  attemptNumber: number
+  graphVersion?: number
+  bindingId?: string
+  agentName?: string
+  modelName?: string
+  status: StepStatus
+  startedAt?: string
+  endedAt?: string | null
+  errorSummary?: string | null
 }
 
 export interface ReviewRecord {
@@ -311,7 +348,7 @@ export interface AcgEdge {
   targetId: string
   edgeType: 'dependency' | 'communication' | 'control_flow' | 'execution' | 'write' | 'read' | 'support'
   condition?: string
-  activation?: 'inactive' | 'active' | 'terminated'
+  activation?: 'inactive' | 'active' | 'terminated' | 'superseded'
   metadata?: Record<string, any>
 }
 
@@ -440,6 +477,12 @@ export interface AcgStepState {
   currentBinding?: Record<string, any> | null
   bindingHistory?: Array<Record<string, any>>
   bindingSwitchCount?: number
+  attempts?: RuntimeAttemptProjection[]
+  sourcePatchId?: string | null
+  createdGraphVersion?: number
+  outputVersion?: number
+  outputSummary?: string
+  errorSummary?: string | null
 }
 
 export interface AcgLowEntropyMetrics {
@@ -474,8 +517,8 @@ export interface AcgView {
   branchDecisions?: BranchDecision[]
   selectedEdgeIds?: string[]
   terminatedEdgeIds?: string[]
-  appliedPatches?: Array<Record<string, any>>
-  runtimeEvents?: Array<Record<string, any>>
+  appliedPatches?: AppliedPatchProjection[]
+  runtimeEvents?: RuntimeEventProjection[]
   completedStepIds: string[]
   activeStepIds: string[]
   stepStates: AcgStepState[]
@@ -497,8 +540,16 @@ export interface AcgView {
 
 const normalizeAcgView = (view: AcgView): AcgView => ({
   ...view,
+  graphVersion: view.graphVersion ?? null,
+  dynamicStepCount: view.dynamicStepCount ?? 0,
+  bindingSwitchCount: view.bindingSwitchCount ?? 0,
+  skippedByConditionCount: view.skippedByConditionCount ?? 0,
+  conditionalDecisionCount: view.conditionalDecisionCount ?? 0,
   appliedPatches: Array.isArray(view.appliedPatches) ? view.appliedPatches : [],
   runtimeEvents: Array.isArray(view.runtimeEvents) ? view.runtimeEvents : [],
+  branchDecisions: Array.isArray(view.branchDecisions) ? view.branchDecisions : [],
+  selectedEdgeIds: Array.isArray(view.selectedEdgeIds) ? view.selectedEdgeIds : [],
+  terminatedEdgeIds: Array.isArray(view.terminatedEdgeIds) ? view.terminatedEdgeIds : [],
   completedStepIds: Array.isArray(view.completedStepIds) ? view.completedStepIds : [],
   activeStepIds: Array.isArray(view.activeStepIds) ? view.activeStepIds : [],
   stepStates: Array.isArray(view.stepStates) ? view.stepStates : [],

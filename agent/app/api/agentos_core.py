@@ -234,6 +234,62 @@ def _to_json(model) -> Dict[str, Any]:
     return payload
 
 
+_SENSITIVE_RUNTIME_FIELD = (
+    "authorization",
+    "password",
+    "secret",
+    "token",
+    "cookie",
+    "apikey",
+    "api_key",
+    "stack",
+    "traceback",
+)
+
+
+def _safe_runtime_projection(value: Any, *, depth: int = 0) -> Any:
+    """Bound and redact runtime audit data before returning it to UI clients."""
+
+    if depth > 6:
+        return "[truncated]"
+    if isinstance(value, dict):
+        projected: Dict[str, Any] = {}
+        for key, item in list(value.items())[:100]:
+            normalized = str(key).lower().replace("-", "_")
+            projected[str(key)] = (
+                "[redacted]"
+                if any(marker in normalized for marker in _SENSITIVE_RUNTIME_FIELD)
+                else _safe_runtime_projection(item, depth=depth + 1)
+            )
+        return projected
+    if isinstance(value, list):
+        return [_safe_runtime_projection(item, depth=depth + 1) for item in value[:100]]
+    if isinstance(value, str) and len(value) > 2000:
+        return f"{value[:2000]}…"
+    return value
+
+
+def _runtime_summary(value: Any, *, limit: int = 320) -> str:
+    if value in (None, "", {}, []):
+        return ""
+    if isinstance(value, str):
+        text = value
+    else:
+        text = json.dumps(
+            _safe_runtime_projection(value),
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+    return text if len(text) <= limit else f"{text[:limit]}…"
+
+
+def _safe_runtime_event(event: Any) -> Dict[str, Any]:
+    payload = _to_json(event)
+    payload["payload"] = _safe_runtime_projection(payload.get("payload") or {})
+    return payload
+
+
 def _require_run_access(run: WorkflowRun) -> None:
     owner_user_id = str(run.input.get("authenticatedUserId") or "").strip()
     if not owner_user_id:
@@ -1895,10 +1951,17 @@ def create_router(
             )
             return {
                 **_to_json(run),
+                "runtimeGraph": (
+                    _safe_runtime_projection(_to_json(graph)) if graph is not None else None
+                ),
                 "title": task_title,
                 "graphVersion": graph.graph_version if graph is not None else None,
                 "appliedPatches": [_to_json(item) for item in graph.applied_patches] if graph is not None else [],
-                "runtimeEvents": [_to_json(item) for item in graph.runtime_events] if graph is not None else [],
+                "runtimeEvents": (
+                    [_safe_runtime_event(item) for item in graph.runtime_events]
+                    if graph is not None
+                    else []
+                ),
                 "dynamicStepCount": dynamic_step_count,
                 "bindingSwitchCount": (
                     sum(node.binding_switch_count for node in graph.nodes) if graph is not None else 0
@@ -2056,6 +2119,46 @@ def create_router(
             if isinstance(md, str) and md.strip():
                 final_report = md
 
+        step_states = []
+        for step in run.steps:
+            node = graph.get_node(step.step_id) if graph is not None else None
+            step_states.append(
+                {
+                    "stepId": step.step_id,
+                    "status": step.status.value if hasattr(step.status, "value") else str(step.status),
+                    "agentName": step.agent_name,
+                    "attempt": step.attempt,
+                    "retryCount": step.retry_count,
+                    "currentBinding": node.current_binding if node is not None else None,
+                    "bindingHistory": node.binding_history if node is not None else [],
+                    "bindingSwitchCount": node.binding_switch_count if node is not None else 0,
+                    "attempts": (
+                        [
+                            {
+                                "attemptId": attempt.attempt_id,
+                                "attemptNumber": attempt.attempt_number,
+                                "graphVersion": attempt.graph_version,
+                                "bindingId": attempt.binding_id,
+                                "agentName": attempt.agent_name,
+                                "modelName": attempt.model_name,
+                                "status": attempt.status.value,
+                                "startedAt": attempt.started_at,
+                                "endedAt": attempt.ended_at,
+                                "errorSummary": _runtime_summary(attempt.error),
+                            }
+                            for attempt in node.attempts
+                        ]
+                        if node is not None
+                        else []
+                    ),
+                    "sourcePatchId": node.source_patch_id if node is not None else None,
+                    "createdGraphVersion": node.created_graph_version if node is not None else 1,
+                    "outputVersion": node.output_version if node is not None else 0,
+                    "outputSummary": _runtime_summary(node.output) if node is not None else "",
+                    "errorSummary": _runtime_summary(node.error) if node is not None else "",
+                }
+            )
+
         return {
             "runId": run.run_id,
             "status": run.status.value,
@@ -2063,7 +2166,11 @@ def create_router(
             "acgBlueprint": runtime_blueprint,
             "graphVersion": graph.graph_version if graph is not None else None,
             "appliedPatches": [_to_json(item) for item in graph.applied_patches] if graph is not None else [],
-            "runtimeEvents": [_to_json(item) for item in graph.runtime_events] if graph is not None else [],
+            "runtimeEvents": (
+                [_safe_runtime_event(item) for item in graph.runtime_events]
+                if graph is not None
+                else []
+            ),
             "dynamicStepCount": dynamic_step_count,
             "bindingSwitchCount": (
                 sum(node.binding_switch_count for node in graph.nodes) if graph is not None else 0
@@ -2091,25 +2198,7 @@ def create_router(
             ),
             "completedStepIds": run.completed_step_ids,
             "activeStepIds": run.active_step_ids,
-            "stepStates": [
-                {
-                    "stepId": step.step_id,
-                    "status": step.status.value if hasattr(step.status, "value") else str(step.status),
-                    "agentName": step.agent_name,
-                    "attempt": step.attempt,
-                    "retryCount": step.retry_count,
-                    "currentBinding": (
-                        graph.get_node(step.step_id).current_binding if graph is not None else None
-                    ),
-                    "bindingHistory": (
-                        graph.get_node(step.step_id).binding_history if graph is not None else []
-                    ),
-                    "bindingSwitchCount": (
-                        graph.get_node(step.step_id).binding_switch_count if graph is not None else 0
-                    ),
-                }
-                for step in run.steps
-            ],
+            "stepStates": step_states,
             "provenance": provenance,
             "interactions": interactions,
             "contractViolations": contract_violations,

@@ -247,6 +247,27 @@ describe('AcgVisualizationView async progress loop', () => {
     wrapper.unmount()
   })
 
+  it('refreshes Run Detail and ACG immediately when graphVersion changes', async () => {
+    vi.mocked(workflowApi.getWorkflowProgress)
+      .mockResolvedValueOnce(makeProgress({
+        phase: 'executing', graphVersion: 1, percent: 25, totalSteps: 4, completedSteps: 1
+      }))
+      .mockResolvedValueOnce(makeProgress({
+        phase: 'executing', graphVersion: 2, dynamicStepCount: 2,
+        percent: 16.67, totalSteps: 6, completedSteps: 1, updatedAt: '2026-07-22T00:00:02Z'
+      }))
+    const { wrapper } = await mountPage('?runId=run_1')
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+    expect(workflowApi.getAcgView).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await flushPromises()
+    expect(workflowApi.getAcgView).toHaveBeenCalledTimes(2)
+    expect(workflowApi.getRun).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
   it('forces final ACG loading for completed and keeps review polling nonterminal', async () => {
     vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValueOnce(makeProgress({
       phase: 'review', status: 'waiting_review', percent: 75

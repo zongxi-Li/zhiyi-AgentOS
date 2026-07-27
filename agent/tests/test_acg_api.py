@@ -14,7 +14,7 @@ from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.core.models.types import WorkflowDefinition, WorkflowStepDefinition
 from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
-from app.api.agentos_core import create_router
+from app.api.agentos_core import _safe_runtime_projection, create_router
 
 
 class _Agent(BaseAgent):
@@ -97,7 +97,15 @@ def test_acg_view_endpoint_exposes_topology_and_provenance():
         "currentBinding",
         "bindingHistory",
         "bindingSwitchCount",
+        "attempts",
+        "sourcePatchId",
+        "createdGraphVersion",
+        "outputVersion",
+        "outputSummary",
+        "errorSummary",
     }.issubset(view["stepStates"][0])
+    assert view["stepStates"][0]["attempts"][0]["attemptId"]
+    assert "resolvedInput" not in view["stepStates"][0]["attempts"][0]
     # 低熵指标存在
     metrics = view["lowEntropyMetrics"]
     assert "averageSavingRatio" in metrics
@@ -136,3 +144,18 @@ def test_acg_view_recovery_trace_after_fault_injection():
 def test_acg_view_404_for_unknown_run():
     client = _client()
     assert client.get("/ai/core/workflows/runs/nonexistent/acg").status_code == 404
+
+
+def test_runtime_audit_projection_redacts_sensitive_fields_and_bounds_text():
+    projected = _safe_runtime_projection(
+        {
+            "reasonCode": "SAFE_REASON",
+            "authorization": "Bearer secret",
+            "nested": {"apiKey": "secret-key", "details": "x" * 2500},
+        }
+    )
+
+    assert projected["reasonCode"] == "SAFE_REASON"
+    assert projected["authorization"] == "[redacted]"
+    assert projected["nested"]["apiKey"] == "[redacted]"
+    assert len(projected["nested"]["details"]) < 2100
