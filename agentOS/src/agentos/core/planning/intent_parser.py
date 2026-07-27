@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Protocol
 
 from agentos.core.acg.enums import ComplexityLevel
-from agentos.core.planning.capabilities import CapabilityCatalog
+from agentos.core.planning.capabilities import (
+    CapabilityCatalog,
+    highest_planning_risk_level,
+)
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.profile import TaskSemanticProfile
 
@@ -118,10 +121,6 @@ class IntentParser:
             else ComplexityLevel.SIMPLE
         )
         capabilities = self._infer_capabilities(text, domain)
-        is_risk_related = any(
-            self.capability_catalog.get(capability).planning_stage == "risk"
-            for capability in capabilities
-        )
         profile = TaskSemanticProfile(
             primaryGoal=text[:80] or task_type,
             requiredCapabilities=capabilities,
@@ -130,7 +129,7 @@ class IntentParser:
             estimatedComplexity=complexity,
             domainHint=domain,
             taskTypeHint=task_type,
-            riskLevel="high" if is_risk_related else "normal",
+            riskLevel="normal",
             rawIntent=text,
         )
         return self._finalize(profile, intent=text, domain=domain, task_type=task_type)
@@ -147,6 +146,15 @@ class IntentParser:
         if not normalized:
             normalized = list(_NATIVE_FALLBACK)
         profile.required_capabilities = self.capability_catalog.expand_dependencies(normalized)
+        profile.risk_level = highest_planning_risk_level(
+            [
+                profile.risk_level,
+                *(
+                    self.capability_catalog.get(capability).risk_level_hint
+                    for capability in profile.required_capabilities
+                ),
+            ]
+        )
         profile.primary_goal = profile.primary_goal.strip() or (intent or task_type or "Unnamed task")[:80]
         profile.domain_hint = profile.domain_hint or domain
         profile.task_type_hint = profile.task_type_hint or task_type

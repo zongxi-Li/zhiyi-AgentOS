@@ -34,7 +34,7 @@ def legal_compatibility_descriptors() -> tuple[PlanningCapabilityDescriptor, ...
             aliases=["风险识别", "risk_detect", "risk_detection", "合同风险", "违约", "合规"],
             planningStage="risk", dependsOn=["文本解析"], optionalDependencies=["条款分类"],
             inputContract=_schema("contract_summary"), outputContract=_schema("risks", "risk_level", "risk_score"),
-            writesMemory=True, domainHints=legal, priority=30,
+            writesMemory=True, riskLevelHint="high", domainHints=legal, priority=30,
         ),
         PlanningCapabilityDescriptor(
             capabilityId="证据检索", displayName="Evidence 依据匹配",
@@ -57,7 +57,8 @@ def legal_compatibility_descriptors() -> tuple[PlanningCapabilityDescriptor, ...
             planningStage="review", dependsOn=["风险识别", "修改建议"],
             inputContract=_schema("risks", "manual_review_focus"),
             outputContract=_schema("review_status", "review_focus"),
-            requiresReview=True, parallelizable=False, domainHints=legal, priority=50,
+            requiresReview=True, riskLevelHint="elevated", parallelizable=False,
+            domainHints=legal, priority=50,
         ),
         PlanningCapabilityDescriptor(
             capabilityId="报告生成", displayName="审查报告生成",

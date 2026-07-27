@@ -93,7 +93,7 @@ def native_capability_descriptors() -> tuple[PlanningCapabilityDescriptor, ...]:
             dependsOn=["task_understanding"],
             optionalDependencies=["requirement_analysis", "process_decomposition", "architecture_design"],
             inputContract=_schema("task_summary"), outputContract=_schema("risk_analysis", "risks"),
-            writesMemory=True, domainHints=general, priority=36,
+            writesMemory=True, riskLevelHint="high", domainHints=general, priority=36,
         ),
         PlanningCapabilityDescriptor(
             capabilityId="solution_design", displayName="方案设计",

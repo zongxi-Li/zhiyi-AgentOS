@@ -131,6 +131,63 @@ def test_scene_word_without_capability_semantics_uses_bounded_fallback():
         "analysis",
         "artifact_generation",
     ]
+    assert profile.risk_level == "normal"
+
+
+def test_risk_level_is_derived_from_selected_capability_metadata():
+    profile = IntentParser().parse(
+        intent="分析实施过程中的安全风险和风险控制措施",
+        domain="general",
+        task_type="general",
+        use_llm=False,
+    )
+
+    assert "risk_analysis" in profile.required_capabilities
+    assert profile.risk_level == "high"
+
+
+def test_risk_level_changes_with_descriptor_hint_and_ignores_unselected_hints():
+    def parse_with_hint(selected_hint: str, unselected_hint: str):
+        catalog = CapabilityCatalog(
+            [
+                PlanningCapabilityDescriptor(
+                    capabilityId="task_understanding",
+                    displayName="Understand",
+                    parallelizable=False,
+                ),
+                PlanningCapabilityDescriptor(
+                    capabilityId="analysis",
+                    displayName="Analyze",
+                    aliases=["inspect"],
+                    dependsOn=["task_understanding"],
+                    riskLevelHint=selected_hint,
+                ),
+                PlanningCapabilityDescriptor(
+                    capabilityId="artifact_generation",
+                    displayName="Deliver",
+                    dependsOn=["task_understanding"],
+                    optionalDependencies=["analysis"],
+                    parallelizable=False,
+                ),
+                PlanningCapabilityDescriptor(
+                    capabilityId="unselected",
+                    displayName="Unselected",
+                    aliases=["not-present"],
+                    riskLevelHint=unselected_hint,
+                ),
+            ]
+        )
+        return IntentParser(capability_catalog=catalog).parse(
+            intent="inspect",
+            domain="general",
+            use_llm=False,
+        )
+
+    elevated = parse_with_hint("elevated", "critical")
+    critical = parse_with_hint("critical", "normal")
+
+    assert elevated.risk_level == "elevated"
+    assert critical.risk_level == "critical"
 
 
 def test_intent_selection_changes_only_with_catalog_descriptor_and_alias():

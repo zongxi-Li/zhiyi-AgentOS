@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Iterable
+from typing import Iterable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+PlanningRiskLevel = Literal["normal", "elevated", "high", "critical"]
+_RISK_LEVEL_ORDER: tuple[PlanningRiskLevel, ...] = (
+    "normal",
+    "elevated",
+    "high",
+    "critical",
+)
 
 
 class PlanningCapabilityDescriptor(BaseModel):
@@ -26,6 +35,7 @@ class PlanningCapabilityDescriptor(BaseModel):
     requires_evidence: bool = Field(default=False, alias="requiresEvidence")
     writes_memory: bool = Field(default=False, alias="writesMemory")
     requires_review: bool = Field(default=False, alias="requiresReview")
+    risk_level_hint: PlanningRiskLevel = Field(default="normal", alias="riskLevelHint")
     parallelizable: bool = True
     domain_hints: list[str] = Field(default_factory=list, alias="domainHints")
     priority: int = 100
@@ -141,4 +151,21 @@ class CapabilityCatalog:
         return (value or "").strip().lower()
 
 
-__all__ = ["CapabilityCatalog", "PlanningCapabilityDescriptor"]
+def highest_planning_risk_level(values: Iterable[str]) -> PlanningRiskLevel:
+    """Return the highest recognized declarative planning risk level."""
+
+    ranks = {value: index for index, value in enumerate(_RISK_LEVEL_ORDER)}
+    normalized = [str(value or "").strip().lower() for value in values]
+    return max(
+        (value for value in normalized if value in ranks),
+        key=ranks.__getitem__,
+        default="normal",
+    )
+
+
+__all__ = [
+    "CapabilityCatalog",
+    "PlanningCapabilityDescriptor",
+    "PlanningRiskLevel",
+    "highest_planning_risk_level",
+]
