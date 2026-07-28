@@ -11,7 +11,7 @@
         <div class="promo-content">
           <div class="brand">
             <div class="logo-box">
-              <el-icon :size="20"><Connection /></el-icon>
+              <img src="/logo.png" alt="" aria-hidden="true" />
             </div>
             <span class="brand-name">知弈</span>
           </div>
@@ -384,6 +384,14 @@ const handleRegister = async () => {
   border: 1px solid var(--border-light);
   font-family: var(--font-serif);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.logo-box img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .brand-name {

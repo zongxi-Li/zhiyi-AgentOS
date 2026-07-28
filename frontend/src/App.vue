@@ -15,7 +15,7 @@
           <div class="sidebar-header">
             <button class="sidebar-brand" type="button" aria-label="返回对话" @click="router.push('/chat')">
               <span class="logo-icon">
-                <el-icon><Connection /></el-icon>
+                <img src="/logo.png" alt="" aria-hidden="true" />
               </span>
               <span v-if="!mainSidebarCompact" class="logo-text">知弈</span>
             </button>
@@ -293,7 +293,7 @@
           <div class="drawer-sidebar">
             <div class="sidebar-header drawer-header" @click="router.push('/chat'); simpleNavOpen = false">
               <div class="logo-icon">
-                <el-icon><Connection /></el-icon>
+                <img src="/logo.png" alt="" aria-hidden="true" />
               </div>
               <span class="logo-text">知弈</span>
             </div>
@@ -1016,6 +1016,14 @@ onUnmounted(() => {
   color: var(--primary-color);
   font-weight: bold;
   font-size: 18px;
+  overflow: hidden;
+}
+
+.logo-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .logo-text {
