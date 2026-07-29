@@ -32,6 +32,7 @@ class ExecutionBinding(BaseModel):
     capability: str
     model_name: str = Field(default="", alias="modelName")
     allowed_skills: list[str] = Field(default_factory=list, alias="allowedSkills")
+    allowed_tools: list[str] = Field(default_factory=list, alias="allowedTools")
     binding_type: BindingType = Field(default=BindingType.AGENT, alias="bindingType")
     source: str = "native"
     plugin_id: str | None = Field(default=None, alias="pluginId")
@@ -59,6 +60,7 @@ class ExecutionBinding(BaseModel):
             capability=capability,
             modelName=model_name,
             allowedSkills=list(dict.fromkeys(profile.allowed_skills)),
+            allowedTools=list(dict.fromkeys(profile.allowed_tools)),
             bindingType=BindingType.AGENT_MODEL if model_name else BindingType.AGENT,
             priority=profile.binding_priority,
             source=profile.source,

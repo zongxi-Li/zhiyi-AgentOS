@@ -16,6 +16,7 @@ class AgentProfile(BaseModel):
     domain: str
     capabilities: List[str] = Field(default_factory=list)
     allowed_skills: List[str] = Field(default_factory=list, alias="allowedSkills")
+    allowed_tools: List[str] = Field(default_factory=list, alias="allowedTools")
     risk_level: str = Field(default="normal", alias="riskLevel")
     description: str = ""
     agent_id: Optional[str] = Field(default=None, alias="agentId")
@@ -34,6 +35,9 @@ class AgentOutput(BaseModel):
     output: Dict[str, Any] = Field(default_factory=dict)
     summary: str = ""
     risk_level: Optional[str] = Field(default=None, alias="riskLevel")
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+    tool_executions: List[Dict[str, Any]] = Field(default_factory=list, alias="toolExecutions")
+    evidence_refs: List[str] = Field(default_factory=list, alias="evidenceRefs")
 
 
 class AgentRunContext(BaseModel):
@@ -45,6 +49,7 @@ class AgentRunContext(BaseModel):
     step: WorkflowStep
     memory: Any
     context_pack: Optional[Any] = Field(default=None, alias="contextPack")
+    tool_runtime: Optional[Any] = Field(default=None, alias="toolRuntime")
 
 
 class BaseAgent(ABC):

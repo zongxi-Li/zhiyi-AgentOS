@@ -340,6 +340,10 @@ class ACGExecutor:
             )
             result, _ = await asyncio.wait_for(dispatch, timeout=package.timeout) if package.timeout > 0 else await dispatch
             output = dict(result.output)
+            tool_executions = [
+                dict(item) for item in result.tool_executions if isinstance(item, dict)
+            ]
+            evidence_refs = list(dict.fromkeys(result.evidence_refs))
             runtime_signals = [
                 dict(item)
                 for item in (output.get("runtimeSignals") or [])
@@ -357,12 +361,35 @@ class ACGExecutor:
                  "payload": output if status == StepStatus.WAITING_REVIEW else {"outputSummary": output_summary(output)},
                  "durationMs": timer.elapsed_ms()},
             ]
+            tool_events = [
+                {
+                    "eventType": TraceEventType.TOOL_CALLED,
+                    "observation": (
+                        f"Read-only tool {item.get('toolName') or 'unknown'} "
+                        f"{item.get('status') or 'completed'}"
+                    ),
+                    "payload": {
+                        "callId": item.get("callId"),
+                        "toolName": item.get("toolName"),
+                        "status": item.get("status"),
+                        "sourceRefs": list(item.get("sourceRefs") or []),
+                        "errorCode": item.get("errorCode"),
+                    },
+                    "durationMs": int(item.get("durationMs") or 0),
+                }
+                for item in tool_executions
+            ]
+            events[0:0] = tool_events
             if pack is not None:
                 events.insert(0, {"eventType": TraceEventType.DATA_CONSUMED,
                     "observation": f"Context assembled: {pack.tokens_delivered}/{pack.tokens_available} tokens (saved {pack.saving_ratio:.1%})",
                     "payload": pack.model_dump(by_alias=True, mode="json")})
             return self._outcome(package, status, started_at, output=output, resolved=resolved,
-                                 events=events, provenance={"pack": pack.model_dump(by_alias=True, mode="json") if pack else None},
+                                 events=events, provenance={
+                                     "pack": pack.model_dump(by_alias=True, mode="json") if pack else None,
+                                     "evidenceRefs": evidence_refs,
+                                     "toolExecutions": tool_executions,
+                                 },
                                  runtime_signals=runtime_signals)
         except Exception as exc:
             recoverable = isinstance(exc, InjectedFault) or package.attempt_number <= int(step_node.retry_limit)
@@ -538,8 +565,14 @@ class ACGExecutor:
                         data=dict(pack.get("data") or {}),
                     )
                 if outcome.output:
-                    ledger.record_production(node.node_id, dict(outcome.output), 0,
-                                             agent_name=attempt.agent_name, attempt=attempt.attempt_number)
+                    ledger.record_production(
+                        node.node_id,
+                        dict(outcome.output),
+                        0,
+                        agent_name=attempt.agent_name,
+                        attempt=attempt.attempt_number,
+                        evidence_refs=list(outcome.provenance_events.get("evidenceRefs") or []),
+                    )
                 if structural_event:
                     candidate.recovery_count += 1
                 elif outcome.status == StepStatus.WAITING_REVIEW:

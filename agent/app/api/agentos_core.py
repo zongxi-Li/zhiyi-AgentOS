@@ -1363,50 +1363,6 @@ def list_users(payload: Annotated[dict, Depends(require_permissions("user:read")
 '''
 
 
-def _programmer_search_result(requirement: str) -> Dict[str, Any]:
-    return {
-        "query": "FastAPI JWT auth permission existing code",
-        "top_k": 5,
-        "hits": [
-            {
-                "file_path": "backend/src/main/java/com/kinlin/ai/config/SecurityConfig.java",
-                "language": "java",
-                "score": 0.84,
-                "content": "已有 Spring Security 过滤链，可借鉴公开路径、鉴权入口和无状态会话配置。",
-            },
-            {
-                "file_path": "backend/src/main/java/com/kinlin/ai/filter/JwtAuthenticationFilter.java",
-                "language": "java",
-                "score": 0.81,
-                "content": "已有 JWT 解析与用户上下文注入逻辑，可迁移为 FastAPI dependency/middleware。",
-            },
-            {
-                "file_path": "backend/src/main/java/com/kinlin/ai/util/JwtUtil.java",
-                "language": "java",
-                "score": 0.79,
-                "content": "已有 Token 生成、校验、过期处理思路，可复用 claims 设计。",
-            },
-            {
-                "file_path": "backend/src/main/java/com/kinlin/ai/controller/AuthController.java",
-                "language": "java",
-                "score": 0.76,
-                "content": "已有登录/注册接口形态，可对齐 /auth/login 的输入输出。",
-            },
-            {
-                "file_path": "backend/src/main/java/com/kinlin/ai/util/PasswordUtil.java",
-                "language": "java",
-                "score": 0.72,
-                "content": "已有密码哈希与校验工具，可在 Python 版本中对应使用 passlib bcrypt。",
-            },
-        ],
-        "index_status": {
-            "success": True,
-            "message": "模拟检索结果：当前仓库已有 Java/Spring 认证代码，可作为 FastAPI 版本的设计参考。",
-        },
-        "source_query": requirement[:160],
-    }
-
-
 def _programmer_code_generation(requirement: str) -> Dict[str, Any]:
     return {
         "target_language": "python",
@@ -1419,10 +1375,7 @@ def _programmer_code_generation(requirement: str) -> Dict[str, Any]:
             "GET /admin/users 使用缺少 user:read 权限的 Token 返回 403。",
             "GET /admin/users 使用含 user:read 权限的 Token 返回用户列表。",
         ],
-        "context_refs": [
-            {"file_path": "backend/src/main/java/com/kinlin/ai/util/JwtUtil.java", "score": 0.79},
-            {"file_path": "backend/src/main/java/com/kinlin/ai/filter/JwtAuthenticationFilter.java", "score": 0.81},
-        ],
+        "context_refs": [],
     }
 
 
@@ -1487,8 +1440,18 @@ def _augment_programmer_artifacts(artifacts: Dict[str, Any], request_text: str) 
         )
         requirement_output["technical_spec"] = spec
 
-    artifacts.setdefault("codebase_semantic_search", _programmer_search_result(request_text))
-    artifacts.setdefault("code_generation", _programmer_code_generation(request_text))
+    code_generation = artifacts.setdefault("code_generation", _programmer_code_generation(request_text))
+    search_output = artifacts.get("codebase_semantic_search")
+    if isinstance(code_generation, dict) and isinstance(search_output, dict):
+        code_generation["context_refs"] = [
+            {
+                "file_path": item.get("file_path"),
+                "line": item.get("line"),
+                "score": item.get("score"),
+            }
+            for item in list(search_output.get("hits") or [])[:5]
+            if isinstance(item, dict) and item.get("file_path")
+        ]
     artifacts.setdefault("diagram_generation", _programmer_diagram_generation(request_text))
 
 
@@ -1533,7 +1496,7 @@ def _legacy_programmer_answer(artifacts: Dict[str, Any], request_text: str) -> s
         "### 验收标准",
         *[f"- {item}" for item in acceptance],
         "",
-        "## 2. 认证相关代码检索结果（模拟）",
+        "## 2. 认证相关代码检索结果（真实只读索引）",
         "",
         f"检索关键词：`{search.get('query', 'auth jwt permission')}`",
     ]

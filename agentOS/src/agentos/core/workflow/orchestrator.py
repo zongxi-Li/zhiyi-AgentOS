@@ -7,6 +7,7 @@ from typing import Tuple
 from agentos.agents.base import AgentOutput, AgentRunContext
 from agentos.agents import AgentRegistry
 from agentos.memory.workflow_memory import WorkflowMemory
+from agentos.adapters.tool_adapter import configured_tool_runtime
 from agentos.core.models.types import (
     AgentTask,
     StepStatus,
@@ -41,6 +42,9 @@ class Orchestrator:
                 else None
             ),
         )
+        tool_runtime = configured_tool_runtime()
+        if tool_runtime is not None:
+            tool_runtime = tool_runtime.scoped(agent.profile.allowed_tools)
         context = AgentRunContext(
             task=task,
             run=run,
@@ -48,6 +52,7 @@ class Orchestrator:
             step=step,
             memory=memory,
             contextPack=context_pack,
+            toolRuntime=tool_runtime,
         )
         started = perf_counter()
         result = await agent.run(context)

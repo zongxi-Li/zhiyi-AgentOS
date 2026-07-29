@@ -24,6 +24,12 @@ class NativeGeneralAgent(BaseAgent):
                 agentName=NATIVE_AGENT_NAME,
                 domain="general",
                 capabilities=list(NATIVE_CAPABILITY_IDS),
+                allowedTools=[
+                    "web_search",
+                    "web_extract",
+                    "knowledge_search",
+                    "current_datetime",
+                ],
                 description="Executes domain-neutral understanding, analysis, and artifact delivery.",
             )
         )
@@ -46,13 +52,33 @@ class NativeGeneralAgent(BaseAgent):
             return AgentOutput(output=output, summary="Task objective understood.")
 
         task_summary = str(upstream.get("task_summary") or objective)
+        if capability == "information_retrieval":
+            if context.tool_runtime is None:
+                raise RuntimeError("read-only tool runtime is not configured")
+            result = await context.tool_runtime.run(
+                f"Research this objective and return a concise evidence-backed result: {task_summary}",
+                require_evidence=True,
+            )
+            sources = [item.public_dict() for item in result.sources]
+            evidence_refs = [item.citation_id for item in result.sources]
+            if not evidence_refs:
+                raise RuntimeError("information_retrieval requires evidence but no source was returned")
+            return AgentOutput(
+                output={
+                    "retrieved_information": [result.text],
+                    "sources": sources,
+                    "evidence_refs": evidence_refs,
+                },
+                summary=f"Retrieved {len(evidence_refs)} evidence source(s).",
+                sources=sources,
+                toolExecutions=[item.public_dict() for item in result.tool_executions],
+                evidenceRefs=evidence_refs,
+            )
+        if capability == "evidence_analysis" and not upstream.get("evidence_refs"):
+            raise RuntimeError("evidence_analysis requires upstream evidence references")
         outputs = {
             "information_extraction": {
                 "extracted_information": {"summary": task_summary, "items": []},
-            },
-            "information_retrieval": {
-                "retrieved_information": [f"可验证资料线索：{task_summary}"],
-                "evidence_refs": ["native://deterministic-source"],
             },
             "requirement_analysis": {
                 "requirements": ["明确目标范围", "定义质量标准", "形成可验收交付物"],
@@ -79,7 +105,7 @@ class NativeGeneralAgent(BaseAgent):
             },
             "evidence_analysis": {
                 "evidence_analysis": "已按相关性、可信度和覆盖范围整理证据线索",
-                "evidence_refs": upstream.get("evidence_refs") or ["native://deterministic-source"],
+                "evidence_refs": upstream.get("evidence_refs") or [],
             },
             "cost_analysis": {
                 "cost_analysis": "成本由资源投入、实施周期和质量保障活动构成",
