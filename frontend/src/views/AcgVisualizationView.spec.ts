@@ -115,11 +115,18 @@ describe('AcgVisualizationView async progress loop', () => {
       task: { taskId: 'task_1', status: 'pending' },
       run: { runId: 'run_1', status: 'pending', lifecyclePhase: 'understanding' }
     })
-    vi.mocked(workflowApi.listInstalledPlugins).mockResolvedValue([{
-      pluginId: 'kinlin.legal', version: '0.1.0', displayName: '法律能力包',
-      description: '合同审查、证据匹配、风险分析与法律报告能力。', available: true,
-      capabilityCount: 7, agentCount: 14, workflowCount: 2, uiExtensionId: 'kinlin.legal'
-    }])
+    vi.mocked(workflowApi.listInstalledPlugins).mockResolvedValue([
+      {
+        pluginId: 'kinlin.legal', version: '0.1.0', displayName: '法律能力包',
+        description: '合同审查、证据匹配、风险分析与法律报告能力。', available: true,
+        capabilityCount: 7, agentCount: 14, workflowCount: 2, uiExtensionId: 'kinlin.legal'
+      },
+      {
+        pluginId: 'programmer', version: '0.1.0', displayName: 'Programmer Pack',
+        description: 'Programmer workflow pack scaffold.', available: true,
+        capabilityCount: 0, agentCount: 0, workflowCount: 0, uiExtensionId: null
+      }
+    ])
     vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress())
     vi.mocked(workflowApi.getRun).mockResolvedValue(makeRun())
     vi.mocked(workflowApi.getAcgView).mockResolvedValue(makeAcg())
@@ -272,6 +279,36 @@ describe('AcgVisualizationView async progress loop', () => {
         riskParallel: true,
         conservativeReview: true
       })
+    }), expect.any(Object))
+    wrapper.unmount()
+  })
+
+  it('keeps Native enabled and replaces the selected professional pack', async () => {
+    const { wrapper } = await mountPage()
+    const pluginCards = wrapper.findAll('.plugin-card')
+    const nativeCard = pluginCards.find(item => item.text().includes('Native Core'))
+    const legalCard = pluginCards.find(item => item.text().includes('法律能力包'))
+    const programmerCard = pluginCards.find(item => item.text().includes('Programmer Pack'))
+
+    expect(nativeCard?.attributes('aria-pressed')).toBe('true')
+    await legalCard!.trigger('click')
+    expect(legalCard?.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findComponent(PluginExtensionHost).props('extensions'))
+      .toEqual([expect.objectContaining({ pluginId: 'kinlin.legal' })])
+
+    await programmerCard!.trigger('click')
+    expect(legalCard?.attributes('aria-pressed')).toBe('false')
+    expect(programmerCard?.attributes('aria-pressed')).toBe('true')
+    expect(nativeCard?.text()).toContain('作为专业能力包的运行基础')
+    expect(wrapper.findComponent(PluginExtensionHost).props('extensions')).toEqual([])
+
+    await clickStart(wrapper)
+    expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
+      title: '设计一个基础软件项目实施方案，包括目标、阶段、风险和交付物',
+      domain: 'general',
+      intent: 'general',
+      enabledPluginIds: ['programmer'],
+      reviewMode: 'auto'
     }), expect.any(Object))
     wrapper.unmount()
   })

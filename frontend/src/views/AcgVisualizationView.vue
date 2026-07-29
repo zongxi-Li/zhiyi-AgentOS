@@ -92,13 +92,13 @@
           <el-input v-model="expectedArtifactsText" placeholder="使用逗号分隔，例如：实施方案、风险清单" />
         </div>
       </div>
-      <section class="plugin-selector" aria-label="专业能力包">
-        <header><div><strong>专业能力包</strong><small>Native 能力始终可用；选择只对新 Run 生效</small></div><span v-if="pluginsLoading">正在读取...</span></header>
+      <section class="plugin-selector" aria-label="专业能力扩展">
+        <header><div><strong>专业能力扩展（单选）</strong><small>Native Core 始终启用；每个 Run 最多叠加一个专业能力包</small></div><span v-if="pluginsLoading">正在读取...</span></header>
         <div class="plugin-options">
-          <button type="button" class="plugin-card native-card" :class="{ selected: !draft.enabledPluginIds.length }" :disabled="scopeLocked" @click="clearPlugins">
-            <strong>原生能力</strong><small>通用规划、分析与交付</small><code>enabledPluginIds=[]</code>
+          <button type="button" class="plugin-card native-card" :class="{ selected: !draft.enabledPluginIds.length }" :aria-pressed="!draft.enabledPluginIds.length" :disabled="scopeLocked" @click="clearPlugins">
+            <strong>Native Core · 始终启用</strong><small>{{ draft.enabledPluginIds.length ? '作为专业能力包的运行基础' : '当前仅使用通用规划、分析与交付能力' }}</small><code>不叠加专业能力包</code>
           </button>
-          <button v-for="plugin in installedPlugins" :key="plugin.pluginId" type="button" class="plugin-card" :class="{ selected: draft.enabledPluginIds.includes(plugin.pluginId) }" :disabled="scopeLocked || !plugin.available" @click="togglePlugin(plugin.pluginId)">
+          <button v-for="plugin in installedPlugins" :key="plugin.pluginId" type="button" class="plugin-card" :class="{ selected: draft.enabledPluginIds[0] === plugin.pluginId }" :aria-pressed="draft.enabledPluginIds[0] === plugin.pluginId" :disabled="scopeLocked || !plugin.available" @click="togglePlugin(plugin.pluginId)">
             <strong>{{ plugin.displayName }}</strong><small>{{ plugin.description }}</small><code>{{ plugin.pluginId }} · v{{ plugin.version }}</code>
           </button>
         </div>
@@ -334,16 +334,14 @@ const removeExtensionDefaults = (pluginId: string) => {
 
 const togglePlugin = (pluginId: string) => {
   if (scopeLocked.value) return
-  if (draft.enabledPluginIds.includes(pluginId)) {
-    removeExtensionDefaults(pluginId)
-    draft.enabledPluginIds = draft.enabledPluginIds.filter(item => item !== pluginId)
-    const pluginData = { ...draft.pluginData }
-    delete pluginData[pluginId]
-    draft.pluginData = pluginData
-    if (!draft.enabledPluginIds.length) draft.reviewMode = 'auto'
+  if (draft.enabledPluginIds[0] === pluginId) {
+    clearPlugins()
     return
   }
-  draft.enabledPluginIds = [...draft.enabledPluginIds, pluginId]
+  for (const selectedPluginId of draft.enabledPluginIds) removeExtensionDefaults(selectedPluginId)
+  draft.enabledPluginIds = [pluginId]
+  draft.pluginData = {}
+  draft.reviewMode = 'auto'
   applyExtensionDefaults(pluginId)
 }
 
