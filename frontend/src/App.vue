@@ -117,23 +117,17 @@
 
           <!-- User Profile / Bottom Section -->
           <div class="sidebar-footer">
-            <div class="user-profile" @click="router.push('/user')">
-              <el-avatar :size="32" class="user-avatar">U</el-avatar>
+            <div class="user-profile">
+              <button class="user-identity" type="button" aria-label="打开用户中心" @click="router.push('/user')">
+              <el-avatar :size="28" class="user-avatar">{{ sidebarUserInitial }}</el-avatar>
               <div v-if="!mainSidebarCompact" class="user-info">
-                <span class="user-name">User</span>
-                <span class="user-status">Online</span>
+                <span class="user-name">{{ sidebarUserName }}</span>
+                <span class="user-status">{{ sidebarUserMeta }}</span>
               </div>
-            </div>
-            <div v-if="!mainSidebarCompact" class="logout-section">
-              <el-button 
-                class="logout-btn" 
-                type="danger" 
-                size="small" 
-                @click="handleLogout"
-                :icon="SwitchButton"
-              >
-                退出登录
-              </el-button>
+              </button>
+              <button v-if="!mainSidebarCompact" class="user-logout" type="button" aria-label="退出登录" title="退出登录" @click="handleLogout">
+                <el-icon><SwitchButton /></el-icon>
+              </button>
             </div>
           </div>
           </div>
@@ -348,22 +342,18 @@
             </el-menu>
 
             <div class="sidebar-footer drawer-footer">
-              <div class="user-profile" @click="router.push('/user'); simpleNavOpen = false">
-                <el-avatar :size="32" class="user-avatar">U</el-avatar>
+              <div class="user-profile">
+                <button class="user-identity" type="button" aria-label="打开用户中心" @click="router.push('/user'); simpleNavOpen = false">
+                <el-avatar :size="28" class="user-avatar">{{ sidebarUserInitial }}</el-avatar>
                 <div class="user-info">
-                  <span class="user-name">User</span>
-                  <span class="user-status">Online</span>
+                  <span class="user-name">{{ sidebarUserName }}</span>
+                  <span class="user-status">{{ sidebarUserMeta }}</span>
                 </div>
+                </button>
+                <button class="user-logout" type="button" aria-label="退出登录" title="退出登录" @click="simpleNavOpen = false; handleLogout()">
+                  <el-icon><SwitchButton /></el-icon>
+                </button>
               </div>
-              <el-button
-                class="logout-btn"
-                type="danger"
-                size="small"
-                @click="handleLogout"
-                :icon="SwitchButton"
-              >
-                退出登录
-              </el-button>
             </div>
           </div>
         </el-drawer>
@@ -410,12 +400,14 @@ import { authApi } from '@/services/api/auth'
 import { conversationApi, type Conversation } from '@/services/api/conversation'
 import { useChatStore } from '@/stores/chat'
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
+import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
 const workflowRunsStore = useWorkflowRunsStore()
+const userStore = useUserStore()
 const globalError = ref('')
 const simpleNavOpen = ref(false)
 type WorkspaceMode = 'agent' | 'chat'
@@ -461,6 +453,14 @@ let chatPanelResizeStartX = 0
 let chatPanelResizeStartWidth = CHAT_PANEL_DEFAULT_WIDTH
 const mobileMediaQuery = window.matchMedia('(max-width: 760px)')
 const isMobileViewport = ref(mobileMediaQuery.matches)
+const sidebarUserName = computed(() => {
+  const username = userStore.currentUser?.username?.trim()
+  if (username) return username
+  const userId = localStorage.getItem('userId')?.trim()
+  return userId ? `用户 ${userId.slice(-4)}` : '当前用户'
+})
+const sidebarUserMeta = computed(() => userStore.currentUser?.email?.trim() || '已登录')
+const sidebarUserInitial = computed(() => sidebarUserName.value.charAt(0).toUpperCase())
 
 // Sidebar navigation state
 
@@ -836,6 +836,7 @@ const handleLogout = async () => {
 
     const result = await authApi.logout()
     if (result.success) {
+      userStore.setCurrentUser(null)
       ElMessage.success(result.message || '退出登录成功')
       router.push('/login')
     } else {
@@ -853,6 +854,7 @@ onMounted(() => {
   window.addEventListener('history-refresh', handleHistoryRefresh)
   mobileMediaQuery.addEventListener('change', handleViewportChange)
   if (chatNavOpen.value) void loadRecentConversations()
+  if (localStorage.getItem('userId')) void userStore.loadCurrentUser()
   void workflowRunsStore.bootstrap()
 })
 
@@ -1694,7 +1696,7 @@ onUnmounted(() => {
 
 .sidebar-footer {
   flex-shrink: 0;
-  padding: 14px;
+  padding: 10px 12px;
   margin-top: auto;
   border-top: 1px solid var(--sidebar-border);
 }
@@ -1705,8 +1707,7 @@ onUnmounted(() => {
 
 .app-sidebar.collapsed .user-profile {
   justify-content: center;
-  gap: 0;
-  padding: 8px 0;
+  padding: 4px 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1720,71 +1721,78 @@ onUnmounted(() => {
 .user-profile {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: var(--transition);
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px;
 }
 
-.user-profile:hover {
-  background-color: var(--bg-card);
-  border-color: var(--border-light);
+.user-identity,
+.user-logout {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.user-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px;
+  text-align: left;
 }
 
 .user-avatar {
   background-color: var(--primary-color);
   color: white;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .user-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 650;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .user-status {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--success);
+  line-height: 1.2;
 }
 
-/* Footer layout */
-.logout-section {
-  margin-top: 10px;
-  padding: 0;
+.user-logout {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  transition: color 160ms ease, background-color 160ms ease;
 }
 
-.logout-btn {
-  width: 100%;
-  background: var(--bg-card) !important;
-  border: 1px solid rgba(178, 74, 74, 0.22) !important;
-  border-radius: 8px;
-  color: var(--danger) !important;
-  font-weight: 500;
-  transition: var(--transition);
-  box-shadow: none;
+.user-identity:hover .user-name,
+.user-logout:hover {
+  color: var(--danger);
 }
 
-.logout-btn:hover {
-  background: rgba(178, 74, 74, 0.08) !important;
-  transform: translateY(-1px);
-  box-shadow: none;
-}
+.user-logout:hover { background: var(--danger-fade); }
 
-.logout-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
-}
-
-.logout-btn:deep(.el-icon) {
-  font-size: 14px;
+.user-identity:focus-visible,
+.user-logout:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .simple-nav-toggle {
