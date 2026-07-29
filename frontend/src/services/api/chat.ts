@@ -13,6 +13,7 @@ export interface ChatRequest {
   baseUrl?: string
   apiKey?: string
   thinkingMode?: ThinkingMode
+  toolMode?: 'auto' | 'disabled'
 }
 
 export interface Source {
@@ -20,6 +21,10 @@ export interface Source {
   filename?: string
   url?: string
   content?: string
+  snippet?: string
+  provider?: string
+  citationId?: string
+  retrievedAt?: string
 }
 
 export interface ReasoningStep {
@@ -51,7 +56,8 @@ export const chatApi = {
       model: chatRequest.model,
       baseUrl: chatRequest.baseUrl,
       apiKey: chatRequest.apiKey,
-      thinkingMode: chatRequest.thinkingMode
+      thinkingMode: chatRequest.thinkingMode,
+      tool_mode: chatRequest.toolMode || 'auto'
     })
     return response.data
   },

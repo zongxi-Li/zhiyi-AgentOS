@@ -110,7 +110,7 @@ export interface Message {
   reasoningTokens?: number
   outputTokens?: number
   latencyMs?: number
-  executionSummary?: Array<{ stage: string; status: string; description: string }>
+  executionSummary?: Array<{ stage: string; status: string; description: string; durationMs?: number }>
   skillsUsed?: string[]
   trace?: AgentTraceStep[]
   federated?: FederatedInfo
@@ -416,6 +416,38 @@ export const useChatStore = defineStore('chat', () => {
       const message = messages.value[streamIndex]
       if (!message) return
       const data = event.data || {}
+      const upsertToolSummary = (status: string) => {
+        const toolName = String(data.toolName || 'unknown')
+        const callId = String(data.callId || toolName)
+        const stage = `tool:${toolName}:${callId}`
+        const duration = typeof data.durationMs === 'number' ? data.durationMs : undefined
+        const description = status === 'completed'
+          ? `${toolName} 调用完成${duration === undefined ? '' : `（${duration}ms）`}`
+          : status === 'failed'
+            ? `${toolName} 调用失败：${data.errorCode || 'TOOL_FAILED'}`
+            : `${toolName} 调用中`
+        const summaries = message.executionSummary || []
+        const index = summaries.findIndex(item => item.stage === stage)
+        const next = { stage, status, description, durationMs: duration }
+        if (index >= 0) summaries[index] = next
+        else summaries.push(next)
+        message.executionSummary = [...summaries]
+      }
+      const mergeSources = (items: unknown) => {
+        if (!Array.isArray(items)) return
+        const existing = message.sources || []
+        const keys = new Set(existing.map(item => item.citationId || item.url || item.title))
+        for (const source of items) {
+          if (!source || typeof source !== 'object') continue
+          const typed = source as Record<string, any>
+          const key = typed.citationId || typed.url || typed.title
+          if (!keys.has(key)) {
+            existing.push(typed)
+            keys.add(key)
+          }
+        }
+        message.sources = [...existing]
+      }
       switch (event.event) {
         case 'reasoning_start':
           message.thinkingState = 'thinking'
@@ -432,6 +464,16 @@ export const useChatStore = defineStore('chat', () => {
         case 'content_delta':
           if (typeof data.delta === 'string') appendStreamContent(data.delta)
           break
+        case 'tool_start':
+          upsertToolSummary('running')
+          break
+        case 'tool_result':
+          upsertToolSummary('completed')
+          mergeSources(data.sources)
+          break
+        case 'tool_error':
+          upsertToolSummary('failed')
+          break
         case 'usage':
           message.inputTokens = data.input_tokens ?? data.inputTokens
           message.reasoningTokens = data.reasoning_tokens ?? data.reasoningTokens
@@ -445,6 +487,7 @@ export const useChatStore = defineStore('chat', () => {
           break
         case 'done':
           if (typeof data.contextId === 'string' && data.contextId) contextId.value = data.contextId
+          mergeSources(data.sources)
           finishThinking(message.content ? 'complete' : 'error')
           break
         case 'error':
@@ -474,6 +517,7 @@ export const useChatStore = defineStore('chat', () => {
           base_url: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.baseUrl,
           api_key: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.apiKey,
           thinking_mode: runtimeSettings.thinkingMode,
+          tool_mode: 'auto',
           context_id: contextId.value || undefined
         })
       })

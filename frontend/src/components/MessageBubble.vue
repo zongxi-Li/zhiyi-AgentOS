@@ -105,14 +105,22 @@
               <div v-if="message.sources && message.sources.length > 0" class="explanation-item vertical">
                 <span class="explanation-label">参考来源</span>
                 <div class="sources-list">
-                  <div
-                    v-for="(source, index) in message.sources"
-                    :key="index"
-                    class="source-tag"
-                  >
-                    <el-icon><Link /></el-icon>
-                    {{ source.title || source.filename || `来源 ${index + 1}` }}
-                  </div>
+                  <template v-for="(source, index) in message.sources" :key="source.citationId || source.url || index">
+                    <a
+                      v-if="source.url && isSafeUrl(source.url)"
+                      class="source-tag"
+                      :href="source.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <el-icon><Link /></el-icon>
+                      {{ source.title || source.filename || `来源 ${index + 1}` }}
+                    </a>
+                    <span v-else class="source-tag">
+                      <el-icon><Link /></el-icon>
+                      {{ source.title || source.filename || `来源 ${index + 1}` }}
+                    </span>
+                  </template>
                 </div>
               </div>
 
@@ -189,6 +197,10 @@ interface Source {
   filename?: string
   url?: string
   content?: string
+  snippet?: string
+  provider?: string
+  citationId?: string
+  retrievedAt?: string
 }
 
 interface ReasoningStep {
@@ -215,7 +227,7 @@ interface Props {
     effectiveThinkingMode?: string
     effectiveReasoningEffort?: string
     reasoningTokens?: number
-    executionSummary?: Array<{ stage: string; status: string; description: string }>
+    executionSummary?: Array<{ stage: string; status: string; description: string; durationMs?: number }>
   }
 }
 
@@ -416,6 +428,7 @@ const getConfidenceColor = (confidence: number) => {
 const executionStageLabel = (stage: string) => {
   if (stage === 'reasoning') return '思考'
   if (stage === 'answer_generation') return '回答生成'
+  if (stage.startsWith('tool:')) return `工具 · ${stage.split(':')[1] || 'unknown'}`
   return stage
 }
 
@@ -909,6 +922,7 @@ const formatTime = (date: Date) => {
   margin-right: 4px;
   margin-bottom: 4px;
   border: 1px solid var(--primary-line);
+  text-decoration: none;
 }
 
 .reasoning-path {
