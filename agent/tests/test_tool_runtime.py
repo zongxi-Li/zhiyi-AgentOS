@@ -8,7 +8,7 @@ import pytest
 from app.config import settings
 from app.tools.catalog import ReadOnlyToolCatalog
 from app.tools.contracts import SourceReference, ToolPayload, ToolUnavailableError
-from app.tools.runtime import AgentsToolRuntime, ToolInvocationContext
+from app.tools.runtime import AgentsToolRuntime, ToolInvocationContext, _tool_call_id
 
 
 class _FakeTavily:
@@ -86,6 +86,36 @@ def test_missing_tavily_key_marks_web_tools_unavailable(monkeypatch):
     assert catalog.availability()["web_search"]["available"] is False
     with pytest.raises(ToolUnavailableError):
         asyncio.run(catalog.execute("web_search", {"query": "latest news"}))
+
+
+def test_missing_optional_provider_returns_tool_error_without_removing_schema(monkeypatch):
+    monkeypatch.setattr(settings, "TOOL_RUNTIME_ENABLED", True)
+    monkeypatch.setattr(settings, "TAVILY_API_KEY", "")
+    runtime = AgentsToolRuntime(
+        ReadOnlyToolCatalog(), {"web_search", "current_datetime"}
+    )
+    context = runtime._context()
+
+    result = json.loads(asyncio.run(context.invoke("web_search", {"query": "latest news"})))
+    agent, client, _ = runtime._build_agent(
+        context,
+        model="deepseek-chat",
+        base_url="https://example.com/v1",
+        api_key="test-key",
+        require_evidence=False,
+        thinking_mode="disabled",
+    )
+    asyncio.run(client.close())
+
+    assert result == {"ok": False, "tool": "web_search", "error": "TOOL_UNAVAILABLE"}
+    assert context.records[0].status == "failed"
+    assert {tool.name for tool in agent.tools} == {"current_datetime", "web_search"}
+
+
+def test_tool_output_uses_sdk_normalized_call_id_when_raw_payload_has_none():
+    item = type("OutputItem", (), {"call_id": "call_normalized", "raw_item": {}})()
+
+    assert _tool_call_id(item) == "call_normalized"
 
 
 def test_tool_context_enforces_allowlist_and_call_limit():
