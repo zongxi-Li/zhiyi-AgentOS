@@ -6,7 +6,7 @@ from agentos.agents import AgentOutput, AgentProfile, AgentRegistry, BaseAgent
 from agentos.core.acg import ACGBlueprint, ACGEdge, StepNode
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.trace import TraceStore
-from agentos.core.models.types import StepStatus, WorkflowRun, WorkflowStep
+from agentos.core.models.types import AgentTask, StepStatus, WorkflowRun, WorkflowStep
 from agentos.core.recovery import (
     PatchConflictError,
     RuntimeController,
@@ -131,6 +131,7 @@ def _controller(store) -> RuntimeController:
 
 async def _initialized(store):
     run = _run()
+    store.save_task(AgentTask(taskId=run.task_id, title="Runtime controller"))
     store.save_run(run)
     controller = _controller(store)
     graph = await controller.initialize_from_blueprint(run.run_id, _blueprint())
@@ -147,6 +148,7 @@ async def test_legacy_run_initialization_is_idempotent_for_both_stores(
         else SQLiteWorkflowStore(tmp_path / "workflow.db")
     )
     run = _run()
+    store.save_task(AgentTask(taskId=run.task_id, title="Legacy runtime"))
     store.save_run(run)
     controller = _controller(store)
 

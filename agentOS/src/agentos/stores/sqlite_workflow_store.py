@@ -8,7 +8,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
+from agentos.core.models.types import AgentTask, StepStatus, WorkflowRun, WorkflowStatus
 from agentos.stores.workflow_store import (
     WorkflowRunDeleteResult,
     WorkflowStore,
@@ -49,11 +49,23 @@ class SQLiteWorkflowStore(WorkflowStore):
     def save_run(self, run: WorkflowRun) -> None:
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT payload FROM runs WHERE run_id = ?", (run.run_id,)).fetchone()
+            task_row = conn.execute(
+                "SELECT 1 FROM tasks WHERE task_id = ?", (run.task_id,)
+            ).fetchone()
+            if task_row is None:
+                raise ValueError(f"workflow run task does not exist: {run.task_id}")
+            row = conn.execute(
+                "SELECT task_id, payload FROM runs WHERE run_id = ?", (run.run_id,)
+            ).fetchone()
             if row is not None:
+                if str(row["task_id"]) != run.task_id:
+                    raise ValueError(
+                        f"workflow run taskId cannot change: {run.run_id}"
+                    )
                 existing = WorkflowRun.model_validate(json.loads(row["payload"]))
                 if _reject_terminal_overwrite(existing, run):
                     return
+            _validate_obvious_run_state_conflicts(run)
             conn.execute(
                 """
                 INSERT INTO runs(run_id, task_id, payload, updated_at)
@@ -320,6 +332,31 @@ def _matches_run(
     if owner_tenant_id is not None and run_tenant and run_tenant != owner_tenant_id:
         return False
     return True
+
+
+def _validate_obvious_run_state_conflicts(run: WorkflowRun) -> None:
+    statuses = {step.status for step in run.steps}
+    if run.runtime_graph is not None:
+        statuses.update(node.status for node in run.runtime_graph.nodes)
+
+    if run.status == WorkflowStatus.COMPLETED:
+        conflicts = {
+            StepStatus.RUNNING,
+            StepStatus.RETRYING,
+            StepStatus.WAITING_REVIEW,
+        }
+        if statuses & conflicts:
+            raise ValueError(
+                f"completed workflow run has active or review steps: {run.run_id}"
+            )
+    elif run.status == WorkflowStatus.FAILED:
+        if statuses & {StepStatus.RUNNING, StepStatus.RETRYING}:
+            raise ValueError(f"failed workflow run has active steps: {run.run_id}")
+    elif run.status == WorkflowStatus.WAITING_REVIEW:
+        if StepStatus.WAITING_REVIEW not in statuses:
+            raise ValueError(
+                f"waiting_review workflow run has no waiting_review step: {run.run_id}"
+            )
 
 
 def _run_priority(run: WorkflowRun) -> int:

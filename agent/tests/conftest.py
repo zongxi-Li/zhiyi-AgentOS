@@ -16,6 +16,12 @@ AGENT_APP_ROOT = PROJECT_ROOT / "agent"
 # Isolate that client before collection so tests never open the tracked database.
 _TEST_CHROMA_DIR = tempfile.TemporaryDirectory(prefix="kinlin-agent-chroma-tests-")
 os.environ["AGENT_CHROMA_PATH"] = _TEST_CHROMA_DIR.name
+_TEST_WORKFLOW_DIR = tempfile.TemporaryDirectory(
+    prefix="kinlin-agent-workflow-tests-", ignore_cleanup_errors=True
+)
+os.environ["AGENTOS_WORKFLOW_DB_PATH"] = str(
+    Path(_TEST_WORKFLOW_DIR.name) / "workflows.sqlite3"
+)
 
 for path in (PROJECT_ROOT, AGENT_APP_ROOT, AGENTOS_SRC):
     value = str(path)
@@ -112,3 +118,4 @@ def pytest_unconfigure(config):
         if callable(close):
             close()
     _TEST_CHROMA_DIR.cleanup()
+    _TEST_WORKFLOW_DIR.cleanup()

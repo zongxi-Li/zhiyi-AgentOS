@@ -15,6 +15,7 @@ describe('ACG workbench request builder', () => {
       domain: 'general', intent: 'general', workflowId: undefined,
       enabledPluginIds: [], reviewMode: 'auto', clientRequestId: 'request-native'
     })
+    expect(request.input.source).toBe('acg')
     expect(request.input).not.toHaveProperty('contractText')
   })
 

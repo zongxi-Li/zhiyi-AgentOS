@@ -167,7 +167,7 @@ def test_native_runtime_executes_without_legal_pack():
     assert any(event.event_type == TraceEventType.STEP_SUCCEEDED for event in run.trace)
 
 
-def test_default_runtime_registers_native_before_application_packs(monkeypatch):
+def test_default_runtime_registers_native_before_application_packs(monkeypatch, tmp_path):
     from agentos.core import runtime as runtime_module
 
     observed: list[str] = []
@@ -186,7 +186,7 @@ def test_default_runtime_registers_native_before_application_packs(monkeypatch):
         return ()
 
     monkeypatch.setattr(runtime_module, "register_installed_packs", inspect_pack_registration)
-    monkeypatch.delenv("AGENTOS_WORKFLOW_DB_PATH", raising=False)
+    monkeypatch.setenv("AGENTOS_WORKFLOW_DB_PATH", str(tmp_path / "workflow.db"))
 
     runtime = build_default_runtime()
 

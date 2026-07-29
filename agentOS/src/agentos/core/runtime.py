@@ -782,34 +782,113 @@ class WorkflowRuntime:
     async def close_orphaned_runs(self, *, limit: int = 200) -> list[str]:
         """Close unfinished runs whose in-process executor was lost on restart."""
 
-        orphan_phases = {
-            WorkflowProgressPhase.PLANNING,
-            WorkflowProgressPhase.GRAPH_BUILDING,
-            WorkflowProgressPhase.EXECUTING,
-            WorkflowProgressPhase.RECOVERY,
-        }
         closed: list[str] = []
         for run in self.workflow_store.list_non_terminal_runs(limit=limit):
-            if run.status not in {WorkflowStatus.PENDING, WorkflowStatus.RUNNING} and (
-                run.lifecycle_phase not in orphan_phases
-            ):
+            if run.status == WorkflowStatus.WAITING_REVIEW:
+                if self._normalize_waiting_review_after_restart(run):
+                    run.updated_at = utc_now()
+                    self.workflow_store.save_run(run)
                 continue
-            failed = await self.fail_run_safely(
-                run.run_id,
-                error_code="orphaned_after_restart",
-                error_message="工作流执行因运行进程重启而中断",
-            )
-            closed.append(failed.run_id)
+            if run.status not in {
+                WorkflowStatus.PENDING,
+                WorkflowStatus.PLANNING,
+                WorkflowStatus.RUNNING,
+                WorkflowStatus.RETRYING,
+            }:
+                continue
+            self._fail_interrupted_run_after_restart(run)
+            closed.append(run.run_id)
             logger.warning(
-                "orphaned_run_closed",
+                "interrupted_run_closed_after_restart",
                 extra={
-                    "taskId": failed.task_id,
-                    "runId": failed.run_id,
-                    "workflowId": failed.workflow_id,
-                    "phase": failed.lifecycle_phase.value if failed.lifecycle_phase else None,
+                    "taskId": run.task_id,
+                    "runId": run.run_id,
+                    "workflowId": run.workflow_id,
+                    "phase": run.lifecycle_phase.value if run.lifecycle_phase else None,
                 },
             )
         return closed
+
+    @staticmethod
+    def _normalize_waiting_review_after_restart(run: WorkflowRun) -> bool:
+        """Align both persisted step projections without leaving review state."""
+
+        changed = False
+        waiting_ids = {
+            step.step_id for step in run.steps if step.status == StepStatus.WAITING_REVIEW
+        }
+        if run.runtime_graph is not None:
+            waiting_ids.update(
+                node.node_id
+                for node in run.runtime_graph.nodes
+                if node.status == StepStatus.WAITING_REVIEW
+            )
+        if not waiting_ids and run.current_step_id:
+            waiting_ids.add(run.current_step_id)
+        for step in run.steps:
+            if step.step_id in waiting_ids and step.status != StepStatus.WAITING_REVIEW:
+                step.status = StepStatus.WAITING_REVIEW
+                changed = True
+        if run.runtime_graph is not None:
+            for node in run.runtime_graph.nodes:
+                if node.node_id in waiting_ids and node.status != StepStatus.WAITING_REVIEW:
+                    node.status = StepStatus.WAITING_REVIEW
+                    node.updated_at = utc_now()
+                    changed = True
+        if run.lifecycle_phase != WorkflowProgressPhase.REVIEW:
+            run.lifecycle_phase = WorkflowProgressPhase.REVIEW
+            changed = True
+        if run.lifecycle_message != _LIFECYCLE_MESSAGES[WorkflowProgressPhase.REVIEW]:
+            run.lifecycle_message = _LIFECYCLE_MESSAGES[WorkflowProgressPhase.REVIEW]
+            changed = True
+        return changed
+
+    def _fail_interrupted_run_after_restart(self, run: WorkflowRun) -> None:
+        """Mutate every run projection first, then persist one consistent snapshot."""
+
+        active_statuses = {StepStatus.RUNNING, StepStatus.RETRYING}
+        active_step_id = run.current_step_id
+        for step in run.steps:
+            if step.status in active_statuses or (
+                active_step_id
+                and step.step_id == active_step_id
+                and step.status == StepStatus.PENDING
+            ):
+                step.status = StepStatus.FAILED
+                step.error = "任务因服务重启而中断。"
+                step.completed_at = utc_now()
+        if run.runtime_graph is not None:
+            for node in run.runtime_graph.nodes:
+                if node.status in active_statuses or (
+                    active_step_id
+                    and node.node_id == active_step_id
+                    and node.status == StepStatus.PENDING
+                ):
+                    node.status = StepStatus.FAILED
+                    node.error = "任务因服务重启而中断。"
+                    node.updated_at = utc_now()
+        run.status = WorkflowStatus.FAILED
+        run.lifecycle_phase = WorkflowProgressPhase.FAILED
+        run.lifecycle_message = "任务因服务重启而中断。"
+        run.error = {
+            "code": "interrupted_after_restart",
+            "message": "任务因服务重启而中断。",
+        }
+        try:
+            self.task_manager.mark_failed(run.task_id)
+        except Exception:
+            logger.exception(
+                "Failed to align task status after interrupted run",
+                extra={"taskId": run.task_id, "runId": run.run_id},
+            )
+        self.trace_store.append(
+            run=run,
+            event_type=TraceEventType.RUN_FAILED,
+            observation="任务因服务重启而中断。",
+            payload=dict(run.error),
+        )
+        run.updated_at = utc_now()
+        self.workflow_store.save_run(run)
 
     @staticmethod
     def _safe_error_message(exc: BaseException) -> str:
@@ -1215,10 +1294,9 @@ def build_default_runtime() -> WorkflowRuntime:
 
     db_path = os.getenv("AGENTOS_WORKFLOW_DB_PATH", "").strip()
     workflow_store: WorkflowStore
-    if db_path:
-        workflow_store = SQLiteWorkflowStore(db_path)
-    else:
-        workflow_store = MemoryWorkflowStore()
+    if not db_path:
+        raise RuntimeError("Workflow database path is required outside test mode.")
+    workflow_store = SQLiteWorkflowStore(db_path)
 
     runtime = WorkflowRuntime(
         agent_registry=agent_registry,

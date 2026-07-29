@@ -80,7 +80,7 @@ export const buildWorkbenchStartRequest = (
   let workflowId: string | undefined
   let reviewMode = draft.reviewMode
   let input: Record<string, unknown> = {
-    source: 'acg-workbench',
+    source: 'acg',
     userIntent: draft.taskGoal,
     taskGoal: draft.taskGoal,
     materialText: draft.materialText,

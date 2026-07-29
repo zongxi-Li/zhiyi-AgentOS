@@ -330,6 +330,7 @@ async def _create_task_and_start(
     runtime: WorkflowRuntime,
     request: WorkflowStartRequest,
 ) -> Dict[str, Any]:
+    request = _normalize_acg_start_request(request)
     request = _resolve_source_materials(request)
     task = runtime.create_task(
         title=request.title,
@@ -392,6 +393,7 @@ async def _create_task_and_submit(
     coordinator: RunExecutionCoordinator,
     request: WorkflowStartRequest,
 ) -> Dict[str, Any]:
+    request = _normalize_acg_start_request(request)
     request = _resolve_source_materials(request)
     idempotency_key = _workflow_start_idempotency_key(request.client_request_id)
     idempotency_fingerprint = _workflow_start_fingerprint(request)
@@ -443,6 +445,13 @@ async def _create_task_and_submit(
         raise
     latest = runtime.workflow_store.get_run(run.run_id)
     return {"accepted": True, "task": _to_json(task), "run": _to_json(latest)}
+
+
+def _normalize_acg_start_request(request: WorkflowStartRequest) -> WorkflowStartRequest:
+    source = str(request.input.get("source") or "").strip()
+    if source not in {"acg", "acg-workbench"}:
+        return request
+    return request.model_copy(update={"input": {**request.input, "source": "acg"}})
 
 
 def _resolve_source_materials(request: WorkflowStartRequest) -> WorkflowStartRequest:

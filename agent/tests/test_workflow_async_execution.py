@@ -11,6 +11,7 @@ import pytest
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
+from agentos.core.acg import ACGBlueprint, StepNode
 from agentos.core.execution import RunExecutionCoordinator
 from agentos.core.models.enums import WorkflowProgressPhase
 from agentos.core.models.types import (
@@ -23,6 +24,7 @@ from agentos.core.models.types import (
     WorkflowStepDefinition,
 )
 from agentos.core.runtime import WorkflowRuntime
+from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.workflow.progress import ProgressAssembler
 from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
@@ -281,13 +283,101 @@ def test_orphan_cleanup_closes_persisted_nonterminal_run():
         assert closed == [run.run_id]
         failed = runtime.get_status(run.run_id)
         assert failed.status == WorkflowStatus.FAILED
-        assert failed.error["code"] == "orphaned_after_restart"
+        assert failed.error["code"] == "interrupted_after_restart"
+
+    asyncio.run(scenario())
+
+
+def test_restart_recovery_persists_one_consistent_failed_snapshot():
+    async def scenario():
+        store = _RecordingStore()
+        runtime = _runtime(store)
+        task = runtime.create_task(title="Interrupted", domain="test", intent="work")
+        _, run = runtime.prepare_run(task.task_id)
+        blueprint = ACGBlueprint(
+            graphId="graph_restart",
+            nodes=[StepNode(nodeId="work", agentName="worker")],
+            edges=[],
+        )
+        run.runtime_graph = RuntimeGraph.from_blueprint(
+            run_id=run.run_id, blueprint=blueprint
+        )
+        run.runtime_graph.get_node("work").status = StepStatus.RUNNING
+        run.steps = [
+            WorkflowStep(
+                stepId="work",
+                name="Work",
+                agentName="worker",
+                status=StepStatus.RUNNING,
+            )
+        ]
+        run.current_step_id = "work"
+        run.status = WorkflowStatus.RUNNING
+        run.lifecycle_phase = WorkflowProgressPhase.EXECUTING
+        store.save_run(run)
+        store.lifecycle_writes.clear()
+
+        closed = await RunExecutionCoordinator(runtime).startup()
+
+        assert closed == [run.run_id]
+        assert len(store.lifecycle_writes) == 1
+        failed = store.get_run(run.run_id)
+        assert failed.status == WorkflowStatus.FAILED
+        assert failed.steps[0].status == StepStatus.FAILED
+        assert failed.runtime_graph.get_node("work").status == StepStatus.FAILED
+        assert failed.error == {
+            "code": "interrupted_after_restart",
+            "message": "任务因服务重启而中断。",
+        }
+
+    asyncio.run(scenario())
+
+
+def test_restart_keeps_waiting_review_and_aligns_graph_once():
+    async def scenario():
+        store = _RecordingStore()
+        runtime = _runtime(store)
+        task = runtime.create_task(title="Review", domain="test", intent="work")
+        _, run = runtime.prepare_run(task.task_id)
+        blueprint = ACGBlueprint(
+            graphId="graph_review_restart",
+            nodes=[StepNode(nodeId="work", agentName="worker")],
+            edges=[],
+        )
+        run.runtime_graph = RuntimeGraph.from_blueprint(
+            run_id=run.run_id, blueprint=blueprint
+        )
+        run.runtime_graph.get_node("work").status = StepStatus.WAITING_REVIEW
+        run.steps = [
+            WorkflowStep(
+                stepId="work",
+                name="Work",
+                agentName="worker",
+                status=StepStatus.WAITING_REVIEW,
+            )
+        ]
+        run.current_step_id = "work"
+        run.status = WorkflowStatus.WAITING_REVIEW
+        run.lifecycle_phase = WorkflowProgressPhase.EXECUTING
+        store.save_run(run)
+        store.lifecycle_writes.clear()
+
+        closed = await RunExecutionCoordinator(runtime).startup()
+
+        assert closed == []
+        assert len(store.lifecycle_writes) == 1
+        restored = store.get_run(run.run_id)
+        assert restored.status == WorkflowStatus.WAITING_REVIEW
+        assert restored.lifecycle_phase == WorkflowProgressPhase.REVIEW
+        assert restored.steps[0].status == StepStatus.WAITING_REVIEW
+        assert restored.runtime_graph.get_node("work").status == StepStatus.WAITING_REVIEW
 
     asyncio.run(scenario())
 
 
 def test_terminal_run_cannot_be_overwritten_by_stale_sqlite_snapshot(tmp_path):
     store = SQLiteWorkflowStore(tmp_path / "workflow.db")
+    store.save_task(AgentTask(taskId="task_terminal", title="Terminal"))
     run = WorkflowRun(
         taskId="task_terminal",
         workflowId="workflow_terminal",
@@ -531,6 +621,7 @@ def test_store_terminal_protection_has_consistent_snapshot_semantics(store_kind,
         lifecyclePhase=WorkflowProgressPhase.EXECUTING,
         steps=[_step("step", StepStatus.PENDING)],
     )
+    store.save_task(AgentTask(taskId=run.task_id, title="Terminal contract"))
     store.save_run(run)
     stale = store.get_run(run.run_id)
     cancelled = store.get_run(run.run_id)

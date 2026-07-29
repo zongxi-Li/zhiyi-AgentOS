@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 import sqlite3
 
+import pytest
+
 from agentos.core.models.types import (
     AgentTask,
     PluginSnapshot,
@@ -24,8 +26,61 @@ from agentos.core.runtime_graph import (
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 
+def test_sqlite_rejects_missing_or_changed_task_and_obvious_state_conflicts(tmp_path):
+    store = SQLiteWorkflowStore(tmp_path / "validation.db")
+    run = WorkflowRun(
+        taskId="task_validation",
+        workflowId="workflow",
+        domain="test",
+        runtimeEngine="acg",
+    )
+    with pytest.raises(ValueError, match="task does not exist"):
+        store.save_run(run)
+
+    store.save_task(AgentTask(taskId=run.task_id, title="Validation"))
+    store.save_run(run)
+    changed_task = run.model_copy(deep=True)
+    changed_task.task_id = "task_changed"
+    store.save_task(AgentTask(taskId="task_changed", title="Changed"))
+    with pytest.raises(ValueError, match="taskId cannot change"):
+        store.save_run(changed_task)
+
+    completed = run.model_copy(deep=True)
+    completed.status = WorkflowStatus.COMPLETED
+    completed.steps = [
+        WorkflowStep(
+            stepId="active",
+            name="Active",
+            agentName="worker",
+            status=StepStatus.RUNNING,
+        )
+    ]
+    with pytest.raises(ValueError, match="completed workflow run"):
+        store.save_run(completed)
+
+    failed = run.model_copy(deep=True)
+    failed.status = WorkflowStatus.FAILED
+    failed.steps = [
+        WorkflowStep(
+            stepId="retrying",
+            name="Retrying",
+            agentName="worker",
+            status=StepStatus.RETRYING,
+        )
+    ]
+    with pytest.raises(ValueError, match="failed workflow run"):
+        store.save_run(failed)
+
+    waiting = run.model_copy(deep=True)
+    waiting.status = WorkflowStatus.WAITING_REVIEW
+    waiting.steps = [WorkflowStep(stepId="pending", name="Pending", agentName="worker")]
+    with pytest.raises(ValueError, match="no waiting_review step"):
+        store.save_run(waiting)
+
+
 def test_sqlite_roundtrips_frozen_plugin_scope(tmp_path):
     store = SQLiteWorkflowStore(tmp_path / "plugin-scope.db")
+    store.save_task(AgentTask(taskId="task_scope", title="Plugin scope"))
     snapshot = PluginSnapshot(
         pluginId="kinlin.legal",
         version="0.1.0",
@@ -106,6 +161,7 @@ def test_sqlite_workflow_store_persists_tasks_and_runs(tmp_path):
 
 def test_sqlite_workflow_store_roundtrips_runtime_graph_patch_history_and_checkpoint(tmp_path):
     store = SQLiteWorkflowStore(tmp_path / "runtime-graph.db")
+    store.save_task(AgentTask(taskId="task_sqlite", title="Runtime graph"))
     blueprint = ACGBlueprint(
         graphId="graph_sqlite",
         version=8,

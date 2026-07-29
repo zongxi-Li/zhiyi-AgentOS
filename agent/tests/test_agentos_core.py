@@ -809,6 +809,35 @@ def test_agentos_core_api_lists_tasks_and_runs_with_filters():
     assert tasks_payload["items"][0]["recommendedWorkflow"] == "legal_case_analysis_v1"
 
 
+def test_acg_start_source_is_normalized_without_rewriting_generic_workbench():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.agentos_core import create_router
+
+    runtime = _runtime_with_legal_pack()
+    app = FastAPI()
+    app.include_router(create_router(runtime), prefix="/ai")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ai/core/workflows/start",
+        json={
+            "title": "ACG source normalization",
+            "domain": "legal",
+            "intent": "contract_review",
+            "input": {
+                "source": "acg-workbench",
+                "caseText": "ACG source normalization",
+            },
+            "reviewMode": "human_in_loop",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["run"]["input"]["source"] == "acg"
+
+
 def test_default_runtime_uses_sqlite_store_when_env_is_set(tmp_path, monkeypatch):
     from app.api import agentos_core
 
@@ -821,17 +850,19 @@ def test_default_runtime_uses_sqlite_store_when_env_is_set(tmp_path, monkeypatch
     assert Path(runtime.workflow_store.db_path) == db_path
 
 
-def test_default_runtime_uses_memory_store_when_env_is_missing(monkeypatch):
+def test_default_runtime_requires_database_path_when_env_is_missing(monkeypatch):
     from app.api import agentos_core
 
     monkeypatch.delenv("AGENTOS_WORKFLOW_DB_PATH", raising=False)
 
-    runtime = agentos_core.build_default_runtime()
+    with pytest.raises(
+        RuntimeError,
+        match="Workflow database path is required outside test mode",
+    ):
+        agentos_core.build_default_runtime()
 
-    assert isinstance(runtime.workflow_store, MemoryWorkflowStore)
 
-
-def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
+def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch, tmp_path):
     from agentos.core import runtime as core_runtime
 
     calls = []
@@ -845,7 +876,7 @@ def test_default_runtime_registers_packs_through_manifest_loader(monkeypatch):
         return []
 
     monkeypatch.setattr(core_runtime, "register_installed_packs", fake_register_installed_packs)
-    monkeypatch.delenv("AGENTOS_WORKFLOW_DB_PATH", raising=False)
+    monkeypatch.setenv("AGENTOS_WORKFLOW_DB_PATH", str(tmp_path / "workflow.db"))
 
     runtime = core_runtime.build_default_runtime()
 
