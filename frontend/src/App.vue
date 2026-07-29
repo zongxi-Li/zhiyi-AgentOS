@@ -141,6 +141,31 @@
               aria-label="聊天项目"
             >
               <div class="chat-panel-content">
+                <div class="workspace-switch" role="tablist" aria-label="对话模式">
+                  <button
+                    class="workspace-switch-btn"
+                    :class="{ active: workspaceMode === 'agent' }"
+                    type="button"
+                    role="tab"
+                    :aria-selected="workspaceMode === 'agent'"
+                    @click="selectWorkspaceMode('agent')"
+                  >
+                    <el-icon><Monitor /></el-icon>
+                    <span>Agent</span>
+                  </button>
+                  <button
+                    class="workspace-switch-btn"
+                    :class="{ active: workspaceMode === 'chat' }"
+                    type="button"
+                    role="tab"
+                    :aria-selected="workspaceMode === 'chat'"
+                    @click="selectWorkspaceMode('chat')"
+                  >
+                    <el-icon><ChatDotRound /></el-icon>
+                    <span>Chat</span>
+                  </button>
+                </div>
+
                 <button class="chat-submenu-action new-chat-action" type="button" @click="startNewChat">
                   <el-icon><EditPen /></el-icon>
                   <span>新建对话</span>
@@ -624,6 +649,26 @@ watch(
     }
   }
 )
+
+watch(
+  () => route.query.workspace,
+  workspace => {
+    if (workspace !== 'agent' && workspace !== 'chat') return
+    workspaceMode.value = workspace
+    localStorage.setItem(WORKSPACE_MODE_KEY, workspace)
+  },
+  { immediate: true }
+)
+
+const selectWorkspaceMode = (mode: WorkspaceMode) => {
+  workspaceMode.value = mode
+  localStorage.setItem(WORKSPACE_MODE_KEY, mode)
+  window.dispatchEvent(new CustomEvent('workspace-mode-change', { detail: { mode } }))
+  void router.replace({
+    path: '/chat',
+    query: { ...route.query, workspace: mode }
+  })
+}
 
 // Immersive mode: only keep login page immersive
 const isImmersive = computed(() => {

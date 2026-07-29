@@ -2370,6 +2370,12 @@ const handleWorkspaceModeChange = (event: Event) => {
   const mode = (event as CustomEvent<{ mode?: WorkspaceMode }>).detail?.mode
   if (mode !== 'agent' && mode !== 'chat') return
   workspaceMode.value = mode
+  if (mode === 'agent') {
+    agentPanelCollapsed.value = false
+    localStorage.setItem(AGENT_PANEL_COLLAPSED_KEY, '0')
+    setContextPanelOpen(true)
+    setWorkflowPanelOpen(true)
+  }
 }
 
 watch(
