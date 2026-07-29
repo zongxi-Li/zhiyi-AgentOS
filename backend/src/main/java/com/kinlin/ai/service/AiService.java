@@ -67,6 +67,20 @@ public class AiService {
             String apiKey,
             String thinkingMode
     ) {
+        return sendTextMessage(text, roleId, context, contextId, model, baseUrl, apiKey, thinkingMode, null);
+    }
+
+    public ChatResponse sendTextMessage(
+            String text,
+            String roleId,
+            List<Map<String, String>> context,
+            String contextId,
+            String model,
+            String baseUrl,
+            String apiKey,
+            String thinkingMode,
+            String toolMode
+    ) {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("text", text);
         if (roleId != null) {
@@ -89,6 +103,9 @@ public class AiService {
         }
         if (thinkingMode != null && !thinkingMode.isBlank()) {
             requestBody.put("thinking_mode", thinkingMode);
+        }
+        if (toolMode != null && !toolMode.isBlank()) {
+            requestBody.put("tool_mode", toolMode);
         }
 
         try {

@@ -36,4 +36,6 @@ public class ChatRequest {
 
     // Compatibility with clients that still send off/low/medium/high.
     private String reasoningEffort;
+
+    private String toolMode;
 }

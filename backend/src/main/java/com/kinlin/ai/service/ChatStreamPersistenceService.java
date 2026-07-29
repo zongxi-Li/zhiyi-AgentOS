@@ -116,6 +116,8 @@ public class ChatStreamPersistenceService {
         private final ObjectMapper objectMapper;
         private final StringBuilder content = new StringBuilder();
         private final Map<String, Object> usage = new LinkedHashMap<>();
+        private final List<Map<String, Object>> toolExecutions = new ArrayList<>();
+        private final Map<String, Map<String, Object>> sources = new LinkedHashMap<>();
         private boolean reasoningStarted;
         private boolean reasoningCompleted;
         private boolean contentStarted;
@@ -153,6 +155,10 @@ public class ChatStreamPersistenceService {
                             content.append(delta);
                         }
                     }
+                    case "tool_result", "tool_error" -> {
+                        addToolExecution(data);
+                        addSources(data.get("sources"));
+                    }
                     case "usage" -> copy(data,
                             "inputTokens", "input_tokens",
                             "reasoningTokens", "reasoning_tokens",
@@ -161,7 +167,19 @@ public class ChatStreamPersistenceService {
                             "latencyMs", "requestedModel", "effectiveModel",
                             "requestedThinkingMode", "effectiveThinkingMode",
                             "effectiveReasoningEffort", "resolutionReasons");
-                    case "done" -> completed = "completed".equals(String.valueOf(data.get("status")));
+                    case "done" -> {
+                        completed = "completed".equals(String.valueOf(data.get("status")));
+                        addSources(data.get("sources"));
+                        Object records = data.get("toolExecutions");
+                        if (toolExecutions.isEmpty() && records instanceof List<?> items) {
+                            for (Object item : items) {
+                                if (item instanceof Map<?, ?> map) {
+                                    addToolExecution((Map<String, Object>) map);
+                                }
+                            }
+                        }
+                        copy(data, "toolsUsed");
+                    }
                     default -> {
                         // reasoning_delta and error are intentionally not persisted as message metadata.
                     }
@@ -180,7 +198,28 @@ public class ChatStreamPersistenceService {
             normalizeTokenName(metadata, "total_tokens", "totalTokens");
             metadata.put("thinkingEnabled", reasoningStarted);
             metadata.putIfAbsent("fallbackUsed", false);
+            if (!toolExecutions.isEmpty()) {
+                metadata.put("toolExecutions", List.copyOf(toolExecutions));
+                metadata.putIfAbsent("toolsUsed", toolExecutions.stream()
+                        .map(item -> String.valueOf(item.getOrDefault("toolName", "unknown")))
+                        .distinct()
+                        .toList());
+            }
+            if (!sources.isEmpty()) {
+                metadata.put("sources", List.copyOf(sources.values()));
+            }
             List<Map<String, String>> summary = new ArrayList<>();
+            for (Map<String, Object> item : toolExecutions) {
+                String toolName = String.valueOf(item.getOrDefault("toolName", "unknown"));
+                String status = String.valueOf(item.getOrDefault("status", "completed"));
+                summary.add(Map.of(
+                        "stage", "tool:" + toolName,
+                        "status", status,
+                        "description", "failed".equals(status)
+                                ? toolName + " 调用失败"
+                                : toolName + " 调用完成"
+                ));
+            }
             if (reasoningStarted) {
                 summary.add(Map.of(
                         "stage", "reasoning",
@@ -212,6 +251,52 @@ public class ChatStreamPersistenceService {
                 metadata.put(newName, metadata.remove(oldName));
             } else {
                 metadata.remove(oldName);
+            }
+        }
+
+        private void addToolExecution(Map<String, Object> data) {
+            String callId = String.valueOf(data.getOrDefault("callId", ""));
+            if (!callId.isBlank() && toolExecutions.stream()
+                    .anyMatch(item -> callId.equals(String.valueOf(item.get("callId"))))) {
+                return;
+            }
+            Map<String, Object> record = new LinkedHashMap<>();
+            for (String key : List.of(
+                    "callId", "toolName", "status", "durationMs", "inputSummary",
+                    "outputSummary", "sourceRefs", "errorCode"
+            )) {
+                if (data.containsKey(key) && data.get(key) != null) {
+                    record.put(key, data.get(key));
+                }
+            }
+            if (!record.isEmpty()) {
+                toolExecutions.add(record);
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private void addSources(Object value) {
+            if (!(value instanceof List<?> items)) {
+                return;
+            }
+            for (Object item : items) {
+                if (!(item instanceof Map<?, ?> raw)) {
+                    continue;
+                }
+                Map<String, Object> source = new LinkedHashMap<>();
+                for (String key : List.of(
+                        "citationId", "title", "filename", "url", "snippet", "provider", "retrievedAt"
+                )) {
+                    if (raw.containsKey(key) && raw.get(key) != null) {
+                        source.put(key, raw.get(key));
+                    }
+                }
+                String key = String.valueOf(source.getOrDefault(
+                        "citationId", source.getOrDefault("url", source.getOrDefault("title", ""))
+                ));
+                if (!key.isBlank()) {
+                    sources.putIfAbsent(key, source);
+                }
             }
         }
     }

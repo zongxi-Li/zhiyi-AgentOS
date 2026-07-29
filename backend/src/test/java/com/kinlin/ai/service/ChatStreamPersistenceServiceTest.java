@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
 
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,6 +56,58 @@ class ChatStreamPersistenceServiceTest {
         assertTrue((Boolean) saved.getMetadata().get("thinkingEnabled"));
         assertFalse(saved.getMetadata().toString().contains("raw private reasoning"));
         assertFalse(saved.getMetadata().containsKey("reasoning_content"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void persistsSanitizedToolExecutionsAndSources() {
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        MessageRepository messages = mock(MessageRepository.class);
+        ChatStreamPersistenceService service = new ChatStreamPersistenceService(
+                conversations, messages, new ObjectMapper());
+        ChatStreamPersistenceService.StreamCapture capture = service.capture();
+
+        capture.accept(event("tool_result", Map.of(
+                "callId", "call-1",
+                "toolName", "web_search",
+                "status", "completed",
+                "durationMs", 12,
+                "outputSummary", "Found one result.",
+                "sourceRefs", List.of("src-1"),
+                "sources", List.of(Map.of(
+                        "citationId", "src-1",
+                        "title", "Public source",
+                        "url", "https://example.test/source",
+                        "snippet", "Short public snippet.",
+                        "provider", "test",
+                        "retrievedAt", "2026-01-01T00:00:00Z",
+                        "content", "full page body must not be persisted"
+                ))
+        )));
+        capture.accept(event("content_delta", Map.of("delta", "cited answer")));
+        capture.accept(event("done", Map.of(
+                "status", "completed",
+                "toolsUsed", List.of("web_search")
+        )));
+
+        ChatStreamPersistenceService.PreparedStream prepared =
+                new ChatStreamPersistenceService.PreparedStream(UUID.randomUUID(), "ctx-tools", Map.of());
+        service.complete(prepared, capture);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(messages).save(captor.capture());
+        Map<String, Object> metadata = captor.getValue().getMetadata();
+        List<Map<String, Object>> executions =
+                (List<Map<String, Object>>) metadata.get("toolExecutions");
+        List<Map<String, Object>> sources =
+                (List<Map<String, Object>>) metadata.get("sources");
+
+        assertEquals("web_search", executions.get(0).get("toolName"));
+        assertEquals(12, executions.get(0).get("durationMs"));
+        assertEquals("https://example.test/source", sources.get(0).get("url"));
+        assertFalse(sources.get(0).containsKey("content"));
+        assertTrue(metadata.toString().contains("tool:web_search"));
+        assertFalse(metadata.toString().contains("full page body"));
     }
 
     private ServerSentEvent<String> event(String type, Map<String, Object> data) {

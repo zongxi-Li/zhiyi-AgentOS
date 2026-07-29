@@ -103,7 +103,8 @@ public class ChatService {
         // 调用AI服务获取回复
         boolean hasRuntimeModel = request.getModel() != null
                 || request.getBaseUrl() != null
-                || request.getApiKey() != null;
+                || request.getApiKey() != null
+                || request.getToolMode() != null;
         ChatResponse aiResponse;
         if (hasRuntimeModel) {
             aiResponse = aiService.sendTextMessage(
@@ -116,7 +117,8 @@ public class ChatService {
                     request.getApiKey(),
                     request.getThinkingMode() != null
                             ? request.getThinkingMode()
-                            : request.getReasoningEffort()
+                            : request.getReasoningEffort(),
+                    request.getToolMode()
             );
         } else {
             aiResponse = aiService.sendTextMessage(
