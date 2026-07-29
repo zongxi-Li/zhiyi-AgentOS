@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import json
 import os
 import sys
 import tempfile
@@ -78,6 +79,93 @@ class _ContractReviewTestProvider:
         return {}
 
 
+class _ReadOnlyToolTestRuntime:
+    """Deterministic read-only tool fixture; never reaches a model or the network."""
+
+    def __init__(self, allowed_tools=None):
+        self.allowed_tools = set(
+            allowed_tools
+            or {
+                "web_search",
+                "web_extract",
+                "knowledge_search",
+                "codebase_search",
+                "current_datetime",
+            }
+        )
+
+    def scoped(self, allowed_tools):
+        return _ReadOnlyToolTestRuntime(self.allowed_tools.intersection(allowed_tools))
+
+    async def run(self, text, **kwargs):
+        from app.tools.contracts import SourceReference, ToolExecutionRecord, ToolRunResult
+
+        source = SourceReference(
+            citationId="src_test_evidence",
+            title="Test evidence fixture",
+            url="https://example.test/evidence",
+            snippet="Deterministic evidence for isolated tests.",
+            provider="test-fixture",
+            retrievedAt="2026-01-01T00:00:00+00:00",
+        )
+        record = ToolExecutionRecord(
+            callId="call_test_retrieval",
+            toolName="knowledge_search",
+            status="completed",
+            durationMs=1,
+            outputSummary="Found deterministic test evidence.",
+            sourceRefs=[source.citation_id],
+        )
+        return ToolRunResult(
+            text="Evidence-backed result from the isolated test fixture.",
+            sources=[source],
+            toolExecutions=[record],
+        )
+
+    async def execute(self, name, arguments, **kwargs):
+        from app.tools.contracts import SourceReference, ToolExecutionRecord, ToolRunResult
+
+        if name not in self.allowed_tools:
+            raise PermissionError(f"tool is not allowed in this test run: {name}")
+        source = SourceReference(
+            citationId="src_test_code",
+            title="agent/app/security/internal_auth.py:55",
+            filename="agent/app/security/internal_auth.py",
+            snippet="class InternalServiceAuthMiddleware:",
+            provider="test-fixture",
+            retrievedAt="2026-01-01T00:00:00+00:00",
+        )
+        record = ToolExecutionRecord(
+            callId="call_test_code",
+            toolName=name,
+            status="completed",
+            durationMs=1,
+            outputSummary="Found one deterministic code location.",
+            sourceRefs=[source.citation_id],
+        )
+        payload = {
+            "ok": True,
+            "tool": name,
+            "summary": "Found one deterministic code location.",
+            "data": {
+                "results": [{
+                    "citationId": source.citation_id,
+                    "file_path": source.filename,
+                    "line": 55,
+                    "language": "python",
+                    "score": 1.0,
+                    "content": source.snippet,
+                }]
+            },
+            "sources": [source.public_dict()],
+        }
+        return ToolRunResult(
+            text=json.dumps(payload),
+            sources=[source],
+            toolExecutions=[record],
+        )
+
+
 @pytest.fixture(autouse=True)
 def _force_mock_llm(monkeypatch):
     """默认让所有测试走 mock LLM，保证稳定、零成本、零网络。
@@ -89,9 +177,15 @@ def _force_mock_llm(monkeypatch):
     """
     monkeypatch.setenv("AGENTOS_LLM_PROVIDER", "mock")
     from app.llm.gateway import LLMGateway, set_llm_gateway_for_tests
+    from agentos.adapters.tool_adapter import (
+        clear_tool_runtime_factory,
+        register_tool_runtime_factory,
+    )
 
     set_llm_gateway_for_tests(LLMGateway(provider=_ContractReviewTestProvider()))
+    register_tool_runtime_factory(_ReadOnlyToolTestRuntime)
     yield
+    clear_tool_runtime_factory()
     set_llm_gateway_for_tests(None)
 
 

@@ -9,6 +9,8 @@ httpx>=0.28,<1
 python-dotenv>=1.1,<2
 requests>=2.32,<3
 openai>=1.90,<3  # 通义千问 OpenAI 兼容模式支持
+openai-agents>=0.19.1,<0.20  # Mature multi-turn function-tool runtime
+tavily-python>=0.7.26,<0.8  # Read-only web search and extraction
 dashscope>=1.23.1  # 阿里云DashScope SDK（语音识别、语音合成、图像生成）
 
 # 其他依赖
@@ -47,6 +49,6 @@ lxml>=6,<7  # XML解析（beautifulsoup4依赖）
 
 # 向量数据库和Embedding（推荐）
 chromadb>=1.0,<2  # 向量数据库（稳定版本）
-sentence-transformers>=5.1,<6.0  # 与新版 transformers/huggingface_hub 兼容
-huggingface_hub>=1.0,<2.0
+# sentence-transformers>=5.1,<6.0  # Optional: heavyweight local embedding model
+# huggingface_hub>=0.34,<1.0  # Installed transitively when an embedding backend needs it
 

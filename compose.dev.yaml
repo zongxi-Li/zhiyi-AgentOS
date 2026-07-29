@@ -13,7 +13,13 @@ services:
       - ./agent/packs:/app/packs
       - ./agent/knowledge:/app/knowledge
       - ./agent/requirements.lock:/app/requirements.lock:ro
+      - ./agent/requirements.tools.lock:/app/requirements.tools.lock:ro
       - ./agentOS/src:/app/agentOS/src
+      - ./backend/src:/app/workspace/backend/src:ro
+      - ./frontend/src:/app/workspace/frontend/src:ro
+      - ./agent/app:/app/workspace/agent/app:ro
+      - ./agent/packs:/app/workspace/agent/packs:ro
+      - ./agentOS/src:/app/workspace/agentOS/src:ro
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--reload"]
   backend:
     build:

@@ -44,6 +44,7 @@ _secret_file_values = {
         "DASHSCOPE_API_KEY",
         "QWEN_API_KEY",
         "KYLIN_AI_API_KEY",
+        "TAVILY_API_KEY",
         "REDIS_PASSWORD",
     )
     if (value := _load_secret_file(variable, allow_empty=variable != "AI_INTERNAL_TOKEN")) is not None
@@ -80,6 +81,14 @@ class Settings(BaseSettings):
     PROVIDER_STATE_REDIS_URL: str = "redis://redis:6379/0"
     PROVIDER_STATE_TTL_SECONDS: int = 3600
     REDIS_PASSWORD: str = ""
+    TOOL_RUNTIME_ENABLED: bool = True
+    TAVILY_API_KEY: str = ""
+    TOOL_MAX_TURNS: int = 6
+    TOOL_MAX_CALLS: int = 8
+    TOOL_TIMEOUT_SECONDS: float = 15.0
+    TOOL_SEARCH_MAX_RESULTS: int = 5
+    TOOL_EXTRACT_MAX_URLS: int = 3
+    TOOL_CODEBASE_ROOT: str = ""
 
     @field_validator("DEBUG", mode="before")
     @classmethod

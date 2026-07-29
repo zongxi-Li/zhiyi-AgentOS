@@ -10,6 +10,7 @@ from pathlib import Path
 MODEL_SECRET_ENV_NAMES = {
     "deepseek_api_key": "DEEPSEEK_API_KEY",
     "dashscope_api_key": "DASHSCOPE_API_KEY",
+    "tavily_api_key": "TAVILY_API_KEY",
 }
 
 

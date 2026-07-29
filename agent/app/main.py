@@ -17,6 +17,8 @@ from app.api import chat, tts, agentos_core
 from app.paths import APP_DATA_DIR
 from app.services.aiservice import AIService
 from app.integrations.model_adapter import configure_model_adapter
+from app.integrations.tool_adapter import configure_tool_adapter
+from app.tools import get_tool_runtime
 from app.config import settings
 from app.security.internal_auth import (
     InternalServiceAuthMiddleware,
@@ -31,6 +33,7 @@ from app.middleware.errorhandler import (
 # 设置日志 - 统一使用INFO级别
 logger = setup_logger(level=logging.INFO)
 configure_model_adapter()
+configure_tool_adapter()
 
 # 生命周期事件处理器
 @asynccontextmanager
@@ -38,6 +41,11 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     if settings.ENVIRONMENT.strip().lower() in {"prod", "production"}:
         require_valid_internal_token_configuration(settings.AI_INTERNAL_TOKEN)
+    try:
+        warmup = await get_tool_runtime().warmup()
+        logger.info("Read-only tool runtime ready: %s", warmup)
+    except Exception as exc:
+        logger.warning("Read-only tool runtime warmup failed: %s", type(exc).__name__)
     await agentos_core.coordinator.startup()
     try:
         yield

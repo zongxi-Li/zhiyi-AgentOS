@@ -10,7 +10,10 @@ WORKDIR /build
 RUN python -m venv "$VIRTUAL_ENV"
 COPY agent/requirements.lock ./requirements.lock
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --require-hashes --only-binary=:all: -r requirements.lock \
+    pip install --require-hashes --only-binary=:all: -r requirements.lock
+COPY agent/requirements.tools.lock ./requirements.tools.lock
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --require-hashes --only-binary=:all: -r requirements.tools.lock \
     && python -m pip uninstall --yes pip
 
 FROM ${PYTHON_IMAGE}
@@ -42,12 +45,18 @@ RUN apt-get update \
 
 COPY --from=build /opt/kinlin-venv /opt/kinlin-venv
 COPY agent/requirements.lock ./requirements.lock
+COPY agent/requirements.tools.lock ./requirements.tools.lock
 
 COPY agent/app ./app
 COPY agent/packs ./packs
 COPY agent/knowledge ./knowledge
 COPY agent/agentos.py ./agentos.py
 COPY agentOS/src ./agentOS/src
+COPY backend/src ./workspace/backend/src
+COPY frontend/src ./workspace/frontend/src
+COPY agent/app ./workspace/agent/app
+COPY agent/packs ./workspace/agent/packs
+COPY agentOS/src ./workspace/agentOS/src
 
 RUN mkdir -p /app/data /app/logs /app/.cache /run/kinlin-secrets \
     && chown -R 10002:10002 /app /run/kinlin-secrets
