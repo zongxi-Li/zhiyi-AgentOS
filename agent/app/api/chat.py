@@ -4,7 +4,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Literal, Optional
 import asyncio
 import logging
 import time
@@ -19,6 +19,7 @@ from app.ai_engine.model_runtime import (
     stream_with_runtime_model,
 )
 from app.llm.chat_stream import ChatStreamEvent, ChatStreamEventType
+from app.tools import get_tool_runtime
 
 router = APIRouter()
 
@@ -37,6 +38,7 @@ class ChatRequest(BaseModel):
     api_key: Optional[str] = None
     thinking_mode: Optional[str] = None
     reasoning_effort: Optional[str] = None
+    tool_mode: Literal["auto", "disabled"] = "auto"
 
     def resolved_thinking_mode(self) -> str:
         return self.thinking_mode or self.reasoning_effort or "disabled"
@@ -48,6 +50,7 @@ class ChatResponse(BaseModel):
     animation: Optional[Dict] = None
     model_info: Optional[str] = None
     metadata: Optional[Dict] = None
+    sources: Optional[List[Dict]] = None
 
 
 @router.get("/chat/models")
@@ -55,48 +58,67 @@ async def chat_models():
     """Return models available through the server-managed API connection."""
     return await list_system_runtime_models()
 
+
+@router.get("/chat/capabilities")
+async def chat_capabilities():
+    """Report server-managed model and read-only tool availability without secrets."""
+    models = await list_system_runtime_models()
+    return {**models, "toolRuntime": get_tool_runtime().capabilities()}
+
 @router.post("/chat/text", response_model=ChatResponse)
 async def chat_text(request: ChatRequest):
     """文本对话"""
     requested_thinking_mode = request.resolved_thinking_mode()
-    response = await ai_service.generate_text(
-        text=request.text,
+    model = request.model or ""
+    base_url = request.base_url or ""
+    api_key = request.api_key or ""
+    if model and not base_url and not api_key:
+        model, base_url, api_key = resolve_system_runtime_config(model)
+    runtime = get_tool_runtime() if request.tool_mode == "auto" else get_tool_runtime().scoped([])
+    response = await runtime.run(
+        request.text,
+        history=request.context,
         role_id=request.role_id,
-        context=request.context,
-        model=request.model,
-        base_url=request.base_url,
-        api_key=request.api_key,
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
         thinking_mode=requested_thinking_mode,
     )
+    usage = response.usage
+    tool_executions = [item.public_dict() for item in response.tool_executions]
+    tools_used = list(dict.fromkeys(item.tool_name for item in response.tool_executions))
+    execution_summary = [
+        {
+            "stage": f"tool:{item.tool_name}",
+            "status": item.status,
+            "description": item.output_summary,
+            "durationMs": item.duration_ms,
+        }
+        for item in response.tool_executions
+    ]
+    execution_summary.append(
+        {
+            "stage": "answer_generation",
+            "status": "completed",
+            "description": "模型完成最终回答生成",
+        }
+    )
     return ChatResponse(
-        text=response.get("text", ""),
-        confidence=response.get("confidence", 0.85),
-        tokens_used=response.get("tokens_used", 0),
-        animation=response.get("animation"),
-        model_info=response.get("model"),
+        text=response.text,
+        confidence=0.95,
+        tokens_used=int(usage.get("total_tokens") or 0),
+        model_info=response.model,
+        sources=[source.public_dict() for source in response.sources],
         metadata={
-            "requestedModel": response.get("requested_model", response.get("model")),
-            "effectiveModel": response.get("model"),
-            "requestedThinkingMode": response.get("requested_thinking_mode", requested_thinking_mode),
-            "effectiveThinkingMode": response.get("thinking_mode", requested_thinking_mode),
-            "effectiveReasoningEffort": response.get("reasoning_effort"),
-            "inputTokens": response.get("input_tokens"),
-            "reasoningTokens": response.get("reasoning_tokens"),
-            "outputTokens": response.get("output_tokens"),
-            "totalTokens": response.get("total_tokens"),
-            "latencyMs": response.get("latency_ms"),
-            "thinkingEnabled": response.get("thinking_mode", requested_thinking_mode) != "disabled",
-            "executionSummary": [
-                {
-                    "stage": "answer_generation",
-                    "status": "completed",
-                    "description": "模型完成最终回答生成",
-                }
-            ],
+            **response.metadata,
+            "inputTokens": usage.get("input_tokens"),
+            "outputTokens": usage.get("output_tokens"),
+            "totalTokens": usage.get("total_tokens"),
+            "thinkingEnabled": response.metadata.get("effectiveThinkingMode", requested_thinking_mode) != "disabled",
+            "executionSummary": execution_summary,
+            "toolsUsed": tools_used,
+            "toolExecutions": tool_executions,
             "fallbackUsed": False,
-            "resolutionReasons": response.get("resolution_reasons", []),
-            "contextRevision": response.get("context_revision"),
-            "contextResetReason": response.get("context_reset_reason"),
         },
     )
 
@@ -189,37 +211,17 @@ async def chat_text_stream(chat_request: ChatRequest, http_request: Request):
         request_id = f"chat_{uuid4().hex}"
         if chat_request.model and not chat_request.base_url and not chat_request.api_key:
             chat_request.model, chat_request.base_url, chat_request.api_key = resolve_system_runtime_config(chat_request.model)
-
-        if chat_request.model or chat_request.base_url or chat_request.api_key:
-            chunks = stream_with_runtime_model(
-                text=chat_request.text,
-                context=chat_request.context,
-                model=chat_request.model or "",
-                base_url=chat_request.base_url or "",
-                api_key=chat_request.api_key or "",
-                reasoning_effort=chat_request.resolved_thinking_mode(),
-                request_id=request_id,
-            )
-        else:
-            text = chat_request.text
-            thinking_mode = chat_request.resolved_thinking_mode()
-            if thinking_mode != "disabled":
-                messages = apply_reasoning_instruction(
-                    [{"role": "user", "content": text}], thinking_mode
-                )
-                text = "\n".join(item["content"] for item in messages)
-            plain_chunks = stream_client.generate_text_stream(
-                text=text,
-                role_id=chat_request.role_id,
-                context=chat_request.context,
-                thinking_mode=thinking_mode,
-            )
-            chunks = _plain_text_stream_events(
-                plain_chunks,
-                request_id=request_id,
-                thinking_mode=thinking_mode,
-                model="system-default",
-            )
+        runtime = get_tool_runtime() if chat_request.tool_mode == "auto" else get_tool_runtime().scoped([])
+        chunks = runtime.stream(
+            chat_request.text,
+            history=chat_request.context,
+            role_id=chat_request.role_id,
+            model=chat_request.model or "",
+            base_url=chat_request.base_url or "",
+            api_key=chat_request.api_key or "",
+            thinking_mode=chat_request.resolved_thinking_mode(),
+            request_id=request_id,
+        )
         async for event in _stream_sse_events(
                 chunks,
                 http_request,
