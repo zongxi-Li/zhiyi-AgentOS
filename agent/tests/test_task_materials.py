@@ -30,8 +30,10 @@ def test_text_material_is_persisted_bound_and_released(tmp_path):
         store.delete_draft(created["materialId"])
 
     store.release_run("run_1", [created["materialId"]])
-    with pytest.raises(materials.MaterialError):
-        store.get(created["materialId"])
+    released = store.get(created["materialId"])
+    assert released["state"] == "ready"
+    assert released["bindings"] == []
+    assert (tmp_path / created["materialId"] / released["sourceFile"]).read_bytes() == content
 
 
 def test_rejects_empty_unsupported_and_forged_files():

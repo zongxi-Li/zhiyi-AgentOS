@@ -91,6 +91,16 @@ describe('workflow run reference store', () => {
     expect(store.getByConversation('conversation_1')).toEqual([])
   })
 
+  it('removes deleted references from memory and local storage', () => {
+    const store = useWorkflowRunsStore()
+    store.register({ runId: 'run_1', source: 'acg', status: 'completed' })
+
+    store.removeReference('run_1')
+
+    expect(store.getReference('run_1')).toBeUndefined()
+    expect(JSON.parse(localStorage.getItem('workflow.run.references.v1') || '{}')).toEqual({})
+  })
+
   it('bootstraps once with a single bounded nonterminal list request', async () => {
     vi.mocked(workflowApi.listRuns).mockResolvedValue({ items: [summary()], total: 1, page: 1, pageSize: 100 })
     const store = useWorkflowRunsStore()

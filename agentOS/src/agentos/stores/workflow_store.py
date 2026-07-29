@@ -38,6 +38,15 @@ class WorkflowRunDeleteResult:
     task_deleted: bool
 
 
+class WorkflowRunNotTerminalError(ValueError):
+    """Raised when physical deletion is attempted before a run is terminal."""
+
+    def __init__(self, run_id: str, status: WorkflowStatus):
+        super().__init__(f"workflow run is not terminal: {run_id} ({status.value})")
+        self.run_id = run_id
+        self.status = status
+
+
 def paginate_items(items: Sequence[T], *, page: int = 1, page_size: int = 20) -> WorkflowStorePage[T]:
     safe_page = max(1, page)
     safe_page_size = max(1, page_size)

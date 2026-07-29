@@ -126,11 +126,9 @@ class TaskMaterialStore:
                     metadata["bindings"] = [
                         item for item in metadata.get("bindings", []) if item.get("runId") != run_id
                     ]
-                    if metadata["bindings"]:
-                        metadata["updatedAt"] = _now().isoformat()
-                        self._write_metadata(material_dir, metadata)
-                    else:
-                        shutil.rmtree(material_dir)
+                    metadata["state"] = "bound" if metadata["bindings"] else "ready"
+                    metadata["updatedAt"] = _now().isoformat()
+                    self._write_metadata(material_dir, metadata)
             except (FileNotFoundError, MaterialError):
                 continue
 

@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.core.models.enums import WorkflowProgressPhase
 from agentos.core.models.types import (
+    AgentTask,
     StepStatus,
     WorkflowDefinition,
     WorkflowRun,
@@ -255,7 +257,7 @@ def test_unknown_review_run_returns_404():
     assert response.status_code == 404
 
 
-def test_owner_can_delete_waiting_review_run_and_orphan_task():
+def test_waiting_review_run_cannot_be_deleted():
     runtime = _runtime()
     run = _waiting_review_run(runtime, "user-a")
     client = _client(runtime)
@@ -270,17 +272,12 @@ def test_owner_can_delete_waiting_review_run_and_orphan_task():
     )
 
     assert denied.status_code == 404
-    assert deleted.status_code == 200
+    assert deleted.status_code == 409
     assert deleted.json() == {
-        "runId": run.run_id,
-        "taskId": run.task_id,
-        "deleted": True,
-        "taskDeleted": True,
+        "code": "RUN_WAITING_REVIEW",
+        "message": "当前任务正在等待审核，请完成审核或取消任务后再删除。",
     }
-    assert client.get(
-        f"/ai/core/workflows/runs/{run.run_id}",
-        headers=_headers("user-a"),
-    ).status_code == 404
+    assert runtime.get_status(run.run_id).status == WorkflowStatus.WAITING_REVIEW
 
 
 def test_running_workflow_must_be_cancelled_before_delete():
@@ -299,4 +296,69 @@ def test_running_workflow_must_be_cancelled_before_delete():
     )
 
     assert response.status_code == 409
+    assert response.json() == {
+        "code": "RUN_NOT_TERMINAL",
+        "message": "当前任务仍未结束，请先完成或取消任务。",
+    }
     assert runtime.get_status(run.run_id).status == WorkflowStatus.RUNNING
+
+
+@pytest.mark.parametrize(
+    "status,phase,suffix",
+    [
+        (WorkflowStatus.COMPLETED, WorkflowProgressPhase.COMPLETED, "d1"),
+        (WorkflowStatus.FAILED, WorkflowProgressPhase.FAILED, "d2"),
+        (WorkflowStatus.CANCELLED, WorkflowProgressPhase.CANCELLED, "d3"),
+    ],
+)
+def test_terminal_run_can_be_deleted_once(status, phase, suffix):
+    runtime = _runtime()
+    run = _save_summary_run(
+        runtime,
+        user_id="user-a",
+        status=status,
+        phase=phase,
+        suffix=suffix,
+    )
+    runtime.workflow_store.save_task(AgentTask(taskId=run.task_id, title="Terminal"))
+    client = _client(runtime)
+
+    deleted = client.delete(
+        f"/ai/core/workflows/runs/{run.run_id}", headers=_headers("user-a")
+    )
+    missing = client.delete(
+        f"/ai/core/workflows/runs/{run.run_id}", headers=_headers("user-a")
+    )
+
+    assert deleted.status_code == 200
+    assert deleted.json()["taskDeleted"] is True
+    assert missing.status_code == 404
+
+
+def test_material_release_failure_does_not_undo_terminal_run_delete(monkeypatch):
+    from app.api import agentos_core
+
+    runtime = _runtime()
+    run = _save_summary_run(
+        runtime,
+        user_id="user-a",
+        status=WorkflowStatus.COMPLETED,
+        phase=WorkflowProgressPhase.COMPLETED,
+        suffix="d4",
+    )
+    runtime.workflow_store.save_task(AgentTask(taskId=run.task_id, title="Material"))
+    run.input["sourceMaterials"] = [{"materialId": "mat_" + "a" * 32}]
+    runtime.workflow_store.save_run(run)
+    monkeypatch.setattr(
+        agentos_core.task_material_store,
+        "release_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("material busy")),
+    )
+
+    response = _client(runtime).delete(
+        f"/ai/core/workflows/runs/{run.run_id}", headers=_headers("user-a")
+    )
+
+    assert response.status_code == 200
+    with pytest.raises(KeyError):
+        runtime.get_status(run.run_id)

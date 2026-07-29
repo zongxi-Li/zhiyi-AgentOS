@@ -16,6 +16,7 @@ from agentos.core.models.types import ReviewDecision, ReviewDecisionType, Workfl
 from agentos.core.plugin_scope import PluginScopeError
 from agentos.core.runtime import ReviewConflictError, WorkflowRuntime
 from agentos.core.workflow.progress import ProgressAssembler
+from agentos.stores.workflow_store import WorkflowRunNotTerminalError
 from app.execution.runtime import build_default_runtime
 from app.llm.gateway import get_llm_gateway
 from app.llm.schemas import CHAT_ROUTE_DECISION_SCHEMA
@@ -2337,22 +2338,53 @@ def create_router(
                 WorkflowStatus.RUNNING,
                 WorkflowStatus.RETRYING,
             }:
-                raise HTTPException(
+                return JSONResponse(
                     status_code=409,
-                    detail="running workflow cannot be deleted; cancel it first",
+                    content={
+                        "code": "RUN_NOT_TERMINAL",
+                        "message": "当前任务仍未结束，请先完成或取消任务。",
+                    },
                 )
             if run.status == WorkflowStatus.WAITING_REVIEW:
-                runtime.cancel(run_id)
+                return JSONResponse(
+                    status_code=409,
+                    content={
+                        "code": "RUN_WAITING_REVIEW",
+                        "message": "当前任务正在等待审核，请完成审核或取消任务后再删除。",
+                    },
+                )
             result = runtime.workflow_store.delete_run(run_id)
             if result.task_deleted:
                 runtime.trace_store.delete_task_events(result.task_id)
-            task_material_store.release_run(run_id, material_ids)
+            try:
+                task_material_store.release_run(run_id, material_ids)
+            except Exception:
+                logger.exception(
+                    "workflow_run_material_release_failed",
+                    extra={"runId": run_id, "materialIds": material_ids},
+                )
             return {
                 "runId": result.run_id,
                 "taskId": result.task_id,
                 "deleted": True,
                 "taskDeleted": result.task_deleted,
             }
+        except WorkflowRunNotTerminalError as exc:
+            if exc.status == WorkflowStatus.WAITING_REVIEW:
+                return JSONResponse(
+                    status_code=409,
+                    content={
+                        "code": "RUN_WAITING_REVIEW",
+                        "message": "当前任务正在等待审核，请完成审核或取消任务后再删除。",
+                    },
+                )
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "RUN_NOT_TERMINAL",
+                    "message": "当前任务仍未结束，请先完成或取消任务。",
+                },
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

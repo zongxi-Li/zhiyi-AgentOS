@@ -95,6 +95,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ArrowRight, Clock, CopyDocument, Delete as DeleteIcon, Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { workflowApi, type WorkflowRunSummary } from '@/services/api/workflow'
+import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import { resolveAcgTaskTitle } from '@/utils/acgTaskTitle'
 
 defineProps<{ activeRunId?: string }>()
@@ -114,6 +115,7 @@ const loadError = ref('')
 const searchKeyword = ref('')
 const statusFilter = ref<'all' | RunGroupKey>('all')
 const deletingRunId = ref('')
+const workflowRunsStore = useWorkflowRunsStore()
 let loadController: AbortController | null = null
 let refreshTimer: ReturnType<typeof window.setInterval> | null = null
 
@@ -159,7 +161,7 @@ const safePercentage = (run: WorkflowRunSummary) => {
 
 const showProgress = (run: WorkflowRunSummary) => groupKey(run) === 'active' || groupKey(run) === 'review'
 
-const canDelete = (run: WorkflowRunSummary) => groupKey(run) !== 'active'
+const canDelete = (run: WorkflowRunSummary) => ['completed', 'failed', 'cancelled'].includes(run.status)
 
 const phaseLabel = (run: WorkflowRunSummary) => {
   if (run.status === 'waiting_review' || run.phase === 'review') return '人工审核门'
@@ -194,10 +196,10 @@ const copyRunId = async (runId: string) => {
 const deleteRun = async (run: WorkflowRunSummary) => {
   try {
     await ElMessageBox.confirm(
-      `删除“${displayTitle(run)}”？该运行的拓扑、执行记录、数据血缘和审计轨迹将一并永久删除。`,
-      '删除 ACG 运行',
+      '该操作将永久删除本次运行的步骤、动态历史和执行结果，无法恢复。',
+      '删除运行记录？',
       {
-        confirmButtonText: '删除',
+        confirmButtonText: '永久删除',
         cancelButtonText: '取消',
         type: 'warning',
         distinguishCancelAndClose: true
@@ -206,12 +208,14 @@ const deleteRun = async (run: WorkflowRunSummary) => {
     deletingRunId.value = run.runId
     await workflowApi.deleteRun(run.runId)
     runs.value = runs.value.filter(item => item.runId !== run.runId)
+    workflowRunsStore.removeReference(run.runId)
     emit('deleted', run.runId)
+    window.dispatchEvent(new Event('acg-runs-refresh'))
     ElMessage.success('ACG 运行记录已删除')
   } catch (error: unknown) {
     if (error === 'cancel' || error === 'close') return
-    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    ElMessage.error(detail || '删除失败，请稍后重试')
+    const data = (error as { response?: { data?: { detail?: string; message?: string } } })?.response?.data
+    ElMessage.error(data?.message || data?.detail || '删除失败，请稍后重试')
   } finally {
     deletingRunId.value = ''
   }

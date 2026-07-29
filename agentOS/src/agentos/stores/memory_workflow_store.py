@@ -8,6 +8,7 @@ from typing import Dict
 from agentos.core.models.types import AgentTask, WorkflowRun, WorkflowStatus
 from agentos.stores.workflow_store import (
     WorkflowRunDeleteResult,
+    WorkflowRunNotTerminalError,
     WorkflowStore,
     WorkflowStorePage,
     paginate_items,
@@ -58,9 +59,16 @@ class MemoryWorkflowStore(WorkflowStore):
 
     def delete_run(self, run_id: str, *, delete_orphan_task: bool = True) -> WorkflowRunDeleteResult:
         try:
-            run = self._runs.pop(run_id)
+            run = self._runs[run_id]
         except KeyError as exc:
             raise KeyError(f"workflow run not found: {run_id}") from exc
+        if run.status not in {
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
+        }:
+            raise WorkflowRunNotTerminalError(run_id, run.status)
+        self._runs.pop(run_id)
         self._terminal_run_statuses.pop(run_id, None)
         task_deleted = False
         if delete_orphan_task and not any(item.task_id == run.task_id for item in self._runs.values()):

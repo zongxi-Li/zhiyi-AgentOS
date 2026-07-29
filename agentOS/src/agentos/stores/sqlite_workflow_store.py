@@ -11,6 +11,7 @@ from pathlib import Path
 from agentos.core.models.types import AgentTask, StepStatus, WorkflowRun, WorkflowStatus
 from agentos.stores.workflow_store import (
     WorkflowRunDeleteResult,
+    WorkflowRunNotTerminalError,
     WorkflowStore,
     WorkflowStorePage,
     paginate_items,
@@ -186,10 +187,19 @@ class SQLiteWorkflowStore(WorkflowStore):
     def delete_run(self, run_id: str, *, delete_orphan_task: bool = True) -> WorkflowRunDeleteResult:
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT task_id FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            row = conn.execute(
+                "SELECT task_id, payload FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
             if row is None:
                 raise KeyError(f"workflow run not found: {run_id}")
             task_id = str(row["task_id"])
+            run = WorkflowRun.model_validate(json.loads(row["payload"]))
+            if run.status not in {
+                WorkflowStatus.COMPLETED,
+                WorkflowStatus.FAILED,
+                WorkflowStatus.CANCELLED,
+            }:
+                raise WorkflowRunNotTerminalError(run_id, run.status)
             conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
             task_deleted = False
             if delete_orphan_task:
@@ -200,6 +210,16 @@ class SQLiteWorkflowStore(WorkflowStore):
                 if referenced is None:
                     cursor = conn.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
                     task_deleted = cursor.rowcount > 0
+            orphan_runs = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM runs r
+                LEFT JOIN tasks t ON t.task_id = r.task_id
+                WHERE t.task_id IS NULL
+                """
+            ).fetchone()[0]
+            if int(orphan_runs) != 0:
+                raise RuntimeError("workflow run deletion would leave missing task references")
             conn.commit()
         return WorkflowRunDeleteResult(
             run_id=run_id,

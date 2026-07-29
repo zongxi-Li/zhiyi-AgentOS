@@ -95,6 +95,7 @@ describe('AgentOsConsoleView control plane', () => {
       statuses: expect.stringContaining('waiting_review'), summary: true, pageSize: 50
     }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text().indexOf('需要处理')).toBeLessThan(wrapper.text().indexOf('正在运行'))
+    expect(wrapper.findAll('.run-item-delete')).toHaveLength(1)
     expect(workflowApi.getWorkflowProgress).not.toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -159,7 +160,7 @@ describe('AgentOsConsoleView control plane', () => {
     wrapper.unmount()
   })
 
-  it('marks a missing URL reference invalid and never creates a replacement Run', async () => {
+  it('removes a missing URL reference and never creates a replacement Run', async () => {
     vi.mocked(workflowApi.getWorkflowProgress).mockRejectedValue(Object.assign(new Error('missing'), {
       isAxiosError: true,
       response: { status: 404 }
@@ -167,9 +168,9 @@ describe('AgentOsConsoleView control plane', () => {
     const { wrapper } = await mountConsole('?runId=run_missing')
     await flushPromises()
 
-    expect(wrapper.findComponent(WorkflowProgressBar).props('syncError')).toContain('不存在或当前账户无权访问')
     expect(workflowApi.startWorkflowAsync).not.toHaveBeenCalled()
-    expect(JSON.parse(localStorage.getItem('workflow.run.references.v1') || '{}').run_missing.invalid).toBe(true)
+    expect(JSON.parse(localStorage.getItem('workflow.run.references.v1') || '{}').run_missing).toBeUndefined()
+    expect(wrapper.findComponent(WorkflowProgressBar).exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -193,8 +194,32 @@ describe('AgentOsConsoleView control plane', () => {
     await flushPromises()
 
     expect(confirm).toHaveBeenCalled()
+    expect(confirm).toHaveBeenCalledWith(
+      '该操作将永久删除本次运行的步骤、动态历史和执行结果，无法恢复。',
+      '删除运行记录？',
+      expect.objectContaining({ confirmButtonText: '永久删除' })
+    )
     expect(workflowApi.deleteRun).toHaveBeenCalledWith('run_1')
     expect(wrapper.find('.run-item-shell').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not show a delete entry for a selected waiting review Run', async () => {
+    vi.mocked(workflowApi.listRuns).mockResolvedValue({
+      items: [summary({ status: 'waiting_review', phase: 'review' })],
+      total: 1,
+      page: 1,
+      pageSize: 50
+    })
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(progress({
+      status: 'waiting_review', phase: 'review', waitingReviewSteps: 1
+    }))
+
+    const { wrapper } = await mountConsole('?runId=run_1')
+    await flushPromises()
+
+    expect(wrapper.find('.run-item-delete').exists()).toBe(false)
+    expect(wrapper.find('.run-toolbar__delete').exists()).toBe(false)
     wrapper.unmount()
   })
 })

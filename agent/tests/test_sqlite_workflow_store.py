@@ -386,6 +386,8 @@ def test_delete_run_keeps_shared_task_then_removes_orphan_task(tmp_path):
     )
     second = first.model_copy(deep=True)
     second.run_id = "run_second"
+    first.status = WorkflowStatus.COMPLETED
+    second.status = WorkflowStatus.FAILED
     store.save_run(first)
     store.save_run(second)
 
@@ -402,3 +404,42 @@ def test_delete_run_keeps_shared_task_then_removes_orphan_task(tmp_path):
         pass
     else:
         raise AssertionError("orphan task should be deleted")
+
+    with pytest.raises(KeyError):
+        store.delete_run(second.run_id)
+
+
+def test_delete_run_rejects_nonterminal_statuses(tmp_path):
+    store = SQLiteWorkflowStore(tmp_path / "nonterminal-delete.db")
+    for status in (
+        WorkflowStatus.PENDING,
+        WorkflowStatus.PLANNING,
+        WorkflowStatus.RUNNING,
+        WorkflowStatus.RETRYING,
+        WorkflowStatus.WAITING_REVIEW,
+    ):
+        task = AgentTask(title=status.value)
+        store.save_task(task)
+        step_status = (
+            StepStatus.WAITING_REVIEW
+            if status == WorkflowStatus.WAITING_REVIEW
+            else StepStatus.PENDING
+        )
+        run = WorkflowRun(
+            taskId=task.task_id,
+            workflowId="workflow",
+            domain="test",
+            runtimeEngine="acg",
+            status=status,
+            steps=[
+                WorkflowStep(
+                    stepId="step",
+                    name="Step",
+                    agentName="worker",
+                    status=step_status,
+                )
+            ],
+        )
+        store.save_run(run)
+        with pytest.raises(ValueError, match="not terminal"):
+            store.delete_run(run.run_id)

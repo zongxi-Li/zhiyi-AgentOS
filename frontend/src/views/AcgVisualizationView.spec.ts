@@ -203,7 +203,7 @@ describe('AcgVisualizationView async progress loop', () => {
       enabledPluginIds: [],
       reviewMode: 'auto',
       input: expect.objectContaining({
-        source: 'acg-workbench',
+        source: 'acg',
         userIntent: '设计一个基础软件项目实施方案，包括目标、阶段、风险和交付物'
       })
     }), expect.any(Object))
@@ -226,6 +226,24 @@ describe('AcgVisualizationView async progress loop', () => {
     await wrapper.find('.input-panel-toggle').trigger('click')
     expect(wrapper.find('.input-panel-expandable').attributes('style')).not.toContain('display: none')
     expect(wrapper.find('.input-panel-toggle').attributes('aria-expanded')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('removes a locally cached Run when progress returns 404', async () => {
+    localStorage.setItem('workflow.run.references.v1', JSON.stringify({
+      run_missing: { runId: 'run_missing', source: 'acg', status: 'completed' }
+    }))
+    vi.mocked(workflowApi.getWorkflowProgress).mockRejectedValue(Object.assign(new Error('missing'), {
+      isAxiosError: true,
+      response: { status: 404 }
+    }))
+
+    const { wrapper, router } = await mountPage('?runId=run_missing')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query.runId).toBeUndefined()
+    expect(JSON.parse(localStorage.getItem('workflow.run.references.v1') || '{}').run_missing).toBeUndefined()
+    expect(wrapper.findComponent(WorkflowProgressBar).exists()).toBe(false)
     wrapper.unmount()
   })
 

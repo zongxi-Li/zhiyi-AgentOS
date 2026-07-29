@@ -201,6 +201,14 @@ export const useWorkflowRunsStore = defineStore('workflowRuns', () => {
     persist()
   }
 
+  const removeReference = (runId: string) => {
+    if (!references.value[runId]) return
+    const next = { ...references.value }
+    delete next[runId]
+    references.value = next
+    persist()
+  }
+
   const getReference = (runId: string) => references.value[runId]
   const getByConversation = (conversationId: string) => Object.values(references.value)
     .filter(item => item.conversationId === conversationId && !item.invalid)
@@ -263,6 +271,7 @@ export const useWorkflowRunsStore = defineStore('workflowRuns', () => {
     mergeSummaries,
     updateObservedState,
     markInvalid,
+    removeReference,
     getReference,
     getByConversation,
     bootstrap

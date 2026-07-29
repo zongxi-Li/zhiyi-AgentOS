@@ -110,10 +110,11 @@
               <button type="button" @click="openAcg">进入 ACG</button>
               <button v-if="selectedReference?.conversationId" type="button" @click="openChat">返回 Chat</button>
               <button
+                v-if="selectedCanDelete"
                 class="run-toolbar__delete"
                 type="button"
-                :disabled="!selectedCanDelete || Boolean(deletingRunId)"
-                :title="selectedCanDelete ? '删除当前运行记录' : '运行中的任务需先取消后才能删除'"
+                :disabled="Boolean(deletingRunId)"
+                title="删除当前运行记录"
                 @click="deleteRun(selectedRunId)"
               >
                 <el-icon><DeleteIcon /></el-icon>
@@ -303,10 +304,10 @@ const selectedReference = computed(() => workflowRunsStore.getReference(selected
 const selectedSummary = computed(() => runs.value.find(run => run.runId === selectedRunId.value))
 const selectedCanDelete = computed(() => {
   const status = selectedSummary.value?.status || progressTracker.progress.value?.status || selectedRun.value?.status
-  return status === 'waiting_review' || Boolean(status && TERMINAL.has(status))
+  return Boolean(status && TERMINAL.has(status))
 })
 
-const canDeleteRun = (run: WorkflowRunSummary) => isWorkflowReviewPending(run) || TERMINAL.has(run.status)
+const canDeleteRun = (run: WorkflowRunSummary) => TERMINAL.has(run.status)
 
 const listParams = () => {
   const query = filters.query.trim()
@@ -381,6 +382,22 @@ const clearSelectedDetails = () => {
   runError.value = ''
 }
 
+const removeMissingRun = async (runId: string) => {
+  const existed = Boolean(workflowRunsStore.getReference(runId)) || runs.value.some(run => run.runId === runId)
+  workflowRunsStore.removeReference(runId)
+  runs.value = runs.value.filter(run => run.runId !== runId)
+  if (existed) totalRuns.value = Math.max(0, totalRuns.value - 1)
+  if (selectedRunId.value === runId) {
+    progressTracker.reset()
+    clearSelectedDetails()
+    selectedRunId.value = ''
+    const query = { ...route.query }
+    delete query.runId
+    await router.replace({ query })
+  }
+  if (existed) ElMessage.warning('该运行记录已不存在。')
+}
+
 const activateRun = async (runId: string, syncRoute: boolean) => {
   if (!runId || (runId === selectedRunId.value && progressTracker.runId.value === runId)) return
   progressTracker.reset()
@@ -449,8 +466,8 @@ const loadSelectedDetail = async (options: { full?: boolean; acg?: boolean; revi
   } catch (error: unknown) {
     if (axios.isCancel(error) || generation !== detailGeneration) return
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      workflowRunsStore.markInvalid(runId)
-      runError.value = '该运行记录不存在或当前账户无权访问'
+      await removeMissingRun(runId)
+      runError.value = ''
     } else {
       runError.value = '运行详情暂时无法加载'
     }
@@ -539,10 +556,10 @@ const deleteRun = async (runId: string) => {
   }
   try {
     await ElMessageBox.confirm(
-      `删除运行 ${shortRunId(runId)}？拓扑、执行记录、数据血缘和审计轨迹将一并永久删除。`,
-      '删除 ACG 运行',
+      '该操作将永久删除本次运行的步骤、动态历史和执行结果，无法恢复。',
+      '删除运行记录？',
       {
-        confirmButtonText: '删除',
+        confirmButtonText: '永久删除',
         cancelButtonText: '取消',
         type: 'warning',
         distinguishCancelAndClose: true
@@ -555,7 +572,7 @@ const deleteRun = async (runId: string) => {
     terminalDetailsLoaded.delete(runId)
     reviewDetailsLoaded.delete(runId)
     terminalDetailCache.delete(runId)
-    workflowRunsStore.markInvalid(runId)
+    workflowRunsStore.removeReference(runId)
     runs.value = runs.value.filter(run => run.runId !== runId)
     totalRuns.value = Math.max(0, totalRuns.value - 1)
     if (wasSelected) {
@@ -572,8 +589,8 @@ const deleteRun = async (runId: string) => {
     await loadRuns(true)
   } catch (error: unknown) {
     if (error === 'cancel' || error === 'close') return
-    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    ElMessage.error(detail || '删除失败，请稍后重试')
+    const data = (error as { response?: { data?: { detail?: string; message?: string } } })?.response?.data
+    ElMessage.error(data?.message || data?.detail || '删除失败，请稍后重试')
   } finally {
     deletingRunId.value = ''
   }
@@ -601,7 +618,7 @@ watch(
 
 watch(() => progressTracker.syncError.value, error => {
   if (error === '该运行记录不存在或当前账户无权访问' && selectedRunId.value) {
-    workflowRunsStore.markInvalid(selectedRunId.value)
+    void removeMissingRun(selectedRunId.value)
   }
 })
 

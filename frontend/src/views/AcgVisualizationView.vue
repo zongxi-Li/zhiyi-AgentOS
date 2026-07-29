@@ -737,7 +737,9 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     lastTopologyRefreshAt = Date.now()
     lastTopologyUpdatedAt = progressTracker.progress.value?.updatedAt ?? null
   } catch (error: unknown) {
-    if (!axios.isCancel(error) && requestGeneration === topologyGeneration && force) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      await removeMissingAcgRun(runId)
+    } else if (!axios.isCancel(error) && requestGeneration === topologyGeneration && force) {
       ElMessage.warning('最终 ACG 数据暂时未能加载，请稍后刷新')
     }
   } finally {
@@ -746,6 +748,18 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
       isAcgLoading.value = false
     }
   }
+}
+
+const removeMissingAcgRun = async (runId: string) => {
+  workflowRunsStore.removeReference(runId)
+  if (activeRunId.value !== runId) return
+  progressTracker.reset()
+  clearRunData()
+  activeRunId.value = ''
+  const query = { ...route.query }
+  delete query.runId
+  await router.replace({ query })
+  ElMessage.warning('该运行记录已不存在。')
 }
 
 const scheduleTopologyRefresh = (value: DeepReadonly<WorkflowProgress>) => {
@@ -792,6 +806,12 @@ watch(
     scheduleTopologyRefresh(value)
   }
 )
+
+watch(() => progressTracker.syncError.value, error => {
+  if (error === '该运行记录不存在或当前账户无权访问' && activeRunId.value) {
+    void removeMissingAcgRun(activeRunId.value)
+  }
+})
 
 watch(inputPanelExpanded, value => {
   clearInputPanelCompactTimer()

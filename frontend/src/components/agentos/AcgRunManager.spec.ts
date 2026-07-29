@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import AcgRunManager from './AcgRunManager.vue'
 import { workflowApi, type WorkflowRunSummary } from '@/services/api/workflow'
 import { ElMessageBox } from 'element-plus'
@@ -29,6 +30,7 @@ const run = (overrides: Partial<WorkflowRunSummary>): WorkflowRunSummary => ({
 
 describe('AcgRunManager', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.useFakeTimers()
     vi.mocked(workflowApi.listRuns).mockResolvedValue({
       items: [
@@ -39,7 +41,7 @@ describe('AcgRunManager', () => {
       total: 3, page: 1, pageSize: 100
     })
     vi.mocked(workflowApi.deleteRun).mockResolvedValue({
-      runId: 'run_review_1',
+      runId: 'run_done_1',
       taskId: 'task_1',
       deleted: true,
       taskDeleted: true
@@ -84,23 +86,30 @@ describe('AcgRunManager', () => {
     wrapper.unmount()
   })
 
-  it('confirms and deletes review or terminal runs while keeping active runs protected', async () => {
+  it('only confirms and deletes terminal runs', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const wrapper = mount(AcgRunManager, { global: { stubs: { 'el-icon': true } } })
     await flushPromises()
 
     expect(wrapper.find('.status-active .acg-run-delete').exists()).toBe(false)
-    await wrapper.find('.status-review .acg-run-delete').trigger('click')
+    expect(wrapper.find('.status-review .acg-run-delete').exists()).toBe(false)
+    vi.mocked(workflowApi.listRuns).mockResolvedValue({
+      items: [run({}), run({ runId: 'run_review_1', status: 'waiting_review', phase: 'review' })],
+      total: 2,
+      page: 1,
+      pageSize: 100
+    })
+    await wrapper.find('.status-completed .acg-run-delete').trigger('click')
     await flushPromises()
 
     expect(confirm).toHaveBeenCalledWith(
-      expect.stringContaining('拓扑、执行记录、数据血缘和审计轨迹'),
-      '删除 ACG 运行',
-      expect.objectContaining({ confirmButtonText: '删除' })
+      '该操作将永久删除本次运行的步骤、动态历史和执行结果，无法恢复。',
+      '删除运行记录？',
+      expect.objectContaining({ confirmButtonText: '永久删除' })
     )
-    expect(workflowApi.deleteRun).toHaveBeenCalledWith('run_review_1')
-    expect(wrapper.emitted('deleted')?.[0]).toEqual(['run_review_1'])
-    expect(wrapper.find('.status-review').exists()).toBe(false)
+    expect(workflowApi.deleteRun).toHaveBeenCalledWith('run_done_1')
+    expect(wrapper.emitted('deleted')?.[0]).toEqual(['run_done_1'])
+    expect(wrapper.find('.status-completed').exists()).toBe(false)
     confirm.mockRestore()
     wrapper.unmount()
   })
