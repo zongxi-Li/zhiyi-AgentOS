@@ -1,3 +1,6 @@
+import json
+from types import SimpleNamespace
+
 from agentos.adapters.tool_adapter import register_tool_runtime_factory
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.agents.registry import AgentRegistry
@@ -15,10 +18,19 @@ from agentos.memory.workflow_memory import WorkflowMemory
 class _RecordingRuntime:
     def __init__(self):
         self.scoped_tools = None
+        self.calls = []
 
     def scoped(self, allowed_tools):
         self.scoped_tools = frozenset(allowed_tools)
         return self
+
+    async def execute(self, name, arguments, **kwargs):
+        self.calls.append((name, arguments))
+        return SimpleNamespace(
+            text=json.dumps({"ok": True, "tool": name, "data": {"results": []}}),
+            sources=[],
+            tool_executions=[],
+        )
 
 
 class _CapturingAgent(BaseAgent):
@@ -91,3 +103,48 @@ def test_native_acg_profile_does_not_advertise_network_tools():
         "knowledge_search",
         "current_datetime",
     }
+
+
+async def test_native_offline_retrieval_uses_one_local_call_and_task_input_fallback():
+    runtime = _RecordingRuntime()
+    register_tool_runtime_factory(lambda: runtime)
+    agent = NativeGeneralAgent()
+    registry = AgentRegistry()
+    registry.register(agent)
+    task = AgentTask(
+        title="offline evidence",
+        input={"userIntent": "Use the supplied production figures only."},
+    )
+    workflow = WorkflowDefinition(
+        workflowId="offline-retrieval",
+        name="Offline retrieval",
+        domain="general",
+        intent="general",
+        runtimeEngine="acg",
+        steps=[],
+    )
+    run = WorkflowRun(
+        taskId=task.task_id,
+        workflowId=workflow.workflow_id,
+        domain="general",
+        runtimeEngine="acg",
+    )
+    step = WorkflowStep(
+        stepId="retrieve",
+        name="Retrieve",
+        agentName=agent.profile.agent_name,
+        capability="information_retrieval",
+    )
+
+    output, _ = await Orchestrator(registry).dispatch_agent(
+        task=task,
+        run=run,
+        workflow=workflow,
+        step=step,
+        memory=WorkflowMemory(run_id=run.run_id, task_input=task.input),
+    )
+
+    assert [name for name, _ in runtime.calls] == ["knowledge_search"]
+    assert output.output["retrieval_mode"] == "task_input_only"
+    assert output.sources[0]["provider"] == "task-input"
+    assert output.evidence_refs == [output.sources[0]["citationId"]]

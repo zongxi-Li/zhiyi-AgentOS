@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from agentos.agents.base import AgentOutput, AgentProfile, AgentRunContext, BaseAgent
-from agentos.core.models.types import WorkflowDefinition, WorkflowDefinitionType
+from agentos.core.models.types import WorkflowDefinition, WorkflowDefinitionType, utc_now
 from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
 
 
@@ -53,21 +55,52 @@ class NativeGeneralAgent(BaseAgent):
         if capability == "information_retrieval":
             if context.tool_runtime is None:
                 raise RuntimeError("read-only tool runtime is not configured")
-            result = await context.tool_runtime.run(
-                f"Research this objective and return a concise evidence-backed result: {task_summary}",
-                require_evidence=True,
+            result = await context.tool_runtime.execute(
+                "knowledge_search",
+                {"query": task_summary[:500], "top_k": 5},
             )
+            try:
+                envelope = json.loads(result.text)
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise RuntimeError("local knowledge search returned an invalid payload") from exc
+            if not envelope.get("ok"):
+                raise RuntimeError(
+                    "local knowledge search failed: "
+                    f"{envelope.get('error') or 'unknown error'}"
+                )
             sources = [item.public_dict() for item in result.sources]
             evidence_refs = [item.citation_id for item in result.sources]
+            retrieved_information = [
+                str(item.get("snippet") or item.get("content") or "").strip()
+                for item in ((envelope.get("data") or {}).get("results") or [])
+                if isinstance(item, dict)
+                and str(item.get("snippet") or item.get("content") or "").strip()
+            ]
             if not evidence_refs:
-                raise RuntimeError("information_retrieval requires evidence but no source was returned")
+                citation_id = "src_task_input_" + hashlib.sha256(
+                    task_summary.encode("utf-8")
+                ).hexdigest()[:16]
+                sources = [{
+                    "citationId": citation_id,
+                    "title": "User-provided task facts (offline ACG)",
+                    "filename": None,
+                    "url": None,
+                    "content": task_summary[:4000],
+                    "provider": "task-input",
+                    "retrievedAt": utc_now().isoformat(),
+                }]
+                evidence_refs = [citation_id]
+                retrieved_information = [task_summary]
             return AgentOutput(
                 output={
-                    "retrieved_information": [result.text],
+                    "retrieved_information": retrieved_information,
                     "sources": sources,
                     "evidence_refs": evidence_refs,
+                    "retrieval_mode": (
+                        "local_knowledge" if result.sources else "task_input_only"
+                    ),
                 },
-                summary=f"Retrieved {len(evidence_refs)} evidence source(s).",
+                summary=f"Prepared {len(evidence_refs)} offline evidence source(s).",
                 sources=sources,
                 toolExecutions=[item.public_dict() for item in result.tool_executions],
                 evidenceRefs=evidence_refs,

@@ -1,4 +1,6 @@
-"""Legal basis retrieval backed by local and public read-only evidence tools."""
+"""Legal basis retrieval backed by the local read-only knowledge tool."""
+
+import json
 
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from packs.legal.agents.common import case_text
@@ -24,19 +26,34 @@ class StatuteAgent(BaseAgent):
         text = case_text(context.task.input)
         if context.tool_runtime is None:
             raise RuntimeError("legal evidence tool runtime is not configured")
-        result = await context.tool_runtime.run(
-            "Find the currently applicable legal basis for the following matter. "
-            "Prefer authoritative sources and distinguish binding law from commentary.\n\n"
-            f"Matter: {text[:4000]}",
-            require_evidence=True,
+        result = await context.tool_runtime.execute(
+            "knowledge_search",
+            {"query": text[:500], "top_k": 5},
         )
+        try:
+            envelope = json.loads(result.text)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise RuntimeError("local legal knowledge search returned an invalid payload") from exc
+        if not envelope.get("ok"):
+            raise RuntimeError(
+                "local legal knowledge search failed: "
+                f"{envelope.get('error') or 'unknown error'}"
+            )
         sources = [item.public_dict() for item in result.sources]
         evidence_refs = [item.citation_id for item in result.sources]
         if not evidence_refs:
-            raise RuntimeError("legal basis retrieval requires evidence but no source was returned")
+            raise RuntimeError(
+                "offline legal basis retrieval requires a local knowledge source"
+            )
+        legal_basis = [
+            str(item.get("snippet") or item.get("content") or "").strip()
+            for item in ((envelope.get("data") or {}).get("results") or [])
+            if isinstance(item, dict)
+            and str(item.get("snippet") or item.get("content") or "").strip()
+        ]
         return AgentOutput(
             output={
-                "legal_basis": [result.text],
+                "legal_basis": legal_basis,
                 "query": text[:500],
                 "retrieval_status": "completed",
                 "sources": sources,

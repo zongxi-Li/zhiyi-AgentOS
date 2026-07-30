@@ -2,6 +2,7 @@
 
 import asyncio
 import inspect
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -59,6 +60,23 @@ class _ToolRuntime:
         return SimpleNamespace(
             text="Evidence-backed result from the AgentOS test fixture.",
             sources=[_Source()],
+            tool_executions=[_Execution()],
+        )
+
+    async def execute(self, name, arguments, **kwargs):
+        source = _Source()
+        return SimpleNamespace(
+            text=json.dumps({
+                "ok": True,
+                "tool": name,
+                "data": {
+                    "results": [{
+                        "citationId": source.citation_id,
+                        "snippet": "Evidence-backed result from the AgentOS test fixture.",
+                    }]
+                },
+            }),
+            sources=[source],
             tool_executions=[_Execution()],
         )
 
