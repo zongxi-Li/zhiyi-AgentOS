@@ -255,7 +255,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.acg-run-manager { min-width: 210px; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px 8px 16px; overflow: hidden; }
+.acg-run-manager { min-width: 210px; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px 8px 10px; overflow: hidden; }
 .acg-new-run { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border-light); border-radius: 7px; background: color-mix(in srgb, var(--bg-card) 84%, transparent); color: var(--text-primary); box-shadow: var(--shadow-sm); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; transition: var(--transition); }
 .acg-new-run:hover { border-color: var(--primary-line); background: var(--bg-card); color: var(--primary-color); }
 .acg-new-run:focus-visible, .acg-run-item__select:focus-visible, .acg-run-manage:focus-visible, .acg-run-search:focus-within, .acg-run-filter:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
@@ -300,12 +300,12 @@ onUnmounted(() => {
 .acg-run-message { flex: 1; display: flex; align-items: flex-start; gap: 8px; padding: 12px 9px; color: var(--text-disabled); font-size: 11px; }
 .acg-run-message--error { color: var(--danger); }
 .acg-run-message button { border: 0; background: transparent; color: var(--primary-color); cursor: pointer; }
-.acg-run-manage { min-height: 58px; flex: 0 0 auto; display: flex; align-items: center; gap: 9px; margin-top: 8px; padding: 8px 9px; border: 1px solid var(--primary-line); border-radius: 8px; background: color-mix(in srgb, var(--primary-fade) 72%, var(--bg-card)); color: var(--primary-color); font: inherit; text-align: left; cursor: pointer; transition: var(--transition); }
+.acg-run-manage { box-sizing: border-box; height: 38px; min-height: 38px; flex: 0 0 38px; display: flex; align-items: center; gap: 7px; margin-top: 5px; padding: 0 8px; border: 1px solid var(--primary-line); border-radius: 7px; background: color-mix(in srgb, var(--primary-fade) 72%, var(--bg-card)); color: var(--primary-color); font: inherit; text-align: left; cursor: pointer; transition: var(--transition); }
 .acg-run-manage:hover { border-color: var(--primary-color); background: color-mix(in srgb, var(--primary-fade) 88%, var(--bg-card)); }
-.acg-run-manage__icon { width: 30px; height: 30px; flex: 0 0 30px; display: inline-grid; place-items: center; border-radius: 7px; background: var(--bg-card); }
-.acg-run-manage > span:nth-child(2) { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.acg-run-manage__icon { width: 22px; height: 22px; flex: 0 0 22px; display: inline-grid; place-items: center; border-radius: 5px; background: var(--bg-card); }
+.acg-run-manage > span:nth-child(2) { min-width: 0; flex: 1; display: block; }
 .acg-run-manage strong, .acg-run-manage small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acg-run-manage strong { color: var(--text-primary); font-size: 12px; }
-.acg-run-manage small { color: var(--text-muted); font-size: 10px; }
+.acg-run-manage small { display: none; }
 @media (prefers-reduced-motion: reduce) { .acg-run-item, .acg-run-item__progress span, .acg-new-run, .acg-run-manage { transition-duration: 1ms; } }
 </style>
