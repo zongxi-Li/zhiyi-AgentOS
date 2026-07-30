@@ -17,6 +17,11 @@ from agentos.core.models.types import (
 )
 
 
+# ACG remains offline until its lifecycle, timeout, and recovery guarantees are stable.
+# Chat owns a separate tool-runtime entry point and is intentionally unaffected.
+ACG_NETWORK_TOOLS = frozenset({"web_search", "web_extract"})
+
+
 class Orchestrator:
     """只理解工作流结构、不绑定行业细节的核心调度器。"""
 
@@ -44,7 +49,12 @@ class Orchestrator:
         )
         tool_runtime = configured_tool_runtime()
         if tool_runtime is not None:
-            tool_runtime = tool_runtime.scoped(agent.profile.allowed_tools)
+            allowed_tools = [
+                name
+                for name in agent.profile.allowed_tools
+                if name not in ACG_NETWORK_TOOLS
+            ]
+            tool_runtime = tool_runtime.scoped(allowed_tools)
         context = AgentRunContext(
             task=task,
             run=run,

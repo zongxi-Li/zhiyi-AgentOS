@@ -14,8 +14,6 @@ class StatuteAgent(BaseAgent):
                 allowedSkills=["statute_retrieval", "case_retrieval"],
                 allowedTools=[
                     "knowledge_search",
-                    "web_search",
-                    "web_extract",
                     "current_datetime",
                 ],
                 description="Finds legal basis for the current dispute and preserves its sources.",

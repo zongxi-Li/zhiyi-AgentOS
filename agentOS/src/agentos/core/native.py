@@ -25,8 +25,6 @@ class NativeGeneralAgent(BaseAgent):
                 domain="general",
                 capabilities=list(NATIVE_CAPABILITY_IDS),
                 allowedTools=[
-                    "web_search",
-                    "web_extract",
                     "knowledge_search",
                     "current_datetime",
                 ],
