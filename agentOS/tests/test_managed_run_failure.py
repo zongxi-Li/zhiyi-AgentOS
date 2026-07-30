@@ -71,3 +71,51 @@ async def test_managed_failure_terminalizes_active_graph_before_sqlite_save(tmp_
         "code": "APITimeoutError",
         "message": "Request timed out.",
     }
+
+
+async def test_restart_cleanup_refreshes_active_step_projection(tmp_path):
+    store = SQLiteWorkflowStore(tmp_path / "restart-cleanup.db")
+    runtime = WorkflowRuntime(workflow_store=store)
+    task = AgentTask(
+        taskId="task_restart",
+        title="restart cleanup",
+        status=WorkflowStatus.RUNNING,
+    )
+    store.save_task(task)
+    blueprint = ACGBlueprint(
+        graphId="graph_restart",
+        nodes=[StepNode(nodeId="active", agentName="worker", capability="work")],
+    )
+    graph = RuntimeGraph.from_blueprint(run_id="run_restart", blueprint=blueprint)
+    node = graph.get_node("active")
+    node.status = StepStatus.RUNNING
+    node.attempts.append(
+        RuntimeAttempt(
+            attemptId="attempt_restart",
+            attemptNumber=1,
+            graphVersion=graph.graph_version,
+            status=StepStatus.RUNNING,
+        )
+    )
+    run = WorkflowRun(
+        runId="run_restart",
+        taskId=task.task_id,
+        workflowId="workflow_restart",
+        domain="general",
+        runtimeEngine="acg",
+        status=WorkflowStatus.RUNNING,
+        runtimeGraph=graph,
+    )
+    refresh_run_execution_projection(run)
+    store.save_run(run)
+
+    assert await runtime.close_orphaned_runs() == [run.run_id]
+    reloaded = store.get_run(run.run_id)
+    failed_node = reloaded.runtime_graph.get_node("active")
+
+    assert reloaded.status == WorkflowStatus.FAILED
+    assert reloaded.active_step_ids == []
+    assert failed_node.status == StepStatus.FAILED
+    assert failed_node.attempts[-1].status == StepStatus.FAILED
+    assert failed_node.attempts[-1].ended_at is not None
+    assert reloaded.error["code"] == "interrupted_after_restart"

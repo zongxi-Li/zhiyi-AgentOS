@@ -782,14 +782,24 @@ class WorkflowRuntime:
         return run
 
     @staticmethod
-    def _terminalize_active_execution(run: WorkflowRun, error_message: str) -> None:
+    def _terminalize_active_execution(
+        run: WorkflowRun,
+        error_message: str,
+        *,
+        include_current_pending: bool = False,
+    ) -> None:
         """Close active nodes before a failed Run is validated and persisted."""
 
         ended_at = utc_now()
         active_statuses = {StepStatus.RUNNING, StepStatus.RETRYING}
+        current_step_id = run.current_step_id if include_current_pending else None
         if run.runtime_graph is not None:
             for node in run.runtime_graph.nodes:
-                if node.status not in active_statuses:
+                if node.status not in active_statuses and not (
+                    current_step_id
+                    and node.node_id == current_step_id
+                    and node.status == StepStatus.PENDING
+                ):
                     continue
                 node.status = StepStatus.FAILED
                 node.error = error_message
@@ -803,7 +813,11 @@ class WorkflowRuntime:
             return
 
         for step in run.steps:
-            if step.status in active_statuses:
+            if step.status in active_statuses or (
+                current_step_id
+                and step.step_id == current_step_id
+                and step.status == StepStatus.PENDING
+            ):
                 step.status = StepStatus.FAILED
                 step.error = error_message
                 step.completed_at = ended_at
@@ -876,33 +890,18 @@ class WorkflowRuntime:
     def _fail_interrupted_run_after_restart(self, run: WorkflowRun) -> None:
         """Mutate every run projection first, then persist one consistent snapshot."""
 
-        active_statuses = {StepStatus.RUNNING, StepStatus.RETRYING}
-        active_step_id = run.current_step_id
-        for step in run.steps:
-            if step.status in active_statuses or (
-                active_step_id
-                and step.step_id == active_step_id
-                and step.status == StepStatus.PENDING
-            ):
-                step.status = StepStatus.FAILED
-                step.error = "任务因服务重启而中断。"
-                step.completed_at = utc_now()
-        if run.runtime_graph is not None:
-            for node in run.runtime_graph.nodes:
-                if node.status in active_statuses or (
-                    active_step_id
-                    and node.node_id == active_step_id
-                    and node.status == StepStatus.PENDING
-                ):
-                    node.status = StepStatus.FAILED
-                    node.error = "任务因服务重启而中断。"
-                    node.updated_at = utc_now()
+        interruption_message = "任务因服务重启而中断。"
+        self._terminalize_active_execution(
+            run,
+            interruption_message,
+            include_current_pending=True,
+        )
         run.status = WorkflowStatus.FAILED
         run.lifecycle_phase = WorkflowProgressPhase.FAILED
-        run.lifecycle_message = "任务因服务重启而中断。"
+        run.lifecycle_message = interruption_message
         run.error = {
             "code": "interrupted_after_restart",
-            "message": "任务因服务重启而中断。",
+            "message": interruption_message,
         }
         try:
             self.task_manager.mark_failed(run.task_id)
@@ -914,7 +913,7 @@ class WorkflowRuntime:
         self.trace_store.append(
             run=run,
             event_type=TraceEventType.RUN_FAILED,
-            observation="任务因服务重启而中断。",
+            observation=interruption_message,
             payload=dict(run.error),
         )
         run.updated_at = utc_now()
