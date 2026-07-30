@@ -355,6 +355,29 @@ docker compose --env-file .env.windows `
 
 该目录是未跟踪的派生索引，不是源码；任务结束时已清理，Docker 数据卷中的正式索引不受影响。后续一次性测试应把 `AGENTOS_DATA_DIR` 指向 Docker 临时目录，避免生成内容进入任务编辑统计。
 
+### 8.4 `run_fa61d0b1e9f8` 离线 ACG 阻塞
+
+现象：服务重启后，Run 仍长期停留在 `native_general_agent_6` 的 `information_retrieval`，界面显示完成 4/14，无法产生最终结果。
+
+第一性原理排查结论：
+
+1. ACG 公网权限剔除已经生效，日志中没有 Tavily、`web_search` 或 `web_extract` 调用；
+2. 原生资料检索 Agent 仍进入共享 `ToolRuntime.run()`，这会启动 DeepSeek 模型工具循环；
+3. 模型在本地 `knowledge_search` 返回后继续多轮调用，最终触发请求超时；
+4. `APITimeoutError.code` 为 `None`，异常归一化把空值写入非空 `errorCode` 字段，引发二次 Pydantic 校验错误；
+5. Run 失败持久化前没有先关闭活动节点，SQLite 一致性规则拒绝保存“Run 已失败但节点仍运行”的快照；
+6. 因此执行协程已经结束，数据库中的 Run 却仍显示 `running`，形成僵尸任务。
+
+修复内容：
+
+- ACG 通用资料检索改为一次有界的 `knowledge_search` 直接调用，不再进入模型工具循环；
+- 本地知识库无命中时，通用任务只把用户已提供的任务事实标记为 `task-input` 证据，不冒充外部来源；
+- 法律依据检索无本地权威来源时明确失败，不使用任务输入伪造法规；
+- 异常码统一回退到异常类型，确保 `errorCode` 永不为空；
+- Run 失败前原子关闭运行中/重试中的节点和 Attempt，再刷新兼容投影并持久化；
+- 服务重启清理也复用相同终态逻辑，清空 `activeStepIds` 并修复历史遗留的活动 Attempt；
+- Docker 测试改用独立一次性容器，不再把测试目录复制到实时开发容器，避免 WatchFiles 在用户运行期间重载服务。
+
 ## 9. 测试与验收结果
 
 所有开发、测试和真实 API smoke test 均在 Docker 环境中执行。
@@ -369,6 +392,8 @@ docker compose --env-file .env.windows `
 | Vue Frontend | 108 passed |
 | 前端生产构建 | 成功 |
 | Dockerfile 静态检查 | 无警告 |
+| ACG 离线阻塞定向回归 | 28 passed，2 warnings |
+| ACG 终态一致性定向测试 | 4 passed |
 
 ### 9.2 真实调用验证
 
@@ -382,6 +407,15 @@ docker compose --env-file .env.windows `
 - 使用 `admin / 123456` 验证前端到 Backend、AI、DeepSeek 和工具的完整链路成功。
 
 Tavily Key 配置后已完成 Chat 真实搜索与正文提取验证。ACG 公网 smoke test 曾确认工具可以调用，但在复杂任务中暴露了超时与僵尸 Run 问题，因此现已按 5.4 节暂停 ACG 公网工具。
+
+`run_fa61d0b1e9f8` 已收口为 `failed/interrupted_after_restart`，`activeStepIds` 为空。随后使用相同中文任务输入创建精确复测 `run_ed4b4cdf8b5a`：
+
+- 14/14 步全部完成，Run 状态为 `completed`；
+- 原阻塞节点 `native_general_agent_6` 完成；
+- 资料检索只调用一次 `knowledge_search`；
+- `retrievalMode=task_input_only`，来源提供方为 `task-input`；
+- Trace 不包含 `web_search` 或 `web_extract`；
+- 测试 Run 保留用于界面人工验收。
 
 ### 9.3 生产镜像说明
 
@@ -397,6 +431,11 @@ Tavily Key 配置后已完成 Chat 真实搜索与正文提取验证。ACG 公�
 da95f3f feat(frontend): 展示工具轨迹与可点击来源
 0e4f3af fix(chat): 降级处理不可用联网工具
 11fa1b6 fix(acg): 暂停公网工具调用
+b148dad docs(acg): 记录阶段性离线策略
+058a3be fix(acg): 可靠持久化运行失败状态
+2829118 fix(acg): 离线检索绕过模型工具循环
+5e1b1f8 fix(acg): 清理重启中断节点投影
+f147284 fix(acg): 修复历史中断尝试状态
 ```
 
 ## 11. 后续建议
