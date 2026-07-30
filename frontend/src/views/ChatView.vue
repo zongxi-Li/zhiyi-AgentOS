@@ -957,7 +957,9 @@ const workflowProgressState = useWorkflowProgress({
 })
 const hasActiveWorkflow = computed(() => Boolean(activeWorkflowRunId.value))
 const showHeroMode = computed(() => {
-  return chatStore.messages.length === 0 && !contextPanelOpen.value && !contextPanelClosing.value
+  return chatStore.messages.length === 0
+    && !isSubmittingWorkflow.value
+    && !activeWorkflowRunId.value
 })
 const composerDockOffset = computed(() => {
   if (showHeroMode.value) return 'auto'
@@ -2371,10 +2373,9 @@ const handleWorkspaceModeChange = (event: Event) => {
   if (mode !== 'agent' && mode !== 'chat') return
   workspaceMode.value = mode
   if (mode === 'agent') {
-    agentPanelCollapsed.value = false
-    localStorage.setItem(AGENT_PANEL_COLLAPSED_KEY, '0')
-    setContextPanelOpen(true)
-    setWorkflowPanelOpen(true)
+    agentPanelCollapsed.value = showHeroMode.value
+    setContextPanelOpen(!showHeroMode.value)
+    setWorkflowPanelOpen(!showHeroMode.value)
   }
 }
 
@@ -2382,7 +2383,9 @@ watch(
   () => chatStore.messages.length,
   (newLen, oldLen) => {
     if (newLen === 0) {
+      setContextPanelOpen(false)
       setWorkflowPanelOpen(false)
+      agentPanelCollapsed.value = true
       return
     }
     if (newLen <= oldLen) return
@@ -2563,6 +2566,11 @@ watch(hasAgentActivity, active => {
 onMounted(async () => {
   window.addEventListener('workspace-mode-change', handleWorkspaceModeChange)
   window.addEventListener('resize', handleWorkflowPanelViewportResize)
+  if (showHeroMode.value) {
+    setContextPanelOpen(false)
+    setWorkflowPanelOpen(false)
+    agentPanelCollapsed.value = true
+  }
   await roleStore.loadRoles()
   workflowPanelHeight.value = clampWorkflowPanelHeight(workflowPanelHeight.value)
 

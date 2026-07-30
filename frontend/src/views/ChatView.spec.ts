@@ -187,6 +187,37 @@ describe('ChatView ACG progress integration', () => {
     })
   })
 
+  it('keeps Agent idle state centered until the first message starts the session', async () => {
+    const { wrapper } = await mountPage('?workspace=agent')
+
+    expect(wrapper.get('.chat-panel').classes()).toContain('hero-mode')
+    expect(wrapper.find('.context-panel').exists()).toBe(false)
+    expect(wrapper.find('.workflow-acg-panel').exists()).toBe(false)
+    expect(wrapper.get('.agent-panel').classes()).toContain('collapsed')
+
+    await wrapper.get('.agent-panel-toggle').trigger('click')
+
+    expect(wrapper.get('.chat-panel').classes()).toContain('hero-mode')
+    expect(wrapper.get('.agent-panel').classes()).not.toContain('collapsed')
+    expect(wrapper.find('.agent-panel-content').exists()).toBe(true)
+    expect(wrapper.get('.agent-panel-content').attributes('style') || '').not.toContain('display: none')
+
+    await wrapper.get('.context-panel-dock').trigger('click')
+    expect(wrapper.get('.chat-panel').classes()).toContain('hero-mode')
+    expect(wrapper.find('.context-panel').exists()).toBe(true)
+
+    await wrapper.get('.workflow-acg-dock').trigger('click')
+    expect(wrapper.get('.chat-panel').classes()).toContain('hero-mode')
+    expect(wrapper.find('.workflow-acg-panel').exists()).toBe(true)
+
+    chatStoreMock.messages.push({ id: 'message_1', role: 'user', content: '开始任务' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('.chat-panel').classes()).not.toContain('hero-mode')
+    expect(wrapper.find('.context-panel').exists()).toBe(true)
+    expect(wrapper.find('.workflow-acg-panel').exists()).toBe(true)
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
