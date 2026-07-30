@@ -2,7 +2,7 @@
 
 > 完成日期：2026-07-30  
 > 实施范围：Python AI 服务、AgentOS/ACG、Java Backend、Vue Frontend、Docker 开发与部署配置  
-> 当前状态：共享只读工具运行时已完成；DeepSeek 工具循环可用；Tavily 联网能力等待部署环境提供 API Key
+> 当前状态：共享只读工具运行时已完成；Chat 保留 Tavily 联网；ACG 在稳定性整改完成前暂停公网工具调用
 
 ## 1. 背景与问题
 
@@ -237,6 +237,26 @@ allowedTools：声明运行时可执行工具权限
 
 声明“必须有证据”的步骤在没有有效来源时会失败或进入现有重试机制，不再生成伪造的 `native://deterministic-source` 或模拟法规依据。
 
+### 5.4 ACG 阶段性离线策略（2026-07-30）
+
+在 `run_e52c28cd6b14` 的问题诊断中，ACG 的复杂 `information_retrieval` 节点连续扩大搜索上下文，最终触发 DeepSeek 请求超时；随后异常封装和失败状态持久化缺陷又使该 Run 残留为 `running`。这说明在 ACG 生命周期、超时和恢复机制稳定前，继续开放公网检索会放大故障影响。
+
+当前策略如下：
+
+- Chat 继续允许 `web_search` 和 `web_extract`，不受本策略影响；
+- ACG 调度入口强制剔除 `web_search` 和 `web_extract`，即使 Agent 或插件声明了这两个工具也不能获得运行权限；
+- 原生通用 Agent 和法律法规检索 Agent 不再声明公网工具；
+- `knowledge_search`、`codebase_search` 和 `current_datetime` 等本地只读工具继续可用；
+- DeepSeek 模型接口仍然可用，“ACG 离线”仅表示禁止公网搜索和网页提取，不表示停用模型推理。
+
+重新开放 ACG 公网工具前至少应满足：
+
+1. 任意节点异常都能可靠进入 `failed`、`cancelled` 或其他明确终态；
+2. Run 失败时活动节点可以原子终止，不产生僵尸 `running` 记录；
+3. 节点具备总超时、来源预算、上下文压缩和有界重试；
+4. Trace 能保留原始工具或模型异常；
+5. 复杂检索在 Docker 集成测试中连续运行通过。
+
 ## 6. 代码检索改造
 
 `codebase_search` 复用项目已有 `CodeIndexBuilder`，没有再实现第二套索引系统。
@@ -361,7 +381,7 @@ docker compose --env-file .env.windows `
 - Evidence/Provenance 引用完整且完整性校验通过；
 - 使用 `admin / 123456` 验证前端到 Backend、AI、DeepSeek 和工具的完整链路成功。
 
-当前尚未完成的真实外部 smoke test只有 Tavily 搜索，因为部署目录中的 `tavily_api_key` 仍为空。配置 Key 后应补充“当天新闻包含可点击来源”的最终验收。
+Tavily Key 配置后已完成 Chat 真实搜索与正文提取验证。ACG 公网 smoke test 曾确认工具可以调用，但在复杂任务中暴露了超时与僵尸 Run 问题，因此现已按 5.4 节暂停 ACG 公网工具。
 
 ### 9.3 生产镜像说明
 
@@ -376,19 +396,20 @@ docker compose --env-file .env.windows `
 65b1b78 feat(backend): 透传并持久化工具调用结果
 da95f3f feat(frontend): 展示工具轨迹与可点击来源
 0e4f3af fix(chat): 降级处理不可用联网工具
+11fa1b6 fix(acg): 暂停公网工具调用
 ```
 
 ## 11. 后续建议
 
-1. 配置 Tavily Key，完成 Chat 和 ACG 的真实联网 smoke test。
+1. 优先修复 ACG 异常归一化、终态持久化、节点总超时和僵尸 Run 回收。
 2. 为一次性 Docker 测试统一设置临时 `AGENTOS_DATA_DIR`。
-3. 增加 Tavily 额度、限流和错误率监控，但日志中不得记录 Key 或网页全文。
-4. 根据真实代码库规模评估是否恢复可选向量索引，避免把重量级模型重新放回首请求路径。
-5. 为前端补充工具执行明细折叠、来源去重和失败重试提示。
+3. 为未来 ACG 联网增加来源预算、查询规划、去重压缩和有界重试。
+4. 增加 Tavily 额度、限流和错误率监控，但日志中不得记录 Key 或网页全文。
+5. 根据真实代码库规模评估是否恢复可选向量索引，避免把重量级模型重新放回首请求路径。
 6. 第一阶段继续保持工具只读；任何写操作工具应经过独立权限模型、审计和人工确认设计后再开放。
 
 ## 12. 结论
 
-本次改造已经把项目从“容器和模型能够联网”提升为“Chat 与 ACG 可以在权限、超时、轮数、来源和治理约束下真实调用工具”。工具运行时由 Chat 与 ACG 共享，但不替换现有 AgentOS 编排架构；模型工具循环、ACG 任务治理和前端可观测性保持职责分离。
+本次改造已经把项目从“容器和模型能够联网”提升为“Chat 与 ACG 具备共享、受限的只读工具运行时”。工具运行时由 Chat 与 ACG 共享，但不替换现有 AgentOS 编排架构；模型工具循环、ACG 任务治理和前端可观测性保持职责分离。
 
-当前系统的本地日期、知识库和代码检索工具已经可用。补充 Tavily API Key 后，`web_search` 与 `web_extract` 即可在同一受控运行时中启用。
+当前 Chat 可以使用 Tavily 公网搜索与正文提取；ACG 仅开放本地日期、知识库和代码检索工具。ACG 公网工具将在生命周期、超时、恢复和上下文预算达到 5.4 节门槛后重新评估开放。
