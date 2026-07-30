@@ -119,3 +119,37 @@ async def test_restart_cleanup_refreshes_active_step_projection(tmp_path):
     assert failed_node.attempts[-1].status == StepStatus.FAILED
     assert failed_node.attempts[-1].ended_at is not None
     assert reloaded.error["code"] == "interrupted_after_restart"
+
+
+def test_terminalize_repairs_previously_failed_node_with_active_attempt():
+    blueprint = ACGBlueprint(
+        graphId="graph_stale",
+        nodes=[StepNode(nodeId="stale", agentName="worker", capability="work")],
+    )
+    graph = RuntimeGraph.from_blueprint(run_id="run_stale", blueprint=blueprint)
+    node = graph.get_node("stale")
+    node.status = StepStatus.FAILED
+    node.attempts.append(
+        RuntimeAttempt(
+            attemptId="attempt_stale",
+            attemptNumber=1,
+            graphVersion=graph.graph_version,
+            status=StepStatus.RUNNING,
+        )
+    )
+    run = WorkflowRun(
+        runId="run_stale",
+        taskId="task_stale",
+        workflowId="workflow_stale",
+        domain="general",
+        runtimeEngine="acg",
+        status=WorkflowStatus.FAILED,
+        runtimeGraph=graph,
+        activeStepIds=["stale"],
+    )
+
+    WorkflowRuntime._terminalize_active_execution(run, "interrupted")
+
+    assert run.active_step_ids == []
+    assert node.attempts[-1].status == StepStatus.FAILED
+    assert node.attempts[-1].ended_at is not None

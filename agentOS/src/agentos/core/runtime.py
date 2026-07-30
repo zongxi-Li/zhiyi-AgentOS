@@ -795,16 +795,20 @@ class WorkflowRuntime:
         current_step_id = run.current_step_id if include_current_pending else None
         if run.runtime_graph is not None:
             for node in run.runtime_graph.nodes:
-                if node.status not in active_statuses and not (
+                should_fail_node = node.status in active_statuses or bool(
                     current_step_id
                     and node.node_id == current_step_id
                     and node.status == StepStatus.PENDING
+                )
+                if should_fail_node:
+                    node.status = StepStatus.FAILED
+                    node.error = error_message
+                    node.updated_at = ended_at
+                if (
+                    node.status == StepStatus.FAILED
+                    and node.attempts
+                    and node.attempts[-1].status in active_statuses
                 ):
-                    continue
-                node.status = StepStatus.FAILED
-                node.error = error_message
-                node.updated_at = ended_at
-                if node.attempts and node.attempts[-1].status in active_statuses:
                     attempt = node.attempts[-1]
                     attempt.status = StepStatus.FAILED
                     attempt.error = error_message
