@@ -16,6 +16,7 @@ from agentos.core.acg import (
     promote_workflow_to_acg,
 )
 from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory
+from agentos.core.execution.projection import refresh_run_execution_projection
 from agentos.core.governance.checkpoint import CheckpointStore
 from agentos.core.governance.evaluation import WorkflowEvaluator
 from agentos.core.workflow.orchestrator import Orchestrator
@@ -755,6 +756,7 @@ class WorkflowRuntime:
             "code": error_code,
             "message": error_message[:500],
         }
+        self._terminalize_active_execution(run, error["message"])
         run = self._set_run_lifecycle(
             run,
             status=WorkflowStatus.FAILED,
@@ -778,6 +780,34 @@ class WorkflowRuntime:
         run.updated_at = utc_now()
         self.workflow_store.save_run(run)
         return run
+
+    @staticmethod
+    def _terminalize_active_execution(run: WorkflowRun, error_message: str) -> None:
+        """Close active nodes before a failed Run is validated and persisted."""
+
+        ended_at = utc_now()
+        active_statuses = {StepStatus.RUNNING, StepStatus.RETRYING}
+        if run.runtime_graph is not None:
+            for node in run.runtime_graph.nodes:
+                if node.status not in active_statuses:
+                    continue
+                node.status = StepStatus.FAILED
+                node.error = error_message
+                node.updated_at = ended_at
+                if node.attempts and node.attempts[-1].status in active_statuses:
+                    attempt = node.attempts[-1]
+                    attempt.status = StepStatus.FAILED
+                    attempt.error = error_message
+                    attempt.ended_at = ended_at
+            refresh_run_execution_projection(run)
+            return
+
+        for step in run.steps:
+            if step.status in active_statuses:
+                step.status = StepStatus.FAILED
+                step.error = error_message
+                step.completed_at = ended_at
+        run.active_step_ids = []
 
     async def close_orphaned_runs(self, *, limit: int = 200) -> list[str]:
         """Close unfinished runs whose in-process executor was lost on restart."""

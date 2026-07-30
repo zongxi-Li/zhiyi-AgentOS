@@ -399,8 +399,8 @@ class ACGExecutor:
                                  events=[{"eventType": event_type, "observation": str(exc),
                                           "payload": {"recoverable": recoverable, "attempt": package.attempt_number}}],
                                  error_type=type(exc).__name__,
-                                 error_code=getattr(exc, "code", type(exc).__name__),
-                                 error_direction=getattr(exc, "direction", ""))
+                                 error_code=self._exception_code(exc),
+                                 error_direction=str(getattr(exc, "direction", None) or ""))
 
     async def _commit_batch(self, task, outcomes: list[StepExecutionOutcome]) -> bool:
         """Merge all accepted outcomes into one copy and persist once."""
@@ -889,6 +889,10 @@ class ACGExecutor:
                 "scheduledGraphVersion": scheduled, "attempt": attempt.attempt_number}
 
     @staticmethod
+    def _exception_code(exc: Exception) -> str:
+        return str(getattr(exc, "code", None) or type(exc).__name__)
+
+    @staticmethod
     def _outcome(package, status, started_at, *, output=None, error=None, resolved=None,
                  events=None, provenance=None, recoverable=False, runtime_signals=None,
                  error_type="", error_code="", error_direction="") -> StepExecutionOutcome:
@@ -898,7 +902,8 @@ class ACGExecutor:
             attemptId=package.attempt_id, status=status, output=output or {}, error=error,
             resolvedInput=resolved or {}, startedAt=started_at, endedAt=utc_now(),
             traceEvents=events or [], provenanceEvents=provenance or {}, recoverable=recoverable,
-            runtimeSignals=runtime_signals or [], errorType=error_type, errorCode=error_code,
+            runtimeSignals=runtime_signals or [], errorType=str(error_type or ""),
+            errorCode=str(error_code or error_type or "UNKNOWN_ERROR"),
             errorDirection=error_direction,
         )
 
