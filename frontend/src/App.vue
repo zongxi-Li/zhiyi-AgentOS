@@ -1192,7 +1192,7 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 8px 16px;
+  padding: 10px 8px 10px;
   overflow: hidden;
 }
 
@@ -1577,16 +1577,17 @@ onUnmounted(() => {
 }
 
 .history-action {
-  min-height: 58px;
-  flex: 0 0 auto;
-  gap: 9px;
-  margin-top: 8px;
-  padding: 8px 9px;
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  flex: 0 0 38px;
+  gap: 7px;
+  margin-top: 5px;
+  padding: 0 8px;
   border: 1px solid var(--primary-line);
-  border-radius: 8px;
+  border-radius: 7px;
   background: color-mix(in srgb, var(--primary-fade) 72%, var(--bg-card));
   color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
 }
 
 .history-action:hover {
@@ -1596,22 +1597,19 @@ onUnmounted(() => {
 }
 
 .history-action__icon {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   display: inline-grid;
   place-items: center;
-  border-radius: 7px;
+  border-radius: 5px;
   background: var(--bg-card);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
 .history-action__copy {
   min-width: 0;
   flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: block;
 }
 
 .history-action__copy strong,
@@ -1630,9 +1628,7 @@ onUnmounted(() => {
 }
 
 .history-action__copy small {
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.2;
+  display: none;
 }
 
 .history-action__arrow {

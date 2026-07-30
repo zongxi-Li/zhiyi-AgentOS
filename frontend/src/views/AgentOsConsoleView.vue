@@ -690,13 +690,13 @@ select:focus, input:focus { border-color: var(--primary-line); box-shadow: 0 0 0
 .run-item { display: grid; gap: 5px; width: 100%; padding: 10px; border: 1px solid var(--border-light); border-radius: inherit; background: color-mix(in srgb, var(--bg-card) 76%, transparent); color: var(--text-primary); text-align: left; cursor: pointer; transition: var(--transition); }
 .run-item:hover { border-color: var(--border-hover); }
 .run-item-shell.active .run-item { border-color: var(--primary-line); background: var(--surface-solid); box-shadow: inset 2px 0 var(--primary-color); }
-.run-item-delete { position: absolute; top: 7px; right: 34px; display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--bg-card) 90%, transparent); color: var(--text-disabled); cursor: pointer; opacity: 0; transition: var(--transition); }
+.run-item-delete { position: absolute; top: 7px; right: 7px; display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--bg-card) 90%, transparent); color: var(--text-disabled); cursor: pointer; opacity: 0; transition: var(--transition); }
 .run-item-shell:hover .run-item-delete, .run-item-shell.active .run-item-delete, .run-item-delete:focus-visible { opacity: 1; }
 .run-item-delete:hover { background: var(--danger-fade); color: var(--danger); }
 .run-item-delete:disabled { cursor: wait; opacity: .55; }
 .run-toolbar__delete { color: var(--danger) !important; }
 .run-toolbar__delete:hover:not(:disabled) { border-color: color-mix(in srgb, var(--danger) 38%, var(--border-light)) !important; background: var(--danger-fade) !important; }
-.run-item__top { justify-content: space-between; gap: 8px; }
+.run-item__top { justify-content: space-between; gap: 8px; padding-right: 30px; }
 .run-item__top time, .run-item small, .run-item p, .run-item__metrics { color: var(--text-secondary); font-size: 11px; }
 .run-item strong, .run-item small, .run-item p { overflow-wrap: anywhere; }
 .run-item p { margin: 0; line-height: 1.4; }
