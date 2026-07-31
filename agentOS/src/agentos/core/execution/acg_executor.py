@@ -438,6 +438,7 @@ class ACGExecutor:
             accepted_node_ids: set[str] = set()
             waiting_review = False
             fatal = False
+            checkpoint_step_ids: list[str] = []
             for outcome in outcomes:
                 node = graph.get_node(outcome.runtime_node_id)
                 attempt = node.attempts[-1] if node.attempts else None
@@ -648,9 +649,17 @@ class ACGExecutor:
                     ):
                         continue
                     try:
-                        self.runtime._create_checkpoint(candidate, candidate.get_step(outcome.runtime_node_id))
+                        candidate.get_step(outcome.runtime_node_id)
                     except KeyError:
                         pass
+                    else:
+                        checkpoint_step_ids.append(outcome.runtime_node_id)
+            if checkpoint_step_ids:
+                self.runtime._create_checkpoint(
+                    candidate,
+                    candidate.get_step(checkpoint_step_ids[0]),
+                    step_ids=checkpoint_step_ids,
+                )
             self.runtime.workflow_store.save_run(candidate)
             return accepted and not waiting_review and not fatal and candidate.status != WorkflowStatus.CANCELLED
 

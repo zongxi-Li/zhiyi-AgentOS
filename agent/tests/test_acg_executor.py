@@ -158,6 +158,9 @@ def test_acg_engine_parallel_branch_executes_both():
         assert calls[0] == "a"
         assert calls[-1] == "d"
         assert set(calls[1:3]) == {"b", "c"}
+        assert len(run.checkpoints) == 3
+        assert run.checkpoints[1].step_id == "b"
+        assert run.checkpoints[1].step_ids == ["b", "c"]
 
     asyncio.run(_run())
 
@@ -228,8 +231,18 @@ def test_acg_engine_human_review_interrupt_and_resume():
         assert run.status == WorkflowStatus.WAITING_REVIEW
         assert "z" not in calls  # 报告步骤尚未执行
         checkpoint = run.checkpoints[-1]
-        assert checkpoint.state_snapshot["acgBlueprint"]
-        assert checkpoint.state_snapshot["completedStepIds"] == ["a"]
+        assert checkpoint.snapshot_version == 2
+        assert checkpoint.snapshot_hash
+        assert checkpoint.state_snapshot["runtimeGraph"]
+        assert checkpoint.state_snapshot["runtimeGraph"]["nodes"][0]["status"] == "completed"
+        assert not {
+            "acgBlueprint",
+            "steps",
+            "completedStepIds",
+            "activeStepIds",
+            "input",
+            "output",
+        }.intersection(checkpoint.state_snapshot)
 
         resumed = await runtime.apply_review(
             ReviewDecision(runId=run.run_id, stepId="gate", decision=ReviewDecisionType.APPROVED)

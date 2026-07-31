@@ -23,7 +23,6 @@ from agentos.core.models.types import (
 )
 from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.core.runtime import WorkflowRuntime
-from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 from agentos.stores.sqlite_workflow_store import SQLiteWorkflowStore
 
 
@@ -151,6 +150,20 @@ async def _test_runtime_runs_registered_workflow_with_trace_and_checkpoints():
     assert TraceEventType.AGENT_CALLED in event_types
     assert TraceEventType.CHECKPOINT_CREATED in event_types
     assert TraceEventType.RUN_COMPLETED in event_types
+    checkpoint_events = [
+        event for event in run.trace if event.event_type == TraceEventType.CHECKPOINT_CREATED
+    ]
+    assert checkpoint_events
+    assert set(checkpoint_events[-1].payload) == {
+        "checkpointId",
+        "stepId",
+        "stepIds",
+        "snapshotVersion",
+        "snapshotHash",
+        "graphId",
+        "graphVersion",
+    }
+    assert "stateSnapshot" not in checkpoint_events[-1].payload
     assert any(isinstance(adapter, ACGWorkflowAdapter) for adapter in runtime._runtime_adapters.values())
 
 

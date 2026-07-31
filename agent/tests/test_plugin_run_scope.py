@@ -169,7 +169,7 @@ def test_legacy_null_resolves_legal_workflow_owner_and_freezes_checkpoint_scope(
         assert snapshot["executionScope"] == run.execution_scope.model_dump(
             by_alias=True, mode="json"
         )
-        assert snapshot["pluginSnapshot"] == [
+        assert snapshot["executionScope"]["pluginSnapshots"] == [
             item.model_dump(by_alias=True, mode="json")
             for item in run.plugin_snapshot
         ]

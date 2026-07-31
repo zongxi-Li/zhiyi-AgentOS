@@ -18,7 +18,7 @@ from agentos.core.acg import (
 )
 from agentos.core.execution import ACGWorkflowAdapter, ExecutionAdapterFactory
 from agentos.core.execution.projection import refresh_run_execution_projection
-from agentos.core.governance.checkpoint import CheckpointStore
+from agentos.core.governance.checkpoint import CheckpointStore, checkpoint_trace_payload
 from agentos.core.governance.evaluation import WorkflowEvaluator
 from agentos.core.workflow.orchestrator import Orchestrator
 from agentos.core.workflow.registry import WorkflowRegistry
@@ -1164,7 +1164,7 @@ class WorkflowRuntime:
                 event_type=TraceEventType.RUN_RECOVERED,
                 step_id=checkpoint.step_id,
                 observation=f"Recovered from checkpoint: {checkpoint.checkpoint_id}",
-                payload=checkpoint.model_dump(by_alias=True, mode="json"),
+                payload=checkpoint_trace_payload(checkpoint),
             )
             self.workflow_store.save_run(run)
         adapter = self._workflow_adapter(workflow)
@@ -1363,14 +1363,24 @@ class WorkflowRuntime:
             payload=run.output,
         )
 
-    def _create_checkpoint(self, run: WorkflowRun, step: WorkflowStep) -> Checkpoint:
-        checkpoint = self.checkpoint_store.create(run, step.step_id)
+    def _create_checkpoint(
+        self,
+        run: WorkflowRun,
+        step: WorkflowStep,
+        *,
+        step_ids: list[str] | None = None,
+    ) -> Checkpoint:
+        checkpoint = self.checkpoint_store.create(
+            run,
+            step.step_id,
+            step_ids=step_ids,
+        )
         self.trace_store.append(
             run=run,
             event_type=TraceEventType.CHECKPOINT_CREATED,
             step_id=step.step_id,
             observation=f"Checkpoint created: {checkpoint.checkpoint_id}",
-            payload=checkpoint.model_dump(by_alias=True, mode="json"),
+            payload=checkpoint_trace_payload(checkpoint),
         )
         return checkpoint
 

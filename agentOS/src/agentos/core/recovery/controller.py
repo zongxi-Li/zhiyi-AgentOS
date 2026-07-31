@@ -287,8 +287,6 @@ class RuntimeController:
         record = graph.patch_record_by_id(patch.patch_id)
         assert record is not None
         record.checkpoint_id = checkpoint.checkpoint_id
-        checkpoint.state_snapshot["runtimeGraph"] = graph.model_dump(by_alias=True, mode="json")
-        checkpoint.state_snapshot["appliedPatchIds"] = list(graph.applied_patch_ids)
         self.trace_store.append(
             run=candidate_run,
             event_type=TraceEventType.CHECKPOINT_CREATED,

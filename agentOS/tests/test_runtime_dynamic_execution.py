@@ -107,4 +107,4 @@ async def test_patch_checkpoint_persists_event_mapping_and_new_ready_node_once()
     assert reloaded.runtime_graph.ready_set()[0].created_graph_version == 2
     snapshot = reloaded.checkpoints[-1].state_snapshot
     assert snapshot["runtimeGraph"]["eventToPatch"] == {event.event_id: patch.patch_id}
-    assert snapshot["runtimeEvents"][0]["status"] == "PROCESSED"
+    assert snapshot["runtimeGraph"]["runtimeEvents"][0]["status"] == "PROCESSED"

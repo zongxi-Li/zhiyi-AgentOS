@@ -253,9 +253,19 @@ class TraceEvent(CoreModel):
 
 
 class Checkpoint(CoreModel):
+    """Immutable resume point for one execution barrier.
+
+    ``stepId`` remains the legacy primary step identifier. ``stepIds`` records
+    every node committed by the same barrier so parallel outcomes do not need
+    duplicate snapshots.
+    """
+
     checkpoint_id: str = Field(default_factory=lambda: new_id("ckpt"), alias="checkpointId")
     run_id: str = Field(alias="runId")
     step_id: str = Field(alias="stepId")
+    step_ids: List[str] = Field(default_factory=list, alias="stepIds")
+    snapshot_version: int = Field(default=1, alias="snapshotVersion")
+    snapshot_hash: Optional[str] = Field(default=None, alias="snapshotHash")
     state_snapshot: Dict[str, Any] = Field(default_factory=dict, alias="stateSnapshot")
     output_snapshot: Dict[str, Any] = Field(default_factory=dict, alias="outputSnapshot")
     can_resume: bool = Field(default=True, alias="canResume")
