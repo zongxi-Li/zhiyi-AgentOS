@@ -66,5 +66,29 @@ class NativeCapabilityPromptBuilder:
             f"VALIDATION_ERROR={validation_error}\nPREVIOUS_JSON={invalid}"
         )
 
+    def build_artifact(self, **kwargs) -> str:
+        return (
+            self.build(**kwargs)
+            + "\nFINAL_COMPOSITION_RULES="
+            + json.dumps(
+                {
+                    "consumeAllRelevantUpstreamFields": True,
+                    "requiredSections": [
+                        "executive summary",
+                        "requirements and acceptance",
+                        "implementation or solution",
+                        "resources and calculations",
+                        "risks and controls",
+                        "verification and unresolved gaps",
+                    ],
+                    "finalAnswer": "complete standalone Markdown deliverable",
+                    "facts": "cite sourceRefs where supplied",
+                    "unknowns": "record as openQuestions instead of inventing values",
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+
 
 __all__ = ["NATIVE_CAPABILITY_PROMPT_VERSION", "NativeCapabilityPromptBuilder"]

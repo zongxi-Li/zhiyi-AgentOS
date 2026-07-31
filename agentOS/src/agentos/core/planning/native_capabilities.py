@@ -192,10 +192,67 @@ def _output_schema(capability_id: str) -> dict:
             "verification",
         ),
         "artifact_generation": _record(
-            {"deliverable": {"type": ["object", "string"]}, "final_answer": _TEXT, "verification": {"type": "object"}},
+            {
+                "deliverable": _record(
+                    {
+                        "title": _TEXT,
+                        "executiveSummary": _TEXT,
+                        "sections": _records(
+                            {"title": _TEXT, "content": _TEXT, "sourceFields": _TEXT_LIST},
+                            "title",
+                            "content",
+                            "sourceFields",
+                        ),
+                        "calculations": _records(
+                            {"name": _TEXT, "formula": _TEXT, "inputs": _TEXT_LIST, "result": _TEXT, "assumptions": _TEXT_LIST},
+                            "name",
+                            "formula",
+                            "inputs",
+                            "result",
+                            "assumptions",
+                        ),
+                        "assumptions": _TEXT_LIST,
+                        "openQuestions": _TEXT_LIST,
+                        "sourceRefs": _TEXT_LIST,
+                    },
+                    "title",
+                    "executiveSummary",
+                    "sections",
+                    "calculations",
+                    "assumptions",
+                    "openQuestions",
+                    "sourceRefs",
+                ),
+                "final_answer": {"type": "string", "minLength": 1},
+                "verification": _record(
+                    {
+                        "status": {"type": "string", "enum": ["passed", "partial", "failed"]},
+                        "checks": _records(
+                            {"criterion": _TEXT, "result": _TEXT, "evidence": _TEXT},
+                            "criterion",
+                            "result",
+                            "evidence",
+                        ),
+                        "unresolvedGaps": _TEXT_LIST,
+                    },
+                    "status",
+                    "checks",
+                    "unresolvedGaps",
+                ),
+                "artifact": _record(
+                    {"artifactId": _TEXT, "type": {"type": "string", "enum": ["report"]}, "title": _TEXT, "mediaType": {"type": "string", "enum": ["text/markdown"]}, "content": _TEXT, "structuredData": {"type": "object"}},
+                    "artifactId",
+                    "type",
+                    "title",
+                    "mediaType",
+                    "content",
+                    "structuredData",
+                ),
+            },
             "deliverable",
             "final_answer",
             "verification",
+            "artifact",
         ),
     }
     return schemas[capability_id]

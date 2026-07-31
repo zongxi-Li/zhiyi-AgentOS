@@ -124,7 +124,12 @@ class NativeGeneralAgent(BaseAgent):
         pack = context.context_pack
         source_data = getattr(pack, "source_data", {}) if pack is not None else {}
         evidence_refs = list(getattr(pack, "evidence_refs", []) or []) if pack is not None else []
-        prompt = self.prompt_builder.build(
+        prompt_method = (
+            self.prompt_builder.build_artifact
+            if capability == "artifact_generation"
+            else self.prompt_builder.build
+        )
+        prompt = prompt_method(
             capability_descriptor=descriptor,
             step_goal=context.step.name,
             task_title=context.task.title,
@@ -148,6 +153,8 @@ class NativeGeneralAgent(BaseAgent):
         )
         invocations.append(generated.audit_record())
         output = dict(generated.data)
+        if capability == "artifact_generation":
+            output = self._normalize_artifact_output(context, output)
         try:
             validate_contract_payload(
                 output,
@@ -170,6 +177,8 @@ class NativeGeneralAgent(BaseAgent):
             )
             invocations.append(repaired.audit_record())
             output = dict(repaired.data)
+            if capability == "artifact_generation":
+                output = self._normalize_artifact_output(context, output)
             try:
                 validate_contract_payload(
                     output,
@@ -188,6 +197,40 @@ class NativeGeneralAgent(BaseAgent):
             summary=f"Native capability completed: {capability}.",
             modelInvocations=invocations,
         )
+
+    @staticmethod
+    def _normalize_artifact_output(
+        context: AgentRunContext,
+        output: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized = dict(output)
+        deliverable = normalized.get("deliverable")
+        if not isinstance(deliverable, dict):
+            deliverable = {
+                "title": context.task.title,
+                "executiveSummary": str(deliverable or ""),
+                "sections": [],
+                "calculations": [],
+                "assumptions": [],
+                "openQuestions": [],
+                "sourceRefs": [],
+            }
+            normalized["deliverable"] = deliverable
+        final_answer = str(normalized.get("final_answer") or "").strip()
+        artifact_id = "artifact_" + hashlib.sha256(
+            f"{context.run.run_id}:{context.step.step_id}:{context.step.attempt}".encode(
+                "utf-8"
+            )
+        ).hexdigest()[:16]
+        normalized["artifact"] = {
+            "artifactId": artifact_id,
+            "type": "report",
+            "title": str(deliverable.get("title") or context.task.title),
+            "mediaType": "text/markdown",
+            "content": final_answer,
+            "structuredData": deliverable,
+        }
+        return normalized
 
     @staticmethod
     def _upstream_data(context: AgentRunContext) -> dict[str, Any]:

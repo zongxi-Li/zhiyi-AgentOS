@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 from agentos.adapters.model_adapter import StructuredGenerationResult
 from agentos.agents.base import AgentRunContext
@@ -97,3 +98,78 @@ def test_native_prompt_is_input_sensitive_and_domain_neutral(structured_model_ru
     assert "Plan beta" in prompts[1]
     assert all("industrial_graph" not in prompt for prompt in prompts)
     assert all("software_graph" not in prompt for prompt in prompts)
+
+
+def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(
+    structured_model_runtime,
+):
+    catalog = build_default_capability_catalog()
+    descriptor = catalog.get("artifact_generation")
+    task = AgentTask(
+        title="Factory delivery plan",
+        input={"userIntent": "Produce one complete delivery plan"},
+    )
+    run = WorkflowRun(
+        runId="run_artifact",
+        taskId=task.task_id,
+        workflowId="native_test",
+        domain="general",
+        runtimeEngine="acg",
+        input=dict(task.input),
+    )
+    workflow = WorkflowDefinition(
+        workflowId="native_test",
+        name="Native test",
+        domain="general",
+        intent="general",
+        runtimeEngine="acg",
+        steps=[],
+        definitionType="native_bootstrap",
+    )
+    step = WorkflowStep(
+        stepId="deliver",
+        name="Compose final artifact",
+        agentName="native_general_agent",
+        capability="artifact_generation",
+        outputSpec=descriptor.output_contract,
+        attempt=2,
+    )
+    upstream = {
+        "task_summary": "Build a production line",
+        "requirements": [{"id": "R1"}],
+        "acceptance_criteria": [{"target": "55 seconds"}],
+        "capacity_plan": {"conclusion": "240000 units/year"},
+        "cost_analysis": {"total": 8000000},
+        "risks": [{"risk": "schedule"}],
+        "verification": {"status": "partial"},
+    }
+    context = AgentRunContext(
+        task=task,
+        run=run,
+        workflow=workflow,
+        step=step,
+        memory=WorkflowMemory(run_id=run.run_id, task_input=dict(task.input)),
+        contextPack=SimpleNamespace(
+            data=upstream,
+            source_data={"upstream": upstream},
+            evidence_refs=["source-1"],
+        ),
+        modelRuntime=structured_model_runtime,
+        capabilityDescriptor=descriptor,
+    )
+
+    result = asyncio.run(NativeGeneralAgent().run(context))
+
+    prompt = structured_model_runtime.calls[-1]["prompt"]
+    for field in upstream:
+        assert field in prompt
+    assert "consumeAllRelevantUpstreamFields" in prompt
+    assert result.output["artifact"] == {
+        "artifactId": "artifact_52676df0e94b2d89",
+        "type": "report",
+        "title": "generated:title",
+        "mediaType": "text/markdown",
+        "content": "generated:final_answer",
+        "structuredData": result.output["deliverable"],
+    }
+    assert result.output["verification"]["status"] == "passed"
