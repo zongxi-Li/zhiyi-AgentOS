@@ -115,11 +115,12 @@ def test_acg_builder_supports_a_single_native_step():
     assert len(blueprint.step_nodes()) == 1
 
 
-def test_native_runtime_executes_without_legal_pack():
+def test_native_runtime_executes_without_legal_pack(structured_model_runtime):
     agents = AgentRegistry()
     workflows = WorkflowRegistry()
     register_native_runtime(agent_registry=agents, workflow_registry=workflows)
     runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+    runtime.set_model_runtime(structured_model_runtime)
 
     task = runtime.create_task(
         title="设计一个基础软件项目实施方案",
@@ -165,6 +166,40 @@ def test_native_runtime_executes_without_legal_pack():
         for event in run.trace
     )
     assert any(event.event_type == TraceEventType.STEP_SUCCEEDED for event in run.trace)
+    model_nodes = [
+        node
+        for node in runtime_steps
+        if node.spec.get("capability") != "information_retrieval"
+    ]
+    assert len(structured_model_runtime.calls) == len(model_nodes)
+    assert all(node.attempts[-1].model_name == "test-model" for node in model_nodes)
+    assert all(
+        node.attempts[-1].trace_context.get("modelInvocations")
+        for node in model_nodes
+    )
+    assert any(event.event_type == TraceEventType.MODEL_CALLED for event in run.trace)
+
+
+def test_native_runtime_fails_explicitly_without_a_model():
+    agents = AgentRegistry()
+    workflows = WorkflowRegistry()
+    register_native_runtime(agent_registry=agents, workflow_registry=workflows)
+    runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+    task = runtime.create_task(
+        title="Prepare a project plan",
+        domain="general",
+        intent="general",
+        input={"userIntent": "Prepare a project plan", "usePlanner": True},
+    )
+
+    run = asyncio.run(runtime.start(task.task_id, review_mode="auto"))
+
+    assert run.status == WorkflowStatus.FAILED
+    assert any(
+        event.event_type == TraceEventType.STEP_FAILED
+        and event.payload.get("errorCode") == "MODEL_UNAVAILABLE"
+        for event in run.trace
+    )
 
 
 def test_default_runtime_registers_native_before_application_packs(monkeypatch, tmp_path):

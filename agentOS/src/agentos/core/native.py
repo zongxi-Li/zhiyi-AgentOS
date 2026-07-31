@@ -6,8 +6,14 @@ import hashlib
 import json
 from typing import Any
 
+from agentos.adapters.model_adapter import StructuredGenerationError
 from agentos.agents.base import AgentOutput, AgentProfile, AgentRunContext, BaseAgent
+from agentos.core.data_contracts import ContextContractError, validate_contract_payload
 from agentos.core.models.types import WorkflowDefinition, WorkflowDefinitionType, utc_now
+from agentos.core.native_prompt import (
+    NATIVE_CAPABILITY_PROMPT_VERSION,
+    NativeCapabilityPromptBuilder,
+)
 from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
 
 
@@ -33,6 +39,7 @@ class NativeGeneralAgent(BaseAgent):
                 description="Executes domain-neutral understanding, analysis, and artifact delivery.",
             )
         )
+        self.prompt_builder = NativeCapabilityPromptBuilder()
 
     async def run(self, context: AgentRunContext) -> AgentOutput:
         objective = str(
@@ -42,14 +49,6 @@ class NativeGeneralAgent(BaseAgent):
         ).strip()
         upstream = self._upstream_data(context)
         capability = (context.step.capability or "").strip()
-
-        if capability == "task_understanding":
-            output = {
-                "task_summary": objective,
-                "constraints": [],
-                "verification": {"status": "passed"},
-            }
-            return AgentOutput(output=output, summary="Task objective understood.")
 
         task_summary = str(upstream.get("task_summary") or objective)
         if capability == "information_retrieval":
@@ -107,70 +106,88 @@ class NativeGeneralAgent(BaseAgent):
             )
         if capability == "evidence_analysis" and not upstream.get("evidence_refs"):
             raise RuntimeError("evidence_analysis requires upstream evidence references")
-        outputs = {
-            "information_extraction": {
-                "extracted_information": {"summary": task_summary, "items": []},
-            },
-            "requirement_analysis": {
-                "requirements": ["明确目标范围", "定义质量标准", "形成可验收交付物"],
-                "acceptance_criteria": ["目标覆盖", "过程可执行", "结果可验证"],
-            },
-            "process_decomposition": {
-                "process_steps": ["准备", "执行", "质量检查", "交付"],
-            },
-            "resource_planning": {
-                "resource_plan": ["人员", "设备", "信息与时间"],
-                "capacity_plan": "按阶段负载进行资源配置",
-            },
-            "architecture_design": {
-                "architecture": "分层、模块化并保留清晰接口的通用架构",
-                "components": ["接入层", "能力层", "数据层", "治理层"],
-                "data_flow": "输入 → 处理 → 验证 → 交付",
-            },
-            "analysis": {
-                "analysis": f"围绕“{task_summary}”分析目标、约束、执行路径和交付标准。",
-            },
-            "comparative_analysis": {
-                "comparison": "按适用性、成本、风险和可验证性比较候选方案",
-                "alternatives": ["渐进方案", "集中方案"],
-            },
-            "evidence_analysis": {
-                "evidence_analysis": "已按相关性、可信度和覆盖范围整理证据线索",
-                "evidence_refs": upstream.get("evidence_refs") or [],
-            },
-            "cost_analysis": {
-                "cost_analysis": "成本由资源投入、实施周期和质量保障活动构成",
-                "cost_drivers": ["资源", "周期", "质量"],
-            },
-            "risk_analysis": {
-                "risk_analysis": "关注范围、依赖、进度、质量与安全风险",
-                "risks": ["范围偏移", "关键依赖延迟", "质量验证不足"],
-            },
-            "solution_design": {
-                "solution_design": "采用分阶段实施、阶段验证和持续风险控制的方案",
-            },
-            "verification": {
-                "verification": {"status": "passed", "criteria": "目标、过程和交付物可核验"},
-            },
-        }
-        if capability in outputs:
-            return AgentOutput(output=outputs[capability], summary=f"{capability} completed.")
 
-        analysis = str(upstream.get("analysis") or f"已分析任务：{objective}")
-        deliverable = (
-            f"# 任务实施方案\n\n"
-            f"## 目标\n{objective}\n\n"
-            f"## 分析\n{analysis}\n\n"
-            "## 执行阶段\n1. 明确范围与验收标准\n2. 分阶段实施并验证\n3. 汇总交付物并复盘\n\n"
-            "## 风险控制\n持续检查范围、质量、进度和依赖风险。\n\n"
-            "## 交付物\n实施计划、阶段成果、验证记录和最终总结。"
+        descriptor = context.capability_descriptor
+        if descriptor is None:
+            raise StructuredGenerationError(
+                "CAPABILITY_DESCRIPTOR_UNAVAILABLE",
+                f"Capability descriptor is unavailable: {capability or '<empty>'}",
+            )
+        runtime = context.model_runtime
+        if runtime is None or not runtime.is_available():
+            raise StructuredGenerationError(
+                "MODEL_UNAVAILABLE",
+                "No production model is configured for native ACG execution.",
+            )
+
+        output_schema = dict(context.step.output_spec or descriptor.output_contract)
+        pack = context.context_pack
+        source_data = getattr(pack, "source_data", {}) if pack is not None else {}
+        evidence_refs = list(getattr(pack, "evidence_refs", []) or []) if pack is not None else []
+        prompt = self.prompt_builder.build(
+            capability_descriptor=descriptor,
+            step_goal=context.step.name,
+            task_title=context.task.title,
+            task_input=dict(context.task.input),
+            context_data=upstream,
+            source_data=dict(source_data) if isinstance(source_data, dict) else {},
+            evidence_refs=evidence_refs,
+            output_schema=output_schema,
         )
-        output = {
-            "deliverable": deliverable,
-            "final_answer": deliverable,
-            "verification": {"status": "passed"},
-        }
-        return AgentOutput(output=output, summary="Generic artifact generated.")
+        thinking_mode = str(context.task.input.get("thinkingMode") or "disabled")
+        timeout_seconds = 180.0 if capability == "artifact_generation" else 120.0
+        max_output_tokens = 8192 if capability == "artifact_generation" else 4096
+        invocations: list[dict[str, Any]] = []
+        generated = await runtime.generate_json(
+            prompt=prompt,
+            schema=output_schema,
+            thinking_mode=thinking_mode,
+            timeout_seconds=timeout_seconds,
+            max_output_tokens=max_output_tokens,
+            prompt_version=NATIVE_CAPABILITY_PROMPT_VERSION,
+        )
+        invocations.append(generated.audit_record())
+        output = dict(generated.data)
+        try:
+            validate_contract_payload(
+                output,
+                output_schema,
+                step_id=context.step.step_id,
+                direction="output",
+            )
+        except ContextContractError as exc:
+            repaired = await runtime.generate_json(
+                prompt=self.prompt_builder.build_repair(
+                    original_prompt=prompt,
+                    invalid_data=output,
+                    validation_error=str(exc),
+                ),
+                schema=output_schema,
+                thinking_mode=thinking_mode,
+                timeout_seconds=timeout_seconds,
+                max_output_tokens=max_output_tokens,
+                prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.repair1",
+            )
+            invocations.append(repaired.audit_record())
+            output = dict(repaired.data)
+            try:
+                validate_contract_payload(
+                    output,
+                    output_schema,
+                    step_id=context.step.step_id,
+                    direction="output",
+                )
+            except ContextContractError as repair_exc:
+                raise StructuredGenerationError(
+                    "OUTPUT_CONTRACT_VIOLATION",
+                    str(repair_exc),
+                ) from repair_exc
+
+        return AgentOutput(
+            output=output,
+            summary=f"Native capability completed: {capability}.",
+            modelInvocations=invocations,
+        )
 
     @staticmethod
     def _upstream_data(context: AgentRunContext) -> dict[str, Any]:

@@ -25,11 +25,12 @@ RESEARCH_TASK = (
 )
 
 
-def execute_native(intent: str):
+def execute_native(intent: str, model_runtime):
     agents = AgentRegistry()
     workflows = WorkflowRegistry()
     register_native_runtime(agent_registry=agents, workflow_registry=workflows)
     runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+    runtime.set_model_runtime(model_runtime)
     task = runtime.create_task(
         title=intent[:30],
         domain="general",
@@ -60,10 +61,12 @@ def structure_hash(blueprint: ACGBlueprint) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
-def test_three_native_tasks_generate_distinct_executable_graphs_without_legal_pack():
-    software_task, software_run, software_graph = execute_native(SOFTWARE_TASK)
-    industrial_task, industrial_run, industrial_graph = execute_native(INDUSTRIAL_TASK)
-    research_task, research_run, research_graph = execute_native(RESEARCH_TASK)
+def test_three_native_tasks_generate_distinct_executable_graphs_without_legal_pack(
+    structured_model_runtime,
+):
+    software_task, software_run, software_graph = execute_native(SOFTWARE_TASK, structured_model_runtime)
+    industrial_task, industrial_run, industrial_graph = execute_native(INDUSTRIAL_TASK, structured_model_runtime)
+    research_task, research_run, research_graph = execute_native(RESEARCH_TASK, structured_model_runtime)
 
     software = capability_set(software_run)
     industrial = capability_set(industrial_run)
@@ -102,8 +105,10 @@ def test_three_native_tasks_generate_distinct_executable_graphs_without_legal_pa
     ) == 3
 
 
-def test_unrecognized_native_task_uses_exact_three_step_fallback_and_executes():
-    task, run, blueprint = execute_native("把这件事情妥善处理好。")
+def test_unrecognized_native_task_uses_exact_three_step_fallback_and_executes(
+    structured_model_runtime,
+):
+    task, run, blueprint = execute_native("把这件事情妥善处理好。", structured_model_runtime)
 
     assert task.recommended_workflow == "native_acg_runtime_v1"
     assert [step.capability for step in run.steps] == [

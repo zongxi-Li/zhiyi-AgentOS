@@ -343,6 +343,9 @@ class ACGExecutor:
             tool_executions = [
                 dict(item) for item in result.tool_executions if isinstance(item, dict)
             ]
+            model_invocations = [
+                dict(item) for item in result.model_invocations if isinstance(item, dict)
+            ]
             evidence_refs = list(dict.fromkeys(result.evidence_refs))
             runtime_signals = [
                 dict(item)
@@ -379,7 +382,21 @@ class ACGExecutor:
                 }
                 for item in tool_executions
             ]
-            events[0:0] = tool_events
+            model_events = [
+                {
+                    "eventType": TraceEventType.MODEL_CALLED,
+                    "observation": "Structured model generation completed",
+                    "payload": {
+                        "provider": item.get("provider"),
+                        "model": item.get("model"),
+                        "promptVersion": item.get("promptVersion"),
+                        "usage": dict(item.get("usage") or {}),
+                    },
+                    "durationMs": int(item.get("latencyMs") or 0),
+                }
+                for item in model_invocations
+            ]
+            events[0:0] = [*tool_events, *model_events]
             if pack is not None:
                 events.insert(0, {"eventType": TraceEventType.DATA_CONSUMED,
                     "observation": f"Context assembled: {pack.tokens_delivered}/{pack.tokens_available} tokens (saved {pack.saving_ratio:.1%})",
@@ -389,17 +406,20 @@ class ACGExecutor:
                                      "pack": pack.model_dump(by_alias=True, mode="json") if pack else None,
                                      "evidenceRefs": evidence_refs,
                                      "toolExecutions": tool_executions,
+                                     "modelInvocations": model_invocations,
                                  },
                                  runtime_signals=runtime_signals)
         except Exception as exc:
             recoverable = isinstance(exc, InjectedFault) or package.attempt_number <= int(step_node.retry_limit)
             event_type = TraceEventType.CONTRACT_VIOLATION if isinstance(exc, ContextContractError) else TraceEventType.STEP_FAILED
+            error_code = self._exception_code(exc)
             return self._outcome(package, StepStatus.RETRYING if recoverable else StepStatus.FAILED,
                                  started_at, error=str(exc), resolved=resolved, recoverable=recoverable,
                                  events=[{"eventType": event_type, "observation": str(exc),
-                                          "payload": {"recoverable": recoverable, "attempt": package.attempt_number}}],
+                                          "payload": {"recoverable": recoverable, "attempt": package.attempt_number,
+                                                      "errorCode": error_code, "errorType": type(exc).__name__}}],
                                  error_type=type(exc).__name__,
-                                 error_code=self._exception_code(exc),
+                                 error_code=error_code,
                                  error_direction=str(getattr(exc, "direction", None) or ""))
 
     async def _commit_batch(self, task, outcomes: list[StepExecutionOutcome]) -> bool:
@@ -434,6 +454,14 @@ class ACGExecutor:
                 attempt.error = outcome.error
                 attempt.ended_at = outcome.ended_at
                 attempt.status = StepStatus.FAILED if outcome.status == StepStatus.RETRYING else outcome.status
+                model_invocations = [
+                    dict(item)
+                    for item in (outcome.provenance_events.get("modelInvocations") or [])
+                    if isinstance(item, dict)
+                ]
+                if model_invocations:
+                    attempt.model_name = str(model_invocations[-1].get("model") or attempt.model_name)
+                    attempt.trace_context["modelInvocations"] = model_invocations
                 node.error = outcome.error
 
                 runtime_events = self.runtime.runtime_event_classifier.classify(

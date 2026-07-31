@@ -9,6 +9,27 @@ from pathlib import Path
 import pytest
 
 
+def _schema_value(schema, field_name="value"):
+    schema = schema if isinstance(schema, dict) else {}
+    value_type = schema.get("type")
+    if isinstance(value_type, list):
+        value_type = value_type[0] if value_type else None
+    if value_type == "object" or "properties" in schema:
+        properties = schema.get("properties") or {}
+        return {
+            name: _schema_value(properties.get(name), name)
+            for name in (schema.get("required") or properties.keys())
+        }
+    if value_type == "array":
+        return [_schema_value(schema.get("items") or {}, field_name)]
+    if value_type in {"number", "integer"}:
+        return 1 if value_type == "integer" else 1.0
+    if value_type == "boolean":
+        return True
+    allowed = schema.get("enum") or []
+    return allowed[0] if allowed else f"generated:{field_name}"
+
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENTOS_SRC = PROJECT_ROOT / "agentOS" / "src"
 AGENT_APP_ROOT = PROJECT_ROOT / "agent"
@@ -76,6 +97,25 @@ class _ContractReviewTestProvider:
             }
         if task == "report_generate":
             return {"report_markdown": "# 测试合同审查报告\n\n报告内容来自测试夹具。"}
+        native_fields = {
+            "task_summary",
+            "extracted_information",
+            "retrieved_information",
+            "requirements",
+            "process_steps",
+            "resource_plan",
+            "architecture",
+            "analysis",
+            "evidence_analysis",
+            "comparison",
+            "cost_analysis",
+            "risk_analysis",
+            "solution_design",
+            "verification",
+            "deliverable",
+        }
+        if native_fields.intersection(schema.get("required") or []):
+            return _schema_value(schema)
         return {}
 
 

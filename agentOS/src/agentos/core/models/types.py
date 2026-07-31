@@ -83,6 +83,7 @@ class TraceEventType(str, Enum):
     STEP_SCHEDULED = "step_scheduled"
     STEP_STARTED = "step_started"
     AGENT_CALLED = "agent_called"
+    MODEL_CALLED = "model_called"
     STEP_SUCCEEDED = "step_succeeded"
     TOOL_CALLED = "tool_called"
     DATA_PRODUCED = "data_produced"

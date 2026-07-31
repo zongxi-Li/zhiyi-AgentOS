@@ -18,10 +18,50 @@ if value not in sys.path:
     sys.path.insert(0, value)
 
 
-from agentos.adapters.tool_adapter import (
+from agentos.adapters.tool_adapter import (  # noqa: E402
     clear_tool_runtime_factory,
     register_tool_runtime_factory,
 )
+from agentos.adapters.model_adapter import StructuredGenerationResult  # noqa: E402
+
+
+def _schema_value(schema, field_name="value"):
+    schema = schema if isinstance(schema, dict) else {}
+    value_type = schema.get("type")
+    if isinstance(value_type, list):
+        value_type = value_type[0] if value_type else None
+    if value_type == "object" or "properties" in schema:
+        properties = schema.get("properties") or {}
+        return {
+            name: _schema_value(properties.get(name), name)
+            for name in (schema.get("required") or properties.keys())
+        }
+    if value_type == "array":
+        return [_schema_value(schema.get("items") or {}, field_name)]
+    if value_type in {"number", "integer"}:
+        return 1 if value_type == "integer" else 1.0
+    if value_type == "boolean":
+        return True
+    allowed = schema.get("enum") or []
+    return allowed[0] if allowed else f"generated:{field_name}"
+
+
+class SchemaStructuredRuntime:
+    def __init__(self):
+        self.calls = []
+
+    def is_available(self):
+        return True
+
+    async def generate_json(self, *, prompt, schema, prompt_version, **kwargs):
+        self.calls.append({"prompt": prompt, "schema": schema, **kwargs})
+        return StructuredGenerationResult(
+            data=_schema_value(schema),
+            provider="test-provider",
+            model="test-model",
+            latencyMs=1,
+            promptVersion=prompt_version,
+        )
 
 
 class _Source:
@@ -86,6 +126,11 @@ def _configured_tool_runtime():
     register_tool_runtime_factory(_ToolRuntime)
     yield
     clear_tool_runtime_factory()
+
+
+@pytest.fixture
+def structured_model_runtime():
+    return SchemaStructuredRuntime()
 
 
 def pytest_pyfunc_call(pyfuncitem):
