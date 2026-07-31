@@ -99,6 +99,32 @@ describe('AgentOS async workflow API', () => {
     })
   })
 
+  it('normalizes final artifacts separately from legacy step deliverables', async () => {
+    const legacyStep = {
+      stepId: 'analysis', name: 'Analysis', status: 'completed', output: { analysis: 'done' }
+    }
+    const artifact = {
+      artifactId: 'artifact_1', type: 'report', title: 'Final result',
+      mediaType: 'text/markdown', content: '# Final', structuredData: {}
+    }
+    vi.spyOn(agentosRequest, 'get').mockResolvedValue({
+      data: {
+        runId: 'run_1', status: 'completed', engine: 'acg', acgBlueprint: null,
+        completedStepIds: ['analysis'], activeStepIds: [], stepStates: [],
+        provenance: { productions: [], consumptions: [], interactions: [] },
+        interactions: [], contractViolations: [], recoveryTrace: [], scheduleTrace: [],
+        deliverables: [legacyStep], finalArtifacts: [artifact], finalReport: '# Final',
+        lowEntropyMetrics: {}
+      }
+    } as never)
+
+    const result = await agentosApi.getAcgView('run_1')
+
+    expect(result.deliverables).toEqual([legacyStep])
+    expect(result.stepOutputs).toEqual([legacyStep])
+    expect(result.finalArtifacts).toEqual([artifact])
+  })
+
   it('forwards review concurrency fields and preserves 409', async () => {
     const conflict = { response: { status: 409 } }
     const post = vi.spyOn(agentosRequest, 'post').mockRejectedValue(conflict)

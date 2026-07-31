@@ -540,6 +540,17 @@ export interface AcgDeliverable {
   output: Record<string, any>
 }
 
+export interface AcgFinalArtifact {
+  artifactId: string
+  type: string
+  title: string
+  mediaType: string
+  content: string
+  structuredData: Record<string, any>
+  stepId?: string | null
+  legacy?: boolean
+}
+
 export interface AcgView {
   runId: string
   status: WorkflowStatus
@@ -570,6 +581,8 @@ export interface AcgView {
   recoveryTrace: TraceEvent[]
   scheduleTrace: TraceEvent[]
   deliverables: AcgDeliverable[]
+  stepOutputs?: AcgDeliverable[]
+  finalArtifacts?: AcgFinalArtifact[]
   finalReport: string | null
   lowEntropyMetrics: AcgLowEntropyMetrics
 }
@@ -601,6 +614,10 @@ const normalizeAcgView = (view: AcgView): AcgView => ({
   recoveryTrace: Array.isArray(view.recoveryTrace) ? view.recoveryTrace : [],
   scheduleTrace: Array.isArray(view.scheduleTrace) ? view.scheduleTrace : [],
   deliverables: Array.isArray(view.deliverables) ? view.deliverables : [],
+  stepOutputs: Array.isArray(view.stepOutputs)
+    ? view.stepOutputs
+    : (Array.isArray(view.deliverables) ? view.deliverables : []),
+  finalArtifacts: Array.isArray(view.finalArtifacts) ? view.finalArtifacts : [],
   finalReport: typeof view.finalReport === 'string' ? view.finalReport : null,
   lowEntropyMetrics: {
     averageSavingRatio: 0,

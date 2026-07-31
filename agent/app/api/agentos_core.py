@@ -2100,7 +2100,7 @@ def create_router(
 
         # 交付物：把每个步骤的实际产出（风险/证据/建议/报告等）汇总，
         # 供前端「审查结论」面板展示真正交付给用户的成果，而非仅引擎内部视角。
-        deliverables = [
+        step_outputs = [
             {
                 "stepId": step.step_id,
                 "name": step.name,
@@ -2110,18 +2110,67 @@ def create_router(
             for step in run.steps
             if step.output
         ]
+        # Compatibility: deliverables historically meant every non-empty Step output.
+        deliverables = step_outputs
+        final_artifacts: list[Dict[str, Any]] = []
+        for step in run.steps:
+            artifact = (step.output or {}).get("artifact")
+            if not isinstance(artifact, dict):
+                continue
+            content = artifact.get("content")
+            if not isinstance(content, str) or not content.strip():
+                continue
+            final_artifacts.append(
+                {
+                    "artifactId": str(
+                        artifact.get("artifactId") or f"artifact_{run.run_id}_{step.step_id}"
+                    ),
+                    "type": str(artifact.get("type") or "report"),
+                    "title": str(artifact.get("title") or step.name),
+                    "mediaType": str(artifact.get("mediaType") or "text/markdown"),
+                    "content": content,
+                    "structuredData": _safe_runtime_projection(
+                        artifact.get("structuredData")
+                        if isinstance(artifact.get("structuredData"), dict)
+                        else {}
+                    ),
+                    "stepId": step.step_id,
+                }
+            )
         # 最终报告（若有 report_generate 类步骤产出 markdown，单独提取置顶展示）
         final_report = None
         for step in run.steps:
             out = step.output or {}
-            md = out.get("report_markdown") or out.get("report") or out.get("final_report")
+            md = (
+                out.get("final_answer")
+                or out.get("report_markdown")
+                or out.get("report")
+                or out.get("final_report")
+            )
             if isinstance(md, str) and md.strip():
                 final_report = md
         run_output = run.output or {}
         if not final_report:
-            md = run_output.get("report_markdown") or run_output.get("report")
+            md = (
+                run_output.get("final_answer")
+                or run_output.get("report_markdown")
+                or run_output.get("report")
+            )
             if isinstance(md, str) and md.strip():
                 final_report = md
+        if final_report and not final_artifacts:
+            final_artifacts.append(
+                {
+                    "artifactId": f"artifact_legacy_{run.run_id}",
+                    "type": "report",
+                    "title": "Workflow final report",
+                    "mediaType": "text/markdown",
+                    "content": final_report,
+                    "structuredData": {},
+                    "stepId": None,
+                    "legacy": True,
+                }
+            )
 
         step_states = []
         for step in run.steps:
@@ -2209,6 +2258,8 @@ def create_router(
             "recoveryTrace": _by_type("step_failed", "run_recovered"),
             "scheduleTrace": _by_type("step_scheduled"),
             "deliverables": deliverables,
+            "stepOutputs": step_outputs,
+            "finalArtifacts": final_artifacts,
             "finalReport": final_report,
             "lowEntropyMetrics": {
                 "averageSavingRatio": effective_saving,

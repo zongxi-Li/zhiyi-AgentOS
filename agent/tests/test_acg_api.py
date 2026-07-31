@@ -22,6 +22,21 @@ class _Agent(BaseAgent):
         super().__init__(AgentProfile(agentName=name, domain="demo", capabilities=[name]))
 
     async def run(self, context):
+        if context.step.step_id == "c":
+            return AgentOutput(
+                output={
+                    "final_answer": "# Final delivery\n\nComplete result.",
+                    "artifact": {
+                        "artifactId": "artifact_demo",
+                        "type": "report",
+                        "title": "Demo result",
+                        "mediaType": "text/markdown",
+                        "content": "# Final delivery\n\nComplete result.",
+                        "structuredData": {"summary": "Complete result."},
+                    },
+                },
+                summary="ok",
+            )
         return AgentOutput(
             output={"step": context.step.step_id, "summary": "结论", "evidence_refs": [f"ev_{context.step.step_id}"]},
             summary="ok",
@@ -115,6 +130,20 @@ def test_acg_view_endpoint_exposes_topology_and_provenance():
     assert metrics["contractViolationCount"] == 0
     # 调度轨迹存在（就绪集调度可见）
     assert view["scheduleTrace"]
+    assert len(view["deliverables"]) == 3
+    assert view["stepOutputs"] == view["deliverables"]
+    assert view["finalReport"].startswith("# Final delivery")
+    assert view["finalArtifacts"] == [
+        {
+            "artifactId": "artifact_demo",
+            "type": "report",
+            "title": "Demo result",
+            "mediaType": "text/markdown",
+            "content": "# Final delivery\n\nComplete result.",
+            "structuredData": {"summary": "Complete result."},
+            "stepId": "c",
+        }
+    ]
 
 
 def test_acg_view_recovery_trace_after_fault_injection():

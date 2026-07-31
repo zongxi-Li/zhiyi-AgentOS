@@ -170,7 +170,12 @@
         <template v-if="artifactRenderers.length">
           <component v-for="renderer in artifactRenderers" :key="renderer.pluginId" :is="renderer.component" :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
         </template>
-        <GenericArtifactPanel v-else :deliverables="acgView.deliverables" :final-report="acgView.finalReport" />
+        <GenericArtifactPanel
+          v-else
+          :step-outputs="acgView.stepOutputs || acgView.deliverables"
+          :final-artifacts="acgView.finalArtifacts || []"
+          :final-report="acgView.finalReport"
+        />
         <div class="schedule-strip ui-surface" v-if="scheduleBatches.length">
           <h4>就绪集调度轨迹（动态拓扑）</h4>
           <div class="batch-row">
@@ -574,9 +579,11 @@ const finalReportFromRun = (run: WorkflowRun): string | null => {
 }
 
 const hydrateAcgView = (view: AcgView, run: WorkflowRun): AcgView => {
+  const fallbackOutputs = deliverablesFromRun(run)
   return {
     ...view,
-    deliverables: view.deliverables.length ? view.deliverables : deliverablesFromRun(run),
+    deliverables: view.deliverables.length ? view.deliverables : fallbackOutputs,
+    stepOutputs: view.stepOutputs?.length ? view.stepOutputs : fallbackOutputs,
     finalReport: view.finalReport || finalReportFromRun(run)
   }
 }
