@@ -71,6 +71,25 @@ class _JsonRepairRuntime:
         return await self.valid_runtime.generate_json(**kwargs)
 
 
+class _ThinkingFinalizationRuntime:
+    def __init__(self, valid_runtime, *, fail_always=False):
+        self.valid_runtime = valid_runtime
+        self.fail_always = fail_always
+        self.calls = []
+
+    def is_available(self):
+        return True
+
+    async def generate_json(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1 or self.fail_always:
+            raise StructuredGenerationError(
+                "MODEL_EMPTY_RESPONSE",
+                "OpenAI-compatible provider returned empty JSON content",
+            )
+        return await self.valid_runtime.generate_json(**kwargs)
+
+
 class _FixedRuntime:
     def __init__(self, data):
         self.data = data
@@ -94,12 +113,13 @@ def _context(
     *,
     objective="Design a measurable delivery plan",
     capability="task_understanding",
+    thinking_mode="disabled",
 ):
     catalog = build_default_capability_catalog()
     descriptor = catalog.get(capability)
     task = AgentTask(
         title=objective,
-        input={"userIntent": objective, "thinkingMode": "disabled"},
+        input={"userIntent": objective, "thinkingMode": thinking_mode},
     )
     run = WorkflowRun(
         taskId=task.task_id,
@@ -179,6 +199,60 @@ def test_native_agent_repairs_truncated_json_once(structured_model_runtime):
     assert runtime.calls[-1]["prompt_version"].endswith(".json-repair1")
     assert "smaller response" in runtime.calls[-1]["prompt"]
     assert result.output["constraints"]
+
+
+def test_native_agent_materializes_final_json_after_thinking_returns_empty_content(
+    structured_model_runtime,
+):
+    runtime = _ThinkingFinalizationRuntime(structured_model_runtime)
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(_context(runtime, thinking_mode="standard"))
+    )
+
+    assert [call["thinking_mode"] for call in runtime.calls] == [
+        "standard",
+        "disabled",
+    ]
+    assert runtime.calls[-1]["prompt_version"].endswith(".thinking-finalization1")
+    assert result.output["constraints"]
+    assert result.model_invocations[-1]["usage"] == {
+        "thinkingFallback": True,
+        "thinkingFallbackReason": "MODEL_EMPTY_RESPONSE",
+        "requestedThinkingMode": "standard",
+        "effectiveThinkingMode": "disabled",
+    }
+
+
+def test_native_agent_does_not_hide_empty_content_when_thinking_is_disabled(
+    structured_model_runtime,
+):
+    runtime = _ThinkingFinalizationRuntime(structured_model_runtime)
+
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            NativeGeneralAgent().run(_context(runtime, thinking_mode="disabled"))
+        )
+
+    assert raised.value.code == "MODEL_EMPTY_RESPONSE"
+    assert len(runtime.calls) == 1
+
+
+def test_native_agent_stops_after_one_thinking_finalization_attempt(
+    structured_model_runtime,
+):
+    runtime = _ThinkingFinalizationRuntime(
+        structured_model_runtime,
+        fail_always=True,
+    )
+
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            NativeGeneralAgent().run(_context(runtime, thinking_mode="deep"))
+        )
+
+    assert raised.value.code == "MODEL_EMPTY_RESPONSE"
+    assert [call["thinking_mode"] for call in runtime.calls] == ["deep", "disabled"]
 
 
 def test_native_agent_never_uses_more_than_one_repair(structured_model_runtime):

@@ -144,10 +144,12 @@ class NativeGeneralAgent(BaseAgent):
             output_schema=output_schema,
         )
         thinking_mode = str(context.task.input.get("thinkingMode") or "disabled")
+        output_thinking_mode = thinking_mode
         timeout_seconds = 180.0 if capability == "artifact_generation" else 120.0
         max_output_tokens = 8192 if capability == "artifact_generation" else 4096
         invocations: list[dict[str, Any]] = []
         repair_used = False
+        thinking_fallback_reason: str | None = None
         try:
             generated = await runtime.generate_json(
                 prompt=prompt,
@@ -158,21 +160,52 @@ class NativeGeneralAgent(BaseAgent):
                 prompt_version=NATIVE_CAPABILITY_PROMPT_VERSION,
             )
         except StructuredGenerationError as exc:
-            if exc.code != "MODEL_OUTPUT_INVALID_JSON":
+            thinking_enabled = thinking_mode.strip().lower() not in {
+                "",
+                "disabled",
+                "false",
+                "none",
+                "off",
+            }
+            if exc.code == "MODEL_EMPTY_RESPONSE" and thinking_enabled:
+                thinking_fallback_reason = exc.code
+                output_thinking_mode = "disabled"
+                generated = await runtime.generate_json(
+                    prompt=prompt,
+                    schema=output_schema,
+                    thinking_mode=output_thinking_mode,
+                    timeout_seconds=timeout_seconds,
+                    max_output_tokens=max_output_tokens,
+                    prompt_version=(
+                        f"{NATIVE_CAPABILITY_PROMPT_VERSION}.thinking-finalization1"
+                    ),
+                )
+            elif exc.code != "MODEL_OUTPUT_INVALID_JSON":
                 raise
-            repair_used = True
-            generated = await runtime.generate_json(
-                prompt=self.prompt_builder.build_json_repair(
-                    original_prompt=prompt,
-                    validation_error=str(exc),
-                ),
-                schema=output_schema,
-                thinking_mode=thinking_mode,
-                timeout_seconds=timeout_seconds,
-                max_output_tokens=max_output_tokens,
-                prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.json-repair1",
+            else:
+                repair_used = True
+                generated = await runtime.generate_json(
+                    prompt=self.prompt_builder.build_json_repair(
+                        original_prompt=prompt,
+                        validation_error=str(exc),
+                    ),
+                    schema=output_schema,
+                    thinking_mode=output_thinking_mode,
+                    timeout_seconds=timeout_seconds,
+                    max_output_tokens=max_output_tokens,
+                    prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.json-repair1",
+                )
+        generation_audit = generated.audit_record()
+        if thinking_fallback_reason:
+            generation_audit["usage"].update(
+                {
+                    "thinkingFallback": True,
+                    "thinkingFallbackReason": thinking_fallback_reason,
+                    "requestedThinkingMode": thinking_mode,
+                    "effectiveThinkingMode": output_thinking_mode,
+                }
             )
-        invocations.append(generated.audit_record())
+        invocations.append(generation_audit)
         output = apply_contract_defaults(dict(generated.data), output_schema)
         if capability == "artifact_generation":
             output = self._normalize_artifact_output(context, output)
@@ -197,7 +230,7 @@ class NativeGeneralAgent(BaseAgent):
                     validation_error=str(exc),
                 ),
                 schema=output_schema,
-                thinking_mode=thinking_mode,
+                thinking_mode=output_thinking_mode,
                 timeout_seconds=timeout_seconds,
                 max_output_tokens=max_output_tokens,
                 prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.repair1",
