@@ -30,6 +30,7 @@ def _records(properties: dict, *required: str, max_items: int = 12) -> dict:
 
 
 _TEXT = {"type": "string", "maxLength": 2000}
+_DELIVERABLE_TEXT = {"type": "string", "minLength": 1}
 
 
 def _text_list(*, max_items: int = 12, max_length: int = 800) -> dict:
@@ -255,7 +256,7 @@ def _output_schema(capability_id: str) -> dict:
                     "openQuestions",
                     "sourceRefs",
                 ),
-                "final_answer": {"type": "string", "minLength": 1},
+                "final_answer": _DELIVERABLE_TEXT,
                 "verification": _record(
                     {
                         "status": {"type": "string", "enum": ["passed", "partial", "failed"]},
@@ -272,7 +273,7 @@ def _output_schema(capability_id: str) -> dict:
                     "unresolvedGaps",
                 ),
                 "artifact": _record(
-                    {"artifactId": _TEXT, "type": {"type": "string", "enum": ["report"]}, "title": _TEXT, "mediaType": {"type": "string", "enum": ["text/markdown"]}, "content": _TEXT, "structuredData": {"type": "object"}},
+                    {"artifactId": _TEXT, "type": {"type": "string", "enum": ["report"]}, "title": _TEXT, "mediaType": {"type": "string", "enum": ["text/markdown"]}, "content": _DELIVERABLE_TEXT, "structuredData": {"type": "object"}},
                     "artifactId",
                     "type",
                     "title",

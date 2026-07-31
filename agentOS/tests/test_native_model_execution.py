@@ -391,15 +391,74 @@ def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(
     result = asyncio.run(NativeGeneralAgent().run(context))
 
     prompt = structured_model_runtime.calls[-1]["prompt"]
+    generation_schema = structured_model_runtime.calls[-1]["schema"]
     for field in upstream:
         assert field in prompt
     assert "consumeAllRelevantUpstreamFields" in prompt
+    assert set(generation_schema["properties"]) == {"deliverable", "verification"}
+    assert set(generation_schema["required"]) == {"deliverable", "verification"}
+    assert "final_answer" not in generation_schema["properties"]
+    assert "artifact" not in generation_schema["properties"]
+    assert result.output["final_answer"].startswith("# generated:title")
     assert result.output["artifact"] == {
         "artifactId": "artifact_52676df0e94b2d89",
         "type": "report",
         "title": "generated:title",
         "mediaType": "text/markdown",
-        "content": "generated:final_answer",
+        "content": result.output["final_answer"],
         "structuredData": result.output["deliverable"],
     }
     assert result.output["verification"]["status"] == "passed"
+
+
+def test_artifact_markdown_is_deterministically_rendered_from_semantic_output():
+    runtime = _FixedRuntime(
+        {
+            "deliverable": {
+                "title": "知识库整理计划",
+                "executiveSummary": "两周内完成可验收的知识整理。",
+                "sections": [
+                    {
+                        "title": "实施阶段",
+                        "content": "先盘点，再整理，最后验收。",
+                        "sourceFields": ["requirements"],
+                    }
+                ],
+                "calculations": [
+                    {
+                        "name": "工作量",
+                        "formula": "文档数 / 每日处理量",
+                        "inputs": ["100 份", "20 份/天"],
+                        "result": "5 天",
+                        "assumptions": ["资料可访问"],
+                    }
+                ],
+                "assumptions": ["负责人按时参与"],
+                "openQuestions": ["历史资料保留期限"],
+                "sourceRefs": ["src-1"],
+            },
+            "verification": {
+                "status": "partial",
+                "checks": [
+                    {
+                        "criterion": "范围明确",
+                        "result": "通过",
+                        "evidence": "requirements",
+                    }
+                ],
+                "unresolvedGaps": ["待确认保留期限"],
+            },
+        }
+    )
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(_context(runtime, capability="artifact_generation"))
+    )
+
+    final_answer = result.output["final_answer"]
+    assert "# 知识库整理计划" in final_answer
+    assert "## 实施阶段" in final_answer
+    assert "## 计算与依据" in final_answer
+    assert "## 验收核对" in final_answer
+    assert result.output["artifact"]["content"] == final_answer
+    assert result.output["artifact"]["structuredData"] == result.output["deliverable"]

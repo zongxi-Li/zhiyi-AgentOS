@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from typing import Any
 
 from agentos.adapters.model_adapter import StructuredGenerationError
@@ -125,6 +126,7 @@ class NativeGeneralAgent(BaseAgent):
             )
 
         output_schema = dict(context.step.output_spec or descriptor.output_contract)
+        generation_schema = self._generation_schema(capability, output_schema)
         pack = context.context_pack
         source_data = getattr(pack, "source_data", {}) if pack is not None else {}
         evidence_refs = list(getattr(pack, "evidence_refs", []) or []) if pack is not None else []
@@ -141,7 +143,7 @@ class NativeGeneralAgent(BaseAgent):
             context_data=upstream,
             source_data=dict(source_data) if isinstance(source_data, dict) else {},
             evidence_refs=evidence_refs,
-            output_schema=output_schema,
+            output_schema=generation_schema,
         )
         thinking_mode = str(context.task.input.get("thinkingMode") or "disabled")
         output_thinking_mode = thinking_mode
@@ -153,7 +155,7 @@ class NativeGeneralAgent(BaseAgent):
         try:
             generated = await runtime.generate_json(
                 prompt=prompt,
-                schema=output_schema,
+                schema=generation_schema,
                 thinking_mode=thinking_mode,
                 timeout_seconds=timeout_seconds,
                 max_output_tokens=max_output_tokens,
@@ -172,7 +174,7 @@ class NativeGeneralAgent(BaseAgent):
                 output_thinking_mode = "disabled"
                 generated = await runtime.generate_json(
                     prompt=prompt,
-                    schema=output_schema,
+                    schema=generation_schema,
                     thinking_mode=output_thinking_mode,
                     timeout_seconds=timeout_seconds,
                     max_output_tokens=max_output_tokens,
@@ -189,7 +191,7 @@ class NativeGeneralAgent(BaseAgent):
                         original_prompt=prompt,
                         validation_error=str(exc),
                     ),
-                    schema=output_schema,
+                    schema=generation_schema,
                     thinking_mode=output_thinking_mode,
                     timeout_seconds=timeout_seconds,
                     max_output_tokens=max_output_tokens,
@@ -206,7 +208,7 @@ class NativeGeneralAgent(BaseAgent):
                 }
             )
         invocations.append(generation_audit)
-        output = apply_contract_defaults(dict(generated.data), output_schema)
+        output = apply_contract_defaults(dict(generated.data), generation_schema)
         if capability == "artifact_generation":
             output = self._normalize_artifact_output(context, output)
         try:
@@ -229,14 +231,14 @@ class NativeGeneralAgent(BaseAgent):
                     invalid_data=output,
                     validation_error=str(exc),
                 ),
-                schema=output_schema,
+                schema=generation_schema,
                 thinking_mode=output_thinking_mode,
                 timeout_seconds=timeout_seconds,
                 max_output_tokens=max_output_tokens,
                 prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.repair1",
             )
             invocations.append(repaired.audit_record())
-            output = apply_contract_defaults(dict(repaired.data), output_schema)
+            output = apply_contract_defaults(dict(repaired.data), generation_schema)
             if capability == "artifact_generation":
                 output = self._normalize_artifact_output(context, output)
             try:
@@ -259,7 +261,40 @@ class NativeGeneralAgent(BaseAgent):
         )
 
     @staticmethod
+    def _generation_schema(
+        capability: str,
+        output_schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Return the semantic contract owned by the model.
+
+        Runtime output remains governed by ``output_schema``.  Final Markdown and
+        the Artifact envelope are deterministic projections, so asking the model
+        to reproduce them would duplicate the deliverable and waste its bounded
+        completion budget.
+        """
+
+        schema = deepcopy(output_schema)
+        if capability != "artifact_generation":
+            return schema
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            return schema
+        semantic_fields = {"deliverable", "verification"}
+        schema["properties"] = {
+            name: value
+            for name, value in properties.items()
+            if name in semantic_fields
+        }
+        schema["required"] = [
+            name
+            for name in schema.get("required", [])
+            if name in semantic_fields
+        ]
+        return schema
+
+    @classmethod
     def _normalize_artifact_output(
+        cls,
         context: AgentRunContext,
         output: dict[str, Any],
     ) -> dict[str, Any]:
@@ -276,7 +311,11 @@ class NativeGeneralAgent(BaseAgent):
                 "sourceRefs": [],
             }
             normalized["deliverable"] = deliverable
-        final_answer = str(normalized.get("final_answer") or "").strip()
+        final_answer = cls._render_artifact_markdown(
+            deliverable,
+            normalized.get("verification"),
+        )
+        normalized["final_answer"] = final_answer
         artifact_id = "artifact_" + hashlib.sha256(
             f"{context.run.run_id}:{context.step.step_id}:{context.step.attempt}".encode(
                 "utf-8"
@@ -291,6 +330,96 @@ class NativeGeneralAgent(BaseAgent):
             "structuredData": deliverable,
         }
         return normalized
+
+    @staticmethod
+    def _render_artifact_markdown(
+        deliverable: dict[str, Any],
+        verification: Any,
+    ) -> str:
+        """Render one user-facing artifact from the structured semantic result."""
+
+        def text(value: Any) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, str):
+                return value.strip()
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+        title = text(deliverable.get("title")) or "Workflow deliverable"
+        executive_summary = text(deliverable.get("executiveSummary"))
+        language_sample = title + executive_summary
+        chinese = any("\u4e00" <= character <= "\u9fff" for character in language_sample)
+        labels = {
+            "calculations": "计算与依据" if chinese else "Calculations and basis",
+            "formula": "公式" if chinese else "Formula",
+            "inputs": "输入" if chinese else "Inputs",
+            "result": "结果" if chinese else "Result",
+            "assumptions": "假设" if chinese else "Assumptions",
+            "questions": "待确认事项" if chinese else "Open questions",
+            "sources": "来源引用" if chinese else "Source references",
+            "verification": "验收核对" if chinese else "Verification",
+            "status": "状态" if chinese else "Status",
+            "gaps": "未解决缺口" if chinese else "Unresolved gaps",
+        }
+        lines = [f"# {title}"]
+        if executive_summary:
+            lines.extend(["", executive_summary])
+
+        for section in deliverable.get("sections") or []:
+            if not isinstance(section, dict):
+                continue
+            section_title = text(section.get("title"))
+            content = text(section.get("content"))
+            if section_title:
+                lines.extend(["", f"## {section_title}"])
+            if content:
+                lines.extend(["", content])
+
+        calculations = deliverable.get("calculations") or []
+        if calculations:
+            lines.extend(["", f"## {labels['calculations']}"])
+            for calculation in calculations:
+                if not isinstance(calculation, dict):
+                    continue
+                name = text(calculation.get("name"))
+                if name:
+                    lines.extend(["", f"### {name}"])
+                for key in ("formula", "inputs", "result", "assumptions"):
+                    value = calculation.get(key)
+                    if value in (None, "", []):
+                        continue
+                    rendered = ", ".join(text(item) for item in value) if isinstance(value, list) else text(value)
+                    lines.append(f"- **{labels[key]}**: {rendered}")
+
+        for key, label in (
+            ("assumptions", labels["assumptions"]),
+            ("openQuestions", labels["questions"]),
+            ("sourceRefs", labels["sources"]),
+        ):
+            values = deliverable.get(key) or []
+            if values:
+                lines.extend(["", f"## {label}"])
+                lines.extend(f"- {text(item)}" for item in values)
+
+        if isinstance(verification, dict):
+            lines.extend(["", f"## {labels['verification']}"])
+            status = text(verification.get("status"))
+            if status:
+                lines.append(f"- **{labels['status']}**: {status}")
+            for check in verification.get("checks") or []:
+                if not isinstance(check, dict):
+                    continue
+                criterion = text(check.get("criterion"))
+                result = text(check.get("result"))
+                evidence = text(check.get("evidence"))
+                rendered = " — ".join(item for item in (criterion, result, evidence) if item)
+                if rendered:
+                    lines.append(f"- {rendered}")
+            gaps = verification.get("unresolvedGaps") or []
+            if gaps:
+                lines.append(f"- **{labels['gaps']}**: " + "; ".join(text(item) for item in gaps))
+
+        return "\n".join(lines).strip()
 
     @staticmethod
     def _upstream_data(context: AgentRunContext) -> dict[str, Any]:
