@@ -72,7 +72,7 @@
                   aria-controls="acg-side-panel"
                   @click="handleAcgNavToggle"
                 >
-                  <el-icon><Cpu /></el-icon>
+                  <img class="acg-nav-logo" src="/acglogo.png" alt="" aria-hidden="true" />
                   <span v-if="!mainSidebarCompact" class="chat-nav-label">ACG 动态群体智能引擎</span>
                   <el-icon v-if="!mainSidebarCompact" class="chat-nav-chevron">
                     <ArrowDown v-if="acgNavOpen" />
@@ -105,7 +105,7 @@
                 <span>联邦管理</span>
               </el-menu-item>
               <el-menu-item index="/federated-models">
-                <el-icon><Cpu /></el-icon>
+                <el-icon><Box /></el-icon>
                 <span>模型管理</span>
               </el-menu-item>
               <el-menu-item index="/settings">
@@ -329,7 +329,7 @@
                 <span>{{ $t('nav.chat') }}</span>
               </el-menu-item>
               <el-menu-item index="/agentos/acg">
-                <el-icon><Cpu /></el-icon>
+                <img class="acg-nav-logo" src="/acglogo.png" alt="" aria-hidden="true" />
                 <span>ACG 动态群体智能引擎</span>
               </el-menu-item>
 
@@ -357,7 +357,7 @@
                 <span>联邦管理</span>
               </el-menu-item>
               <el-menu-item index="/federated-models">
-                <el-icon><Cpu /></el-icon>
+                <el-icon><Box /></el-icon>
                 <span>模型管理</span>
               </el-menu-item>
               <el-menu-item index="/settings">
@@ -416,7 +416,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown, ArrowRight, ChatDotRound, ChatLineRound, Delete, EditPen, User, Search,
   Clock, Setting, SwitchButton, Connection,
-  Monitor, Cpu,
+  Monitor, Cpu, Box,
   Menu as MenuIcon, Fold, Expand
 } from '@element-plus/icons-vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
@@ -936,6 +936,7 @@ onUnmounted(() => {
 .primary-sidebar {
   --sidebar-icon-axis: 30px;
   --sidebar-item-icon-inset: 13px;
+  --sidebar-collapsed-menu-icon-offset: 6px;
   position: relative;
   z-index: 2;
   flex: 0 0 auto;
@@ -1292,6 +1293,15 @@ onUnmounted(() => {
   font-size: 18px;
 }
 
+.acg-nav-logo {
+  width: 35px;
+  height: 35px;
+  flex: 0 0 35px;
+  display: block;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
 .chat-nav-label {
   min-width: 0;
   flex: 1;
@@ -1643,14 +1653,20 @@ onUnmounted(() => {
 }
 
 .app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item) {
+  display: flex !important;
   justify-content: center;
+  align-items: center;
   height: 44px;
   padding: 0 !important;
 }
 
 .app-sidebar.collapsed .sidebar-menu :deep(.el-menu-item .el-icon) {
-  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 0 !important;
   font-size: 18px;
+  transform: translateX(var(--sidebar-collapsed-menu-icon-offset));
 }
 
 /* Apple 风格选中态：单层半透明表面，不叠加独立指示条 */
