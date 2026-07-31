@@ -365,6 +365,8 @@ class AgentOsGatewayControllerTest {
         assertEquals("internal", request.securityLevel());
         assertEquals("normal", request.priority());
         assertEquals("auto", request.reviewMode());
+        assertEquals("stable", request.planningDiversity());
+        assertEquals(null, request.planningSeed());
         assertEquals(Map.of(), request.input());
     }
 

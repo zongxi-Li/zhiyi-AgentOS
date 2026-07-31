@@ -16,6 +16,8 @@ public record AsyncWorkflowStartRequest(
         String workflowId,
         String reviewMode,
         String clientRequestId,
+        String planningDiversity,
+        Long planningSeed,
         List<String> enabledPluginIds
 ) {
     public AsyncWorkflowStartRequest {
@@ -25,5 +27,6 @@ public record AsyncWorkflowStartRequest(
         securityLevel = securityLevel == null ? "internal" : securityLevel;
         priority = priority == null ? "normal" : priority;
         reviewMode = reviewMode == null ? "auto" : reviewMode;
+        planningDiversity = planningDiversity == null ? "stable" : planningDiversity;
     }
 }
