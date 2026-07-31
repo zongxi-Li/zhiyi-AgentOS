@@ -11,6 +11,7 @@ from agentos.adapters.model_adapter import (
 )
 from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentRunContext
+from agentos.core.data_contracts import apply_contract_defaults
 from agentos.core.models.types import (
     AgentTask,
     WorkflowDefinition,
@@ -70,9 +71,32 @@ class _JsonRepairRuntime:
         return await self.valid_runtime.generate_json(**kwargs)
 
 
-def _context(model_runtime, *, objective="Design a measurable delivery plan"):
+class _FixedRuntime:
+    def __init__(self, data):
+        self.data = data
+        self.calls = []
+
+    def is_available(self):
+        return True
+
+    async def generate_json(self, **kwargs):
+        self.calls.append(kwargs)
+        return StructuredGenerationResult(
+            data=self.data,
+            provider="test-provider",
+            model="test-model",
+            promptVersion=kwargs["prompt_version"],
+        )
+
+
+def _context(
+    model_runtime,
+    *,
+    objective="Design a measurable delivery plan",
+    capability="task_understanding",
+):
     catalog = build_default_capability_catalog()
-    descriptor = catalog.get("task_understanding")
+    descriptor = catalog.get(capability)
     task = AgentTask(
         title=objective,
         input={"userIntent": objective, "thinkingMode": "disabled"},
@@ -94,10 +118,10 @@ def _context(model_runtime, *, objective="Design a measurable delivery plan"):
         definitionType="native_bootstrap",
     )
     step = WorkflowStep(
-        stepId="understand",
-        name="Understand the task",
+        stepId="execute",
+        name=f"Execute {capability}",
         agentName="native_general_agent",
-        capability="task_understanding",
+        capability=capability,
         outputSpec=descriptor.output_contract,
     )
     return AgentRunContext(
@@ -171,10 +195,41 @@ def test_native_analysis_contract_bounds_response_shape():
     schema = build_default_capability_catalog().get("analysis").output_contract
     properties = schema["properties"]["analysis"]["properties"]
 
-    assert properties["findings"]["maxItems"] == 8
+    assert properties["findings"]["maxItems"] == 12
     assert properties["findings"]["items"]["maxLength"] == 400
-    assert properties["assumptions"]["maxItems"] == 8
-    assert properties["gaps"]["maxItems"] == 8
+    assert properties["assumptions"]["maxItems"] == 12
+    assert properties["assumptions"]["default"] == []
+    assert properties["gaps"]["maxItems"] == 12
+    assert properties["gaps"]["default"] == []
+
+
+def test_contract_defaults_are_schema_driven_and_do_not_mutate_model_output():
+    payload = {"analysis": {"findings": ["finding"]}}
+    schema = build_default_capability_catalog().get("analysis").output_contract
+
+    normalized = apply_contract_defaults(payload, schema)
+
+    assert payload == {"analysis": {"findings": ["finding"]}}
+    assert normalized["analysis"]["assumptions"] == []
+    assert normalized["analysis"]["gaps"] == []
+
+
+def test_native_analysis_accepts_ten_findings_and_declared_empty_defaults():
+    findings = [f"finding {index}" for index in range(10)]
+    runtime = _FixedRuntime({"analysis": {"findings": findings}})
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(_context(runtime, capability="analysis"))
+    )
+
+    assert len(runtime.calls) == 1
+    assert result.output == {
+        "analysis": {
+            "findings": findings,
+            "assumptions": [],
+            "gaps": [],
+        }
+    }
 
 
 def test_failed_run_has_partial_artifacts_but_no_completion_message():

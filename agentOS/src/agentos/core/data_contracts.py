@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Dict
 
 from jsonschema import ValidationError as JSONSchemaValidationError
@@ -50,4 +51,41 @@ def validate_contract_payload(
         ) from exc
 
 
-__all__ = ["ContextContractError", "check_contract_schema", "validate_contract_payload"]
+def apply_contract_defaults(payload: Any, schema: Dict[str, Any]) -> Any:
+    """Copy a payload while applying only explicit JSON Schema defaults.
+
+    Model output remains untrusted input. This conservative normalizer never
+    coerces types, drops array items, or invents undeclared values.
+    """
+
+    if isinstance(payload, dict):
+        normalized = {key: deepcopy(value) for key, value in payload.items()}
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            return normalized
+        for key, property_schema in properties.items():
+            if not isinstance(property_schema, dict):
+                continue
+            if key not in normalized and "default" in property_schema:
+                normalized[key] = deepcopy(property_schema["default"])
+            if key in normalized:
+                normalized[key] = apply_contract_defaults(
+                    normalized[key], property_schema
+                )
+        return normalized
+
+    if isinstance(payload, list):
+        item_schema = schema.get("items")
+        if not isinstance(item_schema, dict):
+            return deepcopy(payload)
+        return [apply_contract_defaults(item, item_schema) for item in payload]
+
+    return deepcopy(payload)
+
+
+__all__ = [
+    "ContextContractError",
+    "apply_contract_defaults",
+    "check_contract_schema",
+    "validate_contract_payload",
+]

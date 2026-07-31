@@ -175,7 +175,24 @@ def _output_schema(capability_id: str) -> dict:
             "data_flow",
         ),
         "analysis": _record(
-            {"analysis": _record({"findings": _text_list(max_items=8, max_length=400), "assumptions": _text_list(max_items=8, max_length=400), "gaps": _text_list(max_items=8, max_length=400)}, "findings", "assumptions", "gaps")},
+            {
+                "analysis": _record(
+                    {
+                        "findings": _text_list(max_items=12, max_length=400),
+                        "assumptions": {
+                            **_text_list(max_items=12, max_length=400),
+                            "default": [],
+                        },
+                        "gaps": {
+                            **_text_list(max_items=12, max_length=400),
+                            "default": [],
+                        },
+                    },
+                    "findings",
+                    "assumptions",
+                    "gaps",
+                )
+            },
             "analysis",
         ),
         "evidence_analysis": _record(

@@ -8,7 +8,11 @@ from typing import Any
 
 from agentos.adapters.model_adapter import StructuredGenerationError
 from agentos.agents.base import AgentOutput, AgentProfile, AgentRunContext, BaseAgent
-from agentos.core.data_contracts import ContextContractError, validate_contract_payload
+from agentos.core.data_contracts import (
+    ContextContractError,
+    apply_contract_defaults,
+    validate_contract_payload,
+)
 from agentos.core.models.types import WorkflowDefinition, WorkflowDefinitionType, utc_now
 from agentos.core.native_prompt import (
     NATIVE_CAPABILITY_PROMPT_VERSION,
@@ -169,7 +173,7 @@ class NativeGeneralAgent(BaseAgent):
                 prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.json-repair1",
             )
         invocations.append(generated.audit_record())
-        output = dict(generated.data)
+        output = apply_contract_defaults(dict(generated.data), output_schema)
         if capability == "artifact_generation":
             output = self._normalize_artifact_output(context, output)
         try:
@@ -199,7 +203,7 @@ class NativeGeneralAgent(BaseAgent):
                 prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.repair1",
             )
             invocations.append(repaired.audit_record())
-            output = dict(repaired.data)
+            output = apply_contract_defaults(dict(repaired.data), output_schema)
             if capability == "artifact_generation":
                 output = self._normalize_artifact_output(context, output)
             try:
