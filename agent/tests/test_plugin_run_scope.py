@@ -46,6 +46,8 @@ def _task(runtime, *, legal: bool, enabled):
             else {
                 "userIntent": "Create an implementation plan",
                 "planningMode": "dynamic",
+                "planningDiversity": "balanced",
+                "planningSeed": 284731,
                 "thinkingMode": "disabled",
             }
         ),
@@ -70,6 +72,8 @@ def test_native_only_and_legal_runs_are_isolated_in_one_runtime():
         assert native_run.status.value == "completed"
         assert native_run.enabled_plugin_ids == []
         assert native_run.plugin_snapshot == []
+        assert native_run.planning_diversity == "balanced"
+        assert native_run.planning_seed == 284731
         assert all(
             (node.current_binding or {}).get("source") == "native"
             for node in native_run.runtime_graph.nodes

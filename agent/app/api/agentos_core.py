@@ -65,6 +65,12 @@ class AgentTaskCreateRequest(BaseModel):
     enabled_plugin_ids: Optional[list[str]] = Field(
         default=None, alias="enabledPluginIds"
     )
+    planning_diversity: Optional[Literal["stable", "balanced", "exploratory"]] = Field(
+        default=None, alias="planningDiversity"
+    )
+    planning_seed: Optional[int] = Field(
+        default=None, alias="planningSeed", ge=0, le=2**53 - 1
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -120,6 +126,12 @@ class WorkflowStartRequest(BaseModel):
     client_request_id: Optional[str] = Field(default=None, alias="clientRequestId")
     enabled_plugin_ids: Optional[list[str]] = Field(
         default=None, alias="enabledPluginIds"
+    )
+    planning_diversity: Optional[Literal["stable", "balanced", "exploratory"]] = Field(
+        default=None, alias="planningDiversity"
+    )
+    planning_seed: Optional[int] = Field(
+        default=None, alias="planningSeed", ge=0, le=2**53 - 1
     )
 
     @model_validator(mode="before")
@@ -384,6 +396,8 @@ def _workflow_start_fingerprint(request: WorkflowStartRequest) -> str:
         "workflowId": request.workflow_id,
         "reviewMode": request.review_mode,
         "enabledPluginIds": request.enabled_plugin_ids,
+        "planningDiversity": request.planning_diversity,
+        "planningSeed": request.planning_seed,
     }
     canonical = json.dumps(critical, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -450,9 +464,14 @@ async def _create_task_and_submit(
 
 def _normalize_acg_start_request(request: WorkflowStartRequest) -> WorkflowStartRequest:
     source = str(request.input.get("source") or "").strip()
-    if source not in {"acg", "acg-workbench"}:
-        return request
-    return request.model_copy(update={"input": {**request.input, "source": "acg"}})
+    normalized_input = dict(request.input)
+    if source in {"acg", "acg-workbench"}:
+        normalized_input["source"] = "acg"
+    if request.planning_diversity is not None:
+        normalized_input["planningDiversity"] = request.planning_diversity
+    if request.planning_seed is not None:
+        normalized_input["planningSeed"] = request.planning_seed
+    return request.model_copy(update={"input": normalized_input})
 
 
 def _resolve_source_materials(request: WorkflowStartRequest) -> WorkflowStartRequest:
@@ -1703,11 +1722,16 @@ def create_router(
     @router.post("/core/tasks")
     async def create_task(request: AgentTaskCreateRequest):
         try:
+            task_input = dict(request.input)
+            if request.planning_diversity is not None:
+                task_input["planningDiversity"] = request.planning_diversity
+            if request.planning_seed is not None:
+                task_input["planningSeed"] = request.planning_seed
             task = runtime.create_task(
                 title=request.title,
                 domain=request.domain,
                 intent=request.intent,
-                input=_input_with_authenticated_actor(request.input),
+                input=_input_with_authenticated_actor(task_input),
                 security_level=request.security_level,
                 priority=request.priority,
                 role_type=request.role_type,

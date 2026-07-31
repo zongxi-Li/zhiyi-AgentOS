@@ -104,6 +104,11 @@ def test_sqlite_roundtrips_frozen_plugin_scope(tmp_path):
         resolvedEnabledPluginIds=["kinlin.legal"],
         pluginSnapshot=[snapshot],
         capabilityCatalogRevision="catalog-revision",
+        planningDiversity="balanced",
+        planningSeed=284731,
+        plannerAlgorithmVersion="controlled-stochastic-v1",
+        planningCandidateCount=4,
+        selectedPlanningVariantId="variant_example",
         executionScope=scope,
     )
 
@@ -114,6 +119,11 @@ def test_sqlite_roundtrips_frozen_plugin_scope(tmp_path):
     assert loaded.plugin_snapshot == [snapshot]
     assert loaded.resolved_enabled_plugin_ids == ["kinlin.legal"]
     assert loaded.legacy_plugin_scope is False
+    assert loaded.planning_diversity == "balanced"
+    assert loaded.planning_seed == 284731
+    assert loaded.planner_algorithm_version == "controlled-stochastic-v1"
+    assert loaded.planning_candidate_count == 4
+    assert loaded.selected_planning_variant_id == "variant_example"
 
 
 def test_sqlite_workflow_store_persists_tasks_and_runs(tmp_path):
