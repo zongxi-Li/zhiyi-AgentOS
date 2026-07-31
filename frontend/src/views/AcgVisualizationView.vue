@@ -1300,7 +1300,7 @@ onBeforeUnmount(() => {
 .contract-upload__actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 
 .acg-view > :deep(.workflow-review) { margin-top: var(--space-lg); }
-.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 11px; margin-top: 11px; align-items: stretch; min-width: 0; }
+.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 11px; margin-top: 16px; align-items: stretch; min-width: 0; }
 .grid-main { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
 .grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; min-height: 0; }
 .grid-side :deep(.acg-provenance) { flex: 1 1 auto; min-height: 0; }
