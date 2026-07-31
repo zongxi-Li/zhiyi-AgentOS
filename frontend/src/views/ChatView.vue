@@ -316,7 +316,7 @@
                   @click="openRoleTemplateDialog"
                 >
                   <el-icon><component :is="agentIcon" /></el-icon>
-                  {{ currentRole?.name || 'Agent' }} 模式
+                  {{ composerModeLabel }}
                   <el-icon class="composer-agent-mode__chevron"><ArrowDownBold /></el-icon>
                 </button>
                 <button
@@ -756,6 +756,18 @@
         <el-button text @click="showRoleDrawer = false"><el-icon><Close /></el-icon></el-button>
       </div>
       <div class="role-list">
+        <div
+          class="role-item"
+          :class="{ active: !currentRole && !selectedRoleId }"
+          @click="selectGeneralMode"
+        >
+          <el-avatar :size="36">通</el-avatar>
+          <div class="role-text">
+            <div class="name">通用模式</div>
+            <div class="desc">不绑定角色，按任务智能路由</div>
+          </div>
+          <el-icon v-if="!currentRole && !selectedRoleId"><Check /></el-icon>
+        </div>
         <div
           v-for="role in roles"
           :key="role.id"
@@ -1488,7 +1500,8 @@ const agentTitle = computed(() => {
   if (isTeacherMode.value) return '教师 Agent 对话'
   if (isProgrammerMode.value) return '程序员 Agent 对话'
   if (isWriterMode.value) return '作家 Agent 对话'
-  return '开始一次新对话'
+  if (currentRole.value?.name) return `${currentRole.value.name} Agent 对话`
+  return isAgentMode.value ? '通用 Agent 对话' : '通用 Chat 对话'
 })
 
 const agentSubtitle = computed(() => {
@@ -1496,7 +1509,15 @@ const agentSubtitle = computed(() => {
   if (isTeacherMode.value) return '智能学情诊断、个性化教案与作业批改'
   if (isProgrammerMode.value) return '需求分析、代码库语义检索、代码生成与 Mermaid 图表'
   if (isWriterMode.value) return '灵感拓展、大纲生成、正文写作与人物关系图'
-  return '你可以直接输入问题，或使用下方快捷模板。'
+  if (currentRole.value?.description) return currentRole.value.description
+  return isAgentMode.value
+    ? '理解复杂任务，动态规划并协同多个智能体完成交付'
+    : '面向日常问答、知识检索、分析与内容创作'
+})
+
+const composerModeLabel = computed(() => {
+  if (currentRole.value?.name) return `${currentRole.value.name} 模式`
+  return isAgentMode.value ? '通用 Agent' : '通用 Chat'
 })
 
 const latestLawyerMessage = computed(() => {
@@ -1968,6 +1989,34 @@ const selectRole = async (role: any): Promise<boolean> => {
   return true
 }
 
+const selectGeneralMode = async (): Promise<boolean> => {
+  if (chatStore.messages.length > 0) {
+    try {
+      await ElMessageBox.confirm(
+        '切换到通用模式会清空当前对话，是否继续？',
+        '切换模式',
+        {
+          confirmButtonText: '继续',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+      chatStore.clearMessages()
+    } catch {
+      return false
+    }
+  }
+
+  selectedRoleId.value = null
+  roleStore.clearCurrentRole()
+  chatStore.setRole(null)
+  selectedChatTemplateKey.value = 'general-auto'
+  localStorage.setItem(CHAT_TEMPLATE_KEY, 'general-auto')
+  showRoleDrawer.value = false
+  ElMessage.success('已切换到通用模式')
+  return true
+}
+
 const roleNameAliases: Record<RoleId, string[]> = {
   lawyer: ['律师', '法律', 'lawyer'],
   teacher: ['教师', '教学', 'teacher'],
@@ -1987,7 +2036,13 @@ const findRuntimeRole = (roleId: RoleId) => {
   })
 }
 
-const applyRoleTemplateSelection = async (selection: { roleId: RoleId; templateKey: string }) => {
+const applyRoleTemplateSelection = async (selection: { roleId: RoleId | 'general'; templateKey: string }) => {
+  if (selection.roleId === 'general') {
+    const switched = await selectGeneralMode()
+    if (switched) roleTemplateDialogOpen.value = false
+    return
+  }
+
   const targetRole = findRuntimeRole(selection.roleId)
   const template = roleTemplateGroups
     .find(role => role.id === selection.roleId)
@@ -2090,17 +2145,6 @@ const sendAgentWorkspaceMessage = async () => {
 const sendMessage = async () => {
   if (loading.value) return
   if (!inputText.value.trim() && !isRecording.value) return
-
-  if (!selectedRoleId.value && roles.value.length > 0) {
-    const firstRole = roles.value[0]
-    await roleStore.setCurrentRole(firstRole)
-    selectedRoleId.value = firstRole.id
-    chatStore.setRole(firstRole.id)
-  } else if (!selectedRoleId.value) {
-    ElMessage.warning('请先选择角色')
-    showRoleDrawer.value = true
-    return
-  }
 
   if (isAgentMode.value) {
     await sendAgentWorkspaceMessage()
@@ -2209,10 +2253,10 @@ const upgradeChatToWorkflow = async () => {
   inputText.value = ''
   try {
     const result = await chatStore.upgradeToWorkflow(userText, {
-      domain: 'legal',
-      intent: isLawyerMode.value ? 'case_analysis' : 'case_analysis',
-      workflowId: 'legal_case_analysis_v1',
-      reviewMode: 'human_in_loop',
+      domain: isLawyerMode.value ? 'legal' : 'general',
+      intent: isLawyerMode.value ? 'case_analysis' : 'general',
+      workflowId: isLawyerMode.value ? 'legal_case_analysis_v1' : undefined,
+      reviewMode: isLawyerMode.value ? 'human_in_loop' : 'auto',
       conversationId,
       clientRequestId
     })
@@ -2313,13 +2357,6 @@ const handleFileSelected = async (file: any) => {
     showFileManager.value = false
     ElMessage.info('教师模式建议使用“上传作业”按钮自动 OCR 注入文本')
     return
-  }
-
-  if (!selectedRoleId.value && roles.value.length > 0) {
-    const firstRole = roles.value[0]
-    await roleStore.setCurrentRole(firstRole)
-    selectedRoleId.value = firstRole.id
-    chatStore.setRole(firstRole.id)
   }
 
   showFileManager.value = false
@@ -2472,9 +2509,8 @@ watch(
 watch(
   () => roleStore.currentRole,
   newRole => {
-    if (!newRole) return
-    selectedRoleId.value = newRole.id
-    chatStore.setRole(newRole.id)
+    selectedRoleId.value = newRole?.id || null
+    chatStore.setRole(newRole?.id || null)
   },
   { immediate: true }
 )
@@ -2596,17 +2632,8 @@ onMounted(async () => {
     recommendationCollapsed.value = false
   }
 
-  if (roles.value.length > 0) {
-    if (!roleStore.currentRole) {
-      const firstRole = roles.value[0]
-      await roleStore.setCurrentRole(firstRole)
-      selectedRoleId.value = firstRole.id
-      chatStore.setRole(firstRole.id)
-    } else {
-      selectedRoleId.value = roleStore.currentRole.id
-      chatStore.setRole(roleStore.currentRole.id)
-    }
-  }
+  selectedRoleId.value = roleStore.currentRole?.id || null
+  chatStore.setRole(roleStore.currentRole?.id || null)
 
   bindMessagesScroll()
 })

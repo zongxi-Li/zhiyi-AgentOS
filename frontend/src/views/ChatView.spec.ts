@@ -77,7 +77,8 @@ function createRoleStoreMock() {
     ],
     currentRole: { id: 'role_1', name: '律师' },
     loadRoles: vi.fn().mockResolvedValue(undefined),
-    setCurrentRole: vi.fn().mockResolvedValue(undefined)
+    setCurrentRole: vi.fn().mockResolvedValue(undefined),
+    clearCurrentRole: vi.fn(() => { roleStoreMock.currentRole = null })
   })
 }
 
@@ -216,6 +217,43 @@ describe('ChatView ACG progress integration', () => {
     expect(wrapper.get('.chat-panel').classes()).not.toContain('hero-mode')
     expect(wrapper.find('.context-panel').exists()).toBe(true)
     expect(wrapper.find('.workflow-acg-panel').exists()).toBe(true)
+  })
+
+  it('shows distinct general interfaces for Agent and Chat without auto-selecting a role', async () => {
+    roleStoreMock.currentRole = null
+    const { wrapper, router } = await mountPage('?workspace=agent')
+
+    expect(wrapper.text()).toContain('通用 Agent 对话')
+    expect(wrapper.get('.composer-agent-mode').text()).toContain('通用 Agent')
+    expect(roleStoreMock.setCurrentRole).not.toHaveBeenCalled()
+    expect(chatStoreMock.setRole).toHaveBeenCalledWith(null)
+
+    await router.push('/chat?workspace=chat')
+    window.dispatchEvent(new CustomEvent('workspace-mode-change', { detail: 'chat' }))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('通用 Chat 对话')
+    expect(wrapper.get('.composer-agent-mode').text()).toContain('通用 Chat')
+    wrapper.unmount()
+  })
+
+  it('routes a general Agent task through dynamic ACG parameters', async () => {
+    roleStoreMock.currentRole = null
+    const { wrapper } = await mountPage('?workspace=agent')
+    await wrapper.get('.composer-card textarea').setValue('制定一个跨部门产品发布计划')
+    await wrapper.get('.composer-send').trigger('click')
+    await flushPromises()
+
+    expect(chatStoreMock.upgradeToWorkflow).toHaveBeenCalledWith(
+      '制定一个跨部门产品发布计划',
+      expect.objectContaining({
+        domain: 'general',
+        intent: 'general',
+        workflowId: undefined,
+        reviewMode: 'auto'
+      })
+    )
+    wrapper.unmount()
   })
 
   afterEach(() => {

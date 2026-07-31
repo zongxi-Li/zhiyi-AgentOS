@@ -10,10 +10,7 @@
         @click="$emit('select', conversation)"
       >
         <div class="item-left">
-          <div 
-            class="avatar-wrapper"
-            :style="{ background: getRandomGradient(conversation.id) }"
-          >
+          <div class="avatar-wrapper">
             <el-icon v-if="!conversation.avatar"><User /></el-icon>
             <span v-else class="avatar-text">{{ conversation.title?.charAt(0) || 'C' }}</span>
           </div>
@@ -111,20 +108,6 @@ defineEmits<{
 
 const conversations = ref<Conversation[]>([])
 const loading = ref(false)
-
-// Generate a consistent gradient based on ID
-const getRandomGradient = (id: string) => {
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  const hues = [
-    ['#6366f1', '#8b5cf6'],
-    ['#3b82f6', '#06b6d4'],
-    ['#f59e0b', '#d97706'],
-    ['#ec4899', '#a855f7'],
-    ['#10b981', '#3b82f6']
-  ]
-  const [c1, c2] = hues[hash % hues.length]
-  return `linear-gradient(135deg, ${c1}, ${c2})`
-}
 
 // 从API获取对话列表
 const loadConversations = async () => {
@@ -531,6 +514,49 @@ $shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
     background-position: -200% 0;
   }
 }
+
+/* Compact history list aligned with the app workbench. */
+.conversation-list-container { min-height: 0; }
+.list-content { display: flex; flex-direction: column; gap: 0; }
+.conversation-item {
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border-light);
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  transition: background-color 160ms ease;
+}
+.conversation-item::before { display: none; }
+.conversation-item:last-child { border-bottom: 0; }
+.conversation-item:hover { transform: none; box-shadow: none; border-color: var(--border-light); background: var(--primary-fade); }
+.item-left .avatar-wrapper {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--primary-line);
+  border-radius: 7px;
+  color: var(--primary-color);
+  background: var(--bg-card);
+  box-shadow: none;
+  font-size: 15px;
+}
+.item-main { gap: 3px; }
+.item-header { align-items: center; }
+.item-header .title { font-size: 13px; line-height: 1.3; }
+.item-header .time { font-size: 10px; }
+.item-preview { max-width: 760px; font-size: 11px; line-height: 1.4; -webkit-line-clamp: 1; }
+.item-right .action-buttons { gap: 2px; opacity: 1; transform: none; }
+.item-right .action-btn { width: 26px; height: 26px; border-radius: 5px; color: var(--text-disabled); }
+.item-right .action-btn .el-icon { font-size: 13px; }
+.loading-state { display: flex; flex-direction: column; gap: 0; }
+.skeleton-item { padding: 9px 12px; border: 0; border-bottom: 1px solid var(--border-light); border-radius: 0; }
+.empty-state { padding: 64px 20px; }
+.empty-state .empty-content .empty-icon { width: 40px; height: 40px; margin-bottom: 10px; border-radius: 8px; font-size: 20px; background: var(--primary-fade); }
+.empty-state .empty-content .empty-text { margin-bottom: 4px; font-size: 13px; }
+.empty-state .empty-content .empty-hint { font-size: 11px; }
 
 // 空状态
 .empty-state {

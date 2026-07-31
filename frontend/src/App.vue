@@ -995,7 +995,8 @@ onUnmounted(() => {
 
 .sidebar-header {
   flex-shrink: 0;
-  height: 54px;
+  box-sizing: border-box;
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: space-between;
