@@ -16,8 +16,16 @@ from agentos.core.planning.cognitive_router import (
 )
 from agentos.core.planning.engine import ACGPlanningError, PlanningEngine, PlanResult
 from agentos.core.planning.intent_parser import IntentLLM, IntentParser
-from agentos.core.planning.profile import TaskSemanticProfile
+from agentos.core.planning.profile import CapabilityCandidate, TaskSemanticProfile
 from agentos.core.planning.template_matcher import TemplateMatch, TemplateMatcher
+from agentos.core.planning.variants import (
+    PLANNER_ALGORITHM_VERSION,
+    PlanningDiversity,
+    PlanningVariant,
+    PlanningVariantGenerator,
+    normalize_planning_diversity,
+    normalize_planning_seed,
+)
 
 __all__ = [
     "PlanningEngine",
@@ -26,6 +34,7 @@ __all__ = [
     "IntentParser",
     "IntentLLM",
     "TaskSemanticProfile",
+    "CapabilityCandidate",
     "TemplateMatcher",
     "TemplateMatch",
     "CognitiveRouter",
@@ -34,4 +43,10 @@ __all__ = [
     "ACGBuilder",
     "CapabilityCatalog",
     "PlanningCapabilityDescriptor",
+    "PLANNER_ALGORITHM_VERSION",
+    "PlanningDiversity",
+    "PlanningVariant",
+    "PlanningVariantGenerator",
+    "normalize_planning_diversity",
+    "normalize_planning_seed",
 ]

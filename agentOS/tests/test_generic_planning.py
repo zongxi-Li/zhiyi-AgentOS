@@ -431,7 +431,7 @@ def test_generic_builder_follows_descriptor_dependencies_instead_of_fixed_graph(
 
 def test_generic_builder_api_and_source_have_no_task_scene_input_or_branches():
     parameters = set(inspect.signature(ACGBuilder.build).parameters)
-    assert parameters == {"self", "task_id", "profile", "network"}
+    assert parameters == {"self", "task_id", "profile", "network", "variant"}
 
     source = inspect.getsource(ACGBuilder)
     assert all(

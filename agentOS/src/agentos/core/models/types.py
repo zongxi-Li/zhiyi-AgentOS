@@ -106,6 +106,7 @@ class TraceEventType(str, Enum):
     RUN_RECOVERED = "run_recovered"
     RUN_COMPLETED = "run_completed"
     RUN_CANCELLED = "run_cancelled"
+    STOCHASTIC_PLANNING_FALLBACK = "stochastic_planning_fallback"
 
 
 class ReviewDecisionType(str, Enum):
@@ -290,6 +291,19 @@ class WorkflowRun(CoreModel):
     plugin_snapshot: List[PluginSnapshot] = Field(default_factory=list, alias="pluginSnapshot")
     capability_catalog_revision: Optional[str] = Field(
         default=None, alias="capabilityCatalogRevision"
+    )
+    planning_diversity: Literal["stable", "balanced", "exploratory"] = Field(
+        default="stable", alias="planningDiversity"
+    )
+    planning_seed: Optional[int] = Field(
+        default=None, alias="planningSeed", ge=0, le=2**53 - 1
+    )
+    planner_algorithm_version: Optional[str] = Field(
+        default=None, alias="plannerAlgorithmVersion"
+    )
+    planning_candidate_count: int = Field(default=1, alias="planningCandidateCount", ge=1)
+    selected_planning_variant_id: Optional[str] = Field(
+        default=None, alias="selectedPlanningVariantId"
     )
     execution_scope: Optional[RunExecutionScope] = Field(default=None, alias="executionScope")
     legacy_plugin_scope: bool = Field(default=False, alias="legacyPluginScope")

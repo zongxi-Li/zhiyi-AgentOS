@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from agentos.core.acg import (
     ACGBlueprint,
@@ -21,6 +22,9 @@ from agentos.core.planning.cognitive_router import CollaborationNetwork
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.profile import TaskSemanticProfile
 
+if TYPE_CHECKING:
+    from agentos.core.planning.variants import PlanningVariant
+
 
 class ACGBuilder:
     """Build one executable graph using descriptor dependencies and contracts."""
@@ -34,6 +38,7 @@ class ACGBuilder:
         task_id: str,
         profile: TaskSemanticProfile,
         network: CollaborationNetwork,
+        variant: "PlanningVariant | None" = None,
     ) -> ACGBlueprint:
         self.capability_catalog.validate()
         if not network.bindings:
@@ -50,6 +55,8 @@ class ACGBuilder:
                 "estimatedEntropy": network.estimated_entropy,
             },
         )
+        if variant is not None:
+            blueprint.metadata["planningVariantId"] = variant.variant_id
         selected = [binding.capability for binding in network.bindings]
         selected_set = set(selected)
         descriptors = {
@@ -60,7 +67,9 @@ class ACGBuilder:
             capability_id: self._selected_dependencies(
                 capability_id,
                 selected_set,
-                include_optional=True,
+                optional_dependencies=(
+                    variant.optional_for(capability_id) if variant else None
+                ),
             )
             for capability_id in selected
         }
@@ -85,6 +94,9 @@ class ACGBuilder:
             step_by_capability,
             descriptors,
             control_dependencies,
+            enable_parallel_controls=(
+                variant.enable_parallel_controls if variant else True
+            ),
         )
         self._wire_data_contracts(
             blueprint,
@@ -203,6 +215,8 @@ class ACGBuilder:
         step_by_capability,
         descriptors,
         dependencies,
+        *,
+        enable_parallel_controls: bool,
     ) -> None:
         start = ControlNode(nodeId="ctrl_start", name="START", controlType=ControlType.START)
         end = ControlNode(nodeId="ctrl_end", name="END", controlType=ControlType.END)
@@ -215,7 +229,11 @@ class ACGBuilder:
                 groups[(descriptor.planning_stage, tuple(dependencies[capability_id]))].append(
                     capability_id
                 )
-        parallel_groups = [items for items in groups.values() if len(items) > 1]
+        parallel_groups = (
+            [items for items in groups.values() if len(items) > 1]
+            if enable_parallel_controls
+            else []
+        )
         group_for = {
             capability_id: group_index
             for group_index, group in enumerate(parallel_groups, start=1)
@@ -321,15 +339,22 @@ class ACGBuilder:
         capability_id: str,
         selected: set[str],
         *,
-        include_optional: bool,
+        optional_dependencies: tuple[str, ...] | None,
     ) -> list[str]:
         descriptor = self.capability_catalog.get(capability_id)
         dependencies = list(descriptor.depends_on)
-        if include_optional:
+        if optional_dependencies is None:
             dependencies.extend(
                 dependency
                 for dependency in descriptor.optional_dependencies
                 if dependency in selected
+            )
+        else:
+            declared = set(descriptor.optional_dependencies)
+            dependencies.extend(
+                dependency
+                for dependency in optional_dependencies
+                if dependency in selected and dependency in declared
             )
         return list(dict.fromkeys(dependency for dependency in dependencies if dependency in selected))
 

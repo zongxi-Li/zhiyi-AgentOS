@@ -5,11 +5,22 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentos.core.acg.enums import ComplexityLevel
+
+
+class CapabilityCandidate(BaseModel):
+    """Catalog-normalized semantic candidate with an auditable confidence score."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    capability_id: str = Field(alias="capabilityId")
+    score: float = Field(ge=0, le=1)
+    matched_terms: List[str] = Field(default_factory=list, alias="matchedTerms")
+    source: Literal["catalog_alias", "llm", "fallback", "dependency"]
 
 
 class TaskSemanticProfile(BaseModel):
@@ -20,6 +31,9 @@ class TaskSemanticProfile(BaseModel):
     primary_goal: str = Field(default="", alias="primaryGoal")
     key_constraints: List[str] = Field(default_factory=list, alias="keyConstraints")
     required_capabilities: List[str] = Field(default_factory=list, alias="requiredCapabilities")
+    capability_candidates: List[CapabilityCandidate] = Field(
+        default_factory=list, alias="capabilityCandidates"
+    )
     expected_artifacts: List[str] = Field(default_factory=list, alias="expectedArtifacts")
     verification_requirements: List[str] = Field(
         default_factory=list,
@@ -41,4 +55,4 @@ class TaskSemanticProfile(BaseModel):
         return f"[{self.domain_hint}/{self.task_type_hint}] {self.primary_goal} | caps={caps}"
 
 
-__all__ = ["TaskSemanticProfile"]
+__all__ = ["CapabilityCandidate", "TaskSemanticProfile"]

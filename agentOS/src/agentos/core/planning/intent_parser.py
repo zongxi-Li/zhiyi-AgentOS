@@ -10,7 +10,7 @@ from agentos.core.planning.capabilities import (
     highest_planning_risk_level,
 )
 from agentos.core.planning.default_catalog import build_default_capability_catalog
-from agentos.core.planning.profile import TaskSemanticProfile
+from agentos.core.planning.profile import CapabilityCandidate, TaskSemanticProfile
 
 
 class IntentLLM(Protocol):
@@ -90,6 +90,15 @@ class IntentParser:
             data.get("requiredCapabilities") or [],
             domain=domain,
         )
+        data["capabilityCandidates"] = [
+            CapabilityCandidate(
+                capabilityId=capability_id,
+                score=1.0,
+                matchedTerms=[],
+                source="llm",
+            ).model_dump(by_alias=True)
+            for capability_id in data["requiredCapabilities"]
+        ]
         profile = TaskSemanticProfile.model_validate(data)
         if not profile.primary_goal.strip() or not profile.required_capabilities:
             raise ValueError("LLM returned no executable registered capability")
@@ -120,10 +129,12 @@ class IntentParser:
             if length > 200
             else ComplexityLevel.SIMPLE
         )
-        capabilities = self._infer_capabilities(text, domain)
+        candidates = self._infer_capability_candidates(text, domain)
+        capabilities = [candidate.capability_id for candidate in candidates]
         profile = TaskSemanticProfile(
             primaryGoal=text[:80] or task_type,
             requiredCapabilities=capabilities,
+            capabilityCandidates=candidates,
             expectedArtifacts=["deliverable"] if "artifact_generation" in capabilities else [],
             verificationRequirements=["verification"] if "verification" in capabilities else [],
             estimatedComplexity=complexity,
@@ -145,7 +156,27 @@ class IntentParser:
         normalized = self._normalize_capabilities(profile.required_capabilities, domain=domain)
         if not normalized:
             normalized = list(_NATIVE_FALLBACK)
+        explicit_capabilities = set(normalized)
         profile.required_capabilities = self.capability_catalog.expand_dependencies(normalized)
+        by_capability = {
+            candidate.capability_id: candidate for candidate in profile.capability_candidates
+        }
+        profile.capability_candidates = [
+            by_capability.get(capability_id)
+            or CapabilityCandidate(
+                capabilityId=capability_id,
+                score=1.0,
+                matchedTerms=[],
+                source=(
+                    "dependency"
+                    if capability_id not in explicit_capabilities
+                    else "fallback"
+                    if capability_id in _NATIVE_FALLBACK
+                    else "catalog_alias"
+                ),
+            )
+            for capability_id in profile.required_capabilities
+        ]
         profile.risk_level = highest_planning_risk_level(
             [
                 profile.risk_level,
@@ -162,25 +193,74 @@ class IntentParser:
         return profile
 
     def _infer_capabilities(self, text: str, domain: str) -> list[str]:
+        return [
+            candidate.capability_id
+            for candidate in self._infer_capability_candidates(text, domain)
+        ]
+
+    def _infer_capability_candidates(
+        self, text: str, domain: str
+    ) -> list[CapabilityCandidate]:
         normalized_text = "".join(text.lower().split())
-        matches: list[str] = []
+        matches: list[CapabilityCandidate] = []
         for descriptor in self.capability_catalog.available(domain):
-            terms = [*descriptor.aliases]
-            if any(
-                (term_normalized := "".join(term.lower().split()))
+            matched_terms = [
+                term
+                for term in descriptor.aliases
+                if (term_normalized := "".join(term.lower().split()))
                 and term_normalized in normalized_text
-                for term in terms
-            ):
-                matches.append(descriptor.capability_id)
+            ]
+            if matched_terms:
+                longest = max(len("".join(term.split())) for term in matched_terms)
+                score = min(1.0, 0.6 + 0.08 * len(matched_terms) + longest / 200)
+                matches.append(
+                    CapabilityCandidate(
+                        capabilityId=descriptor.capability_id,
+                        score=round(score, 4),
+                        matchedTerms=matched_terms,
+                        source="catalog_alias",
+                    )
+                )
 
         if domain.strip().lower() == "general":
-            specialized = [item for item in matches if item not in _NATIVE_FALLBACK]
+            specialized = [
+                item for item in matches if item.capability_id not in _NATIVE_FALLBACK
+            ]
             if not specialized:
-                return list(_NATIVE_FALLBACK)
-            matches = ["task_understanding", *specialized]
-            if "artifact_generation" not in matches:
-                matches.append("artifact_generation")
-        return self._normalize_capabilities(matches, domain=domain)
+                return [
+                    CapabilityCandidate(
+                        capabilityId=capability_id,
+                        score=1.0,
+                        matchedTerms=[],
+                        source="fallback",
+                    )
+                    for capability_id in _NATIVE_FALLBACK
+                ]
+            matches = [
+                CapabilityCandidate(
+                    capabilityId="task_understanding",
+                    score=1.0,
+                    matchedTerms=[],
+                    source="fallback",
+                ),
+                *specialized,
+            ]
+            if "artifact_generation" not in {
+                item.capability_id for item in matches
+            }:
+                matches.append(
+                    CapabilityCandidate(
+                        capabilityId="artifact_generation",
+                        score=1.0,
+                        matchedTerms=[],
+                        source="fallback",
+                    )
+                )
+        normalized = self._normalize_capabilities(
+            [item.capability_id for item in matches], domain=domain
+        )
+        by_capability = {item.capability_id: item for item in matches}
+        return [by_capability[item] for item in normalized]
 
     def _normalize_capabilities(self, values, *, domain: str) -> list[str]:
         available = {

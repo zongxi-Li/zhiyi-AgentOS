@@ -220,6 +220,28 @@ def test_plan_static_template_path():
     assert all(s.node_type == NodeType.STEP for s in result.blueprint.step_nodes())
 
 
+def test_stochastic_diversity_bypasses_static_template():
+    workflows, _ = _registries()
+    engine = PlanningEngine(
+        workflow_registry=workflows,
+        agent_registry=_legal_acg_agent_registry(),
+        capability_catalog=_legal_catalog(),
+    )
+
+    result = engine.plan(
+        task_id="stochastic-template-bypass",
+        intent="审查合同风险并生成报告",
+        domain="legal",
+        task_type="contract_review",
+        planning_diversity="balanced",
+        planning_seed=284731,
+    )
+
+    assert result.strategy == "dynamic_generation"
+    assert result.template_id is None
+    validate_blueprint(result.blueprint)
+
+
 def test_plan_dynamic_generation_path():
     wr, ar = _registries()
     engine = PlanningEngine(

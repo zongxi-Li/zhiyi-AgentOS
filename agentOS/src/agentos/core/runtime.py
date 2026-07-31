@@ -7,6 +7,7 @@ import asyncio
 from copy import deepcopy
 import logging
 import os
+import secrets
 from time import monotonic
 from typing import Mapping, Optional
 
@@ -56,6 +57,11 @@ from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.capabilities import CapabilityCatalog
+from agentos.core.planning.variants import (
+    PLANNER_ALGORITHM_VERSION,
+    normalize_planning_diversity,
+    normalize_planning_seed,
+)
 from agentos.core.plugin_scope import PluginScopeError, PluginScopeResolver
 from agentos.packs.registry import register_installed_packs
 from agentos.core.native import register_native_runtime
@@ -282,6 +288,16 @@ class WorkflowRuntime:
             allowed_workflow_ids=scope.workflow_ids,
         )
         is_acg = workflow.effective_runtime_engine == "acg"
+        planning_diversity = normalize_planning_diversity(
+            task.input.get("planningDiversity")
+        )
+        planning_seed = normalize_planning_seed(task.input.get("planningSeed"))
+        if planning_diversity != "stable" and planning_seed is None:
+            planning_seed = secrets.randbits(53)
+        run_input = dict(task.input)
+        run_input["planningDiversity"] = planning_diversity
+        if planning_seed is not None:
+            run_input["planningSeed"] = planning_seed
         run = WorkflowRun(
             taskId=task.task_id,
             workflowId=workflow.workflow_id,
@@ -289,7 +305,7 @@ class WorkflowRuntime:
             runtimeEngine=workflow.effective_runtime_engine,
             implementationId=workflow.effective_implementation_id,
             reviewMode=review_mode,
-            input=dict(task.input),
+            input=run_input,
             lifecyclePhase=WorkflowProgressPhase.UNDERSTANDING,
             lifecycleMessage=_LIFECYCLE_MESSAGES[WorkflowProgressPhase.UNDERSTANDING],
             idempotencyKey=idempotency_key,
@@ -304,6 +320,9 @@ class WorkflowRuntime:
             resolvedEnabledPluginIds=list(scope.enabled_plugin_ids),
             pluginSnapshot=list(scope.plugin_snapshots),
             capabilityCatalogRevision=scope.capability_catalog_revision,
+            planningDiversity=planning_diversity,
+            planningSeed=planning_seed,
+            plannerAlgorithmVersion=PLANNER_ALGORITHM_VERSION,
             executionScope=scope,
             legacyPluginScope=False,
             executionState={
@@ -314,6 +333,9 @@ class WorkflowRuntime:
                 "scopeExcludedAgentCount": max(
                     0, len(tuple(self.agent_registry.all())) - len(scope.agent_ids)
                 ),
+                "planningDiversity": planning_diversity,
+                "planningSeed": planning_seed,
+                "plannerAlgorithmVersion": PLANNER_ALGORITHM_VERSION,
             },
         )
         self.trace_store.append(
@@ -468,7 +490,7 @@ class WorkflowRuntime:
         run.execution_state["graphId"] = blueprint.graph_id
         run.execution_state["sourceBlueprintVersion"] = blueprint.version
         run.execution_state["graphVersion"] = 1
-        thinking_mode = str(task.input.get("thinkingMode") or "").strip()
+        thinking_mode = str(run.input.get("thinkingMode") or "").strip()
         if thinking_mode:
             run.execution_state["thinkingMode"] = thinking_mode
         self._sync_run_steps_to_acg(run, blueprint)
@@ -527,17 +549,17 @@ class WorkflowRuntime:
                 blueprint = blueprint.model_copy(deep=True, update={"task_id": task.task_id})
             return blueprint
 
-        planning_mode = str(task.input.get("planningMode") or "").strip().lower()
+        planning_mode = str(run.input.get("planningMode") or "").strip().lower()
         force_dynamic = (
             workflow.is_native_bootstrap
-            or bool(task.input.get("forceDynamicPlanning"))
+            or bool(run.input.get("forceDynamicPlanning"))
             or planning_mode == "dynamic"
         )
-        use_planner = force_dynamic or bool(task.input.get("usePlanner")) or not workflow.steps
+        use_planner = force_dynamic or bool(run.input.get("usePlanner")) or not workflow.steps
         if use_planner:
             intent_text = str(
-                task.input.get("userIntent")
-                or task.input.get("intent")
+                run.input.get("userIntent")
+                or run.input.get("intent")
                 or task.title
                 or workflow.description
             )
@@ -548,10 +570,30 @@ class WorkflowRuntime:
                 domain=workflow.domain or task.domain,
                 task_type=task.intent or workflow.intent,
                 force_dynamic=force_dynamic,
-                thinking_mode=str(task.input.get("thinkingMode") or "").strip() or None,
-                # 强制动态图必须可重复且快速；图仍按输入意图动态构建，但语义
-                # 解析采用本地确定性规则，避免额外模型往返及随机治理参数。
+                thinking_mode=str(run.input.get("thinkingMode") or "").strip() or None,
+                # 强制动态图仍使用本地语义解析以避免模型往返；拓扑多样性由
+                # 已持久化 seed 驱动，并且只作用于受约束的规划候选。
                 deterministic_intent=force_dynamic,
+                planning_diversity=run.planning_diversity,
+                planning_seed=run.planning_seed,
+                capability_catalog_revision=run.capability_catalog_revision,
+            )
+            run.planning_diversity = plan.planning_diversity
+            run.planning_seed = plan.planning_seed
+            run.planner_algorithm_version = plan.planner_algorithm_version
+            run.planning_candidate_count = max(1, plan.candidate_count)
+            run.selected_planning_variant_id = plan.selected_variant_id
+            run.execution_state.update(
+                {
+                    "planningDiversity": plan.planning_diversity,
+                    "planningSeed": plan.planning_seed,
+                    "plannerAlgorithmVersion": plan.planner_algorithm_version,
+                    "planningCandidateCount": plan.candidate_count,
+                    "selectedPlanningVariantId": plan.selected_variant_id,
+                    "selectedCapabilities": list(plan.selected_capabilities),
+                    "selectedBindings": list(plan.selected_bindings),
+                    "planningSelectionReasons": list(plan.selection_reasons),
+                }
             )
             self.trace_store.append(
                 run=run,
@@ -571,6 +613,13 @@ class WorkflowRuntime:
                     ),
                 },
             )
+            if plan.stochastic_fallback:
+                self.trace_store.append(
+                    run=run,
+                    event_type=TraceEventType.STOCHASTIC_PLANNING_FALLBACK,
+                    observation="No stochastic candidate passed validation; stable planning used",
+                    payload=plan.to_decision(),
+                )
             return plan.blueprint
 
         return promote_workflow_to_acg(workflow, task_id=task.task_id)

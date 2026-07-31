@@ -180,6 +180,50 @@ def test_native_runtime_executes_without_legal_pack(structured_model_runtime):
     assert any(event.event_type == TraceEventType.MODEL_CALLED for event in run.trace)
 
 
+def test_native_runtime_freezes_generated_planning_seed_and_audit_metadata(
+    structured_model_runtime,
+):
+    agents = AgentRegistry()
+    workflows = WorkflowRegistry()
+    register_native_runtime(agent_registry=agents, workflow_registry=workflows)
+    runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+    runtime.set_model_runtime(structured_model_runtime)
+    task = runtime.create_task(
+        title="Seeded native plan",
+        domain="general",
+        intent="general",
+        input={
+            "userIntent": "分析需求、架构、风险和方案并生成交付物",
+            "usePlanner": True,
+            "planningMode": "dynamic",
+            "planningDiversity": "balanced",
+        },
+    )
+    _, prepared = runtime.prepare_run(task.task_id)
+
+    assert prepared.planning_diversity == "balanced"
+    assert isinstance(prepared.planning_seed, int)
+    assert prepared.input["planningSeed"] == prepared.planning_seed
+    frozen_seed = prepared.planning_seed
+
+    run = asyncio.run(runtime.execute_prepared_run(prepared.run_id))
+    loaded = runtime.workflow_store.get_run(run.run_id)
+    planner_events = [
+        event
+        for event in loaded.trace
+        if event.event_type == TraceEventType.TASK_STATUS_CHANGED
+        and "Planner produced ACG" in event.observation
+    ]
+
+    assert loaded.status == WorkflowStatus.COMPLETED
+    assert loaded.planning_seed == frozen_seed
+    assert loaded.planner_algorithm_version == "controlled-stochastic-v1"
+    assert loaded.selected_planning_variant_id
+    assert loaded.acg_blueprint["metadata"]["planningSeed"] == frozen_seed
+    assert planner_events[-1].payload["planningSeed"] == frozen_seed
+    assert planner_events[-1].payload["selectedCapabilities"]
+
+
 def test_native_runtime_fails_explicitly_without_a_model():
     agents = AgentRegistry()
     workflows = WorkflowRegistry()

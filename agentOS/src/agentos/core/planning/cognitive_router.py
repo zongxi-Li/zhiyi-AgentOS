@@ -93,13 +93,25 @@ class CognitiveRouter:
         *,
         domain: str,
     ) -> Optional[CapabilityBinding]:
+        candidates = self.candidates_for(descriptor, domain=domain, agents=agents)
+        return candidates[0] if candidates else None
+
+    def candidates_for(
+        self,
+        descriptor: PlanningCapabilityDescriptor,
+        *,
+        domain: str,
+        agents: list[BaseAgent] | None = None,
+    ) -> list[CapabilityBinding]:
+        """Return all in-scope compatible bindings in stable preference order."""
+
         task_domain = (domain or "").strip().lower()
         aliases = {
             descriptor.capability_id.lower(),
             *(alias.strip().lower() for alias in descriptor.aliases),
         }
         ranked: list[tuple[tuple[int, float, int, int], BaseAgent]] = []
-        for index, agent in enumerate(agents):
+        for index, agent in enumerate(agents or list(self.agent_registry.all())):
             agent_domain = (agent.profile.domain or "").strip().lower()
             if task_domain == "general":
                 if agent_domain != "general":
@@ -131,15 +143,17 @@ class CognitiveRouter:
                 )
             )
 
-        if not ranked:
-            return None
-        rank, best = max(ranked, key=lambda item: item[0])
-        score = rank[0] + rank[1] + max(0, rank[2]) / 1000
-        return CapabilityBinding(
-            capability=descriptor.capability_id,
-            agent_name=best.profile.agent_name,
-            score=round(score, 4),
-        )
+        bindings: list[CapabilityBinding] = []
+        for rank, agent in sorted(ranked, key=lambda item: item[0], reverse=True):
+            score = rank[0] + rank[1] + max(0, rank[2]) / 1000
+            bindings.append(
+                CapabilityBinding(
+                    capability=descriptor.capability_id,
+                    agent_name=agent.profile.agent_name,
+                    score=round(score, 4),
+                )
+            )
+        return bindings
 
     @staticmethod
     def _semantic_score(aliases: set[str], agent_terms: set[str]) -> float:
