@@ -2,6 +2,7 @@ import type { Component } from 'vue'
 import type { AsyncWorkflowStartRequest } from '@/services/api/workflow'
 
 export type WorkbenchPlanningMode = 'dynamic' | 'template_preferred'
+export type PlanningDiversity = 'stable' | 'balanced' | 'exploratory'
 
 export interface WorkbenchDraft {
   title: string
@@ -12,6 +13,8 @@ export interface WorkbenchDraft {
   materialIds: string[]
   enabledPluginIds: string[]
   planningMode: WorkbenchPlanningMode
+  planningDiversity: PlanningDiversity
+  planningSeed: number | null
   thinkingMode: 'disabled' | 'standard' | 'deep'
   reviewMode: 'auto' | 'human_in_loop'
   pluginData: Record<string, Record<string, unknown>>
@@ -53,6 +56,8 @@ export const createNativeWorkbenchDraft = (): WorkbenchDraft => ({
   materialIds: [],
   enabledPluginIds: [],
   planningMode: 'dynamic',
+  planningDiversity: 'stable',
+  planningSeed: null,
   thinkingMode: 'disabled',
   reviewMode: 'auto',
   pluginData: {}
@@ -114,6 +119,8 @@ export const buildWorkbenchStartRequest = (
     reviewMode,
     input,
     clientRequestId,
+    planningDiversity: draft.planningDiversity,
+    planningSeed: draft.planningSeed ?? undefined,
     enabledPluginIds: [...draft.enabledPluginIds]
   }
 }

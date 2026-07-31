@@ -105,6 +105,22 @@
       </section>
       <PluginExtensionHost :extensions="draftExtensions" :draft="draft" :readonly="scopeLocked" @update:plugin-data="draft.pluginData = $event" />
       <div v-if="advancedSettingsExpanded" class="advanced-settings">
+        <label class="advanced-item">
+          <span>图规划多样性</span>
+          <el-select v-model="draft.planningDiversity" aria-label="图规划多样性">
+            <el-option label="稳定（可重复）" value="stable" />
+            <el-option label="均衡（推荐）" value="balanced" />
+            <el-option label="探索（变化更大）" value="exploratory" />
+          </el-select>
+        </label>
+        <label class="advanced-item">
+          <span>随机种子（可选）</span>
+          <el-input-number v-model="draft.planningSeed" :min="0" :max="2147483647" :controls="false" placeholder="留空则自动生成" />
+        </label>
+        <label v-if="activeRunId && draft.planningDiversity !== 'stable'" class="advanced-item">
+          <span>规划变体</span>
+          <el-button @click="rerunWithNewPlanningSeed">换一种规划</el-button>
+        </label>
         <label class="advanced-item"><span>调试开关</span><el-checkbox v-model="debugTraceEnabled">记录详细调试轨迹</el-checkbox></label>
         <label class="advanced-item advanced-item--wide">
           <span>低熵通信实验项</span>
@@ -132,6 +148,13 @@
         <span v-if="!activeRun?.pluginSnapshot?.length">Native only</span>
         <span v-for="snapshot in activeRun?.pluginSnapshot || []" :key="snapshot.pluginId"><b>{{ snapshot.pluginId }}</b> v{{ snapshot.version }}</span>
         <code v-if="activeRun?.capabilityCatalogRevision">Catalog {{ activeRun.capabilityCatalogRevision.slice(0, 12) }}</code>
+        <code v-if="activeRun?.planningDiversity && activeRun.planningDiversity !== 'stable'">
+          {{ activeRun.planningDiversity === 'balanced' ? '均衡规划' : '探索规划' }} · Seed {{ activeRun.planningSeed }} · 候选 {{ activeRun.planningCandidateCount || 1 }} 选 1
+        </code>
+      </div>
+      <div v-if="planningSelectionReasons.length" class="planning-selection-reasons">
+        <strong>本次规划选择依据</strong>
+        <span v-for="reason in planningSelectionReasons.slice(0, 4)" :key="reason">{{ reason }}</span>
       </div>
     </section>
 
@@ -759,6 +782,8 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     const run = runResult.value
     acgView.value = hydrateAcgView(view, run)
     activeRun.value = run
+    if (run.planningDiversity) draft.planningDiversity = run.planningDiversity
+    draft.planningSeed = run.planningSeed ?? null
     draft.enabledPluginIds = [...(run.resolvedEnabledPluginIds || run.enabledPluginIds || [])]
     draft.pluginData = (
       run.input?.pluginData && typeof run.input.pluginData === 'object'
@@ -867,6 +892,10 @@ watch(() => progressTracker.syncError.value, error => {
     void removeMissingAcgRun(activeRunId.value)
   }
 })
+const planningSelectionReasons = computed<string[]>(() => {
+  const reasons = activeRun.value?.executionState?.planningSelectionReasons
+  return Array.isArray(reasons) ? reasons.filter(item => typeof item === 'string') : []
+})
 
 watch(inputPanelExpanded, value => {
   clearInputPanelCompactTimer()
@@ -922,6 +951,13 @@ const scrollToSection = (selector: string) => {
   if (!target) return
   const top = target.getBoundingClientRect().top + window.scrollY - 16
   window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
+
+const rerunWithNewPlanningSeed = () => {
+  const values = new Uint32Array(1)
+  crypto.getRandomValues(values)
+  draft.planningSeed = values[0] & 0x7fffffff
+  void startRun()
 }
 
 const handleMainAction = () => {
@@ -1050,12 +1086,24 @@ const createClientRequestId = (): string => {
   return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
 }
 
+const startErrorDetail = (data: unknown): string | null => {
+  if (!data || typeof data !== 'object') return null
+  const response = data as Record<string, unknown>
+  const parts = [response.message, response.error, response.detail]
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+    .map((value) => value.trim())
+  const unique = [...new Set(parts)]
+  return unique.length ? unique.join('：').slice(0, 240) : null
+}
+
 const startErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 409) {
       return '相同请求标识已用于不同参数，请重新发起任务'
     }
     if (!error.response) return '任务未能启动：网络连接暂时不可用'
+    const detail = startErrorDetail(error.response.data)
+    if (detail) return `任务未能启动：${detail}`
   }
   return '任务未能启动'
 }
@@ -1117,6 +1165,9 @@ onBeforeUnmount(() => {
 .run-scope header strong { font-size:13px; }
 .snapshot-list { display:flex; align-items:center; flex-wrap:wrap; gap:8px; color:var(--text-secondary); font-size:11px; }
 .snapshot-list span, .snapshot-list code { padding:5px 8px; border-radius:6px; background:var(--bg-input); }
+.planning-selection-reasons { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:10px; font-size:11px; color:var(--text-secondary); }
+.planning-selection-reasons strong { width:100%; color:var(--text-primary); }
+.planning-selection-reasons span { padding:4px 7px; border-radius:6px; background:var(--bg-input); }
 .scope-warning { margin:0; padding:8px 10px; border-left:3px solid var(--el-color-warning); background:color-mix(in srgb, var(--el-color-warning) 8%, transparent); color:var(--text-secondary); font-size:12px; }
 .input-panel-expandable {
   display: flex;

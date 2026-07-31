@@ -83,6 +83,7 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
       stubs: {
         'el-button': buttonStub,
         'el-input': true,
+        'el-input-number': true,
         'el-icon': true,
         'el-tag': { template: '<span class="el-tag-stub"><slot /></span>' },
         'el-radio-group': true,
@@ -528,6 +529,24 @@ describe('AcgVisualizationView async progress loop', () => {
 
     expect(wrapper.text()).toContain('相同请求标识已用于不同参数')
     expect(wrapper.text()).not.toContain('工作流执行失败')
+    wrapper.unmount()
+  })
+
+  it('shows a safe backend contract error instead of hiding it behind a generic start failure', async () => {
+    vi.mocked(workflowApi.startWorkflowAsync).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 400,
+        data: {
+          message: '请求参数格式错误',
+          error: '请求中包含未知字段，请检查请求参数'
+        }
+      }
+    })
+    const { wrapper } = await mountPage()
+    await clickStart(wrapper)
+
+    expect(wrapper.text()).toContain('任务未能启动：请求参数格式错误：请求中包含未知字段，请检查请求参数')
     wrapper.unmount()
   })
 

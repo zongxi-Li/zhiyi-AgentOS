@@ -179,6 +179,11 @@ export interface WorkflowRun {
   resolvedEnabledPluginIds?: string[]
   pluginSnapshot?: PluginSnapshot[]
   capabilityCatalogRevision?: string | null
+  planningDiversity?: 'stable' | 'balanced' | 'exploratory'
+  planningSeed?: number | null
+  plannerAlgorithmVersion?: string | null
+  planningCandidateCount?: number
+  selectedPlanningVariantId?: string | null
   executionScope?: RunExecutionScope | null
   legacyPluginScope?: boolean
   completedStepIds?: string[]
@@ -218,6 +223,8 @@ export interface WorkflowStartRequest {
   workflowId?: string
   reviewMode?: string
   enabledPluginIds?: string[] | null
+  planningDiversity?: 'stable' | 'balanced' | 'exploratory'
+  planningSeed?: number
 }
 
 export interface PluginSnapshot {

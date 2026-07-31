@@ -13,10 +13,23 @@ describe('ACG workbench request builder', () => {
 
     expect(request).toMatchObject({
       domain: 'general', intent: 'general', workflowId: undefined,
-      enabledPluginIds: [], reviewMode: 'auto', clientRequestId: 'request-native'
+      enabledPluginIds: [], reviewMode: 'auto', clientRequestId: 'request-native',
+      planningDiversity: 'stable', planningSeed: undefined
     })
     expect(request.input.source).toBe('acg')
     expect(request.input).not.toHaveProperty('contractText')
+  })
+
+  it('forwards controlled stochastic planning without changing plugin scope', () => {
+    const draft = createNativeWorkbenchDraft()
+    draft.planningDiversity = 'exploratory'
+    draft.planningSeed = 284731
+
+    const request = buildWorkbenchStartRequest(draft, [], 'request-random')
+
+    expect(request.planningDiversity).toBe('exploratory')
+    expect(request.planningSeed).toBe(284731)
+    expect(request.enabledPluginIds).toEqual([])
   })
 
   it('allows Legal to contribute domain inputs without overriding scope or client identity', () => {
