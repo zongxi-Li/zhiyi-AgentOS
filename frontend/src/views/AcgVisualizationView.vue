@@ -175,6 +175,7 @@
           :step-outputs="acgView.stepOutputs || acgView.deliverables"
           :final-artifacts="acgView.finalArtifacts || []"
           :final-report="acgView.finalReport"
+          :status="acgView.status"
         />
         <div class="schedule-strip ui-surface" v-if="scheduleBatches.length">
           <h4>就绪集调度轨迹（动态拓扑）</h4>
@@ -220,6 +221,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   workflowApi,
   type AcgDeliverable,
+  type AcgFinalArtifact,
   type AcgView,
   type InstalledPlugin,
   type WorkflowRun,
@@ -578,12 +580,36 @@ const finalReportFromRun = (run: WorkflowRun): string | null => {
   return finalReport
 }
 
+const finalArtifactsFromRun = (run: WorkflowRun): AcgFinalArtifact[] => {
+  const artifacts: AcgFinalArtifact[] = []
+  for (const step of run.steps || []) {
+    const candidate = step.output?.artifact
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue
+    const content = asMarkdown(candidate.content)
+    if (!content) continue
+    artifacts.push({
+      artifactId: String(candidate.artifactId || `artifact_${run.runId}_${step.stepId}`),
+      type: String(candidate.type || 'report'),
+      title: String(candidate.title || step.name),
+      mediaType: String(candidate.mediaType || 'text/markdown'),
+      content,
+      structuredData: candidate.structuredData && typeof candidate.structuredData === 'object'
+        ? candidate.structuredData as Record<string, any>
+        : {},
+      stepId: step.stepId
+    })
+  }
+  return artifacts
+}
+
 const hydrateAcgView = (view: AcgView, run: WorkflowRun): AcgView => {
   const fallbackOutputs = deliverablesFromRun(run)
+  const fallbackFinalArtifacts = finalArtifactsFromRun(run)
   return {
     ...view,
     deliverables: view.deliverables.length ? view.deliverables : fallbackOutputs,
     stepOutputs: view.stepOutputs?.length ? view.stepOutputs : fallbackOutputs,
+    finalArtifacts: view.finalArtifacts?.length ? view.finalArtifacts : fallbackFinalArtifacts,
     finalReport: view.finalReport || finalReportFromRun(run)
   }
 }
@@ -714,11 +740,23 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
   const signal = topologyController.signal
   isAcgLoading.value = true
   try {
-    const [run, view] = await Promise.all([
+    const [runResult, viewResult] = await Promise.allSettled([
       workflowApi.getRun(runId, { signal }),
       workflowApi.getAcgView(runId, { signal })
     ])
     if (requestGeneration !== topologyGeneration || runId !== activeRunId.value) return
+    if (viewResult.status === 'rejected') throw viewResult.reason
+
+    const view = viewResult.value
+    if (runResult.status === 'rejected') {
+      acgView.value = view
+      loadedRunId.value = runId
+      lastTopologyRefreshAt = Date.now()
+      lastTopologyUpdatedAt = progressTracker.progress.value?.updatedAt ?? null
+      return
+    }
+
+    const run = runResult.value
     acgView.value = hydrateAcgView(view, run)
     activeRun.value = run
     draft.enabledPluginIds = [...(run.resolvedEnabledPluginIds || run.enabledPluginIds || [])]
@@ -782,7 +820,17 @@ const scheduleTopologyRefresh = (value: DeepReadonly<WorkflowProgress>) => {
 
 async function handleTerminal(value: WorkflowProgress): Promise<void> {
   clearTopologyTimer()
-  await refreshAcgForRun(value.runId, true)
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await refreshAcgForRun(value.runId, true)
+    const projectedStepCount = acgView.value?.stepOutputs?.length || 0
+    const hasFinalResult = Boolean(
+      acgView.value?.finalArtifacts?.length || acgView.value?.finalReport
+    )
+    const projectionComplete = projectedStepCount >= value.completedSteps
+      && (value.phase !== 'completed' || hasFinalResult)
+    if (projectionComplete) break
+    await new Promise(resolve => window.setTimeout(resolve, 300))
+  }
   if (value.phase === 'completed') ElMessage.success('ACG 引擎执行完成')
   if (value.phase === 'failed') ElMessage.error('ACG 工作流执行失败')
   if (value.phase === 'cancelled') ElMessage.info('ACG 工作流已取消')

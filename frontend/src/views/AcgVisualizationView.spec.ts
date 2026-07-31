@@ -432,6 +432,75 @@ describe('AcgVisualizationView async progress loop', () => {
     wrapper.unmount()
   })
 
+  it('reconciles a stale terminal ACG view with the final artifact stored on the Run', async () => {
+    const finalArtifact = {
+      artifactId: 'artifact_final', type: 'report', title: '最终实施方案',
+      mediaType: 'text/markdown', content: '完整成果',
+      structuredData: { title: '最终实施方案', sections: [] }
+    }
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
+      phase: 'completed', status: 'completed', percent: 100,
+      completedSteps: 1, totalSteps: 1
+    }))
+    vi.mocked(workflowApi.getRun).mockResolvedValue({
+      ...makeRun(), status: 'completed', output: { final_answer: '完整成果' },
+      steps: [{
+        stepId: 'deliver', name: '成果生成', agentName: 'native_general_agent',
+        status: 'completed', output: { artifact: finalArtifact, final_answer: '完整成果' }
+      }]
+    })
+    vi.mocked(workflowApi.getAcgView).mockResolvedValue({
+      ...makeAcg(), status: 'completed', stepOutputs: [], finalArtifacts: [], finalReport: null
+    })
+
+    const { wrapper } = await mountPage('?runId=run_1')
+    await flushPromises()
+
+    const panel = wrapper.findComponent(GenericArtifactPanel)
+    expect(panel.props('finalArtifacts')).toEqual([{ ...finalArtifact, stepId: 'deliver' }])
+    expect(panel.props('stepOutputs')).toEqual([{
+      stepId: 'deliver', name: '成果生成', status: 'completed',
+      output: { artifact: finalArtifact, final_answer: '完整成果' }
+    }])
+    expect(panel.props('status')).toBe('completed')
+    wrapper.unmount()
+  })
+
+  it('keeps the completed ACG delivery visible when Run detail loading fails', async () => {
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
+      phase: 'completed', status: 'completed', percent: 100,
+      completedSteps: 1, totalSteps: 1
+    }))
+    vi.mocked(workflowApi.getRun).mockRejectedValue({
+      response: { status: 502 }
+    })
+    vi.mocked(workflowApi.getAcgView).mockResolvedValue({
+      ...makeAcg(),
+      status: 'completed',
+      stepOutputs: [{ stepId: 'delivery', name: '交付', status: 'completed', output: { result: 'done' } }],
+      finalArtifacts: [{
+        artifactId: 'artifact_delivery',
+        type: 'implementation_plan',
+        title: '完整实施方案',
+        mediaType: 'text/markdown',
+        content: '# 完整实施方案',
+        structuredData: { executiveSummary: '可直接阅读的交付摘要' },
+        stepId: 'delivery'
+      }]
+    })
+
+    const { wrapper } = await mountPage('?runId=run_1')
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+
+    const panel = wrapper.findComponent(GenericArtifactPanel)
+    expect(panel.exists()).toBe(true)
+    expect(panel.props('finalArtifacts')).toHaveLength(1)
+    expect(panel.props('stepOutputs')).toHaveLength(1)
+    expect(panel.props('status')).toBe('completed')
+    wrapper.unmount()
+  })
+
   it('shows the review panel when the canonical Run is waiting even if progress is briefly stale', async () => {
     vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
       phase: 'executing', status: 'running', percent: 75, waitingReviewSteps: 0,
