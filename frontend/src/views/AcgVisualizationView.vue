@@ -1,6 +1,6 @@
 <!-- 知弈OS 原生 ACG 工作台 — 专业语义通过编译期 Plugin UI Extension 增量注入。 -->
 <template>
-  <div class="acg-view ui-shell" :class="{ 'has-progress': isSubmitting || progressTracker.progress.value || progressTracker.syncError.value, 'is-draft': !activeRunId }">
+  <div class="acg-view ui-shell" :class="{ 'has-progress': isSubmitting || progressTracker.progress.value || progressTracker.syncError.value, 'has-run': !!activeRunId, 'is-draft': !activeRunId }">
     <header class="ui-hero ui-hero--compact">
       <div class="hero-left">
         <div class="ui-icon-badge"><el-icon><Cpu /></el-icon></div>
@@ -1082,8 +1082,10 @@ onBeforeUnmount(() => {
 .acg-view > .ui-hero { border-bottom: 0; border-radius: 8px 8px 0 0; }
 .acg-view > .control-bar { border-top: 0; border-radius: 0 0 8px 8px; }
 .acg-view.is-draft > .control-bar { flex: 1 1 auto; }
-.acg-view.has-progress > .control-bar { border-bottom: 0; border-radius: 0; box-shadow: none; }
-.acg-view.has-progress > :deep(.workflow-progress) { border-top: 0; border-radius: 0 0 8px 8px; }
+.acg-view.has-progress:not(.has-run) > .control-bar { border-bottom: 0; border-radius: 0; box-shadow: none; }
+.acg-view.has-progress:not(.has-run) > :deep(.workflow-progress) { border-top: 0; border-radius: 0 0 8px 8px; }
+.acg-view.has-run > .run-scope { margin-top: 12px; }
+.acg-view.has-run > :deep(.workflow-progress) { margin-top: 16px; }
 .hero-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ui-hero h3 { overflow: hidden; margin: 0; color: var(--text-primary); font-size: 18px; font-weight: 800; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .hero-right { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
@@ -1111,7 +1113,7 @@ onBeforeUnmount(() => {
 .plugin-card:disabled { cursor:not-allowed; opacity:.72; }
 .plugin-card small { min-height:30px; }
 .plugin-card code { color:var(--text-muted); font-size:10px; }
-.run-scope { display:flex; flex-direction:column; gap:8px; }
+.run-scope { display:flex; flex-direction:column; gap:8px; padding:18px 20px; }
 .run-scope header strong { font-size:13px; }
 .snapshot-list { display:flex; align-items:center; flex-wrap:wrap; gap:8px; color:var(--text-secondary); font-size:11px; }
 .snapshot-list span, .snapshot-list code { padding:5px 8px; border-radius:6px; background:var(--bg-input); }
