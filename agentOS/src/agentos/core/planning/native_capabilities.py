@@ -21,12 +21,26 @@ def _record(properties: dict, *required: str) -> dict:
     }
 
 
-def _records(properties: dict, *required: str) -> dict:
-    return {"type": "array", "items": _record(properties, *required)}
+def _records(properties: dict, *required: str, max_items: int = 12) -> dict:
+    return {
+        "type": "array",
+        "items": _record(properties, *required),
+        "maxItems": max_items,
+    }
 
 
-_TEXT = {"type": "string"}
-_TEXT_LIST = {"type": "array", "items": _TEXT}
+_TEXT = {"type": "string", "maxLength": 2000}
+
+
+def _text_list(*, max_items: int = 12, max_length: int = 800) -> dict:
+    return {
+        "type": "array",
+        "items": {"type": "string", "maxLength": max_length},
+        "maxItems": max_items,
+    }
+
+
+_TEXT_LIST = _text_list()
 
 
 def _output_schema(capability_id: str) -> dict:
@@ -39,6 +53,7 @@ def _output_schema(capability_id: str) -> dict:
                     "constraint",
                     "source",
                     "mandatory",
+                    max_items=24,
                 ),
                 "success_criteria": _TEXT_LIST,
                 "assumptions": _TEXT_LIST,
@@ -160,7 +175,7 @@ def _output_schema(capability_id: str) -> dict:
             "data_flow",
         ),
         "analysis": _record(
-            {"analysis": _record({"findings": _TEXT_LIST, "assumptions": _TEXT_LIST, "gaps": _TEXT_LIST}, "findings", "assumptions", "gaps")},
+            {"analysis": _record({"findings": _text_list(max_items=8, max_length=400), "assumptions": _text_list(max_items=8, max_length=400), "gaps": _text_list(max_items=8, max_length=400)}, "findings", "assumptions", "gaps")},
             "analysis",
         ),
         "evidence_analysis": _record(

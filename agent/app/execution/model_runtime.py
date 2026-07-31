@@ -77,7 +77,15 @@ class GatewayStructuredGenerationRuntime:
         except Exception as exc:
             message = str(exc)
             lowered = message.lower()
-            if "rate limit" in lowered or "429" in lowered:
+            if (
+                "invalid json returned" in lowered
+                or "json response must be an object" in lowered
+                or "unterminated string" in lowered
+            ):
+                code = "MODEL_OUTPUT_INVALID_JSON"
+            elif "empty json content" in lowered or "empty content" in lowered:
+                code = "MODEL_EMPTY_RESPONSE"
+            elif "rate limit" in lowered or "429" in lowered:
                 code = "MODEL_RATE_LIMITED"
             elif "timeout" in lowered or "timed out" in lowered:
                 code = "MODEL_TIMEOUT"

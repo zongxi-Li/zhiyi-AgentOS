@@ -32,7 +32,7 @@ class NativeCapabilityPromptBuilder:
         request = {
             "capability": descriptor,
             "stepGoal": step_goal,
-            "task": {"title": task_title, "input": task_input},
+            "task": self._canonical_task(task_title, task_input),
             "context": {
                 "upstreamData": context_data,
                 "sourceData": source_data,
@@ -46,10 +46,55 @@ class NativeCapabilityPromptBuilder:
             "Use only the supplied task and upstream facts. Do not invent measurements, "
             "prices, dates, sources, or completed actions. Separate known facts from "
             "assumptions and open questions. Show formulas and assumptions for numeric "
-            "estimates. Preserve the task language. Return one JSON object that matches "
+            "estimates. Be concise: unless the schema is stricter, use at most 8 useful "
+            "items per array and keep each item under 400 characters. Preserve the task "
+            "language. Return one JSON object that matches "
             "outputSchema exactly, without markdown fences or commentary.\n"
             f"RUNTIME_REQUEST={payload}"
         )
+
+    @staticmethod
+    def _canonical_task(task_title: str, task_input: dict[str, Any]) -> dict[str, Any]:
+        """Keep semantic task facts once and exclude runtime/security metadata."""
+
+        def text(value: Any) -> str:
+            return str(value or "").strip()
+
+        objective = next(
+            (
+                value
+                for value in (
+                    text(task_input.get("userIntent")),
+                    text(task_input.get("taskGoal")),
+                    text(task_title),
+                )
+                if value
+            ),
+            "",
+        )
+        seen = {objective}
+        materials: list[str] = []
+        for key in ("materialText", "contractText"):
+            value = text(task_input.get(key))
+            if value and value not in seen:
+                materials.append(value)
+                seen.add(value)
+
+        canonical: dict[str, Any] = {"objective": objective}
+        if text(task_title) and text(task_title) != objective:
+            canonical["title"] = text(task_title)
+        if materials:
+            canonical["materials"] = materials
+        for source_key, target_key in (
+            ("constraints", "constraints"),
+            ("expectedArtifacts", "expectedArtifacts"),
+            ("sourceMaterials", "sourceMaterials"),
+            ("pluginData", "pluginData"),
+        ):
+            value = task_input.get(source_key)
+            if value:
+                canonical[target_key] = value
+        return canonical
 
     def build_repair(
         self,
@@ -64,6 +109,20 @@ class NativeCapabilityPromptBuilder:
             "The previous JSON failed contract validation. Correct it once, preserving "
             "supported facts and returning only the corrected JSON object.\n"
             f"VALIDATION_ERROR={validation_error}\nPREVIOUS_JSON={invalid}"
+        )
+
+    def build_json_repair(
+        self,
+        *,
+        original_prompt: str,
+        validation_error: str,
+    ) -> str:
+        return (
+            f"{original_prompt}\n"
+            "The previous response was invalid or truncated JSON. Retry once with a "
+            "smaller response. Use fewer and shorter items, close every string/array/object, "
+            "and return only one complete JSON object.\n"
+            f"PARSE_ERROR={validation_error}"
         )
 
     def build_artifact(self, **kwargs) -> str:

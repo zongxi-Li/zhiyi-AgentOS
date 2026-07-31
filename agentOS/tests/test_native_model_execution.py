@@ -3,17 +3,25 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from agentos.adapters.model_adapter import StructuredGenerationResult
+import pytest
+
+from agentos.adapters.model_adapter import (
+    StructuredGenerationError,
+    StructuredGenerationResult,
+)
+from agentos.agents import AgentRegistry
 from agentos.agents.base import AgentRunContext
 from agentos.core.models.types import (
     AgentTask,
     WorkflowDefinition,
     WorkflowRun,
+    WorkflowStatus,
     WorkflowStep,
 )
 from agentos.core.native import NativeGeneralAgent
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.memory.workflow_memory import WorkflowMemory
+from agentos.core.workflow.orchestrator import Orchestrator
 
 
 class _RepairRuntime:
@@ -29,6 +37,32 @@ class _RepairRuntime:
         if self.calls == 1:
             return StructuredGenerationResult(
                 data={"task_summary": "incomplete"},
+                provider="test-provider",
+                model="test-model",
+                promptVersion=kwargs["prompt_version"],
+            )
+        return await self.valid_runtime.generate_json(**kwargs)
+
+
+class _JsonRepairRuntime:
+    def __init__(self, valid_runtime, *, invalid_after_retry=False):
+        self.valid_runtime = valid_runtime
+        self.invalid_after_retry = invalid_after_retry
+        self.calls = []
+
+    def is_available(self):
+        return True
+
+    async def generate_json(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            raise StructuredGenerationError(
+                "MODEL_OUTPUT_INVALID_JSON",
+                "Invalid JSON returned by provider: Unterminated string",
+            )
+        if self.invalid_after_retry:
+            return StructuredGenerationResult(
+                data={"task_summary": "still incomplete"},
                 provider="test-provider",
                 model="test-model",
                 promptVersion=kwargs["prompt_version"],
@@ -98,6 +132,73 @@ def test_native_prompt_is_input_sensitive_and_domain_neutral(structured_model_ru
     assert "Plan beta" in prompts[1]
     assert all("industrial_graph" not in prompt for prompt in prompts)
     assert all("software_graph" not in prompt for prompt in prompts)
+
+
+def test_native_prompt_deduplicates_workbench_task_text(structured_model_runtime):
+    objective = "Unique canonical objective with measurable constraints"
+    context = _context(structured_model_runtime, objective=objective)
+    context.task.input.update({"taskGoal": objective, "materialText": objective})
+
+    asyncio.run(NativeGeneralAgent().run(context))
+
+    prompt = structured_model_runtime.calls[-1]["prompt"]
+    assert prompt.count(objective) == 1
+    assert "authenticatedUserId" not in prompt
+
+
+def test_native_agent_repairs_truncated_json_once(structured_model_runtime):
+    runtime = _JsonRepairRuntime(structured_model_runtime)
+
+    result = asyncio.run(NativeGeneralAgent().run(_context(runtime)))
+
+    assert len(runtime.calls) == 2
+    assert runtime.calls[-1]["prompt_version"].endswith(".json-repair1")
+    assert "smaller response" in runtime.calls[-1]["prompt"]
+    assert result.output["constraints"]
+
+
+def test_native_agent_never_uses_more_than_one_repair(structured_model_runtime):
+    runtime = _JsonRepairRuntime(structured_model_runtime, invalid_after_retry=True)
+
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(NativeGeneralAgent().run(_context(runtime)))
+
+    assert raised.value.code == "OUTPUT_CONTRACT_VIOLATION"
+    assert len(runtime.calls) == 2
+
+
+def test_native_analysis_contract_bounds_response_shape():
+    schema = build_default_capability_catalog().get("analysis").output_contract
+    properties = schema["properties"]["analysis"]["properties"]
+
+    assert properties["findings"]["maxItems"] == 8
+    assert properties["findings"]["items"]["maxLength"] == 400
+    assert properties["assumptions"]["maxItems"] == 8
+    assert properties["gaps"]["maxItems"] == 8
+
+
+def test_failed_run_has_partial_artifacts_but_no_completion_message():
+    run = WorkflowRun(
+        taskId="task_failed",
+        workflowId="native_test",
+        domain="general",
+        runtimeEngine="acg",
+        status=WorkflowStatus.FAILED,
+        steps=[
+            WorkflowStep(
+                stepId="understand",
+                name="Task understanding",
+                agentName="native_general_agent",
+                status="completed",
+                output={"task_summary": "partial"},
+            )
+        ],
+    )
+
+    output = Orchestrator(AgentRegistry()).compose_final_output(run)
+
+    assert "final_answer" not in output
+    assert output["artifacts"] == {"understand": {"task_summary": "partial"}}
 
 
 def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(

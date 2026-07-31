@@ -143,14 +143,31 @@ class NativeGeneralAgent(BaseAgent):
         timeout_seconds = 180.0 if capability == "artifact_generation" else 120.0
         max_output_tokens = 8192 if capability == "artifact_generation" else 4096
         invocations: list[dict[str, Any]] = []
-        generated = await runtime.generate_json(
-            prompt=prompt,
-            schema=output_schema,
-            thinking_mode=thinking_mode,
-            timeout_seconds=timeout_seconds,
-            max_output_tokens=max_output_tokens,
-            prompt_version=NATIVE_CAPABILITY_PROMPT_VERSION,
-        )
+        repair_used = False
+        try:
+            generated = await runtime.generate_json(
+                prompt=prompt,
+                schema=output_schema,
+                thinking_mode=thinking_mode,
+                timeout_seconds=timeout_seconds,
+                max_output_tokens=max_output_tokens,
+                prompt_version=NATIVE_CAPABILITY_PROMPT_VERSION,
+            )
+        except StructuredGenerationError as exc:
+            if exc.code != "MODEL_OUTPUT_INVALID_JSON":
+                raise
+            repair_used = True
+            generated = await runtime.generate_json(
+                prompt=self.prompt_builder.build_json_repair(
+                    original_prompt=prompt,
+                    validation_error=str(exc),
+                ),
+                schema=output_schema,
+                thinking_mode=thinking_mode,
+                timeout_seconds=timeout_seconds,
+                max_output_tokens=max_output_tokens,
+                prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.json-repair1",
+            )
         invocations.append(generated.audit_record())
         output = dict(generated.data)
         if capability == "artifact_generation":
@@ -163,6 +180,12 @@ class NativeGeneralAgent(BaseAgent):
                 direction="output",
             )
         except ContextContractError as exc:
+            if repair_used:
+                raise StructuredGenerationError(
+                    "OUTPUT_CONTRACT_VIOLATION",
+                    str(exc),
+                ) from exc
+            repair_used = True
             repaired = await runtime.generate_json(
                 prompt=self.prompt_builder.build_repair(
                     original_prompt=prompt,

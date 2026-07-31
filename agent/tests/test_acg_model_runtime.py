@@ -37,6 +37,13 @@ class _Gateway:
                 self.active -= 1
 
 
+class _InvalidJsonGateway(_Gateway):
+    def generate_json(self, prompt, schema, **kwargs):
+        raise RuntimeError(
+            "Invalid JSON returned by provider: Unterminated string starting at column 7080"
+        )
+
+
 def test_structured_runtime_rejects_unavailable_provider(monkeypatch):
     gateway = _Gateway()
     gateway.provider_name = "unavailable"
@@ -92,3 +99,21 @@ def test_structured_runtime_is_nonblocking_and_bounded(monkeypatch):
         "task-3",
     ]
     assert all(item.audit_record()["model"] == "test-model" for item in results)
+
+
+def test_structured_runtime_classifies_truncated_json(monkeypatch):
+    gateway = _InvalidJsonGateway()
+    monkeypatch.setattr(
+        "app.execution.model_runtime.get_llm_gateway", lambda: gateway
+    )
+    runtime = GatewayStructuredGenerationRuntime(max_concurrency=1)
+
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            runtime.generate_json(
+                prompt="task",
+                schema={"type": "object", "required": ["answer"]},
+            )
+        )
+
+    assert raised.value.code == "MODEL_OUTPUT_INVALID_JSON"

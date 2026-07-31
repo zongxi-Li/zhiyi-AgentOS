@@ -13,6 +13,7 @@ from agentos.core.models.types import (
     StepStatus,
     WorkflowDefinition,
     WorkflowRun,
+    WorkflowStatus,
     WorkflowStep,
 )
 
@@ -95,11 +96,11 @@ class Orchestrator:
                 final_answer = str(step.output["draft"])
                 break
 
-        if not final_answer:
+        if not final_answer and run.status == WorkflowStatus.COMPLETED:
             completed = [step.name for step in run.steps if step.status == StepStatus.COMPLETED]
             final_answer = f"Workflow completed: {', '.join(completed)}" if completed else "Workflow completed."
 
-        return {
-            "final_answer": final_answer,
-            "artifacts": artifacts,
-        }
+        output = {"artifacts": artifacts}
+        if final_answer:
+            output["final_answer"] = final_answer
+        return output
