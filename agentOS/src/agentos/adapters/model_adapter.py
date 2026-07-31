@@ -8,6 +8,57 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class StructuredGenerationError(RuntimeError):
+    """Stable execution error raised by a structured model runtime."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+class StructuredGenerationResult(BaseModel):
+    """Safe structured result returned to Core without raw prompts or responses."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    data: Dict[str, Any]
+    provider: str
+    model: str
+    latency_ms: int = Field(default=0, alias="latencyMs", ge=0)
+    prompt_version: str = Field(default="native-capability.v1", alias="promptVersion")
+    usage: Dict[str, Any] = Field(default_factory=dict)
+
+    def audit_record(self) -> Dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "latencyMs": self.latency_ms,
+            "promptVersion": self.prompt_version,
+            "usage": dict(self.usage),
+        }
+
+
+class StructuredGenerationRuntime(Protocol):
+    """Application-injected, bounded JSON generation service used by ACG agents."""
+
+    def is_available(self) -> bool:
+        ...
+
+    async def generate_json(
+        self,
+        *,
+        prompt: str,
+        schema: Dict[str, Any],
+        thinking_mode: str = "disabled",
+        timeout_seconds: float = 120.0,
+        max_output_tokens: int = 4096,
+        prompt_version: str = "native-capability.v1",
+    ) -> StructuredGenerationResult:
+        ...
+
 
 class ModelService(Protocol):
     async def generate_text(
@@ -84,6 +135,9 @@ __all__ = [
     "ModelAdapter",
     "ModelService",
     "ModelServiceFactory",
+    "StructuredGenerationError",
+    "StructuredGenerationResult",
+    "StructuredGenerationRuntime",
     "clear_model_service_factory",
     "register_model_service_factory",
 ]

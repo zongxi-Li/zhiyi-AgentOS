@@ -38,6 +38,9 @@ class AgentOutput(BaseModel):
     sources: List[Dict[str, Any]] = Field(default_factory=list)
     tool_executions: List[Dict[str, Any]] = Field(default_factory=list, alias="toolExecutions")
     evidence_refs: List[str] = Field(default_factory=list, alias="evidenceRefs")
+    model_invocations: List[Dict[str, Any]] = Field(
+        default_factory=list, alias="modelInvocations"
+    )
 
 
 class AgentRunContext(BaseModel):
@@ -50,6 +53,10 @@ class AgentRunContext(BaseModel):
     memory: Any
     context_pack: Optional[Any] = Field(default=None, alias="contextPack")
     tool_runtime: Optional[Any] = Field(default=None, alias="toolRuntime")
+    model_runtime: Optional[Any] = Field(default=None, alias="modelRuntime")
+    capability_descriptor: Optional[Any] = Field(
+        default=None, alias="capabilityDescriptor"
+    )
 
 
 class BaseAgent(ABC):

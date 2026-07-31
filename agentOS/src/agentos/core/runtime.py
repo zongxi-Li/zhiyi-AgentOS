@@ -121,7 +121,7 @@ class WorkflowRuntime:
         self.review_manager = review_manager or ReviewManager(self.trace_store)
         self.evaluator = evaluator or WorkflowEvaluator()
         self.state_machine = StateMachine()
-        self.orchestrator = Orchestrator(self.agent_registry)
+        self.orchestrator = Orchestrator(self.agent_registry, self.capability_catalog)
         self.task_manager = task_manager or TaskManager(
             workflow_store=self.workflow_store,
             workflow_registry=self.workflow_registry,
@@ -167,6 +167,11 @@ class WorkflowRuntime:
         """注入意图解析 LLM（app 层在装配时调用）。重置已构造的规划引擎。"""
         self._intent_llm = intent_llm
         self._planning_engine = None
+
+    def set_model_runtime(self, model_runtime) -> None:
+        """Inject the application-owned structured model runtime into ACG agents."""
+
+        self.orchestrator.set_model_runtime(model_runtime)
 
     @property
     def planning_engine(self):

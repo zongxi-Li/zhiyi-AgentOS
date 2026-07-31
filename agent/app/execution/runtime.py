@@ -9,6 +9,7 @@ from typing import Any, Dict
 from agentos.core.runtime import WorkflowRuntime, build_default_runtime as build_core_default_runtime
 
 from app.execution.instance_lock import acquire_workflow_instance_lock
+from app.execution.model_runtime import GatewayStructuredGenerationRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ def configure_runtime(runtime: WorkflowRuntime) -> WorkflowRuntime:
         runtime.set_intent_llm(_GatewayIntentLLM())
     except Exception as exc:  # 容错：注入失败不应阻断运行时构建
         logger.warning("Failed to wire intent LLM into planning engine: %s", exc)
+    runtime.set_model_runtime(GatewayStructuredGenerationRuntime())
     return runtime
 
 

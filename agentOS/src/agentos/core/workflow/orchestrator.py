@@ -25,8 +25,21 @@ ACG_NETWORK_TOOLS = frozenset({"web_search", "web_extract"})
 class Orchestrator:
     """只理解工作流结构、不绑定行业细节的核心调度器。"""
 
-    def __init__(self, agent_registry: AgentRegistry):
+    def __init__(self, agent_registry: AgentRegistry, capability_catalog=None):
         self.agent_registry = agent_registry
+        self.capability_catalog = capability_catalog
+        self.model_runtime = None
+
+    def set_model_runtime(self, model_runtime) -> None:
+        self.model_runtime = model_runtime
+
+    def _capability_descriptor(self, capability: str | None):
+        if self.capability_catalog is None or not capability:
+            return None
+        try:
+            return self.capability_catalog.get(capability)
+        except KeyError:
+            return None
 
     async def dispatch_agent(
         self,
@@ -63,6 +76,8 @@ class Orchestrator:
             memory=memory,
             contextPack=context_pack,
             toolRuntime=tool_runtime,
+            modelRuntime=self.model_runtime,
+            capabilityDescriptor=self._capability_descriptor(step.capability),
         )
         started = perf_counter()
         result = await agent.run(context)

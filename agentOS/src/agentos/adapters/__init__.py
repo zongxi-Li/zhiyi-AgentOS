@@ -8,6 +8,9 @@ from agentos.adapters.model_adapter import (
     ModelAdapter,
     ModelService,
     ModelServiceFactory,
+    StructuredGenerationError,
+    StructuredGenerationResult,
+    StructuredGenerationRuntime,
     clear_model_service_factory,
     register_model_service_factory,
 )
@@ -18,6 +21,9 @@ __all__ = [
     "ModelAdapter",
     "ModelService",
     "ModelServiceFactory",
+    "StructuredGenerationError",
+    "StructuredGenerationResult",
+    "StructuredGenerationRuntime",
     "clear_model_service_factory",
     "register_model_service_factory",
 ]
