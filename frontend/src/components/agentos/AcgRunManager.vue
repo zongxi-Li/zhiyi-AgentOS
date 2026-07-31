@@ -44,7 +44,12 @@
             :title="`${displayTitle(run)}\n${run.runId}`"
             @click="emit('select', run.runId)"
           >
-            <span class="acg-run-item__status" aria-hidden="true"></span>
+            <span
+              class="acg-run-item__status"
+              role="img"
+              :aria-label="`${group.label}：${phaseLabel(run)}`"
+              :title="`${group.label}：${phaseLabel(run)}`"
+            ></span>
             <span class="acg-run-item__body">
               <span class="acg-run-item__headline">
                 <strong>{{ displayTitle(run) }}</strong>
@@ -239,7 +244,9 @@ const loadRuns = async (silent = false) => {
   }
 }
 
-const handleRunsRefresh = () => void loadRuns()
+// External mutations (create/delete/update) already have a usable local list.
+// Refresh it in the background so the sidebar does not flash the first-load state.
+const handleRunsRefresh = () => void loadRuns(true)
 
 onMounted(() => {
   window.addEventListener('acg-runs-refresh', handleRunsRefresh)
@@ -271,16 +278,29 @@ onUnmounted(() => {
 .acg-run-group__head { height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 5px 8px 4px; color: var(--text-disabled); font-size: 11px; font-weight: 700; }
 .acg-run-group__head span:last-child { min-width: 16px; height: 16px; display: inline-grid; place-items: center; padding: 0 4px; border-radius: 999px; background: var(--primary-fade); color: var(--primary-color); font-size: 10px; }
 .acg-run-item { position: relative; width: 100%; border-radius: 7px; background: transparent; color: var(--text-secondary); transition: background-color 160ms ease, color 160ms ease; }
-.acg-run-item__select { width: 100%; display: grid; grid-template-columns: 9px minmax(0, 1fr); gap: 6px; padding: 8px 8px 8px 7px; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.acg-run-item__select { width: 100%; display: grid; grid-template-columns: 15px minmax(0, 1fr); gap: 6px; padding: 8px 8px 8px 7px; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
 .acg-run-item::before { content: ''; position: absolute; inset: 5px auto 5px 0; width: 2px; border-radius: 0 2px 2px 0; background: transparent; }
 .acg-run-item:hover { background: var(--bg-panel); color: var(--text-primary); }
 .acg-run-item.active { background: var(--primary-fade); color: var(--text-primary); }
 .acg-run-item.active::before { background: var(--primary-color); }
-.acg-run-item__status { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--text-disabled); }
-.status-active .acg-run-item__status { background: var(--primary-color); box-shadow: 0 0 0 3px var(--primary-fade); }
-.status-review .acg-run-item__status { background: var(--warning); }
-.status-failed .acg-run-item__status { background: var(--danger); }
-.status-completed .acg-run-item__status { background: var(--success); }
+.acg-run-item__status { width: 13px; height: 13px; margin-top: 1px; display: inline-grid; place-items: center; border: 1px solid var(--text-disabled); border-radius: 50%; background: var(--bg-card); color: var(--text-disabled); font-size: 9px; font-weight: 800; line-height: 1; }
+.status-active .acg-run-item__status { border-color: var(--primary-color); background: var(--primary-fade); color: var(--primary-color); animation: acg-status-pulse 1.8s ease-in-out infinite; }
+.status-active .acg-run-item__status::after { width: 5px; height: 5px; border-radius: 50%; background: currentColor; content: ''; }
+.status-review .acg-run-item__status { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, var(--bg-card)); color: var(--warning); }
+.status-review .acg-run-item__status::after { content: '!'; }
+.status-failed .acg-run-item__status { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--bg-card)); color: var(--danger); }
+.status-failed .acg-run-item__status::after { content: '\00d7'; }
+.status-completed .acg-run-item__status { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, var(--bg-card)); color: var(--success); }
+.status-completed .acg-run-item__status::after { content: '\2713'; }
+
+@keyframes acg-status-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--primary-fade); }
+  50% { box-shadow: 0 0 0 4px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-active .acg-run-item__status { animation: none; }
+}
 .acg-run-item__body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .acg-run-item__headline, .acg-run-item__identity { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .acg-run-item__headline strong { overflow: hidden; color: inherit; font-size: 11px; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }

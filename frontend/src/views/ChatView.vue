@@ -333,11 +333,7 @@
                 </button>
               </div>
               <div class="right-actions">
-                <span v-if="isAgentMode" class="composer-runtime-lock" title="简单问答直接响应，专业任务自动进入 ACG Workflow">
-                  <el-icon><Share /></el-icon>
-                  ACG 路由
-                </span>
-                <ModelRuntimeControls v-else compact />
+                <ModelRuntimeControls v-if="!isAgentMode" compact />
                 <span v-if="inputText.length" class="word-count" :class="{ warning: inputText.length > 500 }">
                   {{ inputText.length }} 字
                 </span>
@@ -4480,21 +4476,6 @@ onUnmounted(() => {
 .composer-acg-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.42;
-}
-
-.composer-runtime-lock {
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid var(--primary-line);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--primary-fade) 72%, transparent);
-  color: var(--primary-color);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .composer-send.el-button {
