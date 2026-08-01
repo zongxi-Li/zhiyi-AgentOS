@@ -8,7 +8,8 @@
         {
           'has-agent-results': isAgentMode,
           'agent-panel-collapsed': isAgentMode && agentPanelCollapsed,
-          'agent-panel-resizing': agentPanelResizing
+          'agent-panel-resizing': agentPanelResizing,
+          'workspace-mode-switching': workspaceModeSwitching
         }
       ]"
       :style="agentPanelLayoutStyle"
@@ -19,7 +20,7 @@
         :class="{ 'hero-mode': showHeroMode }"
         :aria-busy="isLoadingConversation || isStreamingChat"
       >
-        <Transition name="context-panel-slide" @after-leave="finishContextPanelClose">
+        <Transition name="context-panel-slide" :css="!workspaceModeSwitching" @after-leave="finishContextPanelClose">
           <section
             v-if="isAgentMode && contextPanelOpen"
             class="context-panel"
@@ -179,7 +180,7 @@
 
         <div ref="composerRef" class="composer" :style="{ bottom: composerDockOffset }">
           <div
-            v-if="isSubmittingWorkflow || activeWorkflowRunId"
+            v-if="(isSubmittingWorkflow || activeWorkflowRunId) && !isGeneralAgentMode"
             class="chat-workflow-progress"
           >
             <WorkflowProgressBar
@@ -211,7 +212,7 @@
           />
 
           <div
-            v-if="activeWorkflowRunId"
+            v-if="activeWorkflowRunId && !isGeneralAgentMode"
             class="workflow-run-strip"
             :class="activeWorkflowStatus"
           >
@@ -357,7 +358,7 @@
           </div>
         </div>
 
-        <Transition name="workflow-acg-slide">
+        <Transition name="workflow-acg-slide" :css="!workspaceModeSwitching">
           <section
             v-if="isAgentMode && workflowPanelOpen"
             class="workflow-acg-panel"
@@ -460,17 +461,30 @@
             </span>
           </div>
 
-          <div v-show="!agentPanelCollapsed" class="agent-panel-content">
-          <LawyerSkillPanel
-            v-if="isLawyerMode"
-            :skills-used="latestLawyerMeta.skillsUsed"
-            :trace="latestLawyerMeta.trace"
-            :federated="latestLawyerMeta.federated"
-            :risk-level="latestLawyerMeta.riskLevel"
-            :result-count="availableLawyerResultPanels.length"
-            @open-federated-console="openFederatedConsole"
-            @optimize-federated="handleFederatedOptimize"
-          >
+          <div ref="agentPanelContentRef" v-show="!agentPanelCollapsed" class="agent-panel-content">
+            <AcgRunInspector
+              v-if="isGeneralAgentMode"
+              :run-id="activeWorkflowRunId"
+              :status="activeWorkflowStatus"
+              :status-label="activeWorkflowStatusLabel"
+              :run="activeWorkflowRun"
+              :view="activeAcgView"
+              :progress="workflowProgressState.progress.value"
+              :blueprint="displayAcgBlueprint"
+              :loading="isSubmittingWorkflow || isLoadingWorkflowResult || workflowProgressState.isLoading.value"
+              @open-acg="openActiveWorkflowOperations"
+              @open-console="openActiveWorkflowConsole"
+            />
+            <LawyerSkillPanel
+              v-else-if="isLawyerMode"
+              :skills-used="latestLawyerMeta.skillsUsed"
+              :trace="latestLawyerMeta.trace"
+              :federated="latestLawyerMeta.federated"
+              :risk-level="latestLawyerMeta.riskLevel"
+              :result-count="availableLawyerResultPanels.length"
+              @open-federated-console="openFederatedConsole"
+              @optimize-federated="handleFederatedOptimize"
+            >
           <template #results>
             <div v-if="!availableLawyerResultPanels.length" class="results-empty">
               <el-icon class="empty-icon"><Notebook /></el-icon>
@@ -793,7 +807,6 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDownBold,
   ArrowUp,
-  ChatDotRound,
   Check,
   Close,
   Cpu,
@@ -837,6 +850,7 @@ import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vue'
 import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
+import AcgRunInspector from '@/components/agentos/AcgRunInspector.vue'
 import { agentosApi, type AcgBlueprint, type AcgView, type WorkflowRun } from '@/services/api/agentos'
 import type { WorkflowProgress } from '@/services/api/workflow'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
@@ -879,6 +893,7 @@ const workspaceMode = ref<WorkspaceMode>(
     ? 'agent'
     : 'chat'
 )
+const workspaceModeSwitching = ref(false)
 
 const selectedRoleId = ref<string | null>(null)
 const inputText = ref('')
@@ -1000,6 +1015,7 @@ let conversationGeneration = 0
 const terminalResultLoaded = new Set<string>()
 const workflowResultCache = new Map<string, { run: WorkflowRun; view: AcgView }>()
 let composerResizeObserver: ResizeObserver | undefined
+const agentPanelContentRef = ref<HTMLElement | null>(null)
 
 const workflowRunBlueprint = computed<AcgBlueprint | null>(() => {
   const run = activeWorkflowRun.value
@@ -1317,24 +1333,8 @@ const setContextPanelOpen = (open: boolean) => {
   localStorage.setItem(CONTEXT_PANEL_OPEN_KEY, open ? '1' : '0')
 }
 
-const finishContextPanelClose = async () => {
-  const previousComposerRect = composerRef.value?.getBoundingClientRect()
+const finishContextPanelClose = () => {
   contextPanelClosing.value = false
-  await nextTick()
-
-  const composer = composerRef.value
-  if (!composer || !previousComposerRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  const nextComposerRect = composer.getBoundingClientRect()
-  const deltaY = previousComposerRect.top - nextComposerRect.top
-  if (Math.abs(deltaY) < 1) return
-
-  composer.animate(
-    [
-      { translate: `0 ${deltaY}px`, opacity: 0.82 },
-      { translate: '0 0', opacity: 1 }
-    ],
-    { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-  )
 }
 
 const handleContextPanelResizeKeydown = (event: KeyboardEvent) => {
@@ -1475,6 +1475,7 @@ const isWriterMode = computed(() => {
 })
 
 const isAgentMode = computed(() => workspaceMode.value === 'agent')
+const isGeneralAgentMode = computed(() => isAgentMode.value && !currentRole.value && !selectedRoleId.value)
 
 const chatMainClass = computed(() => {
   if (isLawyerMode.value) return 'lawyer'
@@ -1489,7 +1490,7 @@ const agentIcon = computed(() => {
   if (isTeacherMode.value) return School
   if (isProgrammerMode.value) return Cpu
   if (isWriterMode.value) return EditPen
-  return ChatDotRound
+  return Cpu
 })
 
 const agentTitle = computed(() => {
@@ -1691,6 +1692,7 @@ const hasAgentResults = computed(() => {
 })
 
 const hasAgentActivity = computed(() => {
+  if (isGeneralAgentMode.value && hasActiveWorkflow.value) return true
   if (hasAgentResults.value) return true
   if (isLawyerMode.value) return latestLawyerMeta.value.skillsUsed.length > 0 || latestLawyerMeta.value.trace.length > 0
   if (isTeacherMode.value) return latestTeacherMeta.value.skillsUsed.length > 0 || latestTeacherMeta.value.trace.length > 0
@@ -2405,12 +2407,22 @@ watch(
 const handleWorkspaceModeChange = (event: Event) => {
   const mode = (event as CustomEvent<{ mode?: WorkspaceMode }>).detail?.mode
   if (mode !== 'agent' && mode !== 'chat') return
+  workspaceModeSwitching.value = true
   workspaceMode.value = mode
   if (mode === 'agent') {
     agentPanelCollapsed.value = showHeroMode.value
     setContextPanelOpen(!showHeroMode.value)
     setWorkflowPanelOpen(!showHeroMode.value)
+  } else {
+    contextPanelOpen.value = false
+    contextPanelClosing.value = false
+    workflowPanelOpen.value = false
+    localStorage.setItem(CONTEXT_PANEL_OPEN_KEY, '0')
+    localStorage.setItem(WORKFLOW_PANEL_OPEN_KEY, '0')
   }
+  void nextTick(() => {
+    workspaceModeSwitching.value = false
+  })
 }
 
 watch(
@@ -2602,6 +2614,17 @@ watch(
 watch(hasAgentActivity, active => {
   if (active) agentPanelCollapsed.value = false
 })
+
+watch(
+  [isGeneralAgentMode, activeWorkflowRunId],
+  async ([generalMode], previous) => {
+    if (!generalMode) return
+    const previousRunId = previous?.[1]
+    if (previousRunId === activeWorkflowRunId.value && previous?.[0] === generalMode) return
+    await nextTick()
+    agentPanelContentRef.value?.scrollTo({ top: 0 })
+  }
+)
 
 onMounted(async () => {
   window.addEventListener('workspace-mode-change', handleWorkspaceModeChange)
@@ -3169,22 +3192,9 @@ onUnmounted(() => {
 }
 
 .chat-main.has-agent-results {
+  grid-template-columns: minmax(0, 1fr) var(--agent-panel-width, 340px);
   gap: 0;
   padding: 0;
-}
-
-.chat-main.lawyer,
-.chat-main.teacher,
-.chat-main.programmer,
-.chat-main.writer {
-  grid-template-columns: 1fr;
-}
-
-.chat-main.has-agent-results.lawyer,
-.chat-main.has-agent-results.teacher,
-.chat-main.has-agent-results.programmer,
-.chat-main.has-agent-results.writer {
-  grid-template-columns: minmax(0, 1fr) var(--agent-panel-width, 340px);
 }
 
 .chat-main.has-agent-results.agent-panel-collapsed {
@@ -3688,22 +3698,40 @@ onUnmounted(() => {
   transform: translateY(18px);
 }
 
+.chat-panel.hero-mode {
+  --hero-composer-center-y: 52%;
+  --hero-slogan-offset-y: 164px;
+}
+
 .chat-panel.hero-mode .messages {
   overflow: hidden;
   padding-bottom: 0;
 }
 
 .chat-panel.hero-mode .empty-state {
-  margin-top: clamp(96px, 12vh, 138px);
+  position: absolute;
+  top: calc(var(--hero-composer-center-y) - var(--hero-slogan-offset-y));
+  left: 50%;
+  z-index: 3;
+  width: min(calc(100% - 48px), 640px);
+  margin: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: hero-fade-in 0.28s var(--ease-out);
 }
 
 .chat-panel.hero-mode .composer {
   position: absolute;
-  top: 52%;
+  top: var(--hero-composer-center-y);
   right: 0;
   left: 0;
   z-index: 4;
   transform: translateY(-50%);
+}
+
+@keyframes hero-fade-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
 }
 
 .chat-panel:not(.hero-mode) .composer {
@@ -5286,10 +5314,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .chat-main.has-agent-results.lawyer,
-  .chat-main.has-agent-results.teacher,
-  .chat-main.has-agent-results.programmer,
-  .chat-main.has-agent-results.writer {
+  .chat-main.has-agent-results {
     grid-template-columns: 1fr;
   }
 
