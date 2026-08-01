@@ -66,6 +66,7 @@
             :key="`conversations-${refreshKey}`"
             :search-keyword="searchKeyword"
             :user-id="userStore.currentUser?.id"
+            workspace-mode="chat"
             @select="handleSelectConversation"
           />
           
@@ -99,7 +100,7 @@ const refreshKey = ref(0)
 
 const handleSelectConversation = (conversation: { id: string; contextId?: string }) => {
   const contextId = conversation.contextId || conversation.id
-  router.push(`/chat?contextId=${encodeURIComponent(contextId)}`)
+  router.push({ path: '/chat', query: { contextId, workspace: 'chat' } })
 }
 
 // 刷新当前标签页的数据
@@ -122,7 +123,7 @@ const clearAll = async () => {
       return
     }
     
-    await conversationApi.deleteAllConversations(userId)
+    await conversationApi.deleteAllConversations(userId, 'chat')
     ElMessage.success('历史记录已清空')
     refresh()
   } catch (error: any) {

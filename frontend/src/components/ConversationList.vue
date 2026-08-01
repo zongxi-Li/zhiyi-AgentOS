@@ -67,8 +67,10 @@
         <div class="empty-icon">
           <el-icon><ChatLineRound /></el-icon>
         </div>
-        <p class="empty-text">暂无对话历史</p>
-        <p class="empty-hint">开始新的对话后，历史记录将显示在这里</p>
+        <p class="empty-text">{{ props.workspaceMode === 'agent' ? '暂无 Agent 历史' : '暂无 Chat 历史' }}</p>
+        <p class="empty-hint">
+          {{ props.workspaceMode === 'agent' ? '开始新的 Agent 任务后，记录将显示在这里' : '开始新的对话后，记录将显示在这里' }}
+        </p>
       </div>
     </div>
   </div>
@@ -80,6 +82,7 @@ import { User, ArrowRight, ChatLineRound, Edit, Delete } from '@element-plus/ico
 import { conversationApi } from '@/services/api/conversation'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { getConversationWorkspace } from '@/utils/conversationWorkspace'
 
 interface Conversation {
   id: string
@@ -87,17 +90,20 @@ interface Conversation {
   title?: string
   preview?: string
   avatar?: string
+  workspaceMode?: 'agent' | 'chat'
   updatedAt: number | Date
 }
 
 interface Props {
   searchKeyword?: string
   userId?: string
+  workspaceMode?: 'agent' | 'chat'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   searchKeyword: '',
-  userId: ''
+  userId: '',
+  workspaceMode: 'chat'
 })
 
 const userStore = useUserStore()
@@ -125,7 +131,7 @@ const loadConversations = async () => {
 
   try {
     loading.value = true
-    const apiConversations = await conversationApi.getUserConversations(userId)
+    const apiConversations = await conversationApi.getUserConversations(userId, props.workspaceMode)
     
     // 转换为组件需要的格式，预览内容由列表接口直接返回，避免逐条请求详情触发限流。
     const conversationsWithPreview = apiConversations.map((conv) => {
@@ -137,6 +143,7 @@ const loadConversations = async () => {
         title: conv.title || `对话 ${resolvedContextId.substring(0, 8)}`,
         preview: conv.preview || `上下文ID: ${resolvedContextId}`,
         avatar: undefined,
+        workspaceMode: conv.workspaceMode,
         updatedAt: new Date(conv.updatedAt || conv.createdAt)
       }
     })
@@ -237,10 +244,13 @@ watch(() => userStore.currentUser, () => {
 })
 
 const filteredConversations = computed(() => {
-  if (!props.searchKeyword) return conversations.value
+  const workspaceConversations = conversations.value.filter(conversation =>
+    (conversation.workspaceMode || getConversationWorkspace(conversation.contextId)) === props.workspaceMode
+  )
+  if (!props.searchKeyword) return workspaceConversations
   
   const keyword = props.searchKeyword.toLowerCase()
-  return conversations.value.filter(conv => 
+  return workspaceConversations.filter(conv =>
     conv.title?.toLowerCase().includes(keyword) ||
     conv.preview?.toLowerCase().includes(keyword)
   )

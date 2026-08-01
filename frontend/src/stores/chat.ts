@@ -258,7 +258,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const sendMessage = async (text: string, fileUrl?: string, runtimeSettings?: ModelSettings) => {
+  const sendMessage = async (
+    text: string,
+    fileUrl?: string,
+    runtimeSettings?: ModelSettings,
+    workspaceMode: 'agent' | 'chat' = 'chat'
+  ) => {
     if ((!text.trim() && !fileUrl) || loading.value) return
 
     pushUserMessage(text, fileUrl)
@@ -269,6 +274,7 @@ export const useChatStore = defineStore('chat', () => {
         text: text || '',
         roleId: currentRoleId.value || undefined,
         contextId: contextId.value || undefined,
+        workspaceMode,
         fileUrl: fileUrl || undefined,
         ...toModelRequestSettings(runtimeSettings || loadModelSettings())
       }
@@ -366,7 +372,8 @@ export const useChatStore = defineStore('chat', () => {
   const sendMessageStream = async (
     text: string,
     agentMode: AgentMode = 'default',
-    runtimeSettings: ModelSettings = loadModelSettings()
+    runtimeSettings: ModelSettings = loadModelSettings(),
+    workspaceMode: 'agent' | 'chat' = 'chat'
   ) => {
     if ((!text.trim()) || loading.value) return
 
@@ -518,7 +525,8 @@ export const useChatStore = defineStore('chat', () => {
           api_key: runtimeSettings.provider === 'system' ? undefined : runtimeSettings.apiKey,
           thinking_mode: runtimeSettings.thinkingMode,
           tool_mode: 'auto',
-          context_id: contextId.value || undefined
+          context_id: contextId.value || undefined,
+          workspace_mode: workspaceMode
         })
       })
 

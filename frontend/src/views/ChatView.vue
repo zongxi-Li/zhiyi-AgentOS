@@ -848,6 +848,7 @@ import { useRoleStore } from '@/stores/role'
 import { useDebounce } from '@/composables/useDebounce'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { runtimeProjectionChanged } from '@/utils/runtimePresentation'
+import { setConversationWorkspace } from '@/utils/conversationWorkspace'
 import { loadModelSettings } from '@/config/modelSettings'
 import { roleTemplateGroups, type RoleId } from '@/config/agentWorkbench'
 
@@ -2164,7 +2165,7 @@ const sendMessage = async () => {
           : isWriterMode.value
             ? 'writer'
             : 'default'
-    const sendPromise = chatStore.sendMessageStream(userText, agentMode, loadModelSettings())
+    const sendPromise = chatStore.sendMessageStream(userText, agentMode, loadModelSettings(), workspaceMode.value)
     if (composerStartRect) {
       await animateComposerToConversation(composerStartRect)
     }
@@ -2578,6 +2579,13 @@ watch(
     void restoreWorkflowForConversation(Boolean(previousConversationId && previousConversationId !== conversationId))
   },
   { immediate: true }
+)
+
+watch(
+  () => chatStore.contextId,
+  contextId => {
+    if (contextId) setConversationWorkspace(contextId, workspaceMode.value)
+  }
 )
 
 watch(
