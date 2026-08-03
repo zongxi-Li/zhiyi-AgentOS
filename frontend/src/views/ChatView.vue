@@ -337,18 +337,6 @@
             </button>
           </div>
 
-          <div v-show="!recommendationCollapsed" class="composer-popover recommendation-panel-wrap">
-            <RecommendationPanel
-              title="下一步推荐"
-              subtitle="基于当前角色和最近对话生成"
-              :items="chatRecommendations"
-              :loading="recommendationLoading"
-              refreshable
-              @refresh="loadChatRecommendations"
-              @select="applyChatRecommendation"
-            />
-          </div>
-
           <div class="composer-shelf">
             <button class="composer-shelf-action" type="button" @click="handleControl('folder')">
               <el-icon><Folder /></el-icon>
@@ -357,17 +345,6 @@
             <button class="composer-shelf-action" type="button" @click="toggleAssistTools">
               <el-icon><Notebook /></el-icon>
               <span>快捷模板</span>
-            </button>
-            <button
-              class="composer-shelf-action"
-              type="button"
-              :class="{ active: !recommendationCollapsed }"
-              :aria-expanded="!recommendationCollapsed"
-              @click="toggleRecommendationPanel"
-            >
-              <span v-if="recommendationLoading" class="recommendation-loading-dot" aria-hidden="true"></span>
-              <span>下一步推荐</span>
-              <span class="composer-shelf-count">{{ chatRecommendations.length }}</span>
             </button>
             <button
               class="composer-shelf-action"
@@ -964,7 +941,6 @@ import QuestionPushList from '@/components/agent/QuestionPushList.vue'
 import DiagramViewer from '@/components/agent/DiagramViewer.vue'
 import MindMapViewer from '@/components/agent/MindMapViewer.vue'
 import RelationGraph from '@/components/agent/RelationGraph.vue'
-import RecommendationPanel from '@/components/RecommendationPanel.vue'
 import RoleTemplateSwitchDialog from '@/components/RoleTemplateSwitchDialog.vue'
 import AcgTopologyGraph from '@/components/agentos/AcgTopologyGraph.vue'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
@@ -988,10 +964,8 @@ import type { WorkflowProgress } from '@/services/api/workflow'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { federatedModelApi } from '@/services/api/federatedModel'
 import { fileApi } from '@/services/api/file'
-import { recommendationApi, type RecommendationItem } from '@/services/api/recommendation'
 import { useChatStore, type ChatWorkflowBinding } from '@/stores/chat'
 import { useRoleStore } from '@/stores/role'
-import { useDebounce } from '@/composables/useDebounce'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { runtimeProjectionChanged } from '@/utils/runtimePresentation'
 import { extractContractReviewArtifacts } from '@/utils/agentos/contractReviewArtifactExtractor'
@@ -1051,11 +1025,7 @@ const activeLawyerResultPanels = ref<string[]>([])
 const activeTeacherResultPanels = ref<string[]>([])
 const activeProgrammerResultPanels = ref<string[]>([])
 const activeWriterResultPanels = ref<string[]>([])
-const chatRecommendations = ref<RecommendationItem[]>([])
-const recommendationLoading = ref(false)
-const recommendationCollapsed = ref(true)
 const ASSIST_TOOL_VISIBLE_KEY = 'chat.composer_templates_visible'
-const RECOMMENDATION_COLLAPSED_KEY = 'chat.recommendation_collapsed'
 const AGENT_PANEL_COLLAPSED_KEY = 'chat.agent_panel_collapsed'
 const LAWYER_WORKFLOW_PROGRESS_COLLAPSED_KEY = 'chat.lawyer_workflow_progress_collapsed'
 const AGENT_PANEL_WIDTH_KEY = 'chat.agent_panel_width'
@@ -1353,8 +1323,6 @@ const contextNodeTypeLabel = (nodeType: string) => ({
   evidence: '证据',
   control: '控制'
 }[nodeType] || nodeType)
-const debouncedInputText = useDebounce(inputText, 350)
-
 const clampAgentPanelWidth = (width: number) => {
   return Math.min(AGENT_PANEL_MAX_WIDTH, Math.max(AGENT_PANEL_MIN_WIDTH, Math.round(width)))
 }
@@ -2038,15 +2006,6 @@ const isWorkflowUpgradeDisabled = computed(() =>
   || !inputText.value.trim()
 )
 
-const recommendationToggleText = computed(() => {
-  if (recommendationLoading.value) return '正在生成推荐...'
-  const count = chatRecommendations.value.length
-  if (count > 0) {
-    return recommendationCollapsed.value ? `${count} 条建议，点击展开` : `${count} 条建议已展开`
-  }
-  return recommendationCollapsed.value ? '暂无推荐，点击展开或刷新' : '暂无推荐内容'
-})
-
 const currentTemplates = computed(() => {
   const roleName = currentRole.value?.name || ''
   const lower = roleName.toLowerCase()
@@ -2221,10 +2180,6 @@ const toggleAssistTools = () => {
   showAssistTools.value = !showAssistTools.value
 }
 
-const toggleRecommendationPanel = () => {
-  recommendationCollapsed.value = !recommendationCollapsed.value
-}
-
 const useTemplate = (text: string) => {
   if (!text) return
   inputText.value = text
@@ -2242,44 +2197,6 @@ const autoSegment = () => {
   const segments = inputText.value.match(/.{1,500}/g) || []
   inputText.value = segments.join('\n\n---\n\n')
   ElMessage.success(t('chat.autoSegment'))
-}
-
-const currentRecommendationRoleName = computed(() => {
-  if (currentRole.value?.name) return currentRole.value.name
-  if (isLawyerMode.value) return '律师'
-  if (isTeacherMode.value) return '教师'
-  if (isProgrammerMode.value) return '程序员'
-  if (isWriterMode.value) return '作家'
-  return undefined
-})
-
-const buildConversationHistoryForRecommendation = () => {
-  return chatStore.messages
-    .slice(-6)
-    .map(msg => msg.content?.trim())
-    .filter((content): content is string => Boolean(content))
-}
-
-const loadChatRecommendations = async () => {
-  recommendationLoading.value = true
-  try {
-    chatRecommendations.value = await recommendationApi.getContextualRecommendations({
-      roleName: currentRecommendationRoleName.value,
-      scope: 'chat',
-      currentInput: inputText.value.trim(),
-      conversationHistory: buildConversationHistoryForRecommendation()
-    })
-  } catch (error) {
-    console.warn('加载聊天推荐失败', error)
-    chatRecommendations.value = []
-  } finally {
-    recommendationLoading.value = false
-  }
-}
-
-const applyChatRecommendation = (item: RecommendationItem) => {
-  useTemplate(item.text)
-  recommendationCollapsed.value = true
 }
 
 const hasCurrentWorkspaceContext = () => Boolean(
@@ -2887,20 +2804,8 @@ watch(
   { immediate: true }
 )
 
-watch(
-  [() => chatStore.messages.length, debouncedInputText, currentRecommendationRoleName],
-  () => {
-    void loadChatRecommendations()
-  },
-  { immediate: true }
-)
-
 watch(showAssistTools, visible => {
   localStorage.setItem(ASSIST_TOOL_VISIBLE_KEY, visible ? '1' : '0')
-})
-
-watch(recommendationCollapsed, collapsed => {
-  localStorage.setItem(RECOMMENDATION_COLLAPSED_KEY, collapsed ? '1' : '0')
 })
 
 watch(agentPanelCollapsed, collapsed => {
@@ -3014,11 +2919,6 @@ onMounted(async () => {
   const assistToolVisible = localStorage.getItem(ASSIST_TOOL_VISIBLE_KEY)
   if (assistToolVisible === '1') {
     showAssistTools.value = true
-  }
-
-  const recommendationPanelCollapsed = localStorage.getItem(RECOMMENDATION_COLLAPSED_KEY)
-  if (recommendationPanelCollapsed === '0') {
-    recommendationCollapsed.value = false
   }
 
   selectedRoleId.value = roleStore.currentRole?.id || null
@@ -4361,115 +4261,6 @@ onUnmounted(() => {
   overflow-x: auto;
 }
 
-.recommendation-row {
-  flex-shrink: 0;
-  padding: 6px 16px 10px;
-}
-
-.recommendation-row.collapsed {
-  padding-bottom: 8px;
-}
-
-.recommendation-toggle {
-  width: 100%;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 8px 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
-  color: var(--text-primary);
-  font: inherit;
-  cursor: pointer;
-  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.recommendation-toggle:hover {
-  border-color: var(--primary-color);
-  background: var(--primary-fade);
-  box-shadow: 0 8px 18px rgba(22, 101, 52, 0.08);
-}
-
-.recommendation-toggle-copy {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  text-align: left;
-}
-
-.recommendation-toggle-title {
-  flex: 0 0 auto;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.recommendation-toggle-subtitle {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recommendation-toggle-side {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--primary-color);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.recommendation-count {
-  min-width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--primary-fade);
-  color: var(--primary-color);
-  font-size: 12px;
-  line-height: 1;
-}
-
-.recommendation-loading-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  box-shadow: 0 0 0 0 rgba(47, 143, 131, 0.42);
-  animation: recommendation-pulse 1.2s ease-out infinite;
-}
-
-.recommendation-panel-wrap {
-  max-height: min(28vh, 260px);
-  margin-top: 8px;
-  padding-right: 2px;
-  overflow-y: auto;
-}
-
-.recommendation-panel-wrap::-webkit-scrollbar {
-  width: 5px;
-}
-
-.recommendation-panel-wrap::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.recommendation-panel-wrap::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 999px;
-}
-
 /* 右侧工作台滑入动画 */
 .agent-panel-slide-enter-active {
   transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out);
@@ -4497,30 +4288,6 @@ onUnmounted(() => {
   .rgb-orb__ring,
   .rgb-orb__particle {
     animation: none;
-  }
-}
-
-@keyframes recommendation-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(47, 143, 131, 0.42);
-  }
-  100% {
-    box-shadow: 0 0 0 8px rgba(47, 143, 131, 0);
-  }
-}
-
-@media (max-width: 620px) {
-  .recommendation-toggle {
-    align-items: flex-start;
-  }
-
-  .recommendation-toggle-copy {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .recommendation-panel-wrap {
-    max-height: min(34vh, 240px);
   }
 }
 
@@ -4800,12 +4567,6 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.composer-popover.recommendation-panel-wrap {
-  max-height: min(28vh, 260px);
-  margin-top: 0;
-  padding: 7px;
-}
-
 .composer-shelf {
   order: 2;
   position: relative;
@@ -4861,20 +4622,6 @@ onUnmounted(() => {
 .composer-shelf-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.composer-shelf-count {
-  min-width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--primary-fade);
-  color: var(--primary-color);
-  font-size: 9px;
-  font-weight: 700;
 }
 
 .composer-card {

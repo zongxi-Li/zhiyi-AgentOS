@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ElMessageBox } from 'element-plus'
 import { agentosApi, type AcgView, type WorkflowRun } from '@/services/api/agentos'
 import { workflowApi, type WorkflowProgress } from '@/services/api/workflow'
-import { recommendationApi } from '@/services/api/recommendation'
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vue'
 import RoleTemplateSwitchDialog from '@/components/RoleTemplateSwitchDialog.vue'
@@ -20,9 +19,6 @@ let roleStoreMock: ReturnType<typeof createRoleStoreMock>
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/chat', () => ({ useChatStore: () => chatStoreMock }))
 vi.mock('@/stores/role', () => ({ useRoleStore: () => roleStoreMock }))
-vi.mock('@/services/api/recommendation', () => ({
-  recommendationApi: { getContextualRecommendations: vi.fn().mockResolvedValue([]) }
-}))
 vi.mock('@/services/api/workflow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api/workflow')>()
   return {
@@ -185,7 +181,6 @@ describe('ChatView ACG progress integration', () => {
       value: vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
     })
     HTMLElement.prototype.scrollTo = vi.fn()
-    vi.mocked(recommendationApi.getContextualRecommendations).mockResolvedValue([])
     vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(progress())
     vi.spyOn(agentosApi, 'getWorkflowRun').mockResolvedValue(run())
     vi.spyOn(agentosApi, 'getAcgView').mockResolvedValue(acg())
@@ -204,6 +199,8 @@ describe('ChatView ACG progress integration', () => {
     const { wrapper } = await mountPage('?workspace=agent')
 
     expect(wrapper.get('.chat-panel').classes()).toContain('hero-mode')
+    expect(wrapper.text()).not.toContain('下一步推荐')
+    expect(wrapper.find('.recommendation-panel-wrap').exists()).toBe(false)
     expect(wrapper.find('.context-panel').exists()).toBe(false)
     expect(wrapper.find('.workflow-acg-panel').exists()).toBe(false)
     expect(wrapper.get('.agent-panel').classes()).toContain('collapsed')
