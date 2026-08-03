@@ -133,6 +133,7 @@ export interface Message {
   characterRelationMap?: CharacterRelationResult
   agentMode?: 'default' | 'lawyer' | 'teacher' | 'programmer' | 'writer'
   routing?: AgentRoutingInfo
+  acgTaskId?: string
   workflowRunId?: string
   workflowTaskId?: string
   workflowId?: string
@@ -146,8 +147,10 @@ export interface ChatWorkflowBinding {
   conversationId: string
   messageId?: string
   taskId: string
+  acgTaskId: string
   runId: string
-  workflowId: string
+  workflowId?: string
+  source: 'agent' | 'chat'
   clientRequestId: string
   createdAt: string
   status: string
@@ -167,7 +170,21 @@ export const useChatStore = defineStore('chat', () => {
   const loadWorkflowBindings = (): Record<string, ChatWorkflowBinding[]> => {
     try {
       const parsed = JSON.parse(localStorage.getItem(WORKFLOW_BINDINGS_KEY) || '{}')
-      return parsed && typeof parsed === 'object' ? parsed : {}
+      if (!parsed || typeof parsed !== 'object') return {}
+      return Object.fromEntries(
+        Object.entries(parsed).map(([conversationId, value]) => [
+          conversationId,
+          (Array.isArray(value) ? value : [])
+            .filter(item => item && typeof item.runId === 'string' && item.runId.trim())
+            .map(item => ({
+              ...item,
+              acgTaskId: typeof item.acgTaskId === 'string' && item.acgTaskId.trim()
+                ? item.acgTaskId.trim()
+                : item.runId.trim(),
+              source: item.source === 'agent' ? 'agent' : 'chat'
+            }))
+        ])
+      ) as Record<string, ChatWorkflowBinding[]>
     } catch {
       return {}
     }
@@ -334,11 +351,12 @@ export const useChatStore = defineStore('chat', () => {
         role: 'assistant',
         content: response.answer || '',
         createdAt: new Date(),
-        modelInfo: response.workflowRunId ? 'AgentOS Workflow' : undefined,
+        modelInfo: (response.acgTaskId || response.workflowRunId) ? 'AgentOS Workflow' : undefined,
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
         routing: response.routing,
-        workflowRunId: response.workflowRunId,
+        acgTaskId: response.acgTaskId || response.workflowRunId,
+        workflowRunId: response.acgTaskId || response.workflowRunId,
         workflowId: response.workflowId,
         workflowStatus: response.workflowStatus,
         runtimeEngine: response.runtimeEngine,
@@ -623,11 +641,12 @@ export const useChatStore = defineStore('chat', () => {
         role: 'assistant',
         content: response.answer || '',
         createdAt: new Date(),
-        modelInfo: response.workflowRunId ? 'AgentOS Workflow' : undefined,
+        modelInfo: (response.acgTaskId || response.workflowRunId) ? 'AgentOS Workflow' : undefined,
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
         routing: response.routing,
-        workflowRunId: response.workflowRunId,
+        acgTaskId: response.acgTaskId || response.workflowRunId,
+        workflowRunId: response.acgTaskId || response.workflowRunId,
         workflowId: response.workflowId,
         workflowStatus: response.workflowStatus,
         runtimeEngine: response.runtimeEngine,
@@ -672,11 +691,12 @@ export const useChatStore = defineStore('chat', () => {
         role: 'assistant',
         content: response.answer || '',
         createdAt: new Date(),
-        modelInfo: response.workflowRunId ? 'AgentOS Workflow' : undefined,
+        modelInfo: (response.acgTaskId || response.workflowRunId) ? 'AgentOS Workflow' : undefined,
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
         routing: response.routing,
-        workflowRunId: response.workflowRunId,
+        acgTaskId: response.acgTaskId || response.workflowRunId,
+        workflowRunId: response.acgTaskId || response.workflowRunId,
         workflowId: response.workflowId,
         workflowStatus: response.workflowStatus,
         runtimeEngine: response.runtimeEngine,
@@ -721,11 +741,12 @@ export const useChatStore = defineStore('chat', () => {
         role: 'assistant',
         content: response.answer || '',
         createdAt: new Date(),
-        modelInfo: response.workflowRunId ? 'AgentOS Workflow' : undefined,
+        modelInfo: (response.acgTaskId || response.workflowRunId) ? 'AgentOS Workflow' : undefined,
         skillsUsed: response.skillsUsed || [],
         trace: response.trace || [],
         routing: response.routing,
-        workflowRunId: response.workflowRunId,
+        acgTaskId: response.acgTaskId || response.workflowRunId,
+        workflowRunId: response.acgTaskId || response.workflowRunId,
         workflowId: response.workflowId,
         workflowStatus: response.workflowStatus,
         runtimeEngine: response.runtimeEngine,
@@ -747,17 +768,21 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const upgradeToWorkflow = async (
+  interface ConversationWorkflowOptions {
+    domain?: string
+    intent?: string
+    workflowId?: string
+    reviewMode?: string
+    title?: string
+    conversationId: string
+    clientRequestId: string
+    enabledPluginIds?: string[]
+  }
+
+  const startConversationWorkflow = async (
     text: string,
-    options: {
-      domain?: string
-      intent?: string
-      workflowId?: string
-      reviewMode?: string
-      title?: string
-      conversationId: string
-      clientRequestId: string
-    }
+    options: ConversationWorkflowOptions,
+    source: 'agent' | 'chat'
   ): Promise<ChatWorkflowStartResult | undefined> => {
     if (!text.trim()) return undefined
 
@@ -772,30 +797,33 @@ export const useChatStore = defineStore('chat', () => {
       .map(message => ({ role: message.role, content: message.content }))
 
     const response = await workflowApi.startWorkflowAsync({
-      title: options.title || `Chat ACG：${text.slice(0, 40)}`,
+      title: options.title || `${source === 'agent' ? 'Agent' : 'Chat'} ACG：${text.slice(0, 40)}`,
       domain: options.domain || 'legal',
       intent: options.intent || 'case_analysis',
       workflowId: options.workflowId,
       reviewMode: options.reviewMode || 'human_in_loop',
       clientRequestId: options.clientRequestId,
+      enabledPluginIds: options.enabledPluginIds,
       input: {
-        source: 'chat',
-        caseText: text,
-        chatText: text,
+        source,
+        ...(source === 'agent'
+          ? { userIntent: text, taskGoal: text }
+          : { caseText: text, chatText: text }),
         chatContextId: contextId.value,
         chatRoleId: currentRoleId.value,
         chatContext: context
       }
     })
 
-    const workflowId = response.run.workflowId || options.workflowId
-    if (!workflowId) throw new Error('异步启动响应缺少 run.workflowId')
+    const acgTaskId = response.acgTaskId || response.run.runId
     const binding: ChatWorkflowBinding = {
       conversationId: options.conversationId,
       messageId: String(userMessage.id),
       taskId: response.task.taskId,
-      runId: response.run.runId,
-      workflowId,
+      acgTaskId,
+      runId: acgTaskId,
+      workflowId: response.run.workflowId || options.workflowId,
+      source,
       clientRequestId: options.clientRequestId,
       createdAt: new Date().toISOString(),
       status: response.run.status
@@ -809,6 +837,7 @@ export const useChatStore = defineStore('chat', () => {
       createdAt: new Date(),
       modelInfo: 'AgentOS Workflow',
       agentMode: 'default',
+      acgTaskId: binding.acgTaskId,
       workflowTaskId: binding.taskId,
       workflowRunId: binding.runId,
       workflowId: binding.workflowId,
@@ -818,6 +847,16 @@ export const useChatStore = defineStore('chat', () => {
     emitHistoryRefresh()
     return { response, binding }
   }
+
+  const upgradeToWorkflow = (
+    text: string,
+    options: ConversationWorkflowOptions
+  ) => startConversationWorkflow(text, options, 'chat')
+
+  const startAgentRun = (
+    text: string,
+    options: ConversationWorkflowOptions
+  ) => startConversationWorkflow(text, options, 'agent')
 
   const clearHistory = async () => {
     if (contextId.value) {
@@ -933,6 +972,7 @@ export const useChatStore = defineStore('chat', () => {
     sendProgrammerMessage,
     sendWriterMessage,
     upgradeToWorkflow,
+    startAgentRun,
     addWorkflowBinding,
     getLatestWorkflowBinding,
     getActiveWorkflowBinding,

@@ -81,7 +81,7 @@
           </div>
 
           <footer class="role-switcher-footer">
-            <span>切换角色不会自动启动 Workflow；有历史消息时会先请求确认。</span>
+            <span>切换角色或模板会创建新上下文；当前任务仍保留在历史记录中。</span>
             <div>
               <button type="button" class="role-switcher-cancel" @click="emit('close')">取消</button>
               <button type="button" class="role-switcher-confirm" @click="confirmSelection">

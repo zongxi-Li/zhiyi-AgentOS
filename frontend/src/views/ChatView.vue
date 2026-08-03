@@ -39,7 +39,7 @@
                 <span>{{ contextNodes.length }} 节点</span>
                 <span>{{ contextEdges.length }} 关系</span>
                 <button type="button" title="收起运行上下文" aria-label="收起运行上下文" @click="setContextPanelOpen(false)">
-                  <el-icon><ArrowUp /></el-icon>
+                  <el-icon><ArrowDownBold /></el-icon>
                 </button>
               </div>
             </header>
@@ -145,6 +145,53 @@
             <p>{{ agentSubtitle }}</p>
           </div>
 
+          <section v-else-if="showWorkflowHistoryDetail" class="workflow-history-detail" aria-label="Agent 历史任务详情">
+            <div v-if="!activeWorkflowRun" class="workflow-history-loading">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>正在恢复任务详情…</span>
+            </div>
+            <div v-else-if="showLawyerHistoryFeedback" class="lawyer-history-conversation">
+              <MessageBubble
+                :message="{
+                  id: `history-user-${activeWorkflowRun.runId}`,
+                  role: 'user',
+                  content: workflowHistoryInput,
+                  createdAt: workflowHistoryMessageTime
+                }"
+              />
+              <MessageBubble
+                :message="{
+                  id: `history-assistant-${activeWorkflowRun.runId}`,
+                  role: 'assistant',
+                  content: lawyerHistoryReply,
+                  createdAt: workflowHistoryMessageTime
+                }"
+              />
+            </div>
+            <template v-else>
+              <article class="workflow-history-request">
+                <header>
+                  <div>
+                    <span class="workflow-history-eyebrow">历史任务输入</span>
+                    <h3>{{ workflowHistoryTitle }}</h3>
+                  </div>
+                  <div class="workflow-history-identity">
+                    <span>{{ activeWorkflowRun.workflowId }}</span>
+                    <code>{{ activeWorkflowRun.runId }}</code>
+                  </div>
+                </header>
+                <pre>{{ workflowHistoryInput }}</pre>
+              </article>
+
+              <GenericArtifactPanel
+                :step-outputs="workflowHistoryStepOutputs"
+                :final-artifacts="workflowHistoryFinalArtifacts"
+                :final-report="workflowHistoryFinalReport"
+                :status="activeWorkflowStatus"
+              />
+            </template>
+          </section>
+
           <div v-else class="message-list">
             <div
               v-for="msg in chatStore.messages"
@@ -183,13 +230,63 @@
             v-if="(isSubmittingWorkflow || activeWorkflowRunId) && !isGeneralAgentMode"
             class="chat-workflow-progress"
           >
+            <div
+              v-if="isLawyerMode"
+              class="lawyer-workflow-progress"
+              :class="[activeWorkflowStatus, { collapsed: lawyerWorkflowProgressCollapsed }]"
+            >
+              <template v-if="!lawyerWorkflowProgressCollapsed">
+                <WorkflowProgressBar
+                  id="lawyer-workflow-progress-detail"
+                  :progress="workflowProgressState.progress.value"
+                  :loading="isSubmittingWorkflow || workflowProgressState.isLoading.value"
+                  :sync-error="workflowProgressState.syncError.value"
+                  variant="compact"
+                />
+                <button
+                  type="button"
+                  class="lawyer-workflow-progress__toggle"
+                  aria-label="折叠 ACG 执行状态"
+                  aria-expanded="true"
+                  aria-controls="lawyer-workflow-progress-detail"
+                  title="折叠执行状态"
+                  @click="lawyerWorkflowProgressCollapsed = true"
+                >
+                  <el-icon><ArrowUp /></el-icon>
+                </button>
+              </template>
+              <button
+                v-else
+                type="button"
+                class="lawyer-workflow-progress__collapsed-row"
+                aria-label="展开 ACG 执行状态"
+                aria-expanded="false"
+                aria-controls="lawyer-workflow-progress-detail"
+                @click="lawyerWorkflowProgressCollapsed = false"
+              >
+                <span class="lawyer-workflow-progress__identity">
+                  <span class="lawyer-workflow-progress__dot" aria-hidden="true"></span>
+                  <strong>ACG 执行状态</strong>
+                  <span>{{ activeWorkflowStatusLabel }}</span>
+                </span>
+                <span class="lawyer-workflow-progress__expand">
+                  <span v-if="workflowProgressState.progress.value?.percent != null">
+                    {{ workflowProgressState.progress.value.percent }}%
+                  </span>
+                  <span>展开</span>
+                  <el-icon><ArrowUp /></el-icon>
+                </span>
+              </button>
+            </div>
             <WorkflowProgressBar
+              v-else
               :progress="workflowProgressState.progress.value"
               :loading="isSubmittingWorkflow || workflowProgressState.isLoading.value"
               :sync-error="workflowProgressState.syncError.value"
               variant="compact"
             />
             <DynamicRunSummaryCard
+              v-if="!isLawyerMode"
               :progress="workflowProgressState.progress.value"
               :run="activeWorkflowRun"
               :view="activeAcgView"
@@ -523,6 +620,30 @@
               >
                 <HearingOutlineViewer :data="latestLawyerSkillResults.hearingOutline" />
               </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('contractRisks')"
+                title="合同风险识别"
+                name="contractRisks"
+              >
+                <ContractRiskPanel :risks="activeContractReviewArtifacts.risks" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('contractEvidence')"
+                title="法律依据链"
+                name="contractEvidence"
+              >
+                <ContractEvidencePanel :evidences="activeContractReviewArtifacts.evidences" />
+              </el-collapse-item>
+
+              <el-collapse-item
+                v-if="availableLawyerResultPanels.includes('contractReport')"
+                title="合同审查报告"
+                name="contractReport"
+              >
+                <ContractReportPreview :report-markdown="activeContractReviewArtifacts.reportMarkdown" />
+              </el-collapse-item>
             </el-collapse>
           </template>
         </LawyerSkillPanel>
@@ -851,7 +972,18 @@ import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vu
 import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import AcgRunInspector from '@/components/agentos/AcgRunInspector.vue'
-import { agentosApi, type AcgBlueprint, type AcgView, type WorkflowRun } from '@/services/api/agentos'
+import ContractRiskPanel from '@/components/agentos/ContractRiskPanel.vue'
+import ContractEvidencePanel from '@/components/agentos/ContractEvidencePanel.vue'
+import ContractReportPreview from '@/components/agentos/ContractReportPreview.vue'
+import GenericArtifactPanel from '@/features/acg/GenericArtifactPanel.vue'
+import {
+  agentosApi,
+  type AcgBlueprint,
+  type AcgDeliverable,
+  type AcgFinalArtifact,
+  type AcgView,
+  type WorkflowRun
+} from '@/services/api/agentos'
 import type { WorkflowProgress } from '@/services/api/workflow'
 import { agentTeacherApi } from '@/services/api/agentTeacher'
 import { federatedModelApi } from '@/services/api/federatedModel'
@@ -862,7 +994,10 @@ import { useRoleStore } from '@/stores/role'
 import { useDebounce } from '@/composables/useDebounce'
 import { useWorkflowProgress } from '@/composables/useWorkflowProgress'
 import { runtimeProjectionChanged } from '@/utils/runtimePresentation'
+import { extractContractReviewArtifacts } from '@/utils/agentos/contractReviewArtifactExtractor'
 import { setConversationWorkspace } from '@/utils/conversationWorkspace'
+import { wasErrorUserNotified } from '@/utils/request'
+import { resolveAcgTaskTitle } from '@/utils/acgTaskTitle'
 import { loadModelSettings } from '@/config/modelSettings'
 import { roleTemplateGroups, type RoleId } from '@/config/agentWorkbench'
 
@@ -922,6 +1057,7 @@ const recommendationCollapsed = ref(true)
 const ASSIST_TOOL_VISIBLE_KEY = 'chat.composer_templates_visible'
 const RECOMMENDATION_COLLAPSED_KEY = 'chat.recommendation_collapsed'
 const AGENT_PANEL_COLLAPSED_KEY = 'chat.agent_panel_collapsed'
+const LAWYER_WORKFLOW_PROGRESS_COLLAPSED_KEY = 'chat.lawyer_workflow_progress_collapsed'
 const AGENT_PANEL_WIDTH_KEY = 'chat.agent_panel_width'
 const AGENT_PANEL_DEFAULT_WIDTH = 340
 const AGENT_PANEL_MIN_WIDTH = 280
@@ -936,6 +1072,9 @@ const CONTEXT_PANEL_DEFAULT_HEIGHT = 250
 const CONTEXT_PANEL_MIN_HEIGHT = 170
 const CONTEXT_PANEL_MAX_HEIGHT = 420
 const agentPanelCollapsed = ref(localStorage.getItem(AGENT_PANEL_COLLAPSED_KEY) === '1')
+const lawyerWorkflowProgressCollapsed = ref(
+  localStorage.getItem(LAWYER_WORKFLOW_PROGRESS_COLLAPSED_KEY) === '1'
+)
 const storedAgentPanelWidth = Number(localStorage.getItem(AGENT_PANEL_WIDTH_KEY))
 const agentPanelWidth = ref(
   Number.isFinite(storedAgentPanelWidth) && storedAgentPanelWidth >= AGENT_PANEL_MIN_WIDTH && storedAgentPanelWidth <= AGENT_PANEL_MAX_WIDTH
@@ -980,6 +1119,9 @@ const workflowProgressState = useWorkflowProgress({
   onTerminal: handleWorkflowTerminal
 })
 const hasActiveWorkflow = computed(() => Boolean(activeWorkflowRunId.value))
+const showWorkflowHistoryDetail = computed(() => (
+  chatStore.messages.length === 0 && Boolean(activeWorkflowRunId.value)
+))
 const showHeroMode = computed(() => {
   return chatStore.messages.length === 0
     && !isSubmittingWorkflow.value
@@ -1085,6 +1227,88 @@ const contextEdges = computed(() => displayAcgBlueprint.value?.edges || [])
 const contextStepNodes = computed(() => contextNodes.value.filter(node => node.nodeType === 'step'))
 const contextObjective = computed(() => {
   return displayAcgBlueprint.value?.objective || activeWorkflowRun.value?.workflowId || '等待工作流'
+})
+const historyText = (value: unknown): string => typeof value === 'string' ? value.trim() : ''
+const workflowHistoryInput = computed(() => {
+  const input = activeWorkflowRun.value?.input || {}
+  const chatContext = Array.isArray(input.chatContext) ? input.chatContext : []
+  const contextInput = [...chatContext]
+    .reverse()
+    .find(item => item && typeof item === 'object' && item.role === 'user')
+  return historyText(input.userIntent)
+    || historyText(input.taskGoal)
+    || historyText(input.prompt)
+    || historyText(input.requirement)
+    || historyText(input.text)
+    || historyText(input.query)
+    || historyText(contextInput?.content)
+    || historyText(activeWorkflowRun.value?.title)
+    || '该运行未保存可展示的任务原文。'
+})
+const workflowHistoryTitle = computed(() => {
+  const run = activeWorkflowRun.value
+  if (!run) return 'Agent 历史任务'
+  return resolveAcgTaskTitle({
+    title: workflowHistoryInput.value,
+    workflowId: run.workflowId,
+    input: run.input
+  })
+})
+const workflowHistoryStepOutputs = computed<AcgDeliverable[]>(() => {
+  const projected = activeAcgView.value?.stepOutputs?.length
+    ? activeAcgView.value.stepOutputs
+    : activeAcgView.value?.deliverables
+  if (projected?.length) return projected
+  return (activeWorkflowRun.value?.steps || [])
+    .filter(step => step.output && Object.keys(step.output).length > 0)
+    .map(step => ({
+      stepId: step.stepId,
+      name: step.name,
+      status: step.status,
+      output: step.output || {}
+    }))
+})
+const workflowHistoryFinalArtifacts = computed<AcgFinalArtifact[]>(() => {
+  const run = activeWorkflowRun.value
+  const runArtifacts = (run?.steps || []).flatMap(step => {
+    const candidate = step.output?.artifact
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return []
+    const content = historyText(candidate.content)
+    if (!content) return []
+    return [{
+      artifactId: String(candidate.artifactId || `artifact_${run?.runId}_${step.stepId}`),
+      type: String(candidate.type || 'report'),
+      title: String(candidate.title || step.name),
+      mediaType: String(candidate.mediaType || 'text/markdown'),
+      content,
+      structuredData: candidate.structuredData && typeof candidate.structuredData === 'object'
+        ? candidate.structuredData as Record<string, any>
+        : {},
+      stepId: step.stepId
+    }]
+  })
+  // Run artifacts retain structuredData; the ACG projection may expose only a
+  // legacy Markdown artifact, so prefer the richer canonical run payload.
+  return runArtifacts.length ? runArtifacts : (activeAcgView.value?.finalArtifacts || [])
+})
+const workflowHistoryFinalReport = computed(() => {
+  if (historyText(activeAcgView.value?.finalReport)) return activeAcgView.value?.finalReport || null
+  let report: string | null = null
+  for (const step of activeWorkflowRun.value?.steps || []) {
+    const output = step.output || {}
+    const candidate = historyText(output.final_answer)
+      || historyText(output.report_markdown)
+      || historyText(output.final_report)
+      || historyText(output.report)
+    if (candidate) report = candidate
+  }
+  if (report) return report
+  const output = activeWorkflowRun.value?.output || {}
+  return historyText(output.final_answer)
+    || historyText(output.report_markdown)
+    || historyText(output.final_report)
+    || historyText(output.report)
+    || null
 })
 const activeWorkflowStatus = computed(() => (
   workflowProgressState.progress.value?.status
@@ -1418,7 +1642,10 @@ function handleWorkflowProgressChanged(current: WorkflowProgress, previous: Work
 async function handleWorkflowTerminal(progress: WorkflowProgress): Promise<void> {
   if (progress.runId !== activeWorkflowRunId.value || terminalResultLoaded.has(progress.runId)) return
   const loaded = await loadActiveAcgView(progress.runId, true)
-  if (loaded) terminalResultLoaded.add(progress.runId)
+  if (loaded) {
+    terminalResultLoaded.add(progress.runId)
+    window.dispatchEvent(new Event('history-refresh'))
+  }
 }
 
 const syncWorkflowMessageStatus = (runId: string, status: string) => {
@@ -1453,29 +1680,48 @@ const handleChatReviewConflict = async () => {
 
 const roles = computed(() => roleStore.roles)
 const currentRole = computed(() => roleStore.currentRole)
+const inferredWorkflowRoleId = computed<RoleId | null>(() => {
+  const workflowId = (activeWorkflowRun.value?.workflowId || '').toLowerCase()
+  const domain = (activeWorkflowRun.value?.domain || '').toLowerCase()
+  if (domain === 'legal' || workflowId.includes('legal') || workflowId.includes('lawyer')) return 'lawyer'
+  if (domain === 'education' || workflowId.includes('education') || workflowId.includes('teacher')) return 'teacher'
+  if (domain === 'programming' || workflowId.includes('programmer') || workflowId.includes('code')) return 'programmer'
+  if (domain === 'writing' || workflowId.includes('writer') || workflowId.includes('writing')) return 'writer'
+  return null
+})
 
 const isLawyerMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
   return name.includes('律师') || name.includes('lawyer') || name.includes('法律')
+    || (!currentRole.value && inferredWorkflowRoleId.value === 'lawyer')
 })
+
+const showLawyerHistoryFeedback = computed(() => inferredWorkflowRoleId.value === 'lawyer')
 
 const isTeacherMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
   return name.includes('教师') || name.includes('teacher') || name.includes('教学')
+    || (!currentRole.value && inferredWorkflowRoleId.value === 'teacher')
 })
 
 const isProgrammerMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
   return name.includes('程序') || name.includes('programmer') || name.includes('开发')
+    || (!currentRole.value && inferredWorkflowRoleId.value === 'programmer')
 })
 
 const isWriterMode = computed(() => {
   const name = (currentRole.value?.name || '').toLowerCase()
   return name.includes('作家') || name.includes('writer') || name.includes('写作')
+    || (!currentRole.value && inferredWorkflowRoleId.value === 'writer')
 })
 
 const isAgentMode = computed(() => workspaceMode.value === 'agent')
-const isGeneralAgentMode = computed(() => isAgentMode.value && !currentRole.value && !selectedRoleId.value)
+const isGeneralAgentMode = computed(() => isAgentMode.value
+  && !isLawyerMode.value
+  && !isTeacherMode.value
+  && !isProgrammerMode.value
+  && !isWriterMode.value)
 
 const chatMainClass = computed(() => {
   if (isLawyerMode.value) return 'lawyer'
@@ -1494,12 +1740,13 @@ const agentIcon = computed(() => {
 })
 
 const agentTitle = computed(() => {
-  if (isLawyerMode.value) return '律师 Agent 对话'
-  if (isTeacherMode.value) return '教师 Agent 对话'
-  if (isProgrammerMode.value) return '程序员 Agent 对话'
-  if (isWriterMode.value) return '作家 Agent 对话'
-  if (currentRole.value?.name) return `${currentRole.value.name} Agent 对话`
-  return isAgentMode.value ? '通用 Agent 对话' : '通用 Chat 对话'
+  const workspaceLabel = isAgentMode.value ? 'Agent' : 'Chat'
+  if (isLawyerMode.value) return `律师 ${workspaceLabel} 对话`
+  if (isTeacherMode.value) return `教师 ${workspaceLabel} 对话`
+  if (isProgrammerMode.value) return `程序员 ${workspaceLabel} 对话`
+  if (isWriterMode.value) return `作家 ${workspaceLabel} 对话`
+  if (currentRole.value?.name) return `${currentRole.value.name} ${workspaceLabel} 对话`
+  return `通用 ${workspaceLabel} 对话`
 })
 
 const agentSubtitle = computed(() => {
@@ -1515,6 +1762,10 @@ const agentSubtitle = computed(() => {
 
 const composerModeLabel = computed(() => {
   if (currentRole.value?.name) return `${currentRole.value.name} 模式`
+  if (isLawyerMode.value) return '律师模式'
+  if (isTeacherMode.value) return '教师模式'
+  if (isProgrammerMode.value) return '程序员模式'
+  if (isWriterMode.value) return '作家模式'
   return isAgentMode.value ? '通用 Agent' : '通用 Chat'
 })
 
@@ -1542,13 +1793,79 @@ const latestWriterMessage = computed(() => {
     .find(msg => msg.role === 'assistant' && msg.agentMode === 'writer')
 })
 
+const activeContractReviewArtifacts = computed(() => extractContractReviewArtifacts(activeWorkflowRun.value))
+const workflowHistoryMessageTime = computed(() => {
+  const raw = activeWorkflowRun.value?.updatedAt || activeWorkflowRun.value?.createdAt
+  const value = raw ? new Date(raw) : new Date()
+  return Number.isNaN(value.getTime()) ? new Date() : value
+})
+const lawyerHistoryReply = computed(() => {
+  const report = historyText(activeContractReviewArtifacts.value.reportMarkdown)
+    || historyText(workflowHistoryFinalArtifacts.value.find(item => historyText(item.content))?.content)
+    || historyText(workflowHistoryFinalReport.value)
+  if (report) return report
+
+  const { risks, evidences, revisionSuggestions } = activeContractReviewArtifacts.value
+  const lines = ['# 合同审查意见']
+  if (risks.length) {
+    lines.push('', '## 风险识别')
+    risks.forEach((risk, index) => {
+      const level = ({ high: '高风险', medium: '中风险', low: '低风险' } as Record<string, string>)[
+        String(risk.level || '').toLowerCase()
+      ] || '未分级'
+      lines.push('', `${index + 1}. **${level}｜${historyText(risk.title) || historyText(risk.id) || '合同风险'}**`)
+      if (historyText(risk.reason)) lines.push(`   - 原因：${historyText(risk.reason)}`)
+      if (historyText(risk.consequence)) lines.push(`   - 影响：${historyText(risk.consequence)}`)
+      if (historyText(risk.suggestion)) lines.push(`   - 建议：${historyText(risk.suggestion)}`)
+    })
+  }
+  if (evidences.length) {
+    lines.push('', '## 法律依据')
+    evidences.forEach(item => {
+      const source = historyText(item.sourceName) || historyText(item.title) || historyText(item.sourceType) || '依据'
+      const content = historyText(item.citationText) || historyText(item.content)
+      lines.push(`- **${source}**${content ? `：${content}` : ''}`)
+    })
+  }
+  if (revisionSuggestions.length) {
+    lines.push('', '## 修改建议')
+    revisionSuggestions.forEach(item => {
+      const suggestion = typeof item === 'string'
+        ? item
+        : historyText(item.suggestion) || historyText(item.content) || historyText(item.description)
+      if (suggestion) lines.push(`- ${suggestion}`)
+    })
+  }
+  if (lines.length === 1) lines.push('', '律师审查任务已完成，暂未保存可展示的报告正文。')
+  return lines.join('\n')
+})
+const activeLawyerWorkflowSteps = computed(() => (activeWorkflowRun.value?.steps || [])
+  .filter(step => ['completed', 'waiting_review', 'running'].includes(step.status)))
+const activeLawyerWorkflowRiskLevel = computed(() => {
+  const levels = activeContractReviewArtifacts.value.risks.map(item => (item.level || '').toLowerCase())
+  if (levels.includes('high')) return 'high'
+  if (levels.includes('medium')) return 'medium'
+  if (levels.includes('low')) return 'low'
+  return ''
+})
+
 const latestLawyerMeta = computed(() => {
   const lastAssistant = latestLawyerMessage.value
+  const fallbackSteps = activeLawyerWorkflowSteps.value
   return {
-    skillsUsed: lastAssistant?.skillsUsed || [],
-    trace: lastAssistant?.trace || [],
+    skillsUsed: lastAssistant?.skillsUsed?.length
+      ? lastAssistant.skillsUsed
+      : fallbackSteps.map(step => step.stepId),
+    trace: lastAssistant?.trace?.length
+      ? lastAssistant.trace
+      : fallbackSteps.map((step, index) => ({
+        step: index + 1,
+        thought: step.agentName || step.stepId,
+        action: step.stepId,
+        observation: step.status
+      })),
     federated: lastAssistant?.federated || {},
-    riskLevel: lastAssistant?.riskLevel || ''
+    riskLevel: lastAssistant?.riskLevel || activeLawyerWorkflowRiskLevel.value
   }
 })
 
@@ -1649,6 +1966,9 @@ const availableLawyerResultPanels = computed(() => {
   if (latestLawyerSkillResults.value.limitationCalc || skillSet.has('limitation_calculation')) panels.push('limitation')
   if (latestLawyerSkillResults.value.jurisdiction || skillSet.has('jurisdiction_determination')) panels.push('jurisdiction')
   if (latestLawyerSkillResults.value.hearingOutline || skillSet.has('hearing_outline_generation')) panels.push('hearing')
+  if (activeContractReviewArtifacts.value.risks.length || skillSet.has('risk_detect')) panels.push('contractRisks')
+  if (activeContractReviewArtifacts.value.evidences.length || skillSet.has('legal_evidence_match')) panels.push('contractEvidence')
+  if (activeContractReviewArtifacts.value.reportMarkdown || skillSet.has('report_generate')) panels.push('contractReport')
   return panels
 })
 
@@ -1962,23 +2282,64 @@ const applyChatRecommendation = (item: RecommendationItem) => {
   recommendationCollapsed.value = true
 }
 
-const selectRole = async (role: any): Promise<boolean> => {
-  if (chatStore.messages.length > 0) {
-    try {
-      await ElMessageBox.confirm(
-        `切换到角色 "${role.name}" 会清空当前对话，是否继续？`,
-        '切换角色',
-        {
-          confirmButtonText: '继续',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }
-      )
-      chatStore.clearMessages()
-    } catch {
-      return false
-    }
+const hasCurrentWorkspaceContext = () => Boolean(
+  chatStore.messages.length
+  || activeWorkflowRunId.value
+  || chatStore.contextId
+  || (typeof route.query.contextId === 'string' && route.query.contextId.trim())
+)
+
+const resetWorkspaceForRoleSwitch = async () => {
+  const previousConversationId = currentConversationId.value
+  sessionStorage.removeItem(workflowSubmissionStorageKey(previousConversationId))
+  chatStore.clearMessages()
+  draftConversationId.value = `draft:${createClientRequestId()}`
+  localStorage.setItem(DRAFT_CONVERSATION_KEY, draftConversationId.value)
+
+  conversationGeneration += 1
+  workflowProgressState.reset()
+  invalidateWorkflowResultRequest()
+  activeWorkflowRunId.value = ''
+  activeWorkflowBinding.value = null
+  activeWorkflowRun.value = null
+  activeAcgView.value = null
+  workflowStartError.value = null
+  pendingMessageCount.value = 0
+
+  const { runId: _runId, contextId: _contextId, ...remainingQuery } = route.query
+  await router.replace({
+    path: '/chat',
+    query: { ...remainingQuery, workspace: workspaceMode.value }
+  })
+}
+
+const prepareRoleSwitch = async (targetLabel: string): Promise<boolean> => {
+  if (!hasCurrentWorkspaceContext()) return true
+  const createLabel = isAgentMode.value ? '新建一个 Agent 任务' : '新建一段对话'
+  const currentLabel = isAgentMode.value ? '当前 Agent 任务' : '当前对话'
+  try {
+    await ElMessageBox.confirm(
+      `切换到${targetLabel}将${createLabel}；${currentLabel}会保留在记录中。是否继续？`,
+      '切换角色与模板',
+      {
+        confirmButtonText: '新建并切换',
+        cancelButtonText: '留在当前任务',
+        type: 'warning'
+      }
+    )
+    await resetWorkspaceForRoleSwitch()
+    return true
+  } catch {
+    return false
   }
+}
+
+const selectRole = async (role: any): Promise<boolean> => {
+  if (role.id === currentRole.value?.id) {
+    showRoleDrawer.value = false
+    return true
+  }
+  if (!await prepareRoleSwitch(`角色“${role.name}”`)) return false
 
   selectedRoleId.value = role.id
   await roleStore.setCurrentRole(role)
@@ -1989,22 +2350,11 @@ const selectRole = async (role: any): Promise<boolean> => {
 }
 
 const selectGeneralMode = async (): Promise<boolean> => {
-  if (chatStore.messages.length > 0) {
-    try {
-      await ElMessageBox.confirm(
-        '切换到通用模式会清空当前对话，是否继续？',
-        '切换模式',
-        {
-          confirmButtonText: '继续',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }
-      )
-      chatStore.clearMessages()
-    } catch {
-      return false
-    }
+  if (!currentRole.value && !selectedRoleId.value) {
+    showRoleDrawer.value = false
+    return true
   }
+  if (!await prepareRoleSwitch('通用模式')) return false
 
   selectedRoleId.value = null
   roleStore.clearCurrentRole()
@@ -2036,9 +2386,17 @@ const findRuntimeRole = (roleId: RoleId) => {
 }
 
 const applyRoleTemplateSelection = async (selection: { roleId: RoleId | 'general'; templateKey: string }) => {
+  const templateChanged = selection.templateKey !== selectedChatTemplateKey.value
   if (selection.roleId === 'general') {
-    const switched = await selectGeneralMode()
-    if (switched) roleTemplateDialogOpen.value = false
+    roleTemplateDialogOpen.value = false
+    const alreadyGeneral = !currentRole.value && !selectedRoleId.value
+    const switched = alreadyGeneral && templateChanged
+      ? await prepareRoleSwitch('通用模式的新模板')
+      : await selectGeneralMode()
+    if (switched) {
+      selectedChatTemplateKey.value = selection.templateKey
+      localStorage.setItem(CHAT_TEMPLATE_KEY, selection.templateKey)
+    }
     return
   }
 
@@ -2052,8 +2410,12 @@ const applyRoleTemplateSelection = async (selection: { roleId: RoleId | 'general
     return
   }
 
+  roleTemplateDialogOpen.value = false
   if (targetRole.id !== currentRole.value?.id) {
     const switched = await selectRole(targetRole)
+    if (!switched) return
+  } else if (templateChanged) {
+    const switched = await prepareRoleSwitch(`“${targetRole.name} / ${template?.name || '新模板'}”`)
     if (!switched) return
   } else {
     ElMessage.success(`已选择 ${targetRole.name}${template ? ` / ${template.name}` : ''}`)
@@ -2061,7 +2423,6 @@ const applyRoleTemplateSelection = async (selection: { roleId: RoleId | 'general
 
   selectedChatTemplateKey.value = selection.templateKey
   localStorage.setItem(CHAT_TEMPLATE_KEY, selection.templateKey)
-  roleTemplateDialogOpen.value = false
 }
 
 const animateComposerToConversation = async (startRect: DOMRect) => {
@@ -2123,19 +2484,20 @@ const sendAgentWorkspaceMessage = async () => {
     }
 
     if (composerStartRect) await animateComposerToConversation(composerStartRect)
-    if (response?.workflowRunId) {
+    const acgTaskId = response?.acgTaskId || response?.workflowRunId
+    if (acgTaskId) {
       const binding = chatStore.getLatestWorkflowBinding(currentConversationId.value)
       await activateWorkflowRun(
-        response.workflowRunId,
-        binding?.runId === response.workflowRunId ? binding : null,
+        acgTaskId,
+        binding?.runId === acgTaskId ? binding : null,
         false
       )
-      ElMessage.success(`专业任务已进入 ACG：${response.workflowRunId}`)
+      ElMessage.success(`专业任务已进入 ACG：${acgTaskId}`)
     }
     scrollToBottom()
   } catch (error: any) {
     inputText.value = userText
-    ElMessage.error(error?.message || '发送消息失败')
+    if (!wasErrorUserNotified(error)) ElMessage.error(error?.message || '发送消息失败')
   } finally {
     loading.value = false
   }
@@ -2174,7 +2536,7 @@ const sendMessage = async () => {
     await sendPromise
     scrollToBottom()
   } catch (err: any) {
-    ElMessage.error(err.message || '发送消息失败')
+    if (!wasErrorUserNotified(err)) ElMessage.error(err.message || '发送消息失败')
     inputText.value = userText
   } finally {
     loading.value = false
@@ -2251,7 +2613,8 @@ const upgradeChatToWorkflow = async () => {
   workflowStartError.value = null
   inputText.value = ''
   try {
-    const result = await chatStore.upgradeToWorkflow(userText, {
+    const startWorkflow = isAgentMode.value ? chatStore.startAgentRun : chatStore.upgradeToWorkflow
+    const result = await startWorkflow(userText, {
       domain: isLawyerMode.value ? 'legal' : 'general',
       intent: isLawyerMode.value ? 'case_analysis' : 'general',
       workflowId: isLawyerMode.value ? 'legal_case_analysis_v1' : undefined,
@@ -2544,13 +2907,18 @@ watch(agentPanelCollapsed, collapsed => {
   localStorage.setItem(AGENT_PANEL_COLLAPSED_KEY, collapsed ? '1' : '0')
 })
 
-const restoreWorkflowForConversation = async (conversationChanged = false) => {
+watch(lawyerWorkflowProgressCollapsed, collapsed => {
+  localStorage.setItem(LAWYER_WORKFLOW_PROGRESS_COLLAPSED_KEY, collapsed ? '1' : '0')
+})
+
+const restoreWorkflowForConversation = async () => {
   const conversationId = currentConversationId.value
   const binding = chatStore.getActiveWorkflowBinding(conversationId)
     || chatStore.getLatestWorkflowBinding(conversationId)
   const routeRunId = typeof route.query.runId === 'string' ? route.query.runId.trim() : ''
-  const queryRunId = conversationChanged && !binding ? '' : routeRunId
-  const runId = binding?.runId || queryRunId
+  // A run selected from Agent history is explicit navigation state. It must win over
+  // conversation-local bindings, especially while clearMessages() changes contextId.
+  const runId = routeRunId || binding?.runId || ''
 
   if (runId && runId === activeWorkflowRunId.value && workflowProgressState.runId.value === runId) return
 
@@ -2562,13 +2930,7 @@ const restoreWorkflowForConversation = async (conversationChanged = false) => {
   activeWorkflowRun.value = null
   activeAcgView.value = null
   workflowStartError.value = null
-  if (!runId) {
-    if (conversationChanged && routeRunId) {
-      const { runId: _removed, ...remainingQuery } = route.query
-      await router.replace({ query: remainingQuery })
-    }
-    return
-  }
+  if (!runId) return
 
   activeWorkflowRunId.value = runId
   activeWorkflowBinding.value = binding?.runId === runId ? binding : null
@@ -2579,17 +2941,17 @@ const restoreWorkflowForConversation = async (conversationChanged = false) => {
   }
   await workflowProgressState.start(runId, { fresh: false })
   if (restoreGeneration !== conversationGeneration || runId !== activeWorkflowRunId.value) return
-  if (binding && queryRunId !== runId) {
+  if (!cachedResult && !activeWorkflowRun.value && !isLoadingWorkflowResult.value) {
+    await loadActiveAcgView(runId)
+  }
+  if (!routeRunId && binding) {
     await router.replace({ query: { ...route.query, runId } })
   }
 }
 
 watch(
   [currentConversationId, () => route.query.runId],
-  ([conversationId], previous) => {
-    const previousConversationId = previous?.[0]
-    void restoreWorkflowForConversation(Boolean(previousConversationId && previousConversationId !== conversationId))
-  },
+  () => { void restoreWorkflowForConversation() },
   { immediate: true }
 )
 
@@ -3906,6 +4268,92 @@ onUnmounted(() => {
   gap: 26px;
 }
 
+.workflow-history-detail {
+  display: flex;
+  width: min(100%, 920px);
+  margin: 0 auto;
+  flex-direction: column;
+  gap: 18px;
+  animation: fade-in 0.24s var(--ease-out);
+}
+
+.workflow-history-loading {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-secondary);
+}
+
+.lawyer-history-conversation {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.workflow-history-request {
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+}
+
+.workflow-history-request header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.workflow-history-eyebrow {
+  color: var(--primary-color);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.workflow-history-request h3 {
+  margin: 5px 0 0;
+  color: var(--text-primary);
+  font-size: 17px;
+}
+
+.workflow-history-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.workflow-history-identity code {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-history-request pre {
+  max-height: 320px;
+  margin: 0;
+  padding: 18px 20px;
+  overflow: auto;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .template-row {
   display: flex;
   gap: 8px;
@@ -4108,6 +4556,116 @@ onUnmounted(() => {
   order: 0;
   width: 50%;
   margin: 0 auto 7px;
+}
+
+.lawyer-workflow-progress {
+  position: relative;
+  min-width: 0;
+}
+
+.lawyer-workflow-progress :deep(.workflow-progress__header) {
+  padding-right: 28px;
+}
+
+.lawyer-workflow-progress__toggle {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  right: 7px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.lawyer-workflow-progress__toggle:hover,
+.lawyer-workflow-progress__toggle:focus-visible {
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.lawyer-workflow-progress__toggle:active {
+  transform: translateY(1px);
+}
+
+.lawyer-workflow-progress__collapsed-row {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px 7px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.lawyer-workflow-progress__collapsed-row:hover,
+.lawyer-workflow-progress__collapsed-row:focus-visible {
+  border-color: var(--border-hover);
+  background: color-mix(in srgb, var(--primary-fade) 34%, var(--bg-card));
+  outline: none;
+}
+
+.lawyer-workflow-progress__identity,
+.lawyer-workflow-progress__expand {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+
+.lawyer-workflow-progress__identity strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.lawyer-workflow-progress__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-fade);
+}
+
+.lawyer-workflow-progress.completed .lawyer-workflow-progress__dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-fade);
+}
+
+.lawyer-workflow-progress.waiting_review .lawyer-workflow-progress__dot,
+.lawyer-workflow-progress.retrying .lawyer-workflow-progress__dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px var(--warning-fade);
+}
+
+.lawyer-workflow-progress.failed .lawyer-workflow-progress__dot,
+.lawyer-workflow-progress.cancelled .lawyer-workflow-progress__dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-fade);
+}
+
+.lawyer-workflow-progress__expand {
+  flex: 0 0 auto;
+  color: var(--primary-color);
+  font-weight: 650;
 }
 
 .chat-workflow-error {
