@@ -30,7 +30,7 @@
     <div v-else class="inspector-body">
       <section class="run-overview">
         <div class="run-line">
-          <span>当前 Run</span>
+          <span>ACG 任务 ID</span>
           <code :title="runId">{{ shortRunId }}</code>
         </div>
         <strong class="run-message">{{ progressMessage }}</strong>
