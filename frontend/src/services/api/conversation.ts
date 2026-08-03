@@ -19,9 +19,14 @@ export interface ConversationDetail {
 
 export const conversationApi = {
   // 获取用户的对话列表
-  async getUserConversations(_userId?: string, workspaceMode?: 'agent' | 'chat'): Promise<Conversation[]> {
+  async getUserConversations(
+    _userId?: string,
+    workspaceMode?: 'agent' | 'chat',
+    options: { signal?: AbortSignal } = {}
+  ): Promise<Conversation[]> {
     const response = await request.get<Conversation[]>('/conversations', {
-      params: workspaceMode ? { workspaceMode } : undefined
+      params: workspaceMode ? { workspaceMode } : undefined,
+      signal: options.signal
     })
     return response.data
   },

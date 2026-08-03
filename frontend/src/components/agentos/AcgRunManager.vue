@@ -17,10 +17,11 @@
         <option value="failed">需处理</option>
         <option value="completed">已完成</option>
       </select>
+      <span v-if="refreshing && runs.length" class="acg-run-refreshing">更新中</span>
     </div>
 
-    <div v-if="loading" class="acg-run-message">正在加载运行记录…</div>
-    <div v-else-if="loadError" class="acg-run-message acg-run-message--error">
+    <div v-if="loading && !runs.length" class="acg-run-message">正在加载运行记录…</div>
+    <div v-else-if="loadError && !runs.length" class="acg-run-message acg-run-message--error">
       <span>{{ loadError }}</span>
       <button type="button" @click="loadRuns()">重试</button>
     </div>
@@ -116,13 +117,19 @@ type RunGroupKey = 'active' | 'review' | 'failed' | 'completed'
 
 const runs = ref<WorkflowRunSummary[]>([])
 const loading = ref(false)
+const refreshing = ref(false)
 const loadError = ref('')
 const searchKeyword = ref('')
 const statusFilter = ref<'all' | RunGroupKey>('all')
 const deletingRunId = ref('')
 const workflowRunsStore = useWorkflowRunsStore()
 let loadController: AbortController | null = null
-let refreshTimer: ReturnType<typeof window.setInterval> | null = null
+let loadPromise: Promise<void> | null = null
+let refreshTimer: ReturnType<typeof window.setTimeout> | null = null
+let unmounted = false
+const ACTIVE_REFRESH_INTERVAL_MS = 8_000
+const IDLE_REFRESH_INTERVAL_MS = 30_000
+const RUN_LIST_PAGE_SIZE = 20
 
 const groupKey = (run: WorkflowRunSummary): RunGroupKey => {
   if (run.status === 'waiting_review' || run.phase === 'review') return 'review'
@@ -226,37 +233,65 @@ const deleteRun = async (run: WorkflowRunSummary) => {
   }
 }
 
-const loadRuns = async (silent = false) => {
-  loadController?.abort()
-  loadController = new AbortController()
-  if (!silent) loading.value = true
+const loadRuns = (silent = false): Promise<void> => {
+  if (loadPromise) return loadPromise
+
+  const controller = new AbortController()
+  loadController = controller
+  if (!silent && !runs.value.length) loading.value = true
+  refreshing.value = true
   loadError.value = ''
-  try {
-    const page = await workflowApi.listRuns(
-      { source: 'acg', summary: true, page: 1, pageSize: 100 },
-      { signal: loadController.signal }
-    )
-    runs.value = page.items || []
-  } catch (error: unknown) {
-    if ((error as { code?: string })?.code !== 'ERR_CANCELED') loadError.value = '运行记录暂时无法加载'
-  } finally {
-    if (!silent) loading.value = false
-  }
+  const pending = (async () => {
+    try {
+      const page = await workflowApi.listRuns(
+        { source: 'acg', summary: true, page: 1, pageSize: RUN_LIST_PAGE_SIZE },
+        { signal: controller.signal }
+      )
+      if (!controller.signal.aborted) runs.value = page.items || []
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code !== 'ERR_CANCELED' && !controller.signal.aborted) {
+        loadError.value = '运行记录暂时无法加载'
+      }
+    } finally {
+      if (loadController === controller) {
+        loadController = null
+        loadPromise = null
+        loading.value = false
+        refreshing.value = false
+      }
+    }
+  })()
+  loadPromise = pending
+  return pending
 }
 
-// External mutations (create/delete/update) already have a usable local list.
-// Refresh it in the background so the sidebar does not flash the first-load state.
-const handleRunsRefresh = () => void loadRuns(true)
+const scheduleRefresh = () => {
+  if (unmounted) return
+  if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+  const hasActiveRuns = runs.value.some(run => groupKey(run) === 'active' || groupKey(run) === 'review')
+  refreshTimer = window.setTimeout(async () => {
+    refreshTimer = null
+    if (document.visibilityState !== 'hidden') await loadRuns(true)
+    scheduleRefresh()
+  }, hasActiveRuns ? ACTIVE_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS)
+}
+
+// External mutations refresh the usable local list in the background and reset the poll window.
+const handleRunsRefresh = () => {
+  if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+  refreshTimer = null
+  void loadRuns(true).finally(scheduleRefresh)
+}
 
 onMounted(() => {
   window.addEventListener('acg-runs-refresh', handleRunsRefresh)
-  void loadRuns()
-  refreshTimer = window.setInterval(() => void loadRuns(true), 8000)
+  void loadRuns().finally(scheduleRefresh)
 })
 
 onUnmounted(() => {
+  unmounted = true
   loadController?.abort()
-  if (refreshTimer !== null) window.clearInterval(refreshTimer)
+  if (refreshTimer !== null) window.clearTimeout(refreshTimer)
   window.removeEventListener('acg-runs-refresh', handleRunsRefresh)
 })
 </script>
@@ -266,7 +301,8 @@ onUnmounted(() => {
 .acg-new-run { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border-light); border-radius: 7px; background: color-mix(in srgb, var(--bg-card) 84%, transparent); color: var(--text-primary); box-shadow: var(--shadow-sm); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; transition: var(--transition); }
 .acg-new-run:hover { border-color: var(--primary-line); background: var(--bg-card); color: var(--primary-color); }
 .acg-new-run:focus-visible, .acg-run-item__select:focus-visible, .acg-run-manage:focus-visible, .acg-run-search:focus-within, .acg-run-filter:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
-.acg-run-tools { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 6px; margin: 8px 0 6px; }
+.acg-run-tools { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 6px; margin: 8px 0 6px; }
+.acg-run-refreshing { position: absolute; right: 4px; top: 34px; z-index: 1; color: var(--primary-color); font-size: 9px; }
 .acg-run-search { min-width: 0; height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--border-light); border-radius: 7px; background: var(--bg-input); color: var(--text-disabled); }
 .acg-run-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 10px; }
 .acg-run-search input::placeholder { color: var(--text-disabled); }

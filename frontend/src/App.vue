@@ -174,9 +174,10 @@
                 <div class="chat-submenu-section-head">
                   <span>{{ workspaceMode === 'agent' ? 'Agent 记录' : '对话记录' }}</span>
                   <span v-if="workspaceHistoryCount" class="chat-project-count">{{ workspaceHistoryCount }}</span>
+                  <span v-if="conversationListLoading && workspaceHistoryCount" class="chat-submenu-refreshing">更新中</span>
                 </div>
 
-                <div v-if="conversationListLoading" class="chat-submenu-loading">正在加载…</div>
+                <div v-if="conversationListLoading && !workspaceHistoryCount" class="chat-submenu-loading">正在加载…</div>
                 <div v-else-if="workspaceMode === 'agent' && recentAgentRuns.length" class="chat-project-list" role="list" aria-label="Agent 记录">
                   <div
                     v-for="run in recentAgentRuns"
@@ -501,6 +502,10 @@ const chatPanelResizing = ref(false)
 const recentConversations = ref<Conversation[]>([])
 const recentAgentRuns = ref<WorkflowRunSummary[]>([])
 let conversationLoadGeneration = 0
+let conversationLoadController: AbortController | null = null
+let conversationLoadPromise: Promise<void> | null = null
+let conversationLoadWorkspace: WorkspaceMode | null = null
+const SIDEBAR_HISTORY_PAGE_SIZE = 20
 const conversationWorkspaceVersion = ref(0)
 const agentConversationIds = computed(() => new Set(
   Object.entries(chatStore.workflowBindings)
@@ -576,31 +581,50 @@ const handleSidebarWheel = (event: WheelEvent) => {
   })
 }
 
-const loadRecentConversations = async () => {
-  const requestGeneration = ++conversationLoadGeneration
+const loadRecentConversations = (): Promise<void> => {
   const requestedWorkspace = workspaceMode.value
-  try {
-    conversationListLoading.value = true
-    if (requestedWorkspace === 'agent') {
-      const page = await workflowApi.listRuns({ source: 'chat', summary: true, page: 1, pageSize: 100 })
-      if (requestGeneration !== conversationLoadGeneration || requestedWorkspace !== workspaceMode.value) return
-      recentAgentRuns.value = page.items || []
-      return
-    }
-
-    const userId = localStorage.getItem('userId') || undefined
-    const conversations = await conversationApi.getUserConversations(userId, 'chat')
-    if (requestGeneration !== conversationLoadGeneration || requestedWorkspace !== workspaceMode.value) return
-    recentConversations.value = [...conversations]
-      .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  } catch {
-    if (requestGeneration === conversationLoadGeneration) {
-      if (requestedWorkspace === 'agent') recentAgentRuns.value = []
-      else recentConversations.value = []
-    }
-  } finally {
-    if (requestGeneration === conversationLoadGeneration) conversationListLoading.value = false
+  if (conversationLoadPromise && conversationLoadWorkspace === requestedWorkspace) {
+    return conversationLoadPromise
   }
+
+  conversationLoadController?.abort()
+  const controller = new AbortController()
+  conversationLoadController = controller
+  conversationLoadWorkspace = requestedWorkspace
+  const requestGeneration = ++conversationLoadGeneration
+  conversationListLoading.value = true
+
+  const pending = (async () => {
+    try {
+      if (requestedWorkspace === 'agent') {
+        const page = await workflowApi.listRuns(
+          { sources: 'agent,chat', summary: true, page: 1, pageSize: SIDEBAR_HISTORY_PAGE_SIZE },
+          { signal: controller.signal }
+        )
+        if (requestGeneration !== conversationLoadGeneration || requestedWorkspace !== workspaceMode.value) return
+        recentAgentRuns.value = page.items || []
+        return
+      }
+
+      const userId = localStorage.getItem('userId') || undefined
+      const conversations = await conversationApi.getUserConversations(userId, 'chat', { signal: controller.signal })
+      if (requestGeneration !== conversationLoadGeneration || requestedWorkspace !== workspaceMode.value) return
+      recentConversations.value = [...conversations]
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+    } catch {
+      // Keep the last successful list visible during transient failures and cancelled refreshes.
+      if (controller.signal.aborted) return
+    } finally {
+      if (requestGeneration === conversationLoadGeneration) {
+        conversationListLoading.value = false
+        conversationLoadController = null
+        conversationLoadPromise = null
+        conversationLoadWorkspace = null
+      }
+    }
+  })()
+  conversationLoadPromise = pending
+  return pending
 }
 
 const handleChatNavToggle = () => {
@@ -659,7 +683,7 @@ const startNewChat = async () => {
 
 const openWorkspaceHistory = () => {
   if (workspaceMode.value === 'agent') {
-    void router.push({ path: '/agentos-console', query: { tab: 'runs', source: 'chat' } })
+    void router.push({ path: '/agentos-console', query: { tab: 'runs', source: 'agent' } })
     return
   }
   void router.push({ path: '/history', query: { workspace: 'chat' } })
@@ -783,9 +807,10 @@ watch(
   () => route.query.workspace,
   workspace => {
     if (workspace !== 'agent' && workspace !== 'chat') return
+    const workspaceChanged = workspaceMode.value !== workspace
     workspaceMode.value = workspace
     localStorage.setItem(WORKSPACE_MODE_KEY, workspace)
-    if (chatNavOpen.value) void loadRecentConversations()
+    if (workspaceChanged && chatNavOpen.value) void loadRecentConversations()
   },
   { immediate: true }
 )
@@ -1039,6 +1064,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  conversationLoadController?.abort()
   stopSidebarResize()
   stopChatPanelResize()
   window.removeEventListener('global-error', handleGlobalError as EventListener)
@@ -1547,6 +1573,14 @@ onUnmounted(() => {
   background: var(--primary-fade);
   color: var(--primary-color);
   font-size: 10px;
+}
+
+.chat-submenu-refreshing {
+  margin-left: auto;
+  color: var(--primary-color);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .chat-submenu-action .el-icon {
