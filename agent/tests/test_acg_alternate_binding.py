@@ -53,7 +53,7 @@ def _execute(domain: str, *, with_alternate: bool = True):
                     name="Analysis",
                     agentName="primary",
                     capability="analyze",
-                    maxRetries=1,
+                    maxRetries=0,
                 )
             ],
         )
@@ -67,7 +67,7 @@ def _execute(domain: str, *, with_alternate: bool = True):
                 name="Analysis",
                 agentName="primary",
                 capability="analyze",
-                retryLimit=1,
+                retryLimit=0,
             )
         ],
         edges=[],

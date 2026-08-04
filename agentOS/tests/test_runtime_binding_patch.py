@@ -43,7 +43,7 @@ def _setup():
                 nodeId="target",
                 agentName="primary",
                 capability="work",
-                retryLimit=2,
+                retryLimit=0,
             ),
         ],
         edges=[ACGEdge(edgeId="prepare_target", sourceId="prepare", targetId="target")],
@@ -155,6 +155,23 @@ async def test_binding_patch_changes_only_binding_and_version_without_creating_a
     assert persisted.get_step("target").agent_name == "alternate"
     assert persisted.checkpoints[-1].state_snapshot["runtimeGraph"]["graphVersion"] == 2
     assert event.event_id in persisted.runtime_graph.processed_event_ids
+
+
+def test_zero_local_retry_budget_still_allows_first_alternate_binding():
+    agents, _, graph, _, _, patch = _setup()
+    validator = RuntimeController(
+        workflow_store=MemoryWorkflowStore(),
+        agent_registry=agents,
+        checkpoint_store=CheckpointStore(),
+        trace_store=TraceStore(),
+    ).validator
+
+    candidate = validator.validate(graph, patch, domain="test")
+
+    node = candidate.get_node("target")
+    assert node.current_binding["agentName"] == "alternate"
+    assert node.binding_switch_count == 1
+    assert len(node.attempts) == 1
 
 
 async def test_binding_patch_save_failure_does_not_pollute_caller_or_persisted_run():

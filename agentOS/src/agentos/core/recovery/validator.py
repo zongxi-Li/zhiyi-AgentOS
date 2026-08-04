@@ -155,9 +155,9 @@ class PatchValidator:
             binding=new_binding,
         ):
             raise PatchValidationError("INVALID_BINDING", new_binding.binding_id)
-        retry_limit = int(node.spec.get("retryLimit") or 0)
-        if len(node.attempts) > retry_limit:
-            raise PatchValidationError("RETRY_LIMIT_EXCEEDED", node.node_id)
+        # Local retries and alternate bindings are separate recovery mechanisms.
+        # A node with retryLimit=0 must still be able to switch away from a failed
+        # resource; binding_switch_count provides the independent bounded budget.
         if node.binding_switch_count >= MAX_BINDING_SWITCHES_PER_NODE:
             raise PatchValidationError("BINDING_SWITCH_BUDGET_EXCEEDED", node.node_id)
         candidate = graph.model_copy(deep=True)
