@@ -8,6 +8,20 @@ from agentos.core.planning import PlanningCapabilityDescriptor
 LEGAL_PLUGIN_ID = "kinlin.legal"
 LEGAL_PLUGIN_VERSION = "0.1.0"
 
+# The planner deliberately exposes stable, user-facing capability IDs while the
+# migrated runtime agents retain their historical English capability names.
+# Keep the translation in one place so alternate/fallback bindings execute the
+# exact same graph that the planner emits.
+LEGAL_CAPABILITY_RUNTIME_IDS = {
+    "文本解析": "contract_parse",
+    "条款分类": "clause_classify",
+    "风险识别": "risk_detect",
+    "证据检索": "legal_evidence_match",
+    "修改建议": "revision_suggest",
+    "人工审核": "human_review_gate",
+    "报告生成": "report_generate",
+}
+
 
 def _schema(*required: str) -> dict:
     return {"type": "object", "required": list(required)}
@@ -166,6 +180,7 @@ LEGAL_CAPABILITY_IDS = tuple(
 
 __all__ = [
     "LEGAL_CAPABILITY_IDS",
+    "LEGAL_CAPABILITY_RUNTIME_IDS",
     "LEGAL_PLUGIN_ID",
     "LEGAL_PLUGIN_VERSION",
     "legal_capability_descriptors",

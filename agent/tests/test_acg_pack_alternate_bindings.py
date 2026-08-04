@@ -13,6 +13,18 @@ from agentos.core.runtime import WorkflowRuntime
 from agentos.core.workflow.registry import WorkflowRegistry
 from packs.legal.agents.contract_review_migration import LegalEvidenceMatchAgent
 from packs.legal.agents.fallback import LegalWorkflowFallbackAgent
+from packs.legal.planning.capabilities import LEGAL_CAPABILITY_RUNTIME_IDS
+
+
+@pytest.mark.parametrize(
+    ("stable_id", "runtime_id"),
+    LEGAL_CAPABILITY_RUNTIME_IDS.items(),
+)
+def test_legal_fallback_accepts_planner_capability_ids(stable_id, runtime_id):
+    fallback = LegalWorkflowFallbackAgent()
+
+    assert stable_id in fallback.profile.capabilities
+    assert fallback._delegates[stable_id] is fallback._delegates[runtime_id]
 
 
 @pytest.mark.parametrize(
@@ -96,4 +108,3 @@ def test_pack_primary_failure_switches_to_registered_fallback(
         primary_agent.profile.agent_name,
         fallback_agent.profile.agent_name,
     ]
-
