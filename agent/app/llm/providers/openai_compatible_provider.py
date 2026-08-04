@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any, Dict
 
+from jsonschema.validators import validator_for
+
 from app.llm.capabilities import adapt_chat_completion_parameters, normalize_model_request
 from app.llm.contracts import ProviderRawResult, ProviderToolCall
 
@@ -76,7 +78,7 @@ class OpenAICompatibleProvider:
             content = self._extract_raw_result(completion).content
             if not content:
                 raise LLMProviderError("OpenAI-compatible provider returned empty JSON content")
-            return self._parse_json(content)
+            return self._parse_json(content, schema)
         except LLMProviderError:
             raise
         except Exception as exc:
@@ -137,7 +139,10 @@ class OpenAICompatibleProvider:
         )
 
     @staticmethod
-    def _parse_json(text: str) -> Dict[str, Any]:
+    def _parse_json(
+        text: str,
+        schema: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         cleaned = (text or "").strip()
         if cleaned.startswith("```"):
             match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", cleaned, flags=re.IGNORECASE)
@@ -146,25 +151,71 @@ class OpenAICompatibleProvider:
         try:
             parsed = json.loads(cleaned)
         except json.JSONDecodeError as exc:
-            # Some OpenAI-compatible providers occasionally append prose or a
-            # second diagnostic object despite response_format=json_object.
-            # Recover the first complete object; schema validation still runs in
-            # the model runtime, so this only repairs the transport envelope.
-            decoder = json.JSONDecoder()
-            parsed = None
-            for match in re.finditer(r"\{", cleaned):
-                try:
-                    candidate, _ = decoder.raw_decode(cleaned, match.start())
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(candidate, dict):
-                    parsed = candidate
-                    break
-            if parsed is None:
+            candidates = OpenAICompatibleProvider._json_object_candidates(cleaned)
+            if not candidates:
                 raise LLMProviderError(f"Invalid JSON returned by provider: {exc}") from exc
+            parsed = OpenAICompatibleProvider._select_json_candidate(candidates, schema)
         if not isinstance(parsed, dict):
             raise LLMProviderError("Provider JSON response must be an object")
         return parsed
+
+    @staticmethod
+    def _json_object_candidates(text: str) -> list[Dict[str, Any]]:
+        """Decode consecutive top-level objects without descending into nested values."""
+
+        decoder = json.JSONDecoder()
+        candidates: list[Dict[str, Any]] = []
+        cursor = 0
+        while cursor < len(text):
+            start = text.find("{", cursor)
+            if start < 0:
+                break
+            try:
+                candidate, end = decoder.raw_decode(text, start)
+            except json.JSONDecodeError:
+                cursor = start + 1
+                continue
+            cursor = max(end, start + 1)
+            if isinstance(candidate, dict):
+                candidates.append(candidate)
+        return candidates
+
+    @staticmethod
+    def _select_json_candidate(
+        candidates: list[Dict[str, Any]],
+        schema: Dict[str, Any] | None,
+    ) -> Dict[str, Any]:
+        if not schema:
+            return candidates[0]
+
+        validator = validator_for(schema)(schema)
+        for candidate in candidates:
+            if validator.is_valid(candidate):
+                return candidate
+
+        merged: Dict[str, Any] = {}
+        merge_conflict = False
+        for candidate in candidates:
+            for key, value in candidate.items():
+                if key in merged and merged[key] != value:
+                    merge_conflict = True
+                    break
+                merged[key] = value
+            if merge_conflict:
+                break
+        if not merge_conflict and validator.is_valid(merged):
+            return merged
+
+        required = set(schema.get("required") or [])
+
+        def score(candidate: Dict[str, Any]) -> tuple[int, int, int]:
+            return (
+                len(required.intersection(candidate)),
+                -sum(1 for _ in validator.iter_errors(candidate)),
+                len(candidate),
+            )
+
+        return max(candidates, key=score)
 
 
 __all__ = ["LLMProviderError", "OpenAICompatibleProvider"]

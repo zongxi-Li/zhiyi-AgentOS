@@ -133,6 +133,44 @@ def test_json_provider_recovers_object_with_trailing_provider_output():
     assert parsed == {"task_summary": "ready", "steps": ["search"]}
 
 
+def test_json_provider_selects_candidate_that_matches_requested_schema():
+    schema = {
+        "type": "object",
+        "properties": {"resource_plan": {"type": "object"}},
+        "required": ["resource_plan"],
+    }
+
+    parsed = OpenAICompatibleProvider._parse_json(
+        '{"provider_note":"first envelope"}\n'
+        '{"resource_plan":{"people":[]}}',
+        schema,
+    )
+
+    assert parsed == {"resource_plan": {"people": []}}
+
+
+def test_json_provider_merges_non_conflicting_schema_fragments():
+    schema = {
+        "type": "object",
+        "properties": {
+            "resource_plan": {"type": "object"},
+            "capacity_plan": {"type": "object"},
+        },
+        "required": ["resource_plan", "capacity_plan"],
+    }
+
+    parsed = OpenAICompatibleProvider._parse_json(
+        '{"capacity_plan":{"assumptions":[]}}\n'
+        '{"resource_plan":{"people":[]}}',
+        schema,
+    )
+
+    assert parsed == {
+        "capacity_plan": {"assumptions": []},
+        "resource_plan": {"people": []},
+    }
+
+
 def test_json_provider_still_rejects_content_without_an_object():
     with pytest.raises(LLMProviderError, match="Invalid JSON"):
         OpenAICompatibleProvider._parse_json("model returned no structured payload")
