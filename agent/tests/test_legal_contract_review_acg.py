@@ -327,6 +327,41 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
     asyncio.run(run_test())
 
 
+def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summary():
+    async def run_test():
+        runtime = _runtime()
+        task = runtime.create_task(
+            title="Complete legal review",
+            domain="legal",
+            intent="contract_review_acg",
+            input={
+                "contractText": "Party A commissions Party B to develop a software system.",
+                "userIntent": "risk_detect legal_evidence_match revision_suggest",
+                "taskGoal": (
+                    "contract_parse clause_classify risk_detect legal_evidence_match "
+                    "revision_suggest human_review report_generate"
+                ),
+                "usePlanner": True,
+                "forceDynamicPlanning": True,
+                "thinkingMode": "disabled",
+            },
+        )
+
+        run = await runtime.start(
+            task.task_id,
+            workflow_id="legal_contract_review_v1",
+            review_mode="auto",
+        )
+
+        assert run.status == WorkflowStatus.COMPLETED
+        assert len(run.completed_step_ids) == 7
+        assert "human_review" in run.output["artifacts"]
+        assert "report_generate" in run.output["artifacts"]
+        assert run.output["artifacts"]["report_generate"]["report_markdown"]
+
+    asyncio.run(run_test())
+
+
 def test_force_dynamic_review_preserves_deep_thinking_until_report():
     async def run_test():
         runtime = _runtime()

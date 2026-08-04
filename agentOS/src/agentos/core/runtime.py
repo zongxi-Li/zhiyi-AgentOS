@@ -558,7 +558,11 @@ class WorkflowRuntime:
         use_planner = force_dynamic or bool(run.input.get("usePlanner")) or not workflow.steps
         if use_planner:
             intent_text = str(
-                run.input.get("userIntent")
+                # taskGoal is the authoritative execution contract.  userIntent
+                # is often only a short UI summary and can omit required review
+                # or deliverable stages from a dynamically generated graph.
+                run.input.get("taskGoal")
+                or run.input.get("userIntent")
                 or run.input.get("intent")
                 or task.title
                 or workflow.description
