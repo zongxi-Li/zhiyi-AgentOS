@@ -297,6 +297,7 @@ describe('AcgVisualizationView async progress loop', () => {
       input: expect.objectContaining({
         userIntent: '识别合同风险、核验法律依据并生成修改建议',
         contractText: '上传后的合同正文',
+        expectedArtifacts: ['合同审查报告', '风险清单', '条款修改建议'],
         evidenceFirst: true,
         riskParallel: true,
         conservativeReview: true

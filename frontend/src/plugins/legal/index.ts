@@ -24,6 +24,7 @@ const defaults = (): LegalPluginDraft => ({
 })
 
 const DEFAULT_LEGAL_TITLE = '合同审查与风险分析'
+const DEFAULT_LEGAL_ARTIFACTS = ['合同审查报告', '风险清单', '条款修改建议']
 
 export const legalUiExtension: PluginUiExtension = {
   pluginId: 'kinlin.legal',
@@ -31,6 +32,7 @@ export const legalUiExtension: PluginUiExtension = {
   createDefaults: () => ({
     title: DEFAULT_LEGAL_TITLE,
     taskGoal: defaults().reviewGoal,
+    expectedArtifacts: [...DEFAULT_LEGAL_ARTIFACTS],
     reviewMode: 'human_in_loop',
     pluginData: { 'kinlin.legal': defaults() as unknown as Record<string, unknown> }
   }),

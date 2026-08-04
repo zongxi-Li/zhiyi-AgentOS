@@ -369,6 +369,9 @@ const applyExtensionDefaults = (pluginId: string) => {
   const nativeDefaults = createNativeWorkbenchDraft()
   if (defaults.title && draft.title === nativeDefaults.title) draft.title = defaults.title
   if (defaults.taskGoal && draft.taskGoal === nativeDefaults.taskGoal) draft.taskGoal = defaults.taskGoal
+  if (defaults.expectedArtifacts && draft.expectedArtifacts.join('\u0000') === nativeDefaults.expectedArtifacts.join('\u0000')) {
+    draft.expectedArtifacts = [...defaults.expectedArtifacts]
+  }
   if (defaults.reviewMode) draft.reviewMode = defaults.reviewMode
   if (defaults.pluginData) draft.pluginData = { ...draft.pluginData, ...defaults.pluginData }
 }
@@ -378,6 +381,9 @@ const removeExtensionDefaults = (pluginId: string) => {
   const nativeDefaults = createNativeWorkbenchDraft()
   if (defaults?.title && draft.title === defaults.title) draft.title = nativeDefaults.title
   if (defaults?.taskGoal && draft.taskGoal === defaults.taskGoal) draft.taskGoal = nativeDefaults.taskGoal
+  if (defaults?.expectedArtifacts && draft.expectedArtifacts.join('\u0000') === defaults.expectedArtifacts.join('\u0000')) {
+    draft.expectedArtifacts = [...nativeDefaults.expectedArtifacts]
+  }
 }
 
 const togglePlugin = (pluginId: string) => {
