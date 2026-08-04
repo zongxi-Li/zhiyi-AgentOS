@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, List
 
+from agentos.adapters.tool_adapter import network_tools_enabled
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from app.llm.gateway import get_llm_gateway
 from app.llm.prompts import render_parse_contract_prompt, render_report_generate_prompt, render_risk_detect_prompt
@@ -328,15 +329,18 @@ class LegalEvidenceMatchAgent(BaseAgent):
         risks = risk_output.get("risks") or []
         evidences: List[Dict[str, Any]] = []
         recovered_evidences: List[Dict[str, Any]] = []
+        errors: List[str] = []
         for observation in context.memory.observations.values():
             if not isinstance(observation, dict):
                 continue
+            recovery_error = str(observation.get("retrieval_error") or "").strip()
+            if recovery_error:
+                errors.append(recovery_error[:240])
             recovered = observation.get("validated_evidences")
             if isinstance(recovered, list):
                 recovered_evidences.extend(
                     item for item in recovered if isinstance(item, dict)
                 )
-        errors: List[str] = []
         unmatched_risk_ids: List[str] = []
         retriever = LegalEvidenceRetriever()
         for risk in risks:
@@ -354,13 +358,32 @@ class LegalEvidenceMatchAgent(BaseAgent):
                 errors.append(str(exc)[:240])
             if risk_id:
                 unmatched_risk_ids.append(risk_id)
+        web_required = bool(risks) and network_tools_enabled(context.task.input)
+        if web_required:
+            web_backed_risk_ids = {
+                str(item.get("riskId") or "")
+                for item in evidences
+                if str((item.get("metadata") or {}).get("citationId") or "")
+                or str(item.get("sourceType") or "").lower() == "web"
+            }
+            unmatched_risk_ids.extend(
+                str(risk.get("id") or "")
+                for risk in risks
+                if str(risk.get("id") or "")
+                and str(risk.get("id") or "") not in web_backed_risk_ids
+            )
+        unmatched_risk_ids = list(dict.fromkeys(unmatched_risk_ids))
         recovered_evidences = [
             item
             for item in recovered_evidences
             if str(item.get("riskId") or "") in set(unmatched_risk_ids)
         ]
         recovered_risk_ids = {
-            str(item.get("riskId") or "") for item in recovered_evidences
+            str(item.get("riskId") or "")
+            for item in recovered_evidences
+            if not web_required
+            or str((item.get("metadata") or {}).get("citationId") or "")
+            or str(item.get("sourceType") or "").lower() == "web"
         }
         unmatched_risk_ids = [
             risk_id for risk_id in unmatched_risk_ids if risk_id not in recovered_risk_ids

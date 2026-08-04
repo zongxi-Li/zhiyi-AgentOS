@@ -53,9 +53,14 @@ def test_canonical_contract_review_runs_on_acg_and_waits_for_review():
         assert artifacts["parse_contract"]["contract_type"]
         assert artifacts["risk_detect"]["risks"]
         assert artifacts["legal_evidence_match"]["evidences"]
+        assert any(
+            item.get("sourceType") == "web"
+            for item in artifacts["legal_evidence_match"]["evidences"]
+        )
         assert "suggestion_generate" in artifacts
         assert "report_generate" not in artifacts
         assert run.acg_blueprint is not None
+        assert run.runtime_graph.graph_version >= 2
         assert runtime.list_checkpoints(run.run_id)
 
     runtime = _runtime()
@@ -314,7 +319,9 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         )
         assert run.runtime_graph is not None
         runtime_steps = [
-            node for node in run.runtime_graph.nodes if node.node_type.value == "step"
+            node
+            for node in run.runtime_graph.nodes
+            if node.node_type.value == "step" and node.created_graph_version == 1
         ]
         assert all(node.current_binding.get("allowedSkills") for node in runtime_steps)
         review_node = next(node for node in nodes if node["nodeId"] == "human_review")
@@ -368,7 +375,14 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
         )
 
         assert run.status == WorkflowStatus.COMPLETED
-        assert len(run.completed_step_ids) == 7
+        assert len(
+            [
+                node
+                for node in run.runtime_graph.nodes
+                if node.node_type.value == "step" and node.created_graph_version == 1
+            ]
+        ) == 7
+        assert len(run.completed_step_ids) >= 7
         assert "report_generate" in run.output["artifacts"]
         assert run.output["artifacts"]["report_generate"]["report_markdown"]
         assert "人工审核" in run.execution_state["selectedCapabilities"]
