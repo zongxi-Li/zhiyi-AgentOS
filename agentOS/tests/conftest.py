@@ -3,7 +3,9 @@
 import asyncio
 import inspect
 import json
+import shutil
 import sys
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,10 +14,24 @@ import pytest
 
 AGENTOS_ROOT = Path(__file__).resolve().parents[1]
 AGENTOS_SRC = AGENTOS_ROOT / "src"
+TEST_TEMP_ROOT = AGENTOS_ROOT.parent / ".tmp-tests"
+TEST_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
 
 value = str(AGENTOS_SRC)
 if value not in sys.path:
     sys.path.insert(0, value)
+
+
+@pytest.fixture
+def tmp_path():
+    """Workspace-local temp path that remains writable in restricted Windows runs."""
+
+    directory = TEST_TEMP_ROOT / f"pytest-agentos-case-{uuid.uuid4().hex}"
+    directory.mkdir(parents=True)
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 from agentos.adapters.tool_adapter import (  # noqa: E402

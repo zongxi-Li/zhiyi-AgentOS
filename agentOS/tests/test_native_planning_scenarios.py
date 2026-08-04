@@ -86,9 +86,17 @@ def test_three_native_tasks_generate_distinct_executable_graphs_without_legal_pa
     ]:
         assert task.recommended_workflow == "native_acg_runtime_v1"
         assert run.status == WorkflowStatus.COMPLETED
-        assert run.runtime_graph is not None and run.runtime_graph.graph_version == 1
+        assert run.runtime_graph is not None and run.runtime_graph.graph_version == 2
         assert run.output.get("final_answer")
-        assert all(step.status.value == "completed" for step in run.steps)
+        assert all(
+            step.status.value in {"completed", "skipped_by_condition"}
+            for step in run.steps
+        )
+        assert [
+            step.capability
+            for step in run.steps
+            if step.status.value == "skipped_by_condition"
+        ] == ["analysis"]
         assert blueprint.step_nodes()
 
     assert any(

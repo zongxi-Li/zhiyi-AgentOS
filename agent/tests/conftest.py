@@ -2,8 +2,9 @@ import asyncio
 import inspect
 import json
 import os
+import shutil
 import sys
-import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -33,22 +34,36 @@ def _schema_value(schema, field_name="value"):
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENTOS_SRC = PROJECT_ROOT / "agentOS" / "src"
 AGENT_APP_ROOT = PROJECT_ROOT / "agent"
+TEST_TEMP_ROOT = PROJECT_ROOT / ".tmp-tests"
+TEST_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
 
 # AgentOS creates its global Chroma client while test modules are imported.
 # Isolate that client before collection so tests never open the tracked database.
-_TEST_CHROMA_DIR = tempfile.TemporaryDirectory(prefix="kinlin-agent-chroma-tests-")
-os.environ["AGENT_CHROMA_PATH"] = _TEST_CHROMA_DIR.name
-_TEST_WORKFLOW_DIR = tempfile.TemporaryDirectory(
-    prefix="kinlin-agent-workflow-tests-", ignore_cleanup_errors=True
-)
+_TEST_CHROMA_DIR = TEST_TEMP_ROOT / f"kinlin-agent-chroma-tests-{uuid.uuid4().hex}"
+_TEST_CHROMA_DIR.mkdir(parents=True)
+os.environ["AGENT_CHROMA_PATH"] = str(_TEST_CHROMA_DIR)
+_TEST_WORKFLOW_DIR = TEST_TEMP_ROOT / f"kinlin-agent-workflow-tests-{uuid.uuid4().hex}"
+_TEST_WORKFLOW_DIR.mkdir(parents=True)
 os.environ["AGENTOS_WORKFLOW_DB_PATH"] = str(
-    Path(_TEST_WORKFLOW_DIR.name) / "workflows.sqlite3"
+    _TEST_WORKFLOW_DIR / "workflows.sqlite3"
 )
 
 for path in (PROJECT_ROOT, AGENT_APP_ROOT, AGENTOS_SRC):
     value = str(path)
     if value not in sys.path:
         sys.path.insert(0, value)
+
+
+@pytest.fixture
+def tmp_path():
+    """Workspace-local temp path that remains writable in restricted Windows runs."""
+
+    directory = TEST_TEMP_ROOT / f"pytest-case-{uuid.uuid4().hex}"
+    directory.mkdir(parents=True)
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 class _ContractReviewTestProvider:
@@ -124,14 +139,15 @@ class _ReadOnlyToolTestRuntime:
 
     def __init__(self, allowed_tools=None):
         self.allowed_tools = set(
-            allowed_tools
-            or {
+            {
                 "web_search",
                 "web_extract",
                 "knowledge_search",
                 "codebase_search",
                 "current_datetime",
             }
+            if allowed_tools is None
+            else allowed_tools
         )
 
     def scoped(self, allowed_tools):
@@ -251,5 +267,7 @@ def pytest_unconfigure(config):
         close = getattr(client, "close", None)
         if callable(close):
             close()
-    _TEST_CHROMA_DIR.cleanup()
-    _TEST_WORKFLOW_DIR.cleanup()
+    # Native database handles may remain locked briefly on Windows. Cleanup is
+    # best-effort so a successful test suite cannot be turned into exit code 1.
+    shutil.rmtree(_TEST_CHROMA_DIR, ignore_errors=True)
+    shutil.rmtree(_TEST_WORKFLOW_DIR, ignore_errors=True)
