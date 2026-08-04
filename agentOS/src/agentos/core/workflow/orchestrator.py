@@ -7,7 +7,12 @@ from typing import Tuple
 from agentos.agents.base import AgentOutput, AgentRunContext
 from agentos.agents import AgentRegistry
 from agentos.memory.workflow_memory import WorkflowMemory
-from agentos.adapters.tool_adapter import configured_tool_runtime
+from agentos.adapters.tool_adapter import (
+    BoundedToolRuntime,
+    DEFAULT_ACG_TOOL_TIMEOUT_SECONDS,
+    configured_tool_runtime,
+    network_tools_enabled,
+)
 from agentos.core.models.types import (
     AgentTask,
     StepStatus,
@@ -18,18 +23,30 @@ from agentos.core.models.types import (
 )
 
 
-# ACG remains offline until its lifecycle, timeout, and recovery guarantees are stable.
-# Chat owns a separate tool-runtime entry point and is intentionally unaffected.
 ACG_NETWORK_TOOLS = frozenset({"web_search", "web_extract"})
+ACG_READ_ONLY_TOOLS = frozenset({
+    "web_search",
+    "web_extract",
+    "knowledge_search",
+    "codebase_search",
+    "current_datetime",
+})
 
 
 class Orchestrator:
     """只理解工作流结构、不绑定行业细节的核心调度器。"""
 
-    def __init__(self, agent_registry: AgentRegistry, capability_catalog=None):
+    def __init__(
+        self,
+        agent_registry: AgentRegistry,
+        capability_catalog=None,
+        *,
+        tool_timeout_seconds: float = DEFAULT_ACG_TOOL_TIMEOUT_SECONDS,
+    ):
         self.agent_registry = agent_registry
         self.capability_catalog = capability_catalog
         self.model_runtime = None
+        self.tool_timeout_seconds = max(0.01, float(tool_timeout_seconds))
 
     def set_model_runtime(self, model_runtime) -> None:
         self.model_runtime = model_runtime
@@ -66,9 +83,16 @@ class Orchestrator:
             allowed_tools = [
                 name
                 for name in agent.profile.allowed_tools
-                if name not in ACG_NETWORK_TOOLS
+                if name in ACG_READ_ONLY_TOOLS
             ]
-            tool_runtime = tool_runtime.scoped(allowed_tools)
+            if not network_tools_enabled(task.input):
+                allowed_tools = [
+                    name for name in allowed_tools if name not in ACG_NETWORK_TOOLS
+                ]
+            tool_runtime = BoundedToolRuntime(
+                tool_runtime.scoped(allowed_tools),
+                timeout_seconds=self.tool_timeout_seconds,
+            )
         context = AgentRunContext(
             task=task,
             run=run,

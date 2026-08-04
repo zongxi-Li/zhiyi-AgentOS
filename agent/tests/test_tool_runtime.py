@@ -168,3 +168,9 @@ def test_scoped_runtime_cannot_expand_parent_allowlist():
     scoped = runtime.scoped({"current_datetime", "web_search"})
 
     assert scoped.allowed_tools == frozenset({"current_datetime"})
+
+
+def test_empty_tool_scope_stays_empty_instead_of_restoring_all_tools():
+    runtime = AgentsToolRuntime(ReadOnlyToolCatalog(), {"web_search"})
+
+    assert runtime.scoped([]).allowed_tools == frozenset()

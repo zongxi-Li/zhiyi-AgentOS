@@ -29,7 +29,6 @@ from app.tools.contracts import (
     SourceReference,
     ToolExecutionRecord,
     ToolLimitExceededError,
-    ToolPayload,
     ToolRunResult,
 )
 
@@ -218,7 +217,9 @@ class AgentsToolRuntime:
         allowed_tools: Iterable[str] | None = None,
     ) -> None:
         self.catalog = catalog or ReadOnlyToolCatalog()
-        selected = set(allowed_tools or self.catalog.TOOL_NAMES)
+        selected = set(
+            self.catalog.TOOL_NAMES if allowed_tools is None else allowed_tools
+        )
         self.allowed_tools = frozenset(selected.intersection(self.catalog.TOOL_NAMES))
 
     def scoped(self, allowed_tools: Iterable[str]) -> "AgentsToolRuntime":
