@@ -8,6 +8,7 @@ from copy import deepcopy
 from typing import Any
 
 from agentos.adapters.model_adapter import StructuredGenerationError
+from agentos.adapters.tool_adapter import network_tools_enabled
 from agentos.agents.base import AgentOutput, AgentProfile, AgentRunContext, BaseAgent
 from agentos.core.data_contracts import (
     ContextContractError,
@@ -21,6 +22,7 @@ from agentos.core.native_prompt import (
 )
 from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
 from agentos.core.recovery.contract_adapter import prepare_contract_repair
+from agentos.core.tool_execution import execute_read_only_tool
 
 
 NATIVE_ACG_WORKFLOW_ID = "native_acg_runtime_v1"
@@ -50,6 +52,7 @@ class NativeGeneralAgent(BaseAgent):
                 capabilities=list(NATIVE_CAPABILITIES),
                 bindingPriority=binding_priority,
                 allowedTools=[
+                    "web_search",
                     "knowledge_search",
                     "current_datetime",
                 ],
@@ -68,6 +71,36 @@ class NativeGeneralAgent(BaseAgent):
 
         task_summary = str(upstream.get("task_summary") or objective)
         if capability == "evidence_retrieval":
+            web = None
+            if network_tools_enabled(context.task.input):
+                web = await execute_read_only_tool(
+                    context.tool_runtime,
+                    "web_search",
+                    {"query": task_summary[:500], "max_results": 5, "topic": "general"},
+                )
+            if web is not None and web.ok and web.sources:
+                refs = [
+                    str(item.get("citationId"))
+                    for item in web.sources
+                    if item.get("citationId")
+                ]
+                information = [
+                    str(item.get("snippet") or item.get("content") or "").strip()
+                    for item in web.results
+                    if str(item.get("snippet") or item.get("content") or "").strip()
+                ]
+                return AgentOutput(
+                    output={
+                        "recovered_information": information,
+                        "recovered_sources": web.sources,
+                        "recovered_evidence_refs": refs,
+                        "recovery_mode": "web_search",
+                    },
+                    summary=f"Recovered {len(refs)} public web source(s).",
+                    sources=web.sources,
+                    toolExecutions=web.executions,
+                    evidenceRefs=refs,
+                )
             citation_id = "src_recovery_" + hashlib.sha256(
                 f"{context.run.run_id}:{task_summary}".encode("utf-8")
             ).hexdigest()[:16]
@@ -86,9 +119,11 @@ class NativeGeneralAgent(BaseAgent):
                     "recovered_information": [task_summary],
                     "recovered_sources": [source],
                     "recovered_evidence_refs": [citation_id],
+                    "recovery_mode": "task_input",
                 },
                 summary="Recovered task facts for evidence validation.",
                 sources=[source],
+                toolExecutions=web.executions if web is not None else [],
                 evidenceRefs=[citation_id],
             )
         if capability == "evidence_validation":
@@ -142,37 +177,57 @@ class NativeGeneralAgent(BaseAgent):
                     sources=validated_sources,
                     evidenceRefs=validated_refs,
                 )
-            if context.tool_runtime is None:
-                raise RuntimeError("read-only tool runtime is not configured")
-            result = await context.tool_runtime.execute(
-                "knowledge_search",
-                {"query": task_summary[:500], "top_k": 5},
-            )
-            try:
-                envelope = json.loads(result.text)
-            except (TypeError, json.JSONDecodeError) as exc:
-                raise RuntimeError("local knowledge search returned an invalid payload") from exc
-            if not envelope.get("ok"):
-                raise RuntimeError(
-                    "local knowledge search failed: "
-                    f"{envelope.get('error') or 'unknown error'}"
+            web = None
+            if network_tools_enabled(context.task.input):
+                web = await execute_read_only_tool(
+                    context.tool_runtime,
+                    "web_search",
+                    {"query": task_summary[:500], "max_results": 5, "topic": "general"},
                 )
-            sources = [item.public_dict() for item in result.sources]
-            evidence_refs = [item.citation_id for item in result.sources]
+            local = None
+            if web is None or not web.ok or not web.sources:
+                local = await execute_read_only_tool(
+                    context.tool_runtime,
+                    "knowledge_search",
+                    {"query": task_summary[:500], "top_k": 5},
+                )
+            selected = (
+                web
+                if web is not None and web.ok and web.sources
+                else local
+                if local is not None and local.ok and local.sources
+                else None
+            )
+            sources = list(selected.sources) if selected is not None else []
+            evidence_refs = [
+                str(item.get("citationId"))
+                for item in sources
+                if item.get("citationId")
+            ]
             retrieved_information = [
                 str(item.get("snippet") or item.get("content") or "").strip()
-                for item in ((envelope.get("data") or {}).get("results") or [])
-                if isinstance(item, dict)
-                and str(item.get("snippet") or item.get("content") or "").strip()
+                for item in (selected.results if selected is not None else [])
+                if str(item.get("snippet") or item.get("content") or "").strip()
             ]
-            used_task_input_fallback = not evidence_refs
+            tool_executions = [
+                execution
+                for outcome in (web, local)
+                if outcome is not None
+                for execution in outcome.executions
+            ]
+            retrieval_errors = [
+                {"tool": outcome.name, "error": outcome.error_code}
+                for outcome in (web, local)
+                if outcome is not None and outcome.error_code
+            ]
+            used_task_input_fallback = selected is None or not evidence_refs
             if used_task_input_fallback:
                 citation_id = "src_task_input_" + hashlib.sha256(
                     task_summary.encode("utf-8")
                 ).hexdigest()[:16]
                 sources = [{
                     "citationId": citation_id,
-                    "title": "User-provided task facts (offline ACG)",
+                    "title": "User-provided task facts",
                     "filename": None,
                     "url": None,
                     "content": task_summary[:4000],
@@ -186,8 +241,13 @@ class NativeGeneralAgent(BaseAgent):
                 "sources": sources,
                 "evidence_refs": evidence_refs,
                 "retrieval_mode": (
-                    "local_knowledge" if result.sources else "task_input_only"
+                    "web_search"
+                    if selected is web and selected is not None
+                    else "local_knowledge"
+                    if selected is local and selected is not None
+                    else "task_input_only"
                 ),
+                "retrieval_errors": retrieval_errors,
                 "runtimeSignals": [],
             }
             if used_task_input_fallback and context.step.attempt <= 1:
@@ -204,9 +264,9 @@ class NativeGeneralAgent(BaseAgent):
                 ]
             return AgentOutput(
                 output=output,
-                summary=f"Prepared {len(evidence_refs)} offline evidence source(s).",
+                summary=f"Prepared {len(evidence_refs)} evidence source(s).",
                 sources=sources,
-                toolExecutions=[item.public_dict() for item in result.tool_executions],
+                toolExecutions=tool_executions,
                 evidenceRefs=evidence_refs,
             )
         if capability == "evidence_analysis" and not upstream.get("evidence_refs"):

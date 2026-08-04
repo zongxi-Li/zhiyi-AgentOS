@@ -1,8 +1,14 @@
+from packs.legal.agents.recovery import LegalEvidenceRecoveryAgent
 from packs.legal.agents.statute import StatuteAgent
 
 
-def test_legal_statute_agent_uses_only_local_tools_while_acg_is_offline():
+def test_legal_retrieval_agents_declare_only_bounded_read_only_tools():
     assert set(StatuteAgent().profile.allowed_tools) == {
+        "web_search",
         "knowledge_search",
+        "current_datetime",
+    }
+    assert set(LegalEvidenceRecoveryAgent().profile.allowed_tools) == {
+        "web_search",
         "current_datetime",
     }

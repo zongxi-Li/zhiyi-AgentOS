@@ -235,6 +235,7 @@ class ACGBuilder:
                 inputSpec=input_spec,
                 outputSpec=dict(descriptor.output_contract),
                 reviewRequired=descriptor.requires_review,
+                timeout=20 if descriptor.capability_id == "information_retrieval" else 0,
                 metadata={
                     "capabilityId": descriptor.capability_id,
                     "planningStage": descriptor.planning_stage,

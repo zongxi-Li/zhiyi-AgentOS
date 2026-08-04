@@ -97,6 +97,7 @@ class RecoveryRecipeRegistry:
                             logicalName="evidence_retrieval",
                             name="Evidence retrieval",
                             capability="evidence_retrieval",
+                            timeout=20,
                         ),
                         RecoveryNodeTemplate(
                             logicalName="evidence_validation",
