@@ -344,6 +344,8 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
                 "usePlanner": True,
                 "forceDynamicPlanning": True,
                 "thinkingMode": "disabled",
+                "planningDiversity": "balanced",
+                "planningSeed": 3720774559611499,
             },
         )
 
@@ -355,9 +357,14 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
 
         assert run.status == WorkflowStatus.COMPLETED
         assert len(run.completed_step_ids) == 7
-        assert "human_review" in run.output["artifacts"]
         assert "report_generate" in run.output["artifacts"]
         assert run.output["artifacts"]["report_generate"]["report_markdown"]
+        assert "人工审核" in run.execution_state["selectedCapabilities"]
+        assert "报告生成" in run.execution_state["selectedCapabilities"]
+        assert all(
+            binding["agentName"] != "legal_workflow_fallback"
+            for binding in run.execution_state["selectedBindings"]
+        )
 
     asyncio.run(run_test())
 

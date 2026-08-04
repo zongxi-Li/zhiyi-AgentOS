@@ -112,6 +112,11 @@ class CognitiveRouter:
         }
         ranked: list[tuple[tuple[int, float, int, int], BaseAgent]] = []
         for index, agent in enumerate(agents or list(self.agent_registry.all())):
+            # Negative priority is reserved for recovery bindings.  They stay in
+            # CandidateResolver so a failed runtime node can switch to them, but
+            # must never be sampled as the initial binding of a planned graph.
+            if agent.profile.binding_priority < 0:
+                continue
             agent_domain = (agent.profile.domain or "").strip().lower()
             if task_domain == "general":
                 if agent_domain != "general":
