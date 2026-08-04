@@ -1,6 +1,9 @@
 import sys
 from types import SimpleNamespace
 
+import pytest
+
+from app.ai_engine.deepseekadapter import DeepSeekAdapter
 from app.llm.capabilities import (
     adapt_chat_completion_parameters,
     normalize_model_request,
@@ -15,8 +18,10 @@ from app.llm.contracts import (
     ThinkingMode,
 )
 from app.llm.config import LLMConfig
-from app.llm.providers.openai_compatible_provider import OpenAICompatibleProvider
-from app.ai_engine.deepseekadapter import DeepSeekAdapter
+from app.llm.providers.openai_compatible_provider import (
+    LLMProviderError,
+    OpenAICompatibleProvider,
+)
 
 
 def test_legacy_thinking_values_map_to_three_internal_modes():
@@ -117,6 +122,20 @@ def test_json_provider_prompt_contains_the_supplied_schema():
     })
     assert '"required":["parties"]' in prompt
     assert '"parties":{"type":"array"}' in prompt
+
+
+def test_json_provider_recovers_object_with_trailing_provider_output():
+    parsed = OpenAICompatibleProvider._parse_json(
+        '{"task_summary":"ready","steps":["search"]}\n'
+        '{"provider_note":"duplicate envelope"}'
+    )
+
+    assert parsed == {"task_summary": "ready", "steps": ["search"]}
+
+
+def test_json_provider_still_rejects_content_without_an_object():
+    with pytest.raises(LLMProviderError, match="Invalid JSON"):
+        OpenAICompatibleProvider._parse_json("model returned no structured payload")
 
 
 def test_openai_compatible_provider_uses_one_explicit_request_budget(monkeypatch):

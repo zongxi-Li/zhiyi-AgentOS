@@ -146,7 +146,22 @@ class OpenAICompatibleProvider:
         try:
             parsed = json.loads(cleaned)
         except json.JSONDecodeError as exc:
-            raise LLMProviderError(f"Invalid JSON returned by provider: {exc}") from exc
+            # Some OpenAI-compatible providers occasionally append prose or a
+            # second diagnostic object despite response_format=json_object.
+            # Recover the first complete object; schema validation still runs in
+            # the model runtime, so this only repairs the transport envelope.
+            decoder = json.JSONDecoder()
+            parsed = None
+            for match in re.finditer(r"\{", cleaned):
+                try:
+                    candidate, _ = decoder.raw_decode(cleaned, match.start())
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(candidate, dict):
+                    parsed = candidate
+                    break
+            if parsed is None:
+                raise LLMProviderError(f"Invalid JSON returned by provider: {exc}") from exc
         if not isinstance(parsed, dict):
             raise LLMProviderError("Provider JSON response must be an object")
         return parsed
