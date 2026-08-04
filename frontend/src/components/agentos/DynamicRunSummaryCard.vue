@@ -4,6 +4,9 @@
       <div><span class="eyebrow">Runtime Graph</span><strong>动态运行摘要</strong></div>
       <span class="status" :class="summary.status">{{ statusLabel }}</span>
     </header>
+    <p class="activity-note" :class="{ active: summary.hasDynamicActivity }">
+      {{ activityLabel }}
+    </p>
     <div class="summary-grid">
       <div class="summary-primary"><small>图版本</small><b>v{{ summary.graphVersion }}</b></div>
       <div><small>动态步骤</small><b>{{ summary.dynamicStepCount }}</b></div>
@@ -11,7 +14,14 @@
       <div><small>条件决策</small><b>{{ summary.conditionalDecisionCount }}</b></div>
       <div><small>条件跳过</small><b>{{ summary.skippedByConditionCount }}</b></div>
       <div><small>已应用 Patch</small><b>{{ summary.appliedPatchCount }}</b></div>
+      <div><small>运行时事件</small><b>{{ summary.runtimeEventCount }}</b></div>
       <div><small>待处理事件</small><b>{{ summary.pendingRuntimeEventCount }}</b></div>
+    </div>
+    <div v-if="summary.runtimeEventCount" class="event-breakdown" aria-label="运行时事件状态">
+      <span>已处理 {{ summary.processedRuntimeEventCount }}</span>
+      <span>已忽略 {{ summary.ignoredRuntimeEventCount }}</span>
+      <span>已拒绝 {{ summary.rejectedRuntimeEventCount }}</span>
+      <span>待处理 {{ summary.pendingRuntimeEventCount }}</span>
     </div>
   </section>
 </template>
@@ -32,6 +42,17 @@ const statusLabel = computed(() => ({
   pending: '等待中', planning: '规划中', running: '运行中', waiting_review: '待审核',
   retrying: '恢复中', failed: '失败', completed: '已完成', cancelled: '已取消'
 }[summary.value.status] || summary.value.status))
+const activityLabel = computed(() => {
+  if (!summary.value.hasDynamicActivity) {
+    return summary.value.status === 'completed'
+      ? '本次任务按初始 ACG 图完成，未触发动态调整。'
+      : '当前仍按初始 ACG 图运行，尚未触发动态调整。'
+  }
+  const changes = summary.value.appliedPatchCount
+  const events = summary.value.runtimeEventCount
+  if (changes > 0) return `已响应 ${events} 个运行时事件，并应用 ${changes} 次受控图调整。`
+  return `已记录 ${events} 个运行时事件，未产生图结构调整。`
+})
 </script>
 
 <style scoped>
@@ -56,12 +77,15 @@ header strong { color: var(--text-primary); font-size: 13px; }
 .status.waiting_review { color: var(--warning); }
 .status.completed { color: var(--success); }
 .status.failed, .status.cancelled { color: var(--danger); }
-.summary-grid { display: grid; min-width: 0; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.activity-note { margin: 7px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.activity-note.active { color: var(--primary-color); }
+.summary-grid { display: grid; min-width: 0; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
 .summary-grid > div { min-width: 0; padding: 7px 8px; border-radius: 7px; background: var(--bg-panel); }
 .summary-grid small { display: block; color: var(--text-secondary); font-size: 10px; line-height: 1.3; overflow-wrap: anywhere; }
 .summary-grid b { display: block; margin-top: 3px; color: var(--text-primary); font-size: 15px; }
 .summary-primary { background: color-mix(in srgb, var(--primary-color) 9%, var(--bg-panel)) !important; }
 .summary-primary b { color: var(--primary-color); }
+.event-breakdown { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: var(--text-secondary); font-size: 10px; }
 @container dynamic-run-summary (max-width: 680px) {
   .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

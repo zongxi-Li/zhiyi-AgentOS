@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildDynamicRunSummary,
   graphVersionChanged,
   mapEdgeVisualState,
   mapNodeVisualState,
@@ -17,6 +18,35 @@ describe('runtime presentation helpers', () => {
     expect(graphVersionChanged(progress(1), progress(1))).toBe(false)
     expect(runtimeProjectionChanged(progress(1, 1), progress(1, 0))).toBe(true)
     expect(runtimeProjectionChanged(progress(1, 0), progress(1, 0))).toBe(false)
+  })
+
+  it('does not let a stale zero-valued view hide newer run counters and events', () => {
+    const summary = buildDynamicRunSummary(
+      { status: 'completed', graphVersion: 2, bindingSwitchCount: 1 },
+      {
+        graphVersion: 2,
+        dynamicStepCount: 2,
+        appliedPatches: [{ patchId: 'patch_1', operationType: 'ADD_SUBGRAPH' }],
+        runtimeEvents: [{ eventId: 'event_1', eventType: 'EVIDENCE_MISSING', status: 'PROCESSED' }]
+      },
+      {
+        graphVersion: 1,
+        dynamicStepCount: 0,
+        bindingSwitchCount: 0,
+        appliedPatches: [],
+        runtimeEvents: []
+      }
+    )
+
+    expect(summary).toEqual(expect.objectContaining({
+      graphVersion: 2,
+      dynamicStepCount: 2,
+      bindingSwitchCount: 1,
+      appliedPatchCount: 1,
+      runtimeEventCount: 1,
+      processedRuntimeEventCount: 1,
+      hasDynamicActivity: true
+    }))
   })
 
   it('maps all exposed edge activation states with a safe fallback', () => {

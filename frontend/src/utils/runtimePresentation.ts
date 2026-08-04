@@ -13,7 +13,12 @@ export interface DynamicRunSummary {
   conditionalDecisionCount: number
   skippedByConditionCount: number
   appliedPatchCount: number
+  runtimeEventCount: number
   pendingRuntimeEventCount: number
+  processedRuntimeEventCount: number
+  ignoredRuntimeEventCount: number
+  rejectedRuntimeEventCount: number
+  hasDynamicActivity: boolean
 }
 
 export interface RuntimeTimelineItem {
@@ -56,30 +61,74 @@ const numberFrom = (...values: unknown[]): number => {
   return typeof value === 'number' ? value : 0
 }
 
+const maximumNumberFrom = (...values: unknown[]): number => {
+  const numbers = values.filter(
+    (item): item is number => typeof item === 'number' && Number.isFinite(item)
+  )
+  return numbers.length ? Math.max(...numbers) : 0
+}
+
+const longestProjection = <T>(...values: Array<readonly T[] | undefined>): readonly T[] => {
+  return values.reduce<readonly T[]>((longest, current) => (
+    current && current.length > longest.length ? current : longest
+  ), [])
+}
+
 export const buildDynamicRunSummary = (
   progress?: RuntimeProjection,
   run?: RuntimeProjection,
   view?: RuntimeProjection
 ): DynamicRunSummary => {
-  const events = view?.runtimeEvents ?? run?.runtimeEvents ?? []
-  const patches = view?.appliedPatches ?? run?.appliedPatches ?? []
+  const events = longestProjection(view?.runtimeEvents, run?.runtimeEvents)
+  const patches = longestProjection(view?.appliedPatches, run?.appliedPatches)
+  const eventCount = (status: string) => events.filter(
+    event => String(event.status || '').toUpperCase() === status
+  ).length
+  const graphVersion = Math.max(
+    1,
+    maximumNumberFrom(view?.graphVersion, run?.graphVersion, progress?.graphVersion)
+  )
+  const dynamicStepCount = maximumNumberFrom(
+    view?.dynamicStepCount,
+    run?.dynamicStepCount,
+    progress?.dynamicStepCount
+  )
+  const bindingSwitchCount = maximumNumberFrom(
+    view?.bindingSwitchCount,
+    run?.bindingSwitchCount,
+    progress?.bindingSwitchCount
+  )
+  const conditionalDecisionCount = maximumNumberFrom(
+    view?.conditionalDecisionCount,
+    run?.conditionalDecisionCount,
+    progress?.conditionalDecisionCount
+  )
+  const skippedByConditionCount = maximumNumberFrom(
+    view?.skippedByConditionCount,
+    run?.skippedByConditionCount,
+    progress?.skippedByConditionCount
+  )
+  const appliedPatchCount = patches.length
   return {
     status: String(progress?.status || run?.status || view?.status || 'pending'),
-    graphVersion: numberFrom(view?.graphVersion, run?.graphVersion, progress?.graphVersion, 1),
-    dynamicStepCount: numberFrom(view?.dynamicStepCount, run?.dynamicStepCount, progress?.dynamicStepCount),
-    bindingSwitchCount: numberFrom(view?.bindingSwitchCount, run?.bindingSwitchCount, progress?.bindingSwitchCount),
-    conditionalDecisionCount: numberFrom(
-      view?.conditionalDecisionCount,
-      run?.conditionalDecisionCount,
-      progress?.conditionalDecisionCount
-    ),
-    skippedByConditionCount: numberFrom(
-      view?.skippedByConditionCount,
-      run?.skippedByConditionCount,
-      progress?.skippedByConditionCount
-    ),
-    appliedPatchCount: patches.length,
-    pendingRuntimeEventCount: events.filter(event => event.status === 'PENDING').length
+    graphVersion,
+    dynamicStepCount,
+    bindingSwitchCount,
+    conditionalDecisionCount,
+    skippedByConditionCount,
+    appliedPatchCount,
+    runtimeEventCount: events.length,
+    pendingRuntimeEventCount: eventCount('PENDING'),
+    processedRuntimeEventCount: eventCount('PROCESSED'),
+    ignoredRuntimeEventCount: eventCount('IGNORED'),
+    rejectedRuntimeEventCount: eventCount('REJECTED'),
+    hasDynamicActivity: graphVersion > 1
+      || dynamicStepCount > 0
+      || bindingSwitchCount > 0
+      || conditionalDecisionCount > 0
+      || skippedByConditionCount > 0
+      || appliedPatchCount > 0
+      || events.length > 0
   }
 }
 

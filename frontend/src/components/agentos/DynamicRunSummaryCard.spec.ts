@@ -14,7 +14,12 @@ describe('DynamicRunSummaryCard', () => {
           status: 'running', graphVersion: 2, dynamicStepCount: 2, bindingSwitchCount: 1,
           conditionalDecisionCount: 1, skippedByConditionCount: 2,
           appliedPatches: [{ patchId: 'p1' }, { patchId: 'p2' }, { patchId: 'p3' }],
-          runtimeEvents: [{ eventId: 'e1', eventType: 'EVIDENCE_MISSING', status: 'PENDING' }]
+          runtimeEvents: [
+            { eventId: 'e1', eventType: 'EVIDENCE_MISSING', status: 'PROCESSED' },
+            { eventId: 'e2', eventType: 'LOW_CONFIDENCE', status: 'IGNORED' },
+            { eventId: 'e3', eventType: 'BINDING_UNAVAILABLE', status: 'REJECTED' },
+            { eventId: 'e4', eventType: 'EVIDENCE_MISSING', status: 'PENDING' }
+          ]
         } as any
       }
     })
@@ -25,13 +30,19 @@ describe('DynamicRunSummaryCard', () => {
     expect(wrapper.text()).toContain('条件决策1')
     expect(wrapper.text()).toContain('条件跳过2')
     expect(wrapper.text()).toContain('已应用 Patch3')
+    expect(wrapper.text()).toContain('运行时事件4')
     expect(wrapper.text()).toContain('待处理事件1')
+    expect(wrapper.text()).toContain('已处理 1')
+    expect(wrapper.text()).toContain('已忽略 1')
+    expect(wrapper.text()).toContain('已拒绝 1')
+    expect(wrapper.text()).toContain('已响应 4 个运行时事件')
   })
 
   it('is backward compatible when all dynamic fields are absent', () => {
     const wrapper = mount(DynamicRunSummaryCard, { props: { run: { status: 'completed' } as any } })
     expect(wrapper.text()).toContain('已完成')
     expect(wrapper.text()).toContain('v1')
-    expect(wrapper.findAll('.summary-grid b').map(node => node.text())).toEqual(['v1', '0', '0', '0', '0', '0', '0'])
+    expect(wrapper.text()).toContain('按初始 ACG 图完成，未触发动态调整')
+    expect(wrapper.findAll('.summary-grid b').map(node => node.text())).toEqual(['v1', '0', '0', '0', '0', '0', '0', '0'])
   })
 })
