@@ -386,10 +386,28 @@ class LegalEvidenceMatchAgent(BaseAgent):
                     },
                 }
             )
+        evidence_refs = [
+            str((item.get("metadata") or {}).get("citationId") or item.get("id") or "")
+            for item in evidences
+            if str((item.get("metadata") or {}).get("citationId") or item.get("id") or "")
+        ]
+        web_sources = [
+            {
+                "citationId": str((item.get("metadata") or {}).get("citationId")),
+                "title": str(item.get("sourceName") or item.get("title") or ""),
+                "url": str((item.get("metadata") or {}).get("url") or ""),
+                "snippet": str(item.get("content") or "")[:600],
+                "provider": str((item.get("metadata") or {}).get("provider") or "web"),
+                "retrievedAt": str((item.get("metadata") or {}).get("retrievedAt") or ""),
+            }
+            for item in evidences
+            if (item.get("metadata") or {}).get("citationId")
+        ]
         return AgentOutput(
             output={
                 "evidences": evidences,
                 "citations": [item["citationText"] for item in evidences],
+                "evidence_refs": evidence_refs,
                 "retrieval": {
                     "status": "complete" if not unmatched_risk_ids else "incomplete",
                     "result_count": len(evidences),
@@ -399,6 +417,8 @@ class LegalEvidenceMatchAgent(BaseAgent):
                 "runtimeSignals": runtime_signals,
             },
             summary=f"Matched {len(evidences)} evidence item(s) to contract risks.",
+            sources=web_sources,
+            evidenceRefs=evidence_refs,
         )
 
 

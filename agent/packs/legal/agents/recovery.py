@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from agentos.adapters.tool_adapter import network_tools_enabled
 from agentos.agents.base import AgentOutput, AgentProfile, BaseAgent
 from agentos.core.recovery.contract_adapter import prepare_contract_repair
+from agentos.core.tool_execution import execute_read_only_tool
 from app.rag.legal_evidence_schema import normalize_evidence
 
 
@@ -26,7 +28,7 @@ def _latest_field(context, field: str) -> Any:
 
 
 class LegalEvidenceRecoveryAgent(BaseAgent):
-    """Preserve unmatched risks as low-confidence, provenance-marked task facts."""
+    """Recover unmatched risks from one bounded public-web search with safe fallback."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -34,7 +36,8 @@ class LegalEvidenceRecoveryAgent(BaseAgent):
                 agentName="legal_evidence_recovery",
                 domain="legal",
                 capabilities=["evidence_retrieval"],
-                description="Recovers missing legal evidence as provenance-marked task facts.",
+                allowedTools=["web_search", "current_datetime"],
+                description="Recovers missing legal evidence from bounded public-web search.",
             )
         )
 
@@ -65,9 +68,73 @@ class LegalEvidenceRecoveryAgent(BaseAgent):
             or context.task.input.get("userIntent")
             or context.task.title
         ).strip()
+        web = None
+        if risks and network_tools_enabled(context.task.input):
+            jurisdiction = str(
+                context.task.input.get("jurisdiction")
+                or context.task.input.get("governingLaw")
+                or "中国"
+            ).strip()
+            risk_terms = "；".join(
+                str(item.get("title") or item.get("clause") or item.get("id") or "")
+                for item in risks
+            )
+            query = f"{jurisdiction} 合同审查 法律依据 司法解释 {risk_terms}"[:500]
+            web = await execute_read_only_tool(
+                context.tool_runtime,
+                "web_search",
+                {"query": query, "max_results": 5, "topic": "general"},
+            )
+        result_by_citation = {
+            str(item.get("citationId")): item
+            for item in (web.results if web is not None else [])
+            if item.get("citationId")
+        }
+        web_sources = web.sources if web is not None and web.ok else []
         recovered: list[dict[str, Any]] = []
         for index, risk in enumerate(risks, start=1):
             risk_id = str(risk.get("id") or f"risk-{index:02d}")
+            if web_sources:
+                source = web_sources[(index - 1) % len(web_sources)]
+                citation_id = str(source.get("citationId") or "")
+                row = result_by_citation.get(citation_id, {})
+                url = str(source.get("url") or row.get("url") or "")
+                title = str(source.get("title") or row.get("title") or url)
+                snippet = str(
+                    source.get("snippet")
+                    or row.get("snippet")
+                    or row.get("content")
+                    or ""
+                ).strip()
+                digest = hashlib.sha256(
+                    f"{context.run.run_id}:{risk_id}:{citation_id}".encode("utf-8")
+                ).hexdigest()[:12]
+                recovered.append(
+                    normalize_evidence(
+                        {
+                            "id": f"web-{digest}",
+                            "riskId": risk_id,
+                            "stepId": context.step.step_id,
+                            "sourceType": "web",
+                            "sourceName": title or "Public web source",
+                            "title": title or str(risk.get("title") or "Legal source"),
+                            "content": snippet[:2000],
+                            "citationText": f"[{title}]({url})" if url else title,
+                            "confidence": 0.55,
+                            "retrievalScore": float(row.get("score") or 0.0),
+                            "metadata": {
+                                "citationId": citation_id,
+                                "url": url,
+                                "provider": source.get("provider"),
+                                "retrievedAt": source.get("retrievedAt"),
+                                "requiresLegalVerification": True,
+                                "authoritativeSourceMissing": False,
+                            },
+                        },
+                        risk_id=risk_id,
+                    )
+                )
+                continue
             digest = hashlib.sha256(
                 f"{context.run.run_id}:{risk_id}:task-fact".encode("utf-8")
             ).hexdigest()[:12]
@@ -96,8 +163,17 @@ class LegalEvidenceRecoveryAgent(BaseAgent):
             output={
                 "recovered_evidences": recovered,
                 "recovery_status": "recovered" if recovered else "nothing_to_recover",
+                "recovery_mode": "web_search" if web_sources else "task_input",
+                "retrieval_error": web.error_code if web is not None else None,
             },
             summary=f"Recovered {len(recovered)} provenance-marked legal evidence item(s).",
+            sources=web_sources,
+            toolExecutions=web.executions if web is not None else [],
+            evidenceRefs=[
+                str(item.get("citationId"))
+                for item in web_sources
+                if item.get("citationId")
+            ],
         )
 
 

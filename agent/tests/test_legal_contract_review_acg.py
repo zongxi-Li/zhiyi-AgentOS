@@ -26,12 +26,16 @@ def _runtime() -> WorkflowRuntime:
     return configure_runtime(runtime)
 
 
-async def _start(runtime: WorkflowRuntime):
+async def _start(runtime: WorkflowRuntime, *, web_search_enabled: bool = True):
     task = runtime.create_task(
         title="合同审查",
         domain="legal",
         intent="contract_review",
-        input={"source": "test", "contractText": "甲方委托乙方开发 CRM，签署后付款 30%，上线后付款 70%。"},
+        input={
+            "source": "test",
+            "contractText": "甲方委托乙方开发 CRM，签署后付款 30%，上线后付款 70%。",
+            "webSearchEnabled": web_search_enabled,
+        },
     )
     return await runtime.start(task.task_id, workflow_id="legal_contract_review_v1", review_mode="human_in_loop")
 
@@ -189,7 +193,7 @@ def test_acg_contract_review_partial_retrieval_does_not_fabricate_evidence(monke
     monkeypatch.setattr(migration, "LegalEvidenceRetriever", _PartialFailureRetriever)
     set_llm_gateway_for_tests(LLMGateway(provider=_TwoRiskProvider()))
     try:
-        run = asyncio.run(_start(_runtime()))
+        run = asyncio.run(_start(_runtime(), web_search_enabled=False))
     finally:
         set_llm_gateway_for_tests(None)
 
