@@ -289,13 +289,13 @@ describe('AcgVisualizationView async progress loop', () => {
     await clickStart(wrapper)
 
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
-      title: '识别合同风险、核验法律依据并生成修改建议',
+      title: '完整审查合同',
       domain: 'legal',
       intent: 'contract_review',
       enabledPluginIds: ['kinlin.legal'],
       reviewMode: 'human_in_loop',
       input: expect.objectContaining({
-        userIntent: '识别合同风险、核验法律依据并生成修改建议',
+        userIntent: '完整审查合同：解析合同并进行条款分类，识别风险，联网核验法律依据，生成修改建议、人工审核要点和最终合同审查报告',
         contractText: '上传后的合同正文',
         expectedArtifacts: ['合同审查报告', '风险清单', '条款修改建议'],
         evidenceFirst: true,

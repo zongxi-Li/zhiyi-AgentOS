@@ -15,7 +15,7 @@ export interface LegalPluginDraft {
 
 const defaults = (): LegalPluginDraft => ({
   contractText: '',
-  reviewGoal: '识别合同风险、核验法律依据并生成修改建议',
+  reviewGoal: '完整审查合同：解析合同并进行条款分类，识别风险，联网核验法律依据，生成修改建议、人工审核要点和最终合同审查报告',
   contractType: '',
   useTemplateWorkflow: false,
   evidenceFirst: true,

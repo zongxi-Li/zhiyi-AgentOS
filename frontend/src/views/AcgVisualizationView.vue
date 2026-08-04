@@ -39,7 +39,7 @@
         <span class="input-summary__copy">
           <el-icon><Document /></el-icon>
           <strong>{{ taskName || '未命名 ACG 任务' }}</strong>
-          <small>任务材料 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜{{ draft.webSearchEnabled ? '联网' : '仅本地' }}｜{{ activePluginSummary }}</small>
+          <small>任务材料 · {{ taskMaterialLength.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜{{ draft.webSearchEnabled ? '联网' : '仅本地' }}｜{{ activePluginSummary }}</small>
         </span>
       </div>
       <Transition
@@ -316,6 +316,15 @@ watch(userIntent, value => {
 
 const acgView = ref<AcgView | null>(null)
 const activeRun = ref<WorkflowRun | null>(null)
+const taskMaterialLength = computed(() => {
+  const legalDraft = draft.pluginData['kinlin.legal']
+  const candidates = [
+    contractText.value,
+    typeof legalDraft?.contractText === 'string' ? legalDraft.contractText : '',
+    typeof activeRun.value?.input?.contractText === 'string' ? activeRun.value.input.contractText : ''
+  ]
+  return (candidates.find(value => value.trim()) || '').length
+})
 const loading = reactive({ upload: false })
 const isSubmitting = ref(false)
 const isAcgLoading = ref(false)
