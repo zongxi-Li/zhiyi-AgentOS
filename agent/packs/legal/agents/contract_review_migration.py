@@ -642,7 +642,8 @@ class ReportGenerateAgent(BaseAgent):
     async def run(self, context):
         observations = context.memory.observations
         parsed = _observation(context, "parse_contract", "contract_parse")
-        clauses = observations.get("clause_classify", {}).get("clauses", [])
+        clause_output = _observation(context, "clause_classify", "classify_clauses")
+        clauses = clause_output.get("clauses", [])
         risks = observations.get("risk_detect", {}).get("risks", [])
         # The concrete risk items are the source of truth for the final report.
         # Recomputing here prevents a stale/model-supplied summary from disagreeing

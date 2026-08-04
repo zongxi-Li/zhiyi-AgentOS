@@ -369,6 +369,8 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         assert report_artifact["_llm"]["source"] == "deterministic"
         assert report_artifact["_llm"]["latency_ms"] == 0
         assert "条款分类摘要" in report_artifact["report_markdown"]
+        assert "主体信息：已识别" in report_artifact["report_markdown"]
+        assert "未生成条款分类" not in report_artifact["report_markdown"]
         assert "签署前处理结论" in report_artifact["report_markdown"]
         risk_items = report_artifact["report"]["riskItems"]
         expected_summary = {

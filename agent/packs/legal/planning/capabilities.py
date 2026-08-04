@@ -159,7 +159,7 @@ def legal_capability_descriptors() -> tuple[PlanningCapabilityDescriptor, ...]:
                 "输出",
             ],
             planningStage="report",
-            dependsOn=["文本解析"],
+            dependsOn=["文本解析", "条款分类"],
             optionalDependencies=["风险识别", "证据检索", "修改建议", "人工审核"],
             inputContract=_schema("contract_type"),
             outputContract=_schema("report_markdown"),

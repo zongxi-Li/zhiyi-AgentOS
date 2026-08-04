@@ -118,6 +118,7 @@
       "input": {
         "from": {
           "parse_contract": ["contract_type", "parties", "scope"],
+          "classify_clauses": ["clauses"],
           "risk_detect": ["risks", "risk_summary"],
           "legal_evidence_match": ["evidences"],
           "suggestion_generate": ["revision_suggestions", "manual_review_focus"],
