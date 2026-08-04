@@ -88,6 +88,7 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
         'el-tag': { template: '<span class="el-tag-stub"><slot /></span>' },
         'el-radio-group': true,
         'el-radio-button': true,
+        'el-switch': true,
         'el-checkbox': true,
         'el-checkbox-group': true,
         'el-checkbox-button': true,
@@ -260,6 +261,7 @@ describe('AcgVisualizationView async progress loop', () => {
     expect(wrapper.find('.task-brief').text()).toBe('ACG 动态智能体长程任务')
     expect(wrapper.text()).toContain('知弈OS 原生任务工作台')
     expect(wrapper.text()).toContain('任务材料')
+    expect(wrapper.find('el-switch-stub[aria-label="联网检索"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('合同文本')
     expect(wrapper.text()).not.toContain('法律风险')
     expect(wrapper.text()).not.toContain('甲方')

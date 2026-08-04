@@ -15,6 +15,7 @@ export interface WorkbenchDraft {
   planningMode: WorkbenchPlanningMode
   planningDiversity: PlanningDiversity
   planningSeed: number | null
+  webSearchEnabled: boolean
   thinkingMode: 'disabled' | 'standard' | 'deep'
   reviewMode: 'auto' | 'human_in_loop'
   pluginData: Record<string, Record<string, unknown>>
@@ -58,6 +59,7 @@ export const createNativeWorkbenchDraft = (): WorkbenchDraft => ({
   planningMode: 'dynamic',
   planningDiversity: 'stable',
   planningSeed: null,
+  webSearchEnabled: true,
   thinkingMode: 'disabled',
   reviewMode: 'auto',
   pluginData: {}
@@ -95,6 +97,7 @@ export const buildWorkbenchStartRequest = (
     planningMode: draft.planningMode,
     usePlanner: true,
     forceDynamicPlanning: draft.planningMode === 'dynamic',
+    webSearchEnabled: draft.webSearchEnabled,
     thinkingMode: draft.thinkingMode,
     pluginData: clonePluginData(draft.pluginData)
   }
@@ -110,6 +113,9 @@ export const buildWorkbenchStartRequest = (
     }
     input = mergeInput(input, contribution.input)
   }
+
+  // The user's privacy/network choice is authoritative across every plugin.
+  input.webSearchEnabled = draft.webSearchEnabled
 
   return {
     title: draft.title.trim(),

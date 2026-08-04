@@ -39,7 +39,7 @@
         <span class="input-summary__copy">
           <el-icon><Document /></el-icon>
           <strong>{{ taskName || '未命名 ACG 任务' }}</strong>
-          <small>任务材料 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜{{ activePluginSummary }}</small>
+          <small>任务材料 · {{ contractText.length.toLocaleString('zh-CN') }} 字｜{{ planningModeSummary }}｜{{ draft.webSearchEnabled ? '联网' : '仅本地' }}｜{{ activePluginSummary }}</small>
         </span>
       </div>
       <Transition
@@ -135,6 +135,23 @@
         <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">规划方式</span><el-radio-group v-model="planningMode" size="small"><el-radio-button label="dynamic">动态规划</el-radio-button><el-radio-button label="template_preferred">模板优先</el-radio-button></el-radio-group></div>
         <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">思考强度</span><el-radio-group v-model="thinkingMode" size="small"><el-radio-button label="disabled">关闭</el-radio-button><el-radio-button label="standard">标准</el-radio-button><el-radio-button label="deep">深度</el-radio-button></el-radio-group></div>
         <div v-show="inputPanelExpanded" class="primary-config"><span class="ctrl-label">审核方式</span><el-radio-group v-model="draft.reviewMode" size="small"><el-radio-button label="auto">自动</el-radio-button><el-radio-button label="human_in_loop">人工介入</el-radio-button></el-radio-group></div>
+        <div
+          v-show="inputPanelExpanded"
+          class="primary-config network-config"
+          :class="{ enabled: draft.webSearchEnabled }"
+          title="用于检索公开网页；失败或超时会自动回退本地资料"
+        >
+          <span class="ctrl-label">联网检索</span>
+          <el-switch
+            v-model="draft.webSearchEnabled"
+            size="small"
+            inline-prompt
+            active-text="开"
+            inactive-text="关"
+            :disabled="isSubmitting"
+            aria-label="联网检索"
+          />
+        </div>
         <button v-show="inputPanelExpanded" class="advanced-toggle" type="button" :aria-expanded="advancedSettingsExpanded" @click="advancedSettingsExpanded = !advancedSettingsExpanded"><span>高级设置</span><el-icon><ArrowUp v-if="advancedSettingsExpanded" /><ArrowDown v-else /></el-icon></button>
         <el-button :type="mainAction.type" :loading="mainAction.loading" :disabled="mainAction.disabled" @click="handleMainAction">{{ mainAction.label }}</el-button>
       </div>
@@ -786,6 +803,7 @@ async function refreshAcgForRun(runId: string, force = false): Promise<void> {
     activeRun.value = run
     if (run.planningDiversity) draft.planningDiversity = run.planningDiversity
     draft.planningSeed = run.planningSeed ?? null
+    draft.webSearchEnabled = run.input?.webSearchEnabled !== false
     draft.enabledPluginIds = [...(run.resolvedEnabledPluginIds || run.enabledPluginIds || [])]
     draft.pluginData = (
       run.input?.pluginData && typeof run.input.pluginData === 'object'
@@ -1227,6 +1245,13 @@ onBeforeUnmount(() => {
 .primary-config { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .primary-config :deep(.el-radio-button__inner) { border-color: transparent; background: transparent; box-shadow: none; }
 .primary-config :deep(.el-radio-button.is-active .el-radio-button__inner) { border-color: var(--primary-line); background: var(--primary-fade); color: var(--primary-color); }
+.network-config {
+  min-height: 30px; padding: 0 9px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--surface-solid); transition: var(--transition);
+}
+.network-config.enabled { border-color: var(--primary-line); background: var(--primary-fade); }
+.network-config.enabled .ctrl-label { color: var(--primary-color); }
+.network-config:focus-within { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 .advanced-toggle {
   min-height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px;
   border: 1px solid var(--border-light); border-radius: 6px; background: var(--surface-solid);
