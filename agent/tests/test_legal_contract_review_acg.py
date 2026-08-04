@@ -26,14 +26,19 @@ def _runtime() -> WorkflowRuntime:
     return configure_runtime(runtime)
 
 
-async def _start(runtime: WorkflowRuntime, *, web_search_enabled: bool = True):
+async def _start(
+    runtime: WorkflowRuntime,
+    *,
+    web_search_enabled: bool = True,
+    contract_text: str = "甲方委托乙方开发 CRM，签署后付款 30%，上线后付款 70%。",
+):
     task = runtime.create_task(
         title="合同审查",
         domain="legal",
         intent="contract_review",
         input={
             "source": "test",
-            "contractText": "甲方委托乙方开发 CRM，签署后付款 30%，上线后付款 70%。",
+            "contractText": contract_text,
             "webSearchEnabled": web_search_enabled,
         },
     )
@@ -97,6 +102,13 @@ def test_acg_contract_review_approve_reject_and_need_more_info():
         assert "审核意见：通过" in report
         assert artifacts["risk_detect"]["risks"]
         assert artifacts["legal_evidence_match"]["evidences"]
+        report_output = artifacts["report_generate"]
+        expected_summary = {"high": 0, "medium": 0, "low": 0}
+        for risk in report_output["report"]["riskItems"]:
+            level = str(risk.get("level") or "medium").lower()
+            if level in expected_summary:
+                expected_summary[level] += 1
+        assert report_output["report"]["riskSummary"] == expected_summary
 
     asyncio.run(run_test())
 
@@ -110,6 +122,37 @@ class _InvalidJSONProvider:
 
     def generate_json(self, prompt: str, schema: dict, **kwargs):
         return {"invalid": True}
+
+
+class _EmptyRiskProvider(_InvalidJSONProvider):
+    provider_name = "empty-risk"
+    model = "empty-risk"
+
+    def generate_json(self, prompt: str, schema: dict, **kwargs):
+        from app.llm.schemas import compact_schema_name
+
+        schema_name = compact_schema_name(schema)
+        if schema_name == "parse_contract":
+            return {
+                "summary": "软件开发服务合同",
+                "contract_title": "软件开发服务合同",
+                "parties": [
+                    {"name": "甲方", "role": "委托方"},
+                    {"name": "乙方", "role": "开发方"},
+                ],
+                "contract_type": "软件开发服务合同",
+                "key_dates": [],
+                "amounts": [],
+                "obligations": [],
+                "scope": "软件开发",
+                "payment_terms": "",
+                "acceptance_terms": "",
+                "ip_terms": "",
+                "dispute_resolution": "",
+            }
+        if schema_name == "risk_detect":
+            return {"risks": []}
+        return super().generate_json(prompt, schema, **kwargs)
 
 
 def test_acg_contract_review_invalid_llm_json_fails_closed_without_invented_results():
@@ -149,6 +192,27 @@ def test_acg_contract_review_invalid_llm_json_fails_closed_without_invented_resu
         asyncio.run(run_test())
     finally:
         set_llm_gateway_for_tests(None)
+
+
+def test_acg_contract_review_repairs_valid_but_empty_risk_output_from_explicit_clauses():
+    text = (
+        "软件开发服务合同。尾款不与最终验收合格挂钩。"
+        "未提出书面异议即视为全部验收合格。"
+        "业务数据可用于模型训练并向第三方披露。"
+    )
+    set_llm_gateway_for_tests(LLMGateway(provider=_EmptyRiskProvider()))
+    try:
+        waiting = asyncio.run(
+            _start(_runtime(), web_search_enabled=False, contract_text=text)
+        )
+    finally:
+        set_llm_gateway_for_tests(None)
+
+    risk_output = waiting.output["artifacts"]["risk_detect"]
+    assert len(risk_output["risks"]) == 3
+    assert all(item["detectionSource"] == "explicit_clause_rule" for item in risk_output["risks"])
+    assert risk_output["_llm"]["source"] == "llm+deterministic_guard"
+    assert risk_output["_llm"]["empty_output_repaired"] is True
 
 
 def test_acg_contract_review_partial_retrieval_does_not_fabricate_evidence(monkeypatch):
@@ -306,6 +370,18 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
         assert report_artifact["_llm"]["latency_ms"] == 0
         assert "条款分类摘要" in report_artifact["report_markdown"]
         assert "签署前处理结论" in report_artifact["report_markdown"]
+        risk_items = report_artifact["report"]["riskItems"]
+        expected_summary = {
+            level: sum(
+                str(risk.get("level") or "medium").lower() == level
+                for risk in risk_items
+            )
+            for level in ("high", "medium", "low")
+        }
+        assert report_artifact["report"]["riskSummary"] == expected_summary
+        assert f"- 高风险：{expected_summary['high']}" in report_artifact["report_markdown"]
+        if expected_summary["high"]:
+            assert "完成修改并经专业人员复核前不建议签署" in report_artifact["report_markdown"]
         blueprint = run.acg_blueprint
         assert blueprint is not None
         nodes = blueprint["nodes"]
@@ -356,10 +432,9 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
             input={
                 "contractText": "Party A commissions Party B to develop a software system.",
                 "userIntent": "risk_detect legal_evidence_match revision_suggest",
-                "taskGoal": (
-                    "contract_parse clause_classify risk_detect legal_evidence_match "
-                    "revision_suggest human_review report_generate"
-                ),
+                "taskGoal": "识别合同风险、核验法律依据并生成修改建议",
+                "constraints": ["必须进行条款分类和人工审核"],
+                "expectedArtifacts": ["最终合同审查报告"],
                 "usePlanner": True,
                 "forceDynamicPlanning": True,
                 "thinkingMode": "disabled",
@@ -381,7 +456,7 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
                 for node in run.runtime_graph.nodes
                 if node.node_type.value == "step" and node.created_graph_version == 1
             ]
-        ) == 7
+        ) == 7, run.execution_state.get("selectedCapabilities")
         assert len(run.completed_step_ids) >= 7
         assert "report_generate" in run.output["artifacts"]
         assert run.output["artifacts"]["report_generate"]["report_markdown"]

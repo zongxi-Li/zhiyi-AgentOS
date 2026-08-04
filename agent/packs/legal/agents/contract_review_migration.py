@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any, Callable, Dict, List
 
 from agentos.adapters.tool_adapter import network_tools_enabled
@@ -170,6 +171,108 @@ def _risk_counts(risks: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
+def _explicit_clause_risks(contract_text: str) -> List[Dict[str, Any]]:
+    """Return bounded, auditable risks only for clauses explicit in the source.
+
+    This is a presentation-safe guard for the case where a reachable model
+    returns a structurally valid but empty risk list.  It does not assert legal
+    invalidity or invent an authority; every item quotes source text and remains
+    subject to the evidence and human-review stages.
+    """
+    text = str(contract_text or "").strip()
+    if not text:
+        return []
+    sentences = [item.strip() for item in re.split(r"[。；;\n]+", text) if item.strip()]
+
+    def clause(*terms: str) -> str:
+        return next(
+            (sentence[:260] for sentence in sentences if any(term in sentence for term in terms)),
+            text[:260],
+        )
+
+    rules = [
+        (
+            "付款节点与最终验收脱钩",
+            "high",
+            "尾款不与最终验收合格挂钩" in text,
+            ("尾款", "验收"),
+            "尾款支付未以最终验收合格为前提，可能削弱付款方的履约制衡。",
+            "将尾款支付条件改为最终验收合格，并约定缺陷整改与复验机制。",
+        ),
+        (
+            "短期默示验收",
+            "high",
+            "视为" in text and "验收" in text,
+            ("视为", "验收"),
+            "较短期限内未异议或投入使用即视为全部合格，可能掩盖隐蔽缺陷。",
+            "延长验收期，明确书面验收、缺陷分级、整改及复验流程。",
+        ),
+        (
+            "知识产权归属与复用范围不清",
+            "high",
+            "知识产权" in text and any(term in text for term in ("共有", "无偿用于", "其他客户")),
+            ("知识产权", "其他客户"),
+            "共有及对外复用安排可能与项目独占使用或商业秘密保护目标冲突。",
+            "区分既有成果与定制成果，明确权属、许可边界及第三方复用限制。",
+        ),
+        (
+            "业务数据使用授权过宽",
+            "high",
+            "数据" in text and any(term in text for term in ("模型训练", "第三方披露", "继续保留")),
+            ("数据", "模型训练", "第三方披露"),
+            "数据训练、长期保留或第三方披露授权过宽，存在合规与保密风险。",
+            "限定数据用途、保存期限、删除返还、再委托及安全事件责任。",
+        ),
+        (
+            "违约责任上限偏低",
+            "medium",
+            "违约金" in text and "不超过" in text,
+            ("违约金", "不超过"),
+            "较低的违约责任上限可能不足以覆盖延期造成的实际损失。",
+            "结合项目影响调整违约金标准、责任上限及实际损失追偿机制。",
+        ),
+        (
+            "争议管辖安排单方有利",
+            "medium",
+            "争议" in text and "乙方所在地" in text,
+            ("争议", "乙方所在地"),
+            "单方所在地管辖可能增加另一方维权成本。",
+            "改为合同履行地或双方协商认可的法院或仲裁机构。",
+        ),
+        (
+            "解除权配置不对等",
+            "high",
+            "解除" in text and "甲方不得解除" in text,
+            ("解除", "甲方不得解除"),
+            "一方可快速解除而另一方在严重缺陷下仍不得解除，权利义务明显不对称。",
+            "补充重大违约、整改失败和持续不能履约情形下的对等解除权。",
+        ),
+        (
+            "需求变更默示接受",
+            "medium",
+            "需求变更" in text and "视为接受" in text,
+            ("需求变更", "视为接受"),
+            "短期未反对即视为接受费用和工期，可能造成未充分授权的变更。",
+            "采用书面变更单，明确提出、评估、审批、费用与工期调整机制。",
+        ),
+    ]
+    return [
+        {
+            "id": f"risk-local-{index:03d}",
+            "title": title,
+            "level": level,
+            "clause": clause(*terms),
+            "reason": reason,
+            "consequence": "需结合完整合同、履约背景及适用法律由专业人员复核。",
+            "suggestion": suggestion,
+            "evidenceIds": [],
+            "detectionSource": "explicit_clause_rule",
+        }
+        for index, (title, level, matched, terms, reason, suggestion) in enumerate(rules, start=1)
+        if matched
+    ]
+
+
 class ContractParseAgent(BaseAgent):
     def __init__(self):
         super().__init__(
@@ -272,10 +375,12 @@ class RiskDetectAgent(BaseAgent):
         )
 
     async def run(self, context):
+        contract_text = _contract_text(context)
         fallback = {"risks": []}
         artifacts = {
             "parse_contract": _observation(context, "parse_contract", "contract_parse"),
             "classify_clauses": _observation(context, "classify_clauses", "clause_classify"),
+            "contract_text": contract_text,
         }
         llm_output, llm = await asyncio.to_thread(
             _llm_json_or_fallback,
@@ -290,6 +395,15 @@ class RiskDetectAgent(BaseAgent):
             thinking_mode=_thinking_mode(context),
         )
         risks = llm_output["risks"]
+        if llm.get("success") and not risks:
+            guarded_risks = _explicit_clause_risks(contract_text)
+            if guarded_risks:
+                risks = guarded_risks
+                llm = {
+                    **llm,
+                    "source": "llm+deterministic_guard",
+                    "empty_output_repaired": True,
+                }
         counts = _risk_counts(risks)
         risk_level = "high" if counts["high"] else "medium" if counts["medium"] else "low" if risks else "unknown"
         risk_score = min(100, counts["high"] * 30 + counts["medium"] * 15 + counts["low"] * 5) if risks else None
@@ -530,7 +644,10 @@ class ReportGenerateAgent(BaseAgent):
         parsed = _observation(context, "parse_contract", "contract_parse")
         clauses = observations.get("clause_classify", {}).get("clauses", [])
         risks = observations.get("risk_detect", {}).get("risks", [])
-        risk_summary = observations.get("risk_detect", {}).get("risk_summary", {})
+        # The concrete risk items are the source of truth for the final report.
+        # Recomputing here prevents a stale/model-supplied summary from disagreeing
+        # with the visible list and producing an unsafe signing conclusion.
+        risk_summary = _risk_counts(risks)
         evidences = observations.get("legal_evidence_match", {}).get("evidences", [])
         revision_output = _observation(context, "suggestion_generate", "revision_suggest")
         revisions = revision_output.get("revision_suggestions", [])
