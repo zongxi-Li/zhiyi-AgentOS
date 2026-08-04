@@ -172,6 +172,18 @@ class DeterministicProposalFactory:
                 edgeType=EdgeType.DEPENDENCY,
             )
         )
+        communication_key = stable_hash(
+            scope, nodes[-1].node_id, decision.target_node_id, "recovery_output"
+        )
+        edges.append(
+            ACGEdge(
+                edgeId=f"runtime_edge_{communication_key[:16]}",
+                sourceId=nodes[-1].node_id,
+                targetId=decision.target_node_id,
+                edgeType=EdgeType.COMMUNICATION,
+                metadata={"recoveryOutput": True, "recipeId": recipe.recipe_id},
+            )
+        )
         return GraphChangeProposal(
             proposalId=f"proposal_{proposal_key[:24]}",
             idempotencyKey=proposal_key,

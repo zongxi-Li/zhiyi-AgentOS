@@ -20,23 +20,35 @@ from agentos.core.native_prompt import (
     NativeCapabilityPromptBuilder,
 )
 from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
+from agentos.core.recovery.contract_adapter import prepare_contract_repair
 
 
 NATIVE_ACG_WORKFLOW_ID = "native_acg_runtime_v1"
 NATIVE_AGENT_NAME = "native_general_agent"
+NATIVE_RECOVERY_CAPABILITIES = (
+    "evidence_retrieval",
+    "evidence_validation",
+    "contract_adapter",
+)
 # Backward-compatible export derived from the native Catalog contribution.
-NATIVE_CAPABILITIES = NATIVE_CAPABILITY_IDS
+NATIVE_CAPABILITIES = (*NATIVE_CAPABILITY_IDS, *NATIVE_RECOVERY_CAPABILITIES)
 
 
 class NativeGeneralAgent(BaseAgent):
     """Small offline-safe Agent that executes the native bootstrap capabilities."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        agent_name: str = NATIVE_AGENT_NAME,
+        binding_priority: int = 0,
+    ) -> None:
         super().__init__(
             AgentProfile(
-                agentName=NATIVE_AGENT_NAME,
+                agentName=agent_name,
                 domain="general",
-                capabilities=list(NATIVE_CAPABILITY_IDS),
+                capabilities=list(NATIVE_CAPABILITIES),
+                bindingPriority=binding_priority,
                 allowedTools=[
                     "knowledge_search",
                     "current_datetime",
@@ -45,7 +57,6 @@ class NativeGeneralAgent(BaseAgent):
             )
         )
         self.prompt_builder = NativeCapabilityPromptBuilder()
-
     async def run(self, context: AgentRunContext) -> AgentOutput:
         objective = str(
             context.task.input.get("userIntent")
@@ -56,7 +67,81 @@ class NativeGeneralAgent(BaseAgent):
         capability = (context.step.capability or "").strip()
 
         task_summary = str(upstream.get("task_summary") or objective)
+        if capability == "evidence_retrieval":
+            citation_id = "src_recovery_" + hashlib.sha256(
+                f"{context.run.run_id}:{task_summary}".encode("utf-8")
+            ).hexdigest()[:16]
+            source = {
+                "citationId": citation_id,
+                "title": "Recovered user-provided task facts",
+                "filename": None,
+                "url": None,
+                "content": task_summary[:4000],
+                "provider": "task-input-recovery",
+                "retrievedAt": utc_now().isoformat(),
+                "provisional": True,
+            }
+            return AgentOutput(
+                output={
+                    "recovered_information": [task_summary],
+                    "recovered_sources": [source],
+                    "recovered_evidence_refs": [citation_id],
+                },
+                summary="Recovered task facts for evidence validation.",
+                sources=[source],
+                evidenceRefs=[citation_id],
+            )
+        if capability == "evidence_validation":
+            sources = list(upstream.get("recovered_sources") or [])
+            refs = [
+                str(value)
+                for value in (upstream.get("recovered_evidence_refs") or [])
+                if str(value)
+            ]
+            information = [
+                str(value)
+                for value in (upstream.get("recovered_information") or [])
+                if str(value).strip()
+            ]
+            valid_refs = {
+                str(item.get("citationId"))
+                for item in sources
+                if isinstance(item, dict) and item.get("citationId")
+            }
+            refs = [value for value in refs if value in valid_refs]
+            return AgentOutput(
+                output={
+                    "validated_information": information,
+                    "validated_sources": sources,
+                    "validated_evidence_refs": refs,
+                    "validation_status": "valid" if refs else "empty",
+                },
+                summary=f"Validated {len(refs)} recovered evidence source(s).",
+                sources=sources,
+                evidenceRefs=refs,
+            )
+        if capability == "contract_adapter":
+            return AgentOutput(
+                output=prepare_contract_repair(context),
+                summary="Prepared the latest native payload for contract retry.",
+            )
         if capability == "information_retrieval":
+            validated_refs = list(upstream.get("validated_evidence_refs") or [])
+            if validated_refs:
+                validated_sources = list(upstream.get("validated_sources") or [])
+                validated_information = list(upstream.get("validated_information") or [])
+                return AgentOutput(
+                    output={
+                        "retrieved_information": validated_information,
+                        "sources": validated_sources,
+                        "evidence_refs": validated_refs,
+                        "retrieval_mode": "recovered_task_input",
+                        "runtimeSignals": [],
+                    },
+                    summary=f"Reused {len(validated_refs)} validated recovery source(s).",
+                    sources=validated_sources,
+                    evidenceRefs=validated_refs,
+                )
             if context.tool_runtime is None:
                 raise RuntimeError("read-only tool runtime is not configured")
             result = await context.tool_runtime.execute(
@@ -80,7 +165,8 @@ class NativeGeneralAgent(BaseAgent):
                 if isinstance(item, dict)
                 and str(item.get("snippet") or item.get("content") or "").strip()
             ]
-            if not evidence_refs:
+            used_task_input_fallback = not evidence_refs
+            if used_task_input_fallback:
                 citation_id = "src_task_input_" + hashlib.sha256(
                     task_summary.encode("utf-8")
                 ).hexdigest()[:16]
@@ -95,15 +181,29 @@ class NativeGeneralAgent(BaseAgent):
                 }]
                 evidence_refs = [citation_id]
                 retrieved_information = [task_summary]
+            output = {
+                "retrieved_information": retrieved_information,
+                "sources": sources,
+                "evidence_refs": evidence_refs,
+                "retrieval_mode": (
+                    "local_knowledge" if result.sources else "task_input_only"
+                ),
+                "runtimeSignals": [],
+            }
+            if used_task_input_fallback and context.step.attempt <= 1:
+                output["runtimeSignals"] = [
+                    {
+                        "type": "EVIDENCE_MISSING",
+                        "code": "EVIDENCE_MISSING",
+                        "targetNodeId": context.step.step_id,
+                        "details": {
+                            "requiredEvidenceTypes": ["retrievable_source"],
+                            "fallbackMode": "task_input_only",
+                        },
+                    }
+                ]
             return AgentOutput(
-                output={
-                    "retrieved_information": retrieved_information,
-                    "sources": sources,
-                    "evidence_refs": evidence_refs,
-                    "retrieval_mode": (
-                        "local_knowledge" if result.sources else "task_input_only"
-                    ),
-                },
+                output=output,
                 summary=f"Prepared {len(evidence_refs)} offline evidence source(s).",
                 sources=sources,
                 toolExecutions=[item.public_dict() for item in result.tool_executions],
@@ -428,6 +528,16 @@ class NativeGeneralAgent(BaseAgent):
         return dict(data) if isinstance(data, dict) else {}
 
 
+class NativeGeneralFallbackAgent(NativeGeneralAgent):
+    """Lower-priority compatible binding for transient primary failures."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            agent_name="native_general_fallback",
+            binding_priority=-100,
+        )
+
+
 def native_bootstrap_definition() -> WorkflowDefinition:
     """Return the empty ACG definition that enters the existing PlanningEngine."""
 
@@ -447,6 +557,7 @@ def register_native_runtime(*, agent_registry, workflow_registry) -> None:
     """Register Core definitions before any application Pack is discovered."""
 
     agent_registry.register(NativeGeneralAgent())
+    agent_registry.register(NativeGeneralFallbackAgent())
     workflow_registry.register(native_bootstrap_definition())
 
 
@@ -454,7 +565,9 @@ __all__ = [
     "NATIVE_ACG_WORKFLOW_ID",
     "NATIVE_AGENT_NAME",
     "NATIVE_CAPABILITIES",
+    "NATIVE_RECOVERY_CAPABILITIES",
     "NativeGeneralAgent",
+    "NativeGeneralFallbackAgent",
     "native_bootstrap_definition",
     "register_native_runtime",
 ]

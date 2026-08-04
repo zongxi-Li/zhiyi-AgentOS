@@ -37,6 +37,7 @@ from agentos.core.acg.nodes import (
     parse_node,
 )
 from agentos.core.acg.promote import promote_workflow_to_acg
+from agentos.core.acg.conditional_routes import apply_conditional_route
 from agentos.core.conditions import ConditionOperator, ConditionSpec
 
 __all__ = [
@@ -71,4 +72,5 @@ __all__ = [
     "ready_steps",
     # promotion
     "promote_workflow_to_acg",
+    "apply_conditional_route",
 ]

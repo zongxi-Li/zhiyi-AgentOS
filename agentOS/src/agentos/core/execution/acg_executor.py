@@ -14,6 +14,7 @@ from agentos.core.acg import (
     StepNode,
     validate_blueprint,
 )
+from agentos.agents.base import AgentOutput
 from agentos.core.communication import (
     ContextAssembler,
     ContextContractError,
@@ -179,6 +180,9 @@ class ACGExecutor:
                     return None
             graph = candidate.runtime_graph
             assert graph is not None
+            # A selected branch may terminate directly at its join. Resolve
+            # newly-ready unconditional controls in the same scheduling round.
+            graph.resolve_ready_control_nodes()
             refresh_run_execution_projection(candidate)
 
             if graph.has_waiting_review():
@@ -313,6 +317,7 @@ class ACGExecutor:
         ledger = ProvenanceLedger(run_id=package.run_id, task_id=package.task_id)
         assembler = ContextAssembler(ledger)
         resolved: dict[str, Any] = {}
+        output: dict[str, Any] = {}
         pack = None
         timer = StepExecutionTimer()
         try:
@@ -335,10 +340,23 @@ class ACGExecutor:
                 run_id=package.run_id, task_input=dict(package.run_input), observations={}
             )
             self.fault_injector.fire(package.runtime_node_id)
-            dispatch = self.runtime.orchestrator.dispatch_agent(
-                task=task, run=local_run, workflow=workflow, step=step, memory=memory, context_pack=pack
+            adapted_output = (
+                pack.data.get("adapted_payload")
+                if pack is not None
+                and pack.data.get("adapter_direction") == "output"
+                and pack.data.get("adapter_target_node_id") == package.runtime_node_id
+                else None
             )
-            result, _ = await asyncio.wait_for(dispatch, timeout=package.timeout) if package.timeout > 0 else await dispatch
+            if isinstance(adapted_output, dict):
+                result = AgentOutput(
+                    output=dict(adapted_output),
+                    summary="Applied validated contract-adapter output.",
+                )
+            else:
+                dispatch = self.runtime.orchestrator.dispatch_agent(
+                    task=task, run=local_run, workflow=workflow, step=step, memory=memory, context_pack=pack
+                )
+                result, _ = await asyncio.wait_for(dispatch, timeout=package.timeout) if package.timeout > 0 else await dispatch
             output = dict(result.output)
             tool_executions = [
                 dict(item) for item in result.tool_executions if isinstance(item, dict)
@@ -414,7 +432,7 @@ class ACGExecutor:
             event_type = TraceEventType.CONTRACT_VIOLATION if isinstance(exc, ContextContractError) else TraceEventType.STEP_FAILED
             error_code = self._exception_code(exc)
             return self._outcome(package, StepStatus.RETRYING if recoverable else StepStatus.FAILED,
-                                 started_at, error=str(exc), resolved=resolved, recoverable=recoverable,
+                                 started_at, output=output, error=str(exc), resolved=resolved, recoverable=recoverable,
                                  events=[{"eventType": event_type, "observation": str(exc),
                                           "payload": {"recoverable": recoverable, "attempt": package.attempt_number,
                                                       "errorCode": error_code, "errorType": type(exc).__name__}}],

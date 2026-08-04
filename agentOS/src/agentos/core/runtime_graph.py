@@ -101,7 +101,7 @@ class RuntimePatchBudget(BaseModel):
     max_added_nodes_per_patch: int = Field(
         default=4, alias="maxAddedNodesPerPatch", ge=0
     )
-    max_total_runtime_nodes: int = Field(default=20, alias="maxTotalRuntimeNodes", ge=1)
+    max_total_runtime_nodes: int = Field(default=32, alias="maxTotalRuntimeNodes", ge=1)
     max_replan_depth: int = Field(default=2, alias="maxReplanDepth", ge=0)
     current_replan_depth: int = Field(default=0, alias="currentReplanDepth", ge=0)
 

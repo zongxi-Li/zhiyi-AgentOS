@@ -17,6 +17,7 @@ from agentos.core.acg.blueprint import ACGBlueprint
 from agentos.core.acg.edges import ACGEdge
 from agentos.core.acg.enums import ComplexityLevel, EdgeType
 from agentos.core.acg.nodes import AgentNode, EvidenceNode, MemoryNode, StepNode, _node_id
+from agentos.core.acg.conditional_routes import apply_conditional_route
 
 if TYPE_CHECKING:
     from agentos.core.models.types import WorkflowDefinition
@@ -146,6 +147,9 @@ def promote_workflow_to_acg(
 
     if enrich:
         _inject_cognitive_nodes(blueprint, steps)
+
+    for route in workflow.conditional_routes:
+        apply_conditional_route(blueprint, dict(route))
 
     blueprint.touch()
     return blueprint

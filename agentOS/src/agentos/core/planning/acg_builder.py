@@ -16,6 +16,7 @@ from agentos.core.acg import (
     MemoryNode,
     StepNode,
     validate_blueprint,
+    apply_conditional_route,
 )
 from agentos.core.planning.capabilities import CapabilityCatalog
 from agentos.core.planning.cognitive_router import CollaborationNetwork
@@ -105,9 +106,100 @@ class ACGBuilder:
             descriptors,
             data_dependencies,
         )
+        self._inject_verification_remediation(
+            blueprint,
+            step_by_capability,
+        )
         blueprint.touch()
         validate_blueprint(blueprint)
         return blueprint
+
+    def _inject_verification_remediation(
+        self,
+        blueprint: ACGBlueprint,
+        step_by_capability: dict[str, StepNode],
+    ) -> None:
+        """Route partial/failed verification through one bounded analysis pass."""
+
+        verification = step_by_capability.get("verification")
+        artifact = step_by_capability.get("artifact_generation")
+        if verification is None or artifact is None:
+            return
+        remediation_id = "conditional_remediation_analysis"
+        if blueprint.has_node(remediation_id):
+            return
+        analysis_descriptor = self.capability_catalog.get("analysis")
+        remediation = StepNode(
+            nodeId=remediation_id,
+            name="验收差距补强分析",
+            goal="Analyze unresolved verification gaps before final delivery.",
+            agentName=verification.agent_name,
+            capability="analysis",
+            outputSpec=dict(analysis_descriptor.output_contract),
+            metadata={
+                "capabilityId": "analysis",
+                "planningStage": "conditional_remediation",
+                "conditionalBranch": True,
+            },
+        )
+        blueprint.nodes.append(remediation)
+        agent_node_id = f"agent::{verification.agent_name}"
+        if blueprint.has_node(agent_node_id):
+            agent_node = blueprint.get_node(agent_node_id)
+            if "analysis" not in agent_node.capability_tags:
+                agent_node.capability_tags.append("analysis")
+            blueprint.edges.append(
+                ACGEdge(
+                    sourceId=agent_node_id,
+                    targetId=remediation_id,
+                    edgeType=EdgeType.EXECUTION,
+                )
+            )
+        blueprint.edges.append(
+            ACGEdge(
+                sourceId=verification.node_id,
+                targetId=remediation_id,
+                edgeType=EdgeType.COMMUNICATION,
+                dataFields=["verification"],
+                metadata={"mode": "conditional_remediation"},
+            )
+        )
+        artifact_input = dict(artifact.input_spec)
+        from_map = dict(artifact_input.get("from") or {})
+        from_map[remediation_id] = self._output_fields(
+            analysis_descriptor.output_contract
+        )
+        artifact_input["from"] = from_map
+        artifact.input_spec = artifact_input
+        blueprint.edges.append(
+            ACGEdge(
+                sourceId=remediation_id,
+                targetId=artifact.node_id,
+                edgeType=EdgeType.COMMUNICATION,
+                dataFields=self._output_fields(analysis_descriptor.output_contract),
+                metadata={"mode": "conditional_remediation"},
+            )
+        )
+        apply_conditional_route(
+            blueprint,
+            {
+                "controlNodeId": "route_verification_remediation",
+                "name": "验收结果路由",
+                "afterStepId": verification.node_id,
+                "sourceStepId": verification.node_id,
+                "jsonPointer": "/verification/status",
+                "operator": "EQUALS",
+                "valueType": "string",
+                "cases": {
+                    "partial": remediation_id,
+                    "failed": remediation_id,
+                },
+                "defaultTargetStepId": "$join",
+                "joinNodeId": "join_verification_remediation",
+                "joinBeforeStepId": artifact.node_id,
+                "branchEndStepIds": [remediation_id],
+            },
+        )
 
     def _build_steps(
         self,

@@ -121,6 +121,43 @@ class ContextAssembler:
                         consumed_fields.append(field)
                     fields_by_producer.setdefault(sid, []).append(field)
 
+        # A recovery recipe may add a validated or adapted payload after the
+        # original input contract was declared. Merge only outputs from
+        # recipe-created nodes, preserving the ordinary least-data projection.
+        if runtime_graph is not None:
+            for sid in source_ids:
+                try:
+                    source_node = runtime_graph.get_node(sid)
+                except KeyError:
+                    continue
+                metadata = source_node.spec.get("metadata") or {}
+                if not metadata.get("recipeId"):
+                    continue
+                source_output = upstream_outputs.get(sid, {})
+                adapted = source_output.get("adapted_payload")
+                recovery_fields = (
+                    dict(adapted) if isinstance(adapted, dict) else dict(source_output)
+                )
+                for field, value in recovery_fields.items():
+                    delivered[field] = value
+                    source_data.setdefault(sid, {})[field] = value
+                    if field not in consumed_fields:
+                        consumed_fields.append(field)
+                    fields_by_producer.setdefault(sid, []).append(field)
+                if isinstance(adapted, dict):
+                    delivered["adapted_payload"] = dict(adapted)
+                    source_data.setdefault(sid, {})["adapted_payload"] = dict(adapted)
+                for control_field in (
+                    "adapter_direction",
+                    "adapter_target_node_id",
+                    "adapter_status",
+                ):
+                    if control_field in source_output:
+                        delivered[control_field] = source_output[control_field]
+                        source_data.setdefault(sid, {})[control_field] = source_output[
+                            control_field
+                        ]
+
         # 3) 聚合证据链
         evidence_refs = self._collect_evidence(source_ids, upstream_outputs)
 
