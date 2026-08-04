@@ -12,6 +12,22 @@
     "evidences": "output.artifacts.legal_evidence_match.evidences",
     "report": "output.artifacts.report_generate.report_markdown"
   },
+  "conditionalRoutes": [
+    {
+      "controlNodeId": "route_high_risk_review",
+      "name": "高风险人工复核路由",
+      "afterStepId": "suggestion_generate",
+      "sourceStepId": "suggestion_generate",
+      "jsonPointer": "/risk_level",
+      "operator": "EQUALS",
+      "valueType": "string",
+      "cases": { "high": "human_review" },
+      "defaultTargetStepId": "$join",
+      "joinNodeId": "join_high_risk_review",
+      "joinBeforeStepId": "report_generate",
+      "branchEndStepIds": ["human_review"]
+    }
+  ],
   "steps": [
     {
       "stepId": "parse_contract",

@@ -194,11 +194,20 @@ def test_acg_contract_review_partial_retrieval_does_not_fabricate_evidence(monke
         set_llm_gateway_for_tests(None)
 
     evidence_output = run.output["artifacts"]["legal_evidence_match"]
-    assert [item.get("riskId") for item in evidence_output["evidences"]] == ["risk-test-1"]
-    assert evidence_output["retrieval"]["status"] == "incomplete"
-    assert evidence_output["retrieval"]["unmatched_risk_ids"] == ["risk-test-2"]
+    assert [item.get("riskId") for item in evidence_output["evidences"]] == [
+        "risk-test-1",
+        "risk-test-2",
+    ]
+    assert evidence_output["retrieval"]["status"] == "complete"
+    assert evidence_output["retrieval"]["unmatched_risk_ids"] == []
     assert len(evidence_output["retrieval"]["errors"]) == 1
     assert all(item.get("sourceType") != "mock" for item in evidence_output["evidences"])
+    recovered = next(
+        item for item in evidence_output["evidences"] if item.get("riskId") == "risk-test-2"
+    )
+    assert recovered["sourceType"] == "task-input"
+    assert recovered["metadata"]["authoritativeSourceMissing"] is True
+    assert run.runtime_graph.graph_version >= 2
 
 
 def test_acg_contract_review_api_trace_checkpoint_and_metrics():

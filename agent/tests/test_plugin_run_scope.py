@@ -148,7 +148,7 @@ def test_installed_plugins_api_returns_safe_legal_projection():
         "description": "合同审查、证据匹配、风险分析与法律报告能力。",
         "available": True,
         "capabilityCount": 7,
-        "agentCount": 14,
+        "agentCount": 18,
         "workflowCount": 2,
         "uiExtensionId": "kinlin.legal",
     }]

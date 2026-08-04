@@ -14,8 +14,14 @@ from packs.legal.agents.contract_review_migration import (
 )
 from packs.legal.agents.draft import DraftAgent
 from packs.legal.agents.evidence import EvidenceAgent
+from packs.legal.agents.fallback import LegalWorkflowFallbackAgent
 from packs.legal.agents.review import ReviewAgent
 from packs.legal.agents.risk import RiskAgent
+from packs.legal.agents.recovery import (
+    LegalContractAdapterAgent,
+    LegalEvidenceRecoveryAgent,
+    LegalEvidenceValidationAgent,
+)
 from packs.legal.agents.statute import StatuteAgent
 
 __all__ = [
@@ -27,6 +33,10 @@ __all__ = [
     "EvidenceAgent",
     "HumanReviewGateAgent",
     "LegalEvidenceMatchAgent",
+    "LegalEvidenceRecoveryAgent",
+    "LegalEvidenceValidationAgent",
+    "LegalContractAdapterAgent",
+    "LegalWorkflowFallbackAgent",
     "ReportGenerateAgent",
     "RevisionSuggestAgent",
     "ReviewAgent",

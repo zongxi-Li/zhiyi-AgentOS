@@ -327,6 +327,15 @@ class LegalEvidenceMatchAgent(BaseAgent):
         parsed = _observation(context, "parse_contract", "contract_parse")
         risks = risk_output.get("risks") or []
         evidences: List[Dict[str, Any]] = []
+        recovered_evidences: List[Dict[str, Any]] = []
+        for observation in context.memory.observations.values():
+            if not isinstance(observation, dict):
+                continue
+            recovered = observation.get("validated_evidences")
+            if isinstance(recovered, list):
+                recovered_evidences.extend(
+                    item for item in recovered if isinstance(item, dict)
+                )
         errors: List[str] = []
         unmatched_risk_ids: List[str] = []
         retriever = LegalEvidenceRetriever()
@@ -345,7 +354,38 @@ class LegalEvidenceMatchAgent(BaseAgent):
                 errors.append(str(exc)[:240])
             if risk_id:
                 unmatched_risk_ids.append(risk_id)
+        recovered_evidences = [
+            item
+            for item in recovered_evidences
+            if str(item.get("riskId") or "") in set(unmatched_risk_ids)
+        ]
+        recovered_risk_ids = {
+            str(item.get("riskId") or "") for item in recovered_evidences
+        }
+        unmatched_risk_ids = [
+            risk_id for risk_id in unmatched_risk_ids if risk_id not in recovered_risk_ids
+        ]
+        evidences.extend(recovered_evidences)
         evidences = [normalize_evidence(item, risk_id=str(item.get("riskId") or "")) for item in evidences]
+        evidences = list(
+            {
+                (str(item.get("riskId") or ""), str(item.get("id") or "")): item
+                for item in evidences
+            }.values()
+        )
+        runtime_signals: List[Dict[str, Any]] = []
+        if unmatched_risk_ids and context.step.attempt <= 1:
+            runtime_signals.append(
+                {
+                    "type": "EVIDENCE_MISSING",
+                    "code": "EVIDENCE_MISSING",
+                    "targetNodeId": context.step.step_id,
+                    "details": {
+                        "unmatchedRiskIds": unmatched_risk_ids,
+                        "requiredEvidenceTypes": ["legal_authority_or_task_facts"],
+                    },
+                }
+            )
         return AgentOutput(
             output={
                 "evidences": evidences,
@@ -356,6 +396,7 @@ class LegalEvidenceMatchAgent(BaseAgent):
                     "unmatched_risk_ids": unmatched_risk_ids,
                     "errors": errors,
                 },
+                "runtimeSignals": runtime_signals,
             },
             summary=f"Matched {len(evidences)} evidence item(s) to contract risks.",
         )
@@ -388,6 +429,11 @@ class RevisionSuggestAgent(BaseAgent):
         return AgentOutput(
             output={
                 "revision_suggestions": suggestions,
+                "risk_level": (
+                    "high"
+                    if str(context.run.review_mode) == "human_in_loop"
+                    else str(risk_output.get("risk_level") or "unknown")
+                ),
                 "manual_review_focus": [
                     str(risk.get("title"))
                     for risk in risks
