@@ -331,28 +331,10 @@
             </div>
           </div>
 
-          <div v-if="showAssistTools && currentTemplates.length" class="composer-popover template-row">
-            <button v-for="tpl in currentTemplates" :key="tpl" class="template-item" @click="useTemplate(tpl)">
-              {{ tpl }}
-            </button>
-          </div>
-
           <div class="composer-shelf">
             <button class="composer-shelf-action" type="button" @click="handleControl('folder')">
               <el-icon><Folder /></el-icon>
               <span>选择文件</span>
-            </button>
-            <button class="composer-shelf-action" type="button" @click="toggleAssistTools">
-              <el-icon><Notebook /></el-icon>
-              <span>快捷模板</span>
-            </button>
-            <button
-              class="composer-shelf-action"
-              type="button"
-              :disabled="isWorkflowUpgradeDisabled"
-              @click="upgradeChatToWorkflow"
-            >
-              <span>{{ isSubmittingWorkflow ? '正在创建' : 'Workflow' }}</span>
             </button>
             <button v-if="isTeacherMode" class="composer-shelf-action" type="button" @click="openTeacherUploadDialog">
               <el-icon><UploadFilled /></el-icon>
