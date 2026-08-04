@@ -204,9 +204,14 @@ class IntentParser:
         normalized_text = "".join(text.lower().split())
         matches: list[CapabilityCandidate] = []
         for descriptor in self.capability_catalog.available(domain):
+            searchable_terms = list(dict.fromkeys([
+                descriptor.capability_id,
+                descriptor.display_name,
+                *descriptor.aliases,
+            ]))
             matched_terms = [
                 term
-                for term in descriptor.aliases
+                for term in searchable_terms
                 if (term_normalized := "".join(term.lower().split()))
                 and term_normalized in normalized_text
             ]

@@ -567,6 +567,23 @@ class WorkflowRuntime:
                 or task.title
                 or workflow.description
             )
+            # A task goal alone is not the whole execution contract.  The
+            # workbench stores explicit constraints and deliverables beside it;
+            # feed those fields to deterministic planning so a requested final
+            # report cannot silently disappear from an otherwise valid graph.
+            for field, label in (
+                ("constraints", "执行约束"),
+                ("expectedArtifacts", "预期交付物"),
+            ):
+                raw_items = run.input.get(field)
+                if isinstance(raw_items, str):
+                    items = [raw_items.strip()] if raw_items.strip() else []
+                elif isinstance(raw_items, (list, tuple, set)):
+                    items = [str(item).strip() for item in raw_items if str(item).strip()]
+                else:
+                    items = []
+                if items:
+                    intent_text = f"{intent_text}\n{label}：{'；'.join(items)}"
             planning_engine = self._planning_engine_for_run(run)
             plan = planning_engine.plan(
                 task_id=task.task_id,

@@ -96,6 +96,19 @@ def test_intent_parser_heuristic_extracts_capabilities():
     assert profile.risk_level == "high"  # 含“风险/违约”
 
 
+def test_intent_parser_recognizes_stable_capability_id_without_duplicate_alias():
+    parser = IntentParser(capability_catalog=_legal_catalog())
+
+    profile = parser.parse(
+        intent="必须执行条款分类",
+        domain="legal",
+        task_type="contract_review",
+        use_llm=False,
+    )
+
+    assert "条款分类" in profile.required_capabilities
+
+
 def test_intent_parser_uses_injected_llm():
     class _LLM:
         def generate_json(self, prompt, schema, **kwargs):
