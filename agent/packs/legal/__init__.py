@@ -27,6 +27,8 @@ from packs.legal.agents.recovery import (
 )
 from packs.legal.agents.statute import StatuteAgent
 from packs.legal.planning import (
+    LEGAL_CAPABILITY_AGENT_NAMES,
+    LEGAL_CAPABILITY_RUNTIME_IDS,
     LEGAL_PLUGIN_ID,
     LEGAL_PLUGIN_VERSION,
     register_legal_capabilities,
@@ -64,8 +66,17 @@ def register_pack(
     plugin_id = manifest.pack_id if manifest is not None else LEGAL_PLUGIN_ID
     plugin_version = manifest.version if manifest is not None else LEGAL_PLUGIN_VERSION
     for agent in agents:
+        capabilities = list(agent.profile.capabilities)
+        for stable_id, runtime_id in LEGAL_CAPABILITY_RUNTIME_IDS.items():
+            if (
+                agent.profile.agent_name == LEGAL_CAPABILITY_AGENT_NAMES[stable_id]
+                and runtime_id in capabilities
+                and stable_id not in capabilities
+            ):
+                capabilities.append(stable_id)
         agent.profile = agent.profile.model_copy(
             update={
+                "capabilities": capabilities,
                 "source": "plugin",
                 "plugin_id": plugin_id,
                 "plugin_version": plugin_version,

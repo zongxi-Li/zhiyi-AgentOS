@@ -11,7 +11,9 @@ from agentos.core.workflow.registry import WorkflowRegistry
 from agentos.packs.registry import discover_pack_manifests
 from packs.legal import register_pack as register_legal_pack
 from packs.legal.planning import (
+    LEGAL_CAPABILITY_AGENT_NAMES,
     LEGAL_CAPABILITY_IDS,
+    LEGAL_CAPABILITY_RUNTIME_IDS,
     legal_capability_descriptors,
     register_legal_capabilities,
 )
@@ -65,6 +67,12 @@ def test_legal_pack_registers_shared_catalog_and_manifest_consistently():
     assert runtime.agent_registry.resolve(
         "legal", agent_name="risk_detect"
     ).profile.agent_name == "risk_detect"
+    for stable_id, runtime_id in LEGAL_CAPABILITY_RUNTIME_IDS.items():
+        primary = runtime.agent_registry.resolve(
+            "legal", agent_name=LEGAL_CAPABILITY_AGENT_NAMES[stable_id]
+        )
+        assert runtime_id in primary.profile.capabilities
+        assert stable_id in primary.profile.capabilities
     runtime.capability_catalog.validate()
 
 

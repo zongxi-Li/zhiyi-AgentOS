@@ -22,6 +22,16 @@ LEGAL_CAPABILITY_RUNTIME_IDS = {
     "报告生成": "report_generate",
 }
 
+LEGAL_CAPABILITY_AGENT_NAMES = {
+    "文本解析": "contract_parse",
+    "条款分类": "clause_classify",
+    "风险识别": "risk_detect",
+    "证据检索": "legal_evidence_match",
+    "修改建议": "revision_suggest",
+    "人工审核": "human_review",
+    "报告生成": "report_generate",
+}
+
 
 def _schema(*required: str) -> dict:
     return {"type": "object", "required": list(required)}
@@ -180,6 +190,7 @@ LEGAL_CAPABILITY_IDS = tuple(
 
 __all__ = [
     "LEGAL_CAPABILITY_IDS",
+    "LEGAL_CAPABILITY_AGENT_NAMES",
     "LEGAL_CAPABILITY_RUNTIME_IDS",
     "LEGAL_PLUGIN_ID",
     "LEGAL_PLUGIN_VERSION",

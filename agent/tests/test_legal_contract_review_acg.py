@@ -278,7 +278,19 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
             review_mode="auto",
         )
 
-        assert run.status == WorkflowStatus.COMPLETED
+        assert run.status == WorkflowStatus.COMPLETED, {
+            "error": run.error,
+            "nodes": [
+                (node.node_id, node.status.value, node.error)
+                for node in run.runtime_graph.nodes
+                if node.node_type.value == "step"
+            ],
+            "planned": run.execution_state.get("selectedBindings"),
+            "events": [
+                (event.event_type.value, event.status.value, event.status_reason)
+                for event in run.runtime_graph.runtime_events
+            ],
+        }
         assert run.steps
         artifacts = run.output["artifacts"]
         assert artifacts["risk_detect"]["risks"]
@@ -365,6 +377,18 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
             binding["agentName"] != "legal_workflow_fallback"
             for binding in run.execution_state["selectedBindings"]
         )
+        assert {
+            binding["capabilityId"]: binding["agentName"]
+            for binding in run.execution_state["selectedBindings"]
+        } == {
+            "文本解析": "contract_parse",
+            "条款分类": "clause_classify",
+            "风险识别": "risk_detect",
+            "证据检索": "legal_evidence_match",
+            "修改建议": "revision_suggest",
+            "人工审核": "human_review",
+            "报告生成": "report_generate",
+        }
 
     asyncio.run(run_test())
 
