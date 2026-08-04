@@ -17,6 +17,8 @@ class CapabilityBinding:
     capability: str
     agent_name: str
     score: float
+    semantic_score: float = 0.0
+    binding_priority: int = 0
     ephemeral: bool = False
 
 
@@ -156,6 +158,8 @@ class CognitiveRouter:
                     capability=descriptor.capability_id,
                     agent_name=agent.profile.agent_name,
                     score=round(score, 4),
+                    semantic_score=float(rank[1]),
+                    binding_priority=int(rank[2]),
                 )
             )
         return bindings

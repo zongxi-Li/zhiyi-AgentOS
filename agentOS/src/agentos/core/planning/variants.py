@@ -147,8 +147,17 @@ class PlanningVariantGenerator:
                 continue
             chosen = candidates[0]
             if randomizer is not None and len(candidates) > 1:
+                # Diversity may choose among equally relevant implementations,
+                # but must not trade an exact capability match for a fuzzy name
+                # match merely to make a different graph.
+                best_semantic = candidates[0].semantic_score
+                equally_relevant = [
+                    candidate
+                    for candidate in candidates
+                    if candidate.semantic_score == best_semantic
+                ]
                 pool_size = 2 if diversity == "balanced" else len(candidates)
-                pool = candidates[:pool_size]
+                pool = equally_relevant[:pool_size]
                 weights = [max(0.01, candidate.score) for candidate in pool]
                 chosen = randomizer.choices(pool, weights=weights, k=1)[0]
                 reasons.append(

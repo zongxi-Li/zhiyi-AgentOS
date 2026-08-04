@@ -71,6 +71,7 @@ def _engine() -> PlanningEngine:
     for capability in ("understand", "left", "right", "deliver"):
         agents.register(_Agent(f"{capability}_primary", capability, priority=20))
     agents.register(_Agent("right_alternate", "right", priority=10))
+    agents.register(_Agent("right_fuzzy", "right_analysis", priority=100))
     agents.register(_Agent("right_recovery", "right", priority=-100))
     return PlanningEngine(
         workflow_registry=WorkflowRegistry(),
@@ -129,8 +130,8 @@ def test_different_seeds_produce_multiple_valid_variants():
     assert len({_signature(plan) for plan in plans}) > 1
     assert all(not plan.stochastic_fallback for plan in plans)
     assert all(
-        "right_recovery"
-        not in {step.agent_name for step in plan.blueprint.step_nodes()}
+        not {"right_recovery", "right_fuzzy"}
+        & {step.agent_name for step in plan.blueprint.step_nodes()}
         for plan in plans
     )
     for plan in plans:
