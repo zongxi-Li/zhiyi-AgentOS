@@ -19,7 +19,7 @@ from agentos.core.models.types import (
     WorkflowStatus,
     WorkflowStep,
 )
-from agentos.core.native import NativeGeneralAgent
+from agentos.core.native import NativeGeneralAgent, NativeGeneralFallbackAgent
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.memory.workflow_memory import WorkflowMemory
 from agentos.core.workflow.orchestrator import Orchestrator
@@ -262,6 +262,54 @@ def test_native_agent_never_uses_more_than_one_repair(structured_model_runtime):
         asyncio.run(NativeGeneralAgent().run(_context(runtime)))
 
     assert raised.value.code == "OUTPUT_CONTRACT_VIOLATION"
+    assert raised.value.direction == "output"
+    assert raised.value.partial_data == {"task_summary": "still incomplete"}
+    assert len(raised.value.model_invocations) == 1
+    assert len(runtime.calls) == 2
+
+
+def test_native_fallback_projects_exhausted_repair_into_valid_contract(
+    structured_model_runtime,
+):
+    runtime = _JsonRepairRuntime(structured_model_runtime, invalid_after_retry=True)
+
+    result = asyncio.run(
+        NativeGeneralFallbackAgent().run(
+            _context(runtime, thinking_mode="standard")
+        )
+    )
+
+    assert result.output["task_summary"] == "still incomplete"
+    assert result.output["constraints"] == []
+    assert result.output["_llm"]["source"] == "schema_projection"
+    assert all(call["thinking_mode"] == "disabled" for call in runtime.calls)
+
+
+def test_native_fallback_projects_real_resource_planning_contract():
+    runtime = _FixedRuntime(
+        {
+            "capacity_plan": {
+                "assumptions": ["Known inputs remain unchanged."],
+                "calculations": [],
+                "conclusion": "Capacity needs review.",
+            }
+        }
+    )
+
+    result = asyncio.run(
+        NativeGeneralFallbackAgent().run(
+            _context(runtime, capability="resource_planning", thinking_mode="standard")
+        )
+    )
+
+    assert set(result.output["resource_plan"]) == {
+        "people",
+        "equipment",
+        "systems",
+        "materials",
+    }
+    assert result.output["capacity_plan"]["conclusion"] == "Capacity needs review."
+    assert result.output["_llm"]["source"] == "schema_projection"
     assert len(runtime.calls) == 2
 
 

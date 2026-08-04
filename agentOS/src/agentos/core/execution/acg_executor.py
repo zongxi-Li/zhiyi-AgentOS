@@ -428,6 +428,14 @@ class ACGExecutor:
                                  },
                                  runtime_signals=runtime_signals)
         except Exception as exc:
+            partial_data = getattr(exc, "partial_data", None)
+            if isinstance(partial_data, dict):
+                output = dict(partial_data)
+            failed_model_invocations = [
+                dict(item)
+                for item in (getattr(exc, "model_invocations", None) or [])
+                if isinstance(item, dict)
+            ]
             recoverable = isinstance(exc, InjectedFault) or package.attempt_number <= int(step_node.retry_limit)
             event_type = TraceEventType.CONTRACT_VIOLATION if isinstance(exc, ContextContractError) else TraceEventType.STEP_FAILED
             error_code = self._exception_code(exc)
@@ -436,6 +444,7 @@ class ACGExecutor:
                                  events=[{"eventType": event_type, "observation": str(exc),
                                           "payload": {"recoverable": recoverable, "attempt": package.attempt_number,
                                                       "errorCode": error_code, "errorType": type(exc).__name__}}],
+                                 provenance={"modelInvocations": failed_model_invocations},
                                  error_type=type(exc).__name__,
                                  error_code=error_code,
                                  error_direction=str(getattr(exc, "direction", None) or ""))

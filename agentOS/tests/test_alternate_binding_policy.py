@@ -10,12 +10,12 @@ from agentos.core.recovery import (
 from agentos.core.runtime_graph import RuntimeAttempt, RuntimeGraph
 
 
-def _graph(errors: list[str]) -> RuntimeGraph:
+def _graph(errors: list[str], *, retry_limit: int = 3) -> RuntimeGraph:
     graph = RuntimeGraph.from_blueprint(
         run_id="run_1",
         blueprint=ACGBlueprint(
             graphId="graph_1",
-            nodes=[StepNode(nodeId="target", capability="work", retryLimit=3)],
+            nodes=[StepNode(nodeId="target", capability="work", retryLimit=retry_limit)],
         ),
     )
     node = graph.get_node("target")
@@ -91,3 +91,31 @@ def test_transient_failure_retries_once_then_switches_and_contract_error_never_s
         second_graph,
     )[0]
     assert contract.event_type == RuntimeEventType.OUTPUT_CONTRACT_VIOLATION
+
+    wrapped_contract = classifier.classify(
+        _outcome(
+            attempt=2,
+            error_type="StructuredGenerationError",
+            error_code="OUTPUT_CONTRACT_VIOLATION",
+        ),
+        second_graph.get_node("target"),
+        second_graph,
+    )[0]
+    assert wrapped_contract.event_type == RuntimeEventType.OUTPUT_CONTRACT_VIOLATION
+
+
+def test_zero_retry_dynamic_node_switches_binding_after_first_model_failure():
+    graph = _graph(["invalid structured output"], retry_limit=0)
+
+    event = RuntimeEventClassifier().classify(
+        _outcome(
+            attempt=1,
+            error_type="StructuredGenerationError",
+            error_code="MODEL_OUTPUT_INVALID_JSON",
+        ),
+        graph.get_node("target"),
+        graph,
+    )[0]
+
+    assert event.event_type == RuntimeEventType.BINDING_UNAVAILABLE
+    assert event.reason_code == "BINDING_RETRY_EXHAUSTED"

@@ -14,9 +14,20 @@ from pydantic import BaseModel, ConfigDict, Field
 class StructuredGenerationError(RuntimeError):
     """Stable execution error raised by a structured model runtime."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        direction: str | None = None,
+        partial_data: Dict[str, Any] | None = None,
+        model_invocations: List[Dict[str, Any]] | None = None,
+    ):
         super().__init__(message)
         self.code = code
+        self.direction = direction
+        self.partial_data = dict(partial_data or {})
+        self.model_invocations = [dict(item) for item in (model_invocations or [])]
 
 
 class StructuredGenerationResult(BaseModel):

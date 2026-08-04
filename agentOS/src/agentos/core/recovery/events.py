@@ -23,7 +23,7 @@ def stable_hash(*parts: Any, prefix: str = "") -> str:
 class RuntimeEventClassifier:
     """Purely classify outcomes and structured runtimeSignals; never mutate graph state."""
 
-    classification_version = "1"
+    classification_version = "2"
     max_same_binding_transient_retries = MAX_SAME_BINDING_RETRIES
     _IMMEDIATE_BINDING_ERRORS = {
         "AGENTNOTFOUND",
@@ -35,6 +35,10 @@ class RuntimeEventClassifier:
     _TRANSIENT_BINDING_ERRORS = {
         "TIMEOUTERROR",
         "MODEL_TIMEOUT",
+        "MODEL_TRANSPORT_ERROR",
+        "MODEL_RATE_LIMITED",
+        "MODEL_EMPTY_RESPONSE",
+        "MODEL_OUTPUT_INVALID_JSON",
         "TRANSPORT_ERROR",
         "CONNECTIONERROR",
         "RATE_LIMIT",
@@ -62,14 +66,21 @@ class RuntimeEventClassifier:
             for attempt in runtime_node.attempts
             if attempt.binding_id == binding_id and attempt.error
         )
+        retry_limit = max(0, int(runtime_node.spec.get("retryLimit") or 0))
+        transient_binding_error = (
+            error_category in self._TRANSIENT_BINDING_ERRORS
+            or outcome.error_type.strip().upper() in self._TRANSIENT_BINDING_ERRORS
+        )
         if outcome.error and (
             error_category in self._IMMEDIATE_BINDING_ERRORS
             or outcome.error_type.strip().upper() in self._IMMEDIATE_BINDING_ERRORS
             or (
-                error_category in self._TRANSIENT_BINDING_ERRORS
-                or outcome.error_type.strip().upper() in self._TRANSIENT_BINDING_ERRORS
+                transient_binding_error
+                and (
+                    same_binding_failures > self.max_same_binding_transient_retries
+                    or same_binding_failures > retry_limit
+                )
             )
-            and same_binding_failures > self.max_same_binding_transient_retries
         ):
             excluded = list(
                 dict.fromkeys(
@@ -87,7 +98,12 @@ class RuntimeEventClassifier:
                     {
                         "reasonCode": (
                             "BINDING_RETRY_EXHAUSTED"
-                            if same_binding_failures > self.max_same_binding_transient_retries
+                            if transient_binding_error
+                            and (
+                                same_binding_failures
+                                > self.max_same_binding_transient_retries
+                                or same_binding_failures > retry_limit
+                            )
                             else "BINDING_UNAVAILABLE"
                         ),
                         "targetNodeId": runtime_node.node_id,
@@ -103,10 +119,18 @@ class RuntimeEventClassifier:
                     },
                 )
             )
-        elif outcome.error_type == "ContextContractError":
+        elif (
+            outcome.error_type == "ContextContractError"
+            or error_category
+            in {
+                RuntimeEventType.INPUT_CONTRACT_VIOLATION.value,
+                RuntimeEventType.OUTPUT_CONTRACT_VIOLATION.value,
+            }
+        ):
             event_type = (
                 RuntimeEventType.INPUT_CONTRACT_VIOLATION
                 if outcome.error_direction == "input"
+                or error_category == RuntimeEventType.INPUT_CONTRACT_VIOLATION.value
                 else RuntimeEventType.OUTPUT_CONTRACT_VIOLATION
             )
             events.append(

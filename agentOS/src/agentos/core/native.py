@@ -21,7 +21,7 @@ from agentos.core.native_prompt import (
     NativeCapabilityPromptBuilder,
 )
 from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
-from agentos.core.recovery.contract_adapter import prepare_contract_repair
+from agentos.core.recovery.contract_adapter import prepare_contract_repair, repair_payload
 from agentos.core.tool_execution import execute_read_only_tool
 
 
@@ -305,7 +305,11 @@ class NativeGeneralAgent(BaseAgent):
             evidence_refs=evidence_refs,
             output_schema=generation_schema,
         )
-        thinking_mode = str(context.task.input.get("thinkingMode") or "disabled")
+        thinking_mode = (
+            "disabled"
+            if self.profile.agent_name == "native_general_fallback"
+            else str(context.task.input.get("thinkingMode") or "disabled")
+        )
         output_thinking_mode = thinking_mode
         timeout_seconds = 180.0 if capability == "artifact_generation" else 120.0
         max_output_tokens = 8192 if capability == "artifact_generation" else 4096
@@ -383,6 +387,9 @@ class NativeGeneralAgent(BaseAgent):
                 raise StructuredGenerationError(
                     "OUTPUT_CONTRACT_VIOLATION",
                     str(exc),
+                    direction="output",
+                    partial_data=output,
+                    model_invocations=invocations,
                 ) from exc
             repair_used = True
             repaired = await runtime.generate_json(
@@ -412,6 +419,9 @@ class NativeGeneralAgent(BaseAgent):
                 raise StructuredGenerationError(
                     "OUTPUT_CONTRACT_VIOLATION",
                     str(repair_exc),
+                    direction="output",
+                    partial_data=output,
+                    model_invocations=invocations,
                 ) from repair_exc
 
         return AgentOutput(
@@ -596,6 +606,107 @@ class NativeGeneralFallbackAgent(NativeGeneralAgent):
             agent_name="native_general_fallback",
             binding_priority=-100,
         )
+
+    async def run(self, context: AgentRunContext) -> AgentOutput:
+        try:
+            return await super().run(context)
+        except StructuredGenerationError as exc:
+            descriptor = context.capability_descriptor
+            if descriptor is None:
+                raise
+            capability = str(context.step.capability or "").strip()
+            output_schema = dict(context.step.output_spec or descriptor.output_contract)
+            generation_schema = self._generation_schema(capability, output_schema)
+            partial = dict(getattr(exc, "partial_data", None) or {})
+            output = repair_payload(partial, generation_schema)
+            if capability == "task_understanding" and not output.get("task_summary"):
+                output["task_summary"] = str(
+                    context.task.input.get("userIntent")
+                    or context.task.input.get("intent")
+                    or context.task.title
+                ).strip()
+            if capability == "verification":
+                verification = output.get("verification")
+                if isinstance(verification, dict):
+                    verification["status"] = "partial"
+                    verification.setdefault("unresolved_gaps", []).append(
+                        "结构化模型输出不可用，需人工复核。"
+                    )
+            if capability == "artifact_generation":
+                output = self._fallback_artifact_seed(context, output)
+                output = self._normalize_artifact_output(context, output)
+            validate_contract_payload(
+                output,
+                output_schema,
+                step_id=context.step.step_id,
+                direction="output",
+            )
+            output["_llm"] = {
+                "success": False,
+                "source": "schema_projection",
+                "error": f"{exc.code}: {exc}",
+            }
+            return AgentOutput(
+                output=output,
+                summary=f"Native fallback projected a valid contract for {capability}.",
+                modelInvocations=list(getattr(exc, "model_invocations", None) or []),
+            )
+
+    @classmethod
+    def _fallback_artifact_seed(
+        cls,
+        context: AgentRunContext,
+        output: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized = dict(output)
+        upstream = cls._upstream_data(context)
+        deliverable = normalized.get("deliverable")
+        if not isinstance(deliverable, dict):
+            deliverable = {}
+        sections = deliverable.get("sections")
+        if not isinstance(sections, list) or not sections:
+            sections = [
+                {
+                    "title": str(key).replace("_", " ").strip().title(),
+                    "content": (
+                        value.strip()
+                        if isinstance(value, str)
+                        else json.dumps(value, ensure_ascii=False, default=str)
+                    )[:2000],
+                    "sourceFields": [str(key)],
+                }
+                for key, value in list(upstream.items())[:8]
+                if value not in (None, "", [], {})
+            ]
+        deliverable.update(
+            {
+                "title": str(deliverable.get("title") or context.task.title),
+                "executiveSummary": str(
+                    deliverable.get("executiveSummary")
+                    or "模型结构化输出不可用；以下内容由已完成节点的可审计结果轻量汇总。"
+                ),
+                "sections": sections,
+                "calculations": list(deliverable.get("calculations") or []),
+                "assumptions": list(deliverable.get("assumptions") or []),
+                "openQuestions": list(deliverable.get("openQuestions") or [])
+                or ["请人工复核降级汇总结果。"],
+                "sourceRefs": list(deliverable.get("sourceRefs") or []),
+            }
+        )
+        normalized["deliverable"] = deliverable
+        verification = normalized.get("verification")
+        if not isinstance(verification, dict):
+            verification = {}
+        verification.update(
+            {
+                "status": "partial",
+                "checks": list(verification.get("checks") or []),
+                "unresolvedGaps": list(verification.get("unresolvedGaps") or [])
+                or ["结构化模型输出不可用，已使用轻量汇总。"],
+            }
+        )
+        normalized["verification"] = verification
+        return normalized
 
 
 def native_bootstrap_definition() -> WorkflowDefinition:

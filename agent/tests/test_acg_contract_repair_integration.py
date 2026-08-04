@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from agentos.agents import AgentOutput, AgentProfile, AgentRegistry, BaseAgent
+from agentos.adapters.model_adapter import StructuredGenerationError
 from agentos.core.acg import ACGBlueprint, StepNode
 from agentos.core.models.types import WorkflowDefinition, WorkflowStatus, WorkflowStepDefinition
 from agentos.core.native import NativeGeneralAgent
@@ -28,6 +29,26 @@ class _InvalidOutputAgent(BaseAgent):
     async def run(self, context):
         self.calls += 1
         return AgentOutput(output={"partial": "unvalidated draft"})
+
+
+class _WrappedInvalidOutputAgent(_InvalidOutputAgent):
+    async def run(self, context):
+        self.calls += 1
+        raise StructuredGenerationError(
+            "OUTPUT_CONTRACT_VIOLATION",
+            "output contract violation at target: report is required",
+            direction="output",
+            partial_data={"partial": "unvalidated model draft"},
+            model_invocations=[
+                {
+                    "provider": "test-provider",
+                    "model": "test-model",
+                    "latencyMs": 12,
+                    "promptVersion": "native-capability.v1.repair1",
+                    "usage": {},
+                }
+            ],
+        )
 
 
 @pytest.mark.parametrize("domain", ["legal", "general"])
@@ -98,3 +119,65 @@ def test_contract_violation_inserts_adapter_and_reuses_repaired_output(domain):
     progress = ProgressAssembler().assemble(run)
     assert progress.dynamic_step_count == 1
 
+
+def test_wrapped_output_contract_error_preserves_partial_data_and_recovers():
+    agents = AgentRegistry()
+    target = _WrappedInvalidOutputAgent("general")
+    agents.register(target)
+    agents.register(NativeGeneralAgent())
+    workflows = WorkflowRegistry()
+    output_spec = {
+        "type": "object",
+        "properties": {"report": {"type": "string", "minLength": 1}},
+        "required": ["report"],
+    }
+    workflow = WorkflowDefinition(
+        workflowId="wrapped_contract_repair_test",
+        name="Wrapped contract repair",
+        domain="general",
+        intent="report",
+        runtimeEngine="acg",
+        steps=[
+            WorkflowStepDefinition(
+                stepId="target",
+                name="Target",
+                agentName=target.profile.agent_name,
+                capability="produce_report",
+                outputSpec=output_spec,
+            )
+        ],
+    )
+    workflows.register(workflow)
+    runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+    blueprint = ACGBlueprint(
+        graphId="wrapped_contract_repair_graph",
+        nodes=[
+            StepNode(
+                nodeId="target",
+                name="Target",
+                agentName=target.profile.agent_name,
+                capability="produce_report",
+                outputSpec=output_spec,
+            )
+        ],
+        edges=[],
+    )
+
+    async def execute():
+        task = runtime.create_task(
+            title="Generate a report",
+            domain="general",
+            intent="report",
+            input={"acgBlueprint": blueprint.model_dump(by_alias=True, mode="json")},
+        )
+        return await runtime.start(task.task_id, workflow_id=workflow.workflow_id)
+
+    run = asyncio.run(execute())
+    graph = run.runtime_graph
+    assert run.status == WorkflowStatus.COMPLETED
+    assert graph is not None
+    assert graph.graph_version == 2
+    target_node = graph.get_node("target")
+    assert target_node.attempts[0].output == {"partial": "unvalidated model draft"}
+    assert target_node.attempts[0].trace_context["modelInvocations"][0]["model"] == "test-model"
+    assert target_node.output["report"] == "unknown"
