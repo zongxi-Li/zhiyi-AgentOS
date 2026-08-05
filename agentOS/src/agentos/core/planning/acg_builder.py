@@ -74,6 +74,10 @@ class ACGBuilder:
             )
             for capability_id in selected
         }
+        self._enforce_delivery_convergence(
+            selected,
+            data_dependencies,
+        )
         control_dependencies = {
             capability_id: self._minimal_dependencies(
                 data_dependencies[capability_id],
@@ -450,6 +454,55 @@ class ACGBuilder:
                 if dependency in selected and dependency in declared
             )
         return list(dict.fromkeys(dependency for dependency in dependencies if dependency in selected))
+
+    @staticmethod
+    def _enforce_delivery_convergence(
+        selected: list[str],
+        dependencies: dict[str, list[str]],
+    ) -> None:
+        """Make verification and delivery consume the complete selected result set.
+
+        Planning variants may remove optional catalog edges to explore a different
+        analysis topology.  Those variations must not let the acceptance gate or
+        final artifact run before an otherwise independent branch has completed.
+        Convergence edges are therefore mandatory, while ordinary analytical
+        edges remain eligible for variation.
+        """
+
+        def depends_on(source: str, target: str) -> bool:
+            pending = list(dependencies.get(source, []))
+            visited: set[str] = set()
+            while pending:
+                current = pending.pop()
+                if current == target:
+                    return True
+                if current in visited:
+                    continue
+                visited.add(current)
+                pending.extend(dependencies.get(current, []))
+            return False
+
+        def append_safe_sources(target: str, excluded: set[str]) -> None:
+            if target not in dependencies:
+                return
+            sources = [
+                capability_id
+                for capability_id in selected
+                if capability_id not in excluded
+                and not depends_on(capability_id, target)
+            ]
+            dependencies[target] = list(
+                dict.fromkeys([*dependencies[target], *sources])
+            )
+
+        append_safe_sources(
+            "verification",
+            {"verification", "artifact_generation"},
+        )
+        append_safe_sources(
+            "artifact_generation",
+            {"artifact_generation"},
+        )
 
     @staticmethod
     def _minimal_dependencies(dependencies: list[str], all_dependencies: dict[str, list[str]]) -> list[str]:

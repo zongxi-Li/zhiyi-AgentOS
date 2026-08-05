@@ -15,6 +15,7 @@ from agentos.core.planning import (
 )
 from agentos.core.planning.cognitive_router import CapabilityBinding, CollaborationNetwork
 from agentos.core.planning.default_catalog import build_default_capability_catalog
+from agentos.core.planning.variants import PlanningVariant
 
 
 class Agent(BaseAgent):
@@ -427,6 +428,105 @@ def test_generic_builder_follows_descriptor_dependencies_instead_of_fixed_graph(
     assert ("left", "right") not in communication_pairs(parallel_blueprint)
     assert ("left", "right") in communication_pairs(chained_blueprint)
     assert ("root", "right") not in communication_pairs(chained_blueprint)
+
+
+def test_delivery_convergence_survives_variant_optional_edge_removal():
+    catalog = build_default_capability_catalog()
+    capabilities = [
+        "task_understanding",
+        "requirement_analysis",
+        "process_decomposition",
+        "resource_planning",
+        "cost_analysis",
+        "risk_analysis",
+        "analysis",
+        "solution_design",
+        "verification",
+        "artifact_generation",
+    ]
+    network = CollaborationNetwork(
+        bindings=[
+            CapabilityBinding(
+                capability=capability,
+                agent_name="native_general_agent",
+                score=1,
+            )
+            for capability in capabilities
+        ]
+    )
+    variant = PlanningVariant(
+        variant_id="variant_without_optional_edges",
+        network=network,
+        optional_dependencies=tuple(
+            (capability, ()) for capability in capabilities
+        ),
+    )
+
+    blueprint = ACGBuilder(catalog).build(
+        task_id="delivery-convergence",
+        profile=TaskSemanticProfile(
+            primaryGoal="Produce a complete implementation report",
+            requiredCapabilities=capabilities,
+        ),
+        network=network,
+        variant=variant,
+    )
+
+    steps = {
+        step.capability: step
+        for step in blueprint.step_nodes()
+        if not step.metadata.get("conditionalBranch")
+    }
+    verification = steps["verification"]
+    artifact = steps["artifact_generation"]
+    analytical_steps = {
+        step.node_id
+        for capability, step in steps.items()
+        if capability not in {"verification", "artifact_generation"}
+    }
+    communication_sources = {
+        edge.source_id
+        for edge in blueprint.incoming(artifact.node_id, EdgeType.COMMUNICATION)
+    }
+    verification_sources = {
+        edge.source_id
+        for edge in blueprint.incoming(
+            verification.node_id,
+            EdgeType.COMMUNICATION,
+        )
+    }
+
+    assert analytical_steps.issubset(verification_sources)
+    assert analytical_steps | {verification.node_id} <= communication_sources
+    assert analytical_steps | {verification.node_id} <= set(
+        artifact.input_spec["from"]
+    )
+
+    dependency_targets: dict[str, set[str]] = {}
+    for edge in blueprint.edges_of_type(EdgeType.DEPENDENCY):
+        dependency_targets.setdefault(edge.source_id, set()).add(edge.target_id)
+
+    def has_dependency_path(source: str, target: str) -> bool:
+        pending = [source]
+        visited: set[str] = set()
+        while pending:
+            current = pending.pop()
+            if current == target:
+                return True
+            if current in visited:
+                continue
+            visited.add(current)
+            pending.extend(dependency_targets.get(current, ()))
+        return False
+
+    assert all(
+        has_dependency_path(step_id, verification.node_id)
+        for step_id in analytical_steps
+    )
+    assert all(
+        has_dependency_path(step_id, artifact.node_id)
+        for step_id in analytical_steps | {verification.node_id}
+    )
 
 
 def test_generic_builder_api_and_source_have_no_task_scene_input_or_branches():
