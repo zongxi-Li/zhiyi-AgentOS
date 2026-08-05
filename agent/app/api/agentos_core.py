@@ -114,6 +114,7 @@ class WorkflowStartRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     title: str
+    task_id: Optional[str] = None
     domain: str = "general"
     intent: str = "general"
     role_type: Optional[str] = None
@@ -151,6 +152,8 @@ class WorkflowStartRequest(BaseModel):
                 data["task_type"] = data["taskType"]
             if "clientRequestId" in data and "client_request_id" not in data:
                 data["client_request_id"] = data["clientRequestId"]
+            if "taskId" in data and "task_id" not in data:
+                data["task_id"] = data["taskId"]
         return data
 
 
@@ -385,6 +388,7 @@ def _workflow_start_idempotency_key(client_request_id: str | None) -> str | None
 
 def _workflow_start_fingerprint(request: WorkflowStartRequest) -> str:
     critical = {
+        "taskId": request.task_id,
         "title": request.title,
         "domain": request.domain,
         "intent": request.intent,
@@ -433,18 +437,42 @@ async def _create_task_and_submit(
             "run": _to_json(latest),
         }
 
-    task = runtime.create_task(
-        title=request.title,
-        domain=request.domain,
-        intent=request.intent,
-        input=_input_with_authenticated_actor(request.input),
-        security_level=request.security_level,
-        priority=request.priority,
-        role_type=request.role_type,
-        task_type=request.task_type,
-        workflow_id=request.workflow_id,
-        enabled_plugin_ids=request.enabled_plugin_ids,
-    )
+    if request.task_id:
+        task = runtime.task_manager.get_task(request.task_id)
+        # A retry is another execution of the same task. Refresh its mutable
+        # configuration, but preserve taskId and createdAt as its identity.
+        owner_user_id = str(task.input.get("authenticatedUserId") or "").strip()
+        owner_tenant_id = str(task.input.get("authenticatedTenantId") or "").strip()
+        actor = current_trusted_user()
+        if owner_user_id and (
+            actor is None
+            or actor.user_id != owner_user_id
+            or (owner_tenant_id and actor.tenant_id != owner_tenant_id)
+        ):
+            raise KeyError(f"task not found: {request.task_id}")
+        task = task.model_copy(update={
+            "title": request.title,
+            "domain": request.domain,
+            "intent": request.intent,
+            "input": _input_with_authenticated_actor(request.input),
+            "security_level": request.security_level,
+            "priority": request.priority,
+            "enabled_plugin_ids": request.enabled_plugin_ids,
+        })
+        runtime.workflow_store.save_task(task)
+    else:
+        task = runtime.create_task(
+            title=request.title,
+            domain=request.domain,
+            intent=request.intent,
+            input=_input_with_authenticated_actor(request.input),
+            security_level=request.security_level,
+            priority=request.priority,
+            role_type=request.role_type,
+            task_type=request.task_type,
+            workflow_id=request.workflow_id,
+            enabled_plugin_ids=request.enabled_plugin_ids,
+        )
     _, run = runtime.prepare_run(
         task_id=task.task_id,
         workflow_id=request.workflow_id,

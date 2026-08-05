@@ -8,7 +8,7 @@
     <div class="acg-run-tools">
       <label class="acg-run-search">
         <el-icon><Search /></el-icon>
-        <input v-model.trim="searchKeyword" type="search" placeholder="搜索运行 ID / 任务名称" />
+        <input v-model.trim="searchKeyword" type="search" placeholder="搜索任务 ID / 任务名称" />
       </label>
       <select v-model="statusFilter" class="acg-run-filter" aria-label="筛选运行状态">
         <option value="all">全部</option>
@@ -42,7 +42,7 @@
           <button
             class="acg-run-item__select"
             type="button"
-            :title="`${displayTitle(run)}\n${run.runId}`"
+            :title="`${displayTitle(run)}\n${taskIdentity(run)}`"
             @click="emit('select', run.runId)"
           >
             <span
@@ -56,7 +56,7 @@
                 <strong>{{ displayTitle(run) }}</strong>
                 <time>{{ formatRunTime(run.updatedAt || run.startedAt || run.createdAt) }}</time>
               </span>
-              <span class="acg-run-item__identity"><code>{{ shortenRunId(run.runId) }}</code></span>
+              <span class="acg-run-item__identity"><code>{{ shortenId(taskIdentity(run)) }}</code></span>
               <span class="acg-run-item__phase">
                 {{ phaseLabel(run) }}<template v-if="run.totalSteps"> · {{ run.completedSteps }}/{{ run.totalSteps }}</template>
               </span>
@@ -66,7 +66,7 @@
             </span>
           </button>
           <span class="acg-run-actions">
-            <button class="acg-run-action" type="button" title="复制完整 Run ID" :aria-label="`复制 Run ID：${run.runId}`" @click="copyRunId(run.runId)">
+            <button class="acg-run-action" type="button" title="复制完整任务 ID" :aria-label="`复制任务 ID：${taskIdentity(run)}`" @click="copyTaskId(taskIdentity(run))">
               <el-icon><CopyDocument /></el-icon>
             </button>
             <button
@@ -140,11 +140,21 @@ const groupKey = (run: WorkflowRunSummary): RunGroupKey => {
 
 const filteredRuns = computed(() => {
   const keyword = searchKeyword.value.toLocaleLowerCase('zh-CN')
-  return runs.value.filter(run => {
+  const latestByTask = new Map<string, WorkflowRunSummary>()
+  for (const run of runs.value) {
+    const identity = run.taskId || run.runId
+    const current = latestByTask.get(identity)
+    const timestamp = Date.parse(run.updatedAt || run.startedAt || run.createdAt || '') || 0
+    const currentTimestamp = current
+      ? Date.parse(current.updatedAt || current.startedAt || current.createdAt || '') || 0
+      : -1
+    if (!current || timestamp >= currentTimestamp) latestByTask.set(identity, run)
+  }
+  return [...latestByTask.values()].filter(run => {
     const key = groupKey(run)
     if (statusFilter.value !== 'all' && statusFilter.value !== key) return false
     if (!keyword) return true
-    return [run.runId, run.title, run.workflowId, run.message]
+    return [run.taskId, run.runId, run.title, run.workflowId, run.message]
       .filter(Boolean)
       .some(value => String(value).toLocaleLowerCase('zh-CN').includes(keyword))
   })
@@ -164,7 +174,8 @@ const visibleGroups = computed(() => {
 
 const displayTitle = (run: WorkflowRunSummary) => resolveAcgTaskTitle(run)
 
-const shortenRunId = (runId: string) => runId.length > 18 ? `${runId.slice(0, 15)}…` : runId
+const taskIdentity = (run: WorkflowRunSummary) => run.taskId || run.runId
+const shortenId = (id: string) => id.length > 18 ? `${id.slice(0, 15)}…` : id
 
 const safePercentage = (run: WorkflowRunSummary) => {
   const value = run.percent ?? run.percentage ?? run.progress ?? 0
@@ -196,12 +207,12 @@ const formatRunTime = (value?: string | null) => {
   return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
-const copyRunId = async (runId: string) => {
+const copyTaskId = async (taskId: string) => {
   try {
-    await navigator.clipboard.writeText(runId)
-    ElMessage.success('Run ID 已复制')
+    await navigator.clipboard.writeText(taskId)
+    ElMessage.success('任务 ID 已复制')
   } catch {
-    ElMessage.warning('复制失败，请手动选择 Run ID')
+    ElMessage.warning('复制失败，请手动选择任务 ID')
   }
 }
 

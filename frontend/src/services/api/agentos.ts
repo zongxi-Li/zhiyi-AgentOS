@@ -441,6 +441,7 @@ export interface BranchDecision {
 
 export interface AsyncWorkflowStartRequest extends WorkflowStartRequest {
   clientRequestId: string
+  taskId?: string
   roleType?: string
   taskType?: string
 }

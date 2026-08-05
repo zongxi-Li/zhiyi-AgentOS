@@ -18,7 +18,7 @@ vi.mock('@/services/api/workflow', async (importOriginal) => {
 })
 
 const run = (overrides: Partial<WorkflowRunSummary>): WorkflowRunSummary => ({
-  taskId: 'task_1', runId: 'run_active_123456789', workflowId: 'legal_contract_review_v1',
+  taskId: `task_${overrides.runId || 'run_active_123456789'}`, runId: 'run_active_123456789', workflowId: 'legal_contract_review_v1',
   title: '请以 ACG 多智能体协作方式审查这份软件开发合同，强制生成差异化任务图，并完整执行后续流程。', status: 'running', phase: 'executing', message: '风险识别',
   percent: 28, totalSteps: 7, pendingSteps: 4, runningSteps: 1, waitingReviewSteps: 0,
   retryingSteps: 0, failedSteps: 0, completedSteps: 2, cancelledSteps: 0,
@@ -70,6 +70,24 @@ describe('AcgRunManager', () => {
     expect(wrapper.find('.acg-run-item.active').exists()).toBe(true)
     expect(wrapper.find('.acg-run-item__headline strong').text()).toBe('软件开发合同审查')
     expect(wrapper.find('.acg-run-item__identity code').text()).toContain('run_active')
+    wrapper.unmount()
+  })
+
+  it('shows only the latest run for the same task and moves it to the latest status group', async () => {
+    vi.mocked(workflowApi.listRuns).mockResolvedValue({
+      items: [
+        run({ taskId: 'task_retry', runId: 'run_failed', status: 'failed', phase: 'failed', updatedAt: '2026-07-26T04:00:10Z' }),
+        run({ taskId: 'task_retry', runId: 'run_success', status: 'completed', phase: 'completed', updatedAt: '2026-07-26T04:01:10Z' })
+      ],
+      total: 2, page: 1, pageSize: 20
+    })
+    const wrapper = mount(AcgRunManager, { global: { stubs: { 'el-icon': true } } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.acg-run-item')).toHaveLength(1)
+    expect(wrapper.find('.status-completed').exists()).toBe(true)
+    expect(wrapper.find('.status-failed').exists()).toBe(false)
+    expect(wrapper.text()).toContain('task_retry')
     wrapper.unmount()
   })
 
