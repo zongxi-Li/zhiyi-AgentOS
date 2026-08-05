@@ -224,18 +224,21 @@ def test_native_agent_materializes_final_json_after_thinking_returns_empty_conte
     }
 
 
-def test_native_agent_does_not_hide_empty_content_when_thinking_is_disabled(
+def test_native_agent_retries_empty_content_once_when_thinking_is_disabled(
     structured_model_runtime,
 ):
     runtime = _ThinkingFinalizationRuntime(structured_model_runtime)
 
-    with pytest.raises(StructuredGenerationError) as raised:
-        asyncio.run(
-            NativeGeneralAgent().run(_context(runtime, thinking_mode="disabled"))
-        )
+    result = asyncio.run(
+        NativeGeneralAgent().run(_context(runtime, thinking_mode="disabled"))
+    )
 
-    assert raised.value.code == "MODEL_EMPTY_RESPONSE"
-    assert len(runtime.calls) == 1
+    assert result.output["constraints"]
+    assert [call["thinking_mode"] for call in runtime.calls] == [
+        "disabled",
+        "disabled",
+    ]
+    assert runtime.calls[-1]["prompt_version"].endswith(".empty-response-retry1")
 
 
 def test_native_agent_stops_after_one_thinking_finalization_attempt(
@@ -253,6 +256,26 @@ def test_native_agent_stops_after_one_thinking_finalization_attempt(
 
     assert raised.value.code == "MODEL_EMPTY_RESPONSE"
     assert [call["thinking_mode"] for call in runtime.calls] == ["deep", "disabled"]
+
+
+def test_native_agent_stops_after_one_disabled_empty_response_retry(
+    structured_model_runtime,
+):
+    runtime = _ThinkingFinalizationRuntime(
+        structured_model_runtime,
+        fail_always=True,
+    )
+
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            NativeGeneralAgent().run(_context(runtime, thinking_mode="disabled"))
+        )
+
+    assert raised.value.code == "MODEL_EMPTY_RESPONSE"
+    assert [call["thinking_mode"] for call in runtime.calls] == [
+        "disabled",
+        "disabled",
+    ]
 
 
 def test_native_agent_never_uses_more_than_one_repair(structured_model_runtime):
@@ -311,6 +334,41 @@ def test_native_fallback_projects_real_resource_planning_contract():
     assert result.output["capacity_plan"]["conclusion"] == "Capacity needs review."
     assert result.output["_llm"]["source"] == "schema_projection"
     assert len(runtime.calls) == 2
+
+
+def test_native_agent_wraps_unambiguous_single_array_item():
+    runtime = _FixedRuntime(
+        {
+            "id": "step-1",
+            "name": "Collect facts",
+            "inputs": ["task"],
+            "activities": ["extract facts"],
+            "outputs": ["fact list"],
+            "owner": "planner",
+            "quality_gate": "facts are traceable",
+        }
+    )
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(
+            _context(runtime, capability="process_decomposition")
+        )
+    )
+
+    assert result.output == {
+        "process_steps": [
+            {
+                "id": "step-1",
+                "name": "Collect facts",
+                "inputs": ["task"],
+                "activities": ["extract facts"],
+                "outputs": ["fact list"],
+                "owner": "planner",
+                "quality_gate": "facts are traceable",
+            }
+        ]
+    }
+    assert len(runtime.calls) == 1
 
 
 def test_native_analysis_contract_bounds_response_shape():

@@ -21,7 +21,11 @@ from agentos.core.native_prompt import (
     NativeCapabilityPromptBuilder,
 )
 from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
-from agentos.core.recovery.contract_adapter import prepare_contract_repair, repair_payload
+from agentos.core.recovery.contract_adapter import (
+    normalize_payload_shape,
+    prepare_contract_repair,
+    repair_payload,
+)
 from agentos.core.tool_execution import execute_read_only_tool
 
 
@@ -333,17 +337,23 @@ class NativeGeneralAgent(BaseAgent):
                 "none",
                 "off",
             }
-            if exc.code == "MODEL_EMPTY_RESPONSE" and thinking_enabled:
-                thinking_fallback_reason = exc.code
+            if exc.code == "MODEL_EMPTY_RESPONSE":
+                if thinking_enabled:
+                    thinking_fallback_reason = exc.code
                 output_thinking_mode = "disabled"
                 generated = await runtime.generate_json(
-                    prompt=prompt,
+                    prompt=self.prompt_builder.build_json_repair(
+                        original_prompt=prompt,
+                        validation_error=str(exc),
+                    ),
                     schema=generation_schema,
                     thinking_mode=output_thinking_mode,
                     timeout_seconds=timeout_seconds,
                     max_output_tokens=max_output_tokens,
                     prompt_version=(
                         f"{NATIVE_CAPABILITY_PROMPT_VERSION}.thinking-finalization1"
+                        if thinking_enabled
+                        else f"{NATIVE_CAPABILITY_PROMPT_VERSION}.empty-response-retry1"
                     ),
                 )
             elif exc.code != "MODEL_OUTPUT_INVALID_JSON":
@@ -372,7 +382,8 @@ class NativeGeneralAgent(BaseAgent):
                 }
             )
         invocations.append(generation_audit)
-        output = apply_contract_defaults(dict(generated.data), generation_schema)
+        output = normalize_payload_shape(dict(generated.data), generation_schema)
+        output = apply_contract_defaults(output, generation_schema)
         if capability == "artifact_generation":
             output = self._normalize_artifact_output(context, output)
         try:
@@ -405,7 +416,8 @@ class NativeGeneralAgent(BaseAgent):
                 prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.repair1",
             )
             invocations.append(repaired.audit_record())
-            output = apply_contract_defaults(dict(repaired.data), generation_schema)
+            output = normalize_payload_shape(dict(repaired.data), generation_schema)
+            output = apply_contract_defaults(output, generation_schema)
             if capability == "artifact_generation":
                 output = self._normalize_artifact_output(context, output)
             try:

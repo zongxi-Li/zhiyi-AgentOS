@@ -69,6 +69,44 @@ def repair_payload(payload: Any, schema: dict[str, Any]) -> Any:
     return deepcopy(payload)
 
 
+def normalize_payload_shape(payload: Any, schema: dict[str, Any]) -> Any:
+    """Repair an unambiguous model envelope without inventing semantic data.
+
+    Models occasionally return one array item as the root object even though
+    the contract asks for ``{"items": [...]}``.  When the schema has exactly
+    one required array envelope and the payload already satisfies the item's
+    required fields, wrapping it is deterministic and safer than adding a
+    runtime adapter subgraph.
+    """
+
+    if not isinstance(payload, dict):
+        return deepcopy(payload)
+    properties = schema.get("properties")
+    required = schema.get("required")
+    if not isinstance(properties, dict) or not isinstance(required, list):
+        return deepcopy(payload)
+    required_envelopes = [
+        field
+        for field in required
+        if isinstance(properties.get(field), dict)
+        and properties[field].get("type") == "array"
+    ]
+    if len(required) != 1 or len(required_envelopes) != 1:
+        return deepcopy(payload)
+    envelope = required_envelopes[0]
+    if envelope in payload:
+        return deepcopy(payload)
+    item_schema = properties[envelope].get("items")
+    if not isinstance(item_schema, dict) or item_schema.get("type") != "object":
+        return deepcopy(payload)
+    item_required = item_schema.get("required")
+    if not isinstance(item_required, list) or not item_required:
+        return deepcopy(payload)
+    if not set(item_required).issubset(payload):
+        return deepcopy(payload)
+    return {envelope: [deepcopy(payload)]}
+
+
 def prepare_contract_repair(context) -> dict[str, Any]:
     graph = context.run.runtime_graph
     if graph is None:
@@ -123,4 +161,4 @@ def prepare_contract_repair(context) -> dict[str, Any]:
     }
 
 
-__all__ = ["prepare_contract_repair", "repair_payload"]
+__all__ = ["normalize_payload_shape", "prepare_contract_repair", "repair_payload"]
