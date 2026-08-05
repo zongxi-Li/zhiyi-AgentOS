@@ -101,7 +101,14 @@ class RuntimePatchBudget(BaseModel):
     max_added_nodes_per_patch: int = Field(
         default=4, alias="maxAddedNodesPerPatch", ge=0
     )
-    max_total_runtime_nodes: int = Field(default=32, alias="maxTotalRuntimeNodes", ge=1)
+    # ``None`` disables the aggregate node ceiling.  Demo graphs can contain
+    # many non-executable agent, memory, evidence, and control nodes before any
+    # runtime patch is applied, so a small fixed total can reject an otherwise
+    # bounded conditional activation.  Patch count, per-patch additions, and
+    # replan depth remain bounded independently.
+    max_total_runtime_nodes: int | None = Field(
+        default=None, alias="maxTotalRuntimeNodes", ge=1
+    )
     max_replan_depth: int = Field(default=2, alias="maxReplanDepth", ge=0)
     current_replan_depth: int = Field(default=0, alias="currentReplanDepth", ge=0)
 

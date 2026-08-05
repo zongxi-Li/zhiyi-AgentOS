@@ -50,7 +50,6 @@ class PatchValidator:
         if patch.operation_type == PatchOperationType.RETRY_ALTERNATE_BINDING:
             return self._validate_alternate_binding(graph, patch, domain=domain)
         if patch.operation_type == PatchOperationType.ACTIVATE_CONDITIONAL_BRANCH:
-            self._validate_budget(graph, patch)
             return self._validate_conditional(graph, patch)
         self._validate_budget(graph, patch)
         self._validate_target_and_replaced_edges(graph, patch)
@@ -252,7 +251,11 @@ class PatchValidator:
     @staticmethod
     def _validate_budget(graph: RuntimeGraph, patch: RuntimeGraphPatch) -> None:
         budget = graph.patch_budget
-        if len(graph.applied_patch_ids) >= budget.max_graph_patches:
+        structural_patch_count = sum(
+            record.operation_type == PatchOperationType.ADD_SUBGRAPH.value
+            for record in graph.applied_patches
+        )
+        if structural_patch_count >= budget.max_graph_patches:
             raise PatchValidationError(
                 "PATCH_BUDGET_EXCEEDED", "maximum graph patch count reached"
             )
@@ -260,7 +263,11 @@ class PatchValidator:
             raise PatchValidationError(
                 "ADDED_NODE_BUDGET_EXCEEDED", "too many nodes in one patch"
             )
-        if len(graph.nodes) + len(patch.add_nodes) > budget.max_total_runtime_nodes:
+        if (
+            budget.max_total_runtime_nodes is not None
+            and len(graph.nodes) + len(patch.add_nodes)
+            > budget.max_total_runtime_nodes
+        ):
             raise PatchValidationError(
                 "TOTAL_NODE_BUDGET_EXCEEDED", "runtime graph node budget exceeded"
             )

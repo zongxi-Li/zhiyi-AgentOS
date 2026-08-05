@@ -251,7 +251,38 @@ def test_patch_validator_enforces_node_and_patch_budgets():
     assert caught.value.code == "PATCH_BUDGET_EXCEEDED"
 
 
-def test_patch_validator_enforces_total_node_and_replan_depth_budgets():
+def test_non_structural_patch_history_does_not_consume_structural_patch_budget():
+    graph = _graph()
+    graph.applied_patch_ids = ["p1", "p2", "p3"]
+    graph.applied_patches = [
+        AppliedPatchRecord(
+            patchId=f"p{index}",
+            idempotencyKey=f"i{index}",
+            contentHash=f"c{index}",
+            semanticHash=f"s{index}",
+            operationType="RETRY_ALTERNATE_BINDING",
+            baseGraphVersion=index,
+            resultGraphVersion=index + 1,
+            sourceEventId=f"e{index}",
+        )
+        for index in range(1, 4)
+    ]
+
+    candidate = PatchValidator(_registry()).validate(graph, _patch(), domain="test")
+
+    assert candidate.get_node("remedy").source_patch_id == "patch_1"
+
+
+def test_patch_validator_disables_total_node_budget_by_default():
+    graph = _graph()
+
+    candidate = PatchValidator(_registry()).validate(graph, _patch(), domain="test")
+
+    assert graph.patch_budget.max_total_runtime_nodes is None
+    assert len(candidate.nodes) == len(graph.nodes) + 1
+
+
+def test_patch_validator_enforces_explicit_total_node_and_replan_depth_budgets():
     graph = _graph()
     graph.patch_budget.max_total_runtime_nodes = 2
     with pytest.raises(PatchValidationError) as caught:

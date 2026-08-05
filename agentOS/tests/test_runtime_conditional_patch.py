@@ -27,7 +27,7 @@ from agentos.core.recovery import (
     RuntimeGraphPatchCompiler,
 )
 from agentos.core.run_locks import RunLockManager
-from agentos.core.runtime_graph import RuntimeGraph
+from agentos.core.runtime_graph import AppliedPatchRecord, RuntimeGraph
 from agentos.stores.memory_workflow_store import MemoryWorkflowStore
 
 
@@ -149,6 +149,34 @@ async def test_conditional_patch_activates_one_branch_skips_other_and_preserves_
     assert len(applied.branch_decisions) == 1
     assert applied.branch_decisions[0].skipped_node_ids == ["low"]
     assert persisted.checkpoints[-1].state_snapshot["conditionalDecisionCount"] == 1
+
+
+def test_conditional_activation_ignores_exhausted_structural_patch_budget():
+    _, graph, _, patch = _compiled()
+    graph.applied_patch_ids = ["p1", "p2", "p3"]
+    graph.applied_patches = [
+        AppliedPatchRecord(
+            patchId=f"p{index}",
+            idempotencyKey=f"i{index}",
+            contentHash=f"c{index}",
+            semanticHash=f"s{index}",
+            operationType="ADD_SUBGRAPH",
+            baseGraphVersion=index,
+            resultGraphVersion=index + 1,
+            sourceEventId=f"e{index}",
+        )
+        for index in range(1, 4)
+    ]
+
+    candidate = RuntimeController(
+        workflow_store=MemoryWorkflowStore(),
+        agent_registry=AgentRegistry(),
+        checkpoint_store=CheckpointStore(),
+        trace_store=TraceStore(),
+    ).validator.validate(graph, patch, domain="")
+
+    assert candidate.get_node("route").status == StepStatus.COMPLETED
+    assert candidate.get_node("low").status == StepStatus.SKIPPED_BY_CONDITION
 
 
 def test_conditional_validator_rejects_stale_output_hash_and_started_branch():
