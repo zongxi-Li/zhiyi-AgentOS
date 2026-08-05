@@ -468,6 +468,12 @@ describe('AcgVisualizationView async progress loop', () => {
       output: { artifact: finalArtifact, final_answer: '完整成果' }
     }])
     expect(panel.props('status')).toBe('completed')
+    expect(wrapper.find('.acg-grid').classes()).toContain('is-side-collapsed')
+    expect(wrapper.find('.side-rail').exists()).toBe(true)
+
+    await wrapper.find('.side-rail__toggle').trigger('click')
+    expect(wrapper.find('.acg-grid').classes()).not.toContain('is-side-collapsed')
+    expect(wrapper.find('.grid-side').attributes('aria-hidden')).toBe('false')
     wrapper.unmount()
   })
 

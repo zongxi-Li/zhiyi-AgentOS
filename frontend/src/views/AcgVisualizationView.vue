@@ -157,7 +157,12 @@
       </div>
     </section>
 
-    <section v-if="activeRunId" class="run-scope ui-surface ui-surface--pad">
+    <section
+      v-if="activeRunId || isSubmitting || progressTracker.progress.value || progressTracker.syncError.value"
+      class="run-overview ui-surface"
+      aria-label="ACG 运行概览"
+    >
+    <section v-if="activeRunId" class="run-scope">
       <header><strong>本次 Run 的能力范围（已冻结）</strong><el-tag effect="plain" type="info">只读</el-tag></header>
       <p v-if="activeRun?.legacyPluginScope" class="scope-warning">该运行创建于插件快照功能之前，未伪造插件版本。</p>
       <p v-else-if="missingSnapshotPlugins.length" class="scope-warning">原插件当前不可用：{{ missingSnapshotPlugins.join('、') }}。历史图和输出仍可查看，不能扩大 Scope 后继续执行。</p>
@@ -188,6 +193,7 @@
       :run="activeRun"
       :view="acgView"
     />
+    </section>
 
     <p v-if="startError" class="run-error" role="alert">{{ startError }}</p>
 
@@ -201,7 +207,11 @@
     />
 
     <!-- 主区：拓扑 + 指标/血缘 -->
-    <div class="acg-grid" v-if="acgView">
+    <div
+      v-if="acgView"
+      class="acg-grid"
+      :class="{ 'is-side-collapsed': sidePanelCollapsed }"
+    >
       <div class="grid-main">
         <AcgTopologyGraph
           :blueprint="acgView.acgBlueprint"
@@ -228,8 +238,36 @@
           </div>
         </div>
       </div>
-      <div class="grid-side">
+      <aside v-if="sidePanelCollapsed" class="side-rail" aria-label="运行详情折叠栏">
+        <button
+          class="side-rail__toggle"
+          type="button"
+          title="展开运行详情"
+          aria-label="展开运行详情"
+          :aria-expanded="false"
+          aria-controls="acg-run-details"
+          @click="setSidePanelCollapsed(false)"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+      </aside>
+      <aside id="acg-run-details" class="grid-side" :aria-hidden="sidePanelCollapsed">
+        <button
+          class="grid-side__collapse"
+          type="button"
+          title="收起运行详情"
+          aria-label="收起运行详情"
+          :aria-expanded="true"
+          aria-controls="acg-run-details"
+          @click="setSidePanelCollapsed(true)"
+        >
+          <el-icon><ArrowRight /></el-icon>
+          <span>收起运行详情</span>
+        </button>
+        <div class="grid-side__metrics">
         <AcgLowEntropyMetrics :metrics="acgView.lowEntropyMetrics" />
+        </div>
+        <div class="grid-side__audit">
         <AcgProvenancePanel
           :consumptions="acgView.provenance.consumptions"
           :interactions="acgView.interactions"
@@ -238,13 +276,14 @@
           @export-json="exportAudit('json')"
           @export-csv="exportAudit('csv')"
         />
+        </div>
         <RuntimeChangeTimeline
           :runtime-events="acgView.runtimeEvents"
           :applied-patches="acgView.appliedPatches"
           :branch-decisions="acgView.branchDecisions"
           :step-states="acgView.stepStates"
         />
-      </div>
+      </aside>
     </div>
 
     <div v-else class="ui-surface task-brief">
@@ -256,7 +295,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type DeepReadonly } from 'vue'
 import axios from 'axios'
-import { ArrowDown, ArrowUp, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CopyDocument, Cpu, Delete, Document, Monitor, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -357,7 +396,29 @@ const missingSnapshotPlugins = computed(() => {
 })
 const inputPanelExpanded = ref(true)
 const inputPanelCompact = ref(false)
+const sidePanelCollapsed = ref(false)
+const sidePanelManuallySet = ref(false)
 const loadedRunId = ref('')
+
+const isCompletedRun = computed(() => (
+  acgView.value?.status === 'completed'
+  || activeRun.value?.status === 'completed'
+))
+
+const setSidePanelCollapsed = (collapsed: boolean) => {
+  sidePanelManuallySet.value = true
+  sidePanelCollapsed.value = collapsed
+}
+
+watch(activeRunId, () => {
+  sidePanelManuallySet.value = false
+  sidePanelCollapsed.value = false
+})
+
+watch(isCompletedRun, completed => {
+  if (sidePanelManuallySet.value) return
+  sidePanelCollapsed.value = completed
+}, { immediate: true })
 const contractFileInput = ref<HTMLInputElement | null>(null)
 const uploadDragging = ref(false)
 type SelectedMaterial = Omit<TaskMaterial, 'extractedText'> & { extractedText?: string }
@@ -1066,6 +1127,9 @@ const startRun = async () => {
     }
   }
   isSubmitting.value = true
+  const retryTaskId = ['rerun', 'retry'].includes(mainAction.value.action)
+    ? activeRun.value?.taskId
+    : undefined
   startError.value = null
   submitController?.abort()
   submitController = new AbortController()
@@ -1076,6 +1140,7 @@ const startRun = async () => {
   try {
     const clientRequestId = createClientRequestId()
     const request = buildWorkbenchStartRequest(draft, draftExtensions.value, clientRequestId)
+    if (retryTaskId) request.taskId = retryTaskId
     const requestInput: Record<string, unknown> = {
       ...request.input,
       taskName: taskName.value.trim(),
@@ -1172,10 +1237,14 @@ onBeforeUnmount(() => {
 .acg-view > .control-bar { border-top: 0; border-radius: 0 0 8px 8px; }
 .acg-view.is-draft > .control-bar { flex: 1 1 auto; }
 .acg-view.has-progress:not(.has-run) > .control-bar { border-bottom: 0; border-radius: 0; box-shadow: none; }
-.acg-view.has-progress:not(.has-run) > :deep(.workflow-progress) { border-top: 0; border-radius: 0 0 8px 8px; }
-.acg-view.has-run > .run-scope { margin-top: 12px; }
-.acg-view.has-run > :deep(.workflow-progress) { margin-top: 16px; }
-.run-summary-card { margin-top: 10px; }
+.acg-view.has-progress:not(.has-run) > .run-overview { border-top: 0; border-radius: 0 0 8px 8px; }
+.run-overview { margin-top: 12px; overflow: hidden; }
+.run-overview > :deep(.workflow-progress),
+.run-overview > :deep(.dynamic-run-summary) {
+  margin: 0; border: 0; border-radius: 0; background: transparent;
+}
+.run-overview > :deep(.workflow-progress) { padding: 14px 16px; }
+.run-overview > :deep(.dynamic-run-summary) { padding: 14px 16px; }
 .hero-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ui-hero h3 { overflow: hidden; margin: 0; color: var(--text-primary); font-size: 18px; font-weight: 800; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .hero-right { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
@@ -1349,10 +1418,36 @@ onBeforeUnmount(() => {
 .contract-upload__actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 
 .acg-view > :deep(.workflow-review) { margin-top: var(--space-lg); }
-.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 11px; margin-top: 16px; align-items: stretch; min-width: 0; }
+.acg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 11px; margin-top: 16px; align-items: stretch; min-width: 0; transition: grid-template-columns 180ms ease; }
+.acg-grid.is-side-collapsed { grid-template-columns: minmax(0, 1fr) 44px; }
 .grid-main { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
-.grid-side { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; min-height: 0; }
+.grid-side {
+  position: relative; align-self: stretch; box-sizing: border-box; height: 100%; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--space-lg);
+}
+.is-side-collapsed .grid-side { display: none; }
 .grid-side :deep(.acg-provenance) { flex: 1 1 auto; min-height: 0; }
+.grid-side__metrics { flex: 0 0 auto; min-width: 0; }
+.grid-side__audit { flex: 1 1 auto; min-width: 0; min-height: 360px; display: flex; }
+.grid-side__audit :deep(.acg-provenance) { width: 100%; height: 100%; }
+.grid-side > :deep(.runtime-timeline) { flex: 0 0 auto; }
+.grid-side__collapse {
+  min-height: 32px; display: inline-flex; align-items: center; justify-content: flex-start; gap: 6px;
+  padding: 0 9px; border: 1px solid var(--border-light); border-radius: 7px;
+  background: var(--surface-solid); color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+.grid-side__collapse:hover, .grid-side__collapse:focus-visible { border-color: var(--primary-line); background: var(--primary-fade); color: var(--primary-color); }
+.side-rail {
+  align-self: stretch; box-sizing: border-box; height: 100%; min-height: 176px; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  padding: 6px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--surface-solid);
+}
+.side-rail button { border: 0; background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+.side-rail__toggle {
+  width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 6px !important;
+  background: var(--primary-fade) !important; color: var(--primary-color) !important;
+}
+.side-rail button:focus-visible, .grid-side__collapse:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 
 .schedule-strip { padding: var(--space-md); }
 .schedule-strip h4 { margin: 0 0 var(--space-sm); font-size: 13px; font-weight: 700; color: var(--text-primary); }
@@ -1378,7 +1473,17 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1160px) {
   .acg-grid { grid-template-columns: minmax(0, 1fr); }
+  .acg-grid.is-side-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .side-rail { display: none; }
+  .grid-side, .is-side-collapsed .grid-side { display: flex; height: auto; }
+  .grid-side__audit { min-height: 0; display: block; }
+  .grid-side__audit :deep(.acg-provenance) { height: auto; }
+  .grid-side__collapse { display: none; }
   .advanced-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acg-grid { transition: none; }
 }
 
 @media (max-width: 720px) {
