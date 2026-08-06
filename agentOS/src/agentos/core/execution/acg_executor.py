@@ -36,6 +36,10 @@ from agentos.core.models.types import (
 )
 from agentos.core.recovery.errors import PatchConflictError, PatchValidationError
 from agentos.core.recovery.policy import EventPolicyAction
+from agentos.core.recovery.contract_adapter import (
+    VALIDATED_LOSSLESS,
+    payload_hash,
+)
 from agentos.core.runtime_graph import (
     RuntimeAttempt,
     RuntimeEvent,
@@ -340,17 +344,41 @@ class ACGExecutor:
                 run_id=package.run_id, task_input=dict(package.run_input), observations={}
             )
             self.fault_injector.fire(package.runtime_node_id)
-            adapted_output = (
-                pack.data.get("adapted_payload")
-                if pack is not None
+            adapted_output = None
+            if (
+                pack is not None
+                and step_node.capability != "artifact_generation"
+                and pack.data.get("adapter_status") == VALIDATED_LOSSLESS
+                and pack.data.get("repair_kind") == "shape_only"
                 and pack.data.get("adapter_direction") == "output"
                 and pack.data.get("adapter_target_node_id") == package.runtime_node_id
-                else None
-            )
+            ):
+                source_attempt_id = str(
+                    pack.data.get("adapter_source_attempt_id") or ""
+                )
+                source_attempt = next(
+                    (
+                        item
+                        for item in node.attempts
+                        if item.attempt_id == source_attempt_id
+                    ),
+                    None,
+                )
+                original_hash = str(pack.data.get("original_payload_hash") or "")
+                candidate = pack.data.get("adapted_payload")
+                candidate_hash = str(pack.data.get("adapted_payload_hash") or "")
+                if (
+                    source_attempt is not None
+                    and original_hash
+                    and original_hash == payload_hash(source_attempt.output)
+                    and isinstance(candidate, dict)
+                    and candidate_hash == payload_hash(candidate)
+                ):
+                    adapted_output = candidate
             if isinstance(adapted_output, dict):
                 result = AgentOutput(
                     output=dict(adapted_output),
-                    summary="Applied validated contract-adapter output.",
+                    summary="Applied a validated lossless contract-adapter output.",
                 )
             else:
                 dispatch = self.runtime.orchestrator.dispatch_agent(

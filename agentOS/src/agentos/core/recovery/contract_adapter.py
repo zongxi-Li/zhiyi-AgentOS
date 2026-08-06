@@ -1,82 +1,43 @@
-"""Deterministic payload preparation for the contract-repair recovery recipe."""
+"""Lossless payload preparation for the contract-repair recovery recipe."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
 from typing import Any
 
+from agentos.core.data_contracts import (
+    ContextContractError,
+    apply_contract_defaults,
+    validate_contract_payload,
+)
 from agentos.core.runtime_graph import RuntimeEventType
 
 
-def _default_value(schema: dict[str, Any]) -> Any:
-    if "default" in schema:
-        return deepcopy(schema["default"])
-    enum = schema.get("enum")
-    if isinstance(enum, list) and enum:
-        return deepcopy(enum[0])
-    value_type = schema.get("type")
-    if value_type == "object" or isinstance(schema.get("properties"), dict):
-        return repair_payload({}, schema)
-    if value_type == "array":
-        item_schema = schema.get("items") if isinstance(schema.get("items"), dict) else {}
-        return [
-            _default_value(item_schema)
-            for _ in range(max(0, int(schema.get("minItems") or 0)))
-        ]
-    if value_type == "string":
-        return "unknown" if int(schema.get("minLength") or 0) > 0 else ""
-    if value_type in {"number", "integer"}:
-        return schema.get("minimum", 0)
-    if value_type == "boolean":
-        return False
-    return None
+VALIDATED_LOSSLESS = "validated_lossless"
+REGENERATION_REQUIRED = "regeneration_required"
+UNREPAIRABLE = "unrepairable"
 
 
-def repair_payload(payload: Any, schema: dict[str, Any]) -> Any:
-    """Coerce only the bounded JSON-Schema shape needed for one retry."""
-
-    value_type = schema.get("type")
-    if value_type == "object" or isinstance(schema.get("properties"), dict):
-        normalized = dict(payload) if isinstance(payload, dict) else {}
-        properties = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
-        for field, field_schema in properties.items():
-            if not isinstance(field_schema, dict):
-                continue
-            if field in normalized:
-                normalized[field] = repair_payload(normalized[field], field_schema)
-            elif field in (schema.get("required") or []) or "default" in field_schema:
-                normalized[field] = _default_value(field_schema)
-        return normalized
-    if value_type == "array":
-        normalized = list(payload) if isinstance(payload, list) else []
-        item_schema = schema.get("items") if isinstance(schema.get("items"), dict) else {}
-        normalized = [repair_payload(item, item_schema) for item in normalized]
-        minimum = max(0, int(schema.get("minItems") or 0))
-        normalized.extend(_default_value(item_schema) for _ in range(minimum - len(normalized)))
-        return normalized
-    if value_type == "string" and not isinstance(payload, str):
-        return str(payload) if payload is not None else _default_value(schema)
-    if value_type == "string" and not payload and int(schema.get("minLength") or 0) > 0:
-        return _default_value(schema)
-    if value_type == "integer" and not isinstance(payload, int):
-        return _default_value(schema)
-    if value_type == "number" and not isinstance(payload, (int, float)):
-        return _default_value(schema)
-    if value_type == "boolean" and not isinstance(payload, bool):
-        return _default_value(schema)
-    if isinstance(schema.get("enum"), list) and payload not in schema["enum"]:
-        return _default_value(schema)
-    return deepcopy(payload)
+def payload_hash(payload: Any) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def normalize_payload_shape(payload: Any, schema: dict[str, Any]) -> Any:
-    """Repair an unambiguous model envelope without inventing semantic data.
+    """Apply the one unambiguous envelope transform supported by Core.
 
     Models occasionally return one array item as the root object even though
-    the contract asks for ``{"items": [...]}``.  When the schema has exactly
-    one required array envelope and the payload already satisfies the item's
-    required fields, wrapping it is deterministic and safer than adding a
-    runtime adapter subgraph.
+    the contract asks for ``{"items": [...]}``.  Wrapping that object is
+    lossless when the schema has exactly one required array envelope and the
+    item already contains all required fields.
     """
 
     if not isinstance(payload, dict):
@@ -107,58 +68,168 @@ def normalize_payload_shape(payload: Any, schema: dict[str, Any]) -> Any:
     return {envelope: [deepcopy(payload)]}
 
 
-def prepare_contract_repair(context) -> dict[str, Any]:
+def repair_payload(payload: Any, schema: dict[str, Any]) -> dict[str, Any]:
+    """Return an audited, lossless repair decision.
+
+    The adapter may only wrap an unambiguous envelope and apply explicit JSON
+    Schema defaults.  It never invents required strings, enum values, numbers,
+    booleans, objects, or array items.
+    """
+
+    original = deepcopy(payload)
+    original_hash = payload_hash(original)
+    operations: list[dict[str, str]] = []
+    try:
+        shaped = normalize_payload_shape(original, schema)
+        if shaped != original:
+            operations.append({"operation": "wrap_single_required_array"})
+        candidate = apply_contract_defaults(shaped, schema)
+        if candidate != shaped:
+            operations.append({"operation": "apply_explicit_schema_defaults"})
+        validate_contract_payload(
+            candidate,
+            schema,
+            step_id="contract_adapter",
+            direction="payload",
+        )
+    except ContextContractError as exc:
+        return {
+            "adapter_status": REGENERATION_REQUIRED,
+            "adapter_operations": operations,
+            "adapter_issues": [str(exc)],
+            "original_payload_hash": original_hash,
+        }
+    except Exception as exc:
+        return {
+            "adapter_status": UNREPAIRABLE,
+            "adapter_operations": operations,
+            "adapter_issues": [f"{type(exc).__name__}: {exc}"],
+            "original_payload_hash": original_hash,
+        }
+
+    if candidate == original:
+        return {
+            "adapter_status": REGENERATION_REQUIRED,
+            "adapter_operations": [],
+            "adapter_issues": [
+                "Payload already satisfies the schema; no lossless repair operation applies."
+            ],
+            "original_payload_hash": original_hash,
+        }
+    return {
+        "adapter_status": VALIDATED_LOSSLESS,
+        "repair_kind": "shape_only",
+        "adapter_operations": operations,
+        "adapter_issues": [],
+        "original_payload_hash": original_hash,
+        "adapted_payload_hash": payload_hash(candidate),
+        "adapted_payload": candidate,
+    }
+
+
+def _adapter_source_event(context):
     graph = context.run.runtime_graph
     if graph is None:
-        return {
-            "adapted_payload": {},
-            "adapter_direction": "input",
-            "adapter_status": "target_unavailable",
-        }
-    event = next(
-        (
-            item
-            for item in reversed(graph.runtime_events)
-            if item.target_node_id
-            and item.event_type
-            in {
-                RuntimeEventType.INPUT_CONTRACT_VIOLATION,
-                RuntimeEventType.OUTPUT_CONTRACT_VIOLATION,
-            }
-            and item.status.value == "PROCESSED"
-        ),
+        return None, None, "runtime_graph_unavailable"
+    try:
+        adapter_node = graph.get_node(context.step.step_id)
+    except KeyError:
+        return graph, None, "adapter_node_unavailable"
+    patch_id = adapter_node.source_patch_id or str(
+        (adapter_node.spec.get("metadata") or {}).get("sourcePatchId") or ""
+    )
+    if not patch_id:
+        return graph, None, "source_patch_unavailable"
+    patch = next(
+        (item for item in graph.applied_patches if item.patch_id == patch_id),
         None,
     )
+    if patch is None:
+        return graph, None, "source_patch_unavailable"
+    event = graph.runtime_event_by_id(patch.source_event_id)
     if event is None:
+        return graph, None, "source_event_unavailable"
+    return graph, event, ""
+
+
+def prepare_contract_repair(context) -> dict[str, Any]:
+    """Prepare one repair strictly from the recovery node's source attempt."""
+
+    graph, event, error = _adapter_source_event(context)
+    if graph is None or event is None:
         return {
-            "adapted_payload": {},
             "adapter_direction": "input",
-            "adapter_status": "event_unavailable",
+            "adapter_status": UNREPAIRABLE,
+            "adapter_issues": [error],
         }
+    if event.event_type not in {
+        RuntimeEventType.INPUT_CONTRACT_VIOLATION,
+        RuntimeEventType.OUTPUT_CONTRACT_VIOLATION,
+    }:
+        return {
+            "adapter_direction": "input",
+            "adapter_status": UNREPAIRABLE,
+            "adapter_source_event_id": event.event_id,
+            "adapter_issues": ["source_event_is_not_a_contract_violation"],
+        }
+
     target = graph.get_node(event.target_node_id)
+    attempt = next(
+        (item for item in target.attempts if item.attempt_id == event.attempt_id),
+        None,
+    )
+    if attempt is None:
+        return {
+            "adapter_direction": "input",
+            "adapter_target_node_id": target.node_id,
+            "adapter_source_event_id": event.event_id,
+            "adapter_source_attempt_id": event.attempt_id,
+            "adapter_status": UNREPAIRABLE,
+            "adapter_issues": ["source_attempt_unavailable"],
+        }
+
     direction = (
         "output"
         if event.event_type == RuntimeEventType.OUTPUT_CONTRACT_VIOLATION
         else "input"
     )
     if direction == "output":
-        payload = dict(target.attempts[-1].output) if target.attempts else {}
+        payload = deepcopy(attempt.output)
         schema = target.spec.get("outputSpec") or {}
     else:
-        payload: dict[str, Any] = {}
-        for node in graph.nodes:
-            if node.status.value == "completed" and isinstance(node.output, dict):
-                payload.update(node.output)
-        if target.attempts:
-            payload.update(target.attempts[-1].resolved_input)
+        payload = deepcopy(attempt.resolved_input)
         input_spec = target.spec.get("inputSpec") or {}
-        schema = input_spec.get("schema") if isinstance(input_spec.get("schema"), dict) else {}
-    return {
-        "adapted_payload": repair_payload(payload, schema),
+        schema = (
+            input_spec.get("schema")
+            if isinstance(input_spec.get("schema"), dict)
+            else {}
+        )
+
+    decision = repair_payload(payload, schema)
+    result = {
+        **decision,
         "adapter_direction": direction,
         "adapter_target_node_id": target.node_id,
-        "adapter_status": "prepared",
+        "adapter_source_event_id": event.event_id,
+        "adapter_source_attempt_id": attempt.attempt_id,
     }
+    if direction == "output" and str(target.spec.get("capability") or "") == "artifact_generation":
+        result.pop("adapted_payload", None)
+        result.pop("adapted_payload_hash", None)
+        result["adapter_status"] = REGENERATION_REQUIRED
+        result["adapter_operations"] = []
+        result["adapter_issues"] = [
+            "Artifact output requires capability-owned semantic regeneration."
+        ]
+    return result
 
 
-__all__ = ["normalize_payload_shape", "prepare_contract_repair", "repair_payload"]
+__all__ = [
+    "REGENERATION_REQUIRED",
+    "UNREPAIRABLE",
+    "VALIDATED_LOSSLESS",
+    "normalize_payload_shape",
+    "payload_hash",
+    "prepare_contract_repair",
+    "repair_payload",
+]

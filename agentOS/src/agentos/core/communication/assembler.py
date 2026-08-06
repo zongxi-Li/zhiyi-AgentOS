@@ -135,9 +135,7 @@ class ContextAssembler:
                     continue
                 source_output = upstream_outputs.get(sid, {})
                 adapted = source_output.get("adapted_payload")
-                recovery_fields = (
-                    dict(adapted) if isinstance(adapted, dict) else dict(source_output)
-                )
+                recovery_fields = dict(adapted) if isinstance(adapted, dict) else {}
                 for field, value in recovery_fields.items():
                     delivered[field] = value
                     source_data.setdefault(sid, {})[field] = value
@@ -151,6 +149,13 @@ class ContextAssembler:
                     "adapter_direction",
                     "adapter_target_node_id",
                     "adapter_status",
+                    "adapter_source_event_id",
+                    "adapter_source_attempt_id",
+                    "adapter_operations",
+                    "adapter_issues",
+                    "repair_kind",
+                    "original_payload_hash",
+                    "adapted_payload_hash",
                 ):
                     if control_field in source_output:
                         delivered[control_field] = source_output[control_field]
