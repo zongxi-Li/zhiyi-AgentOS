@@ -7,6 +7,7 @@ import { workflowApi, type AcgView, type WorkflowProgress, type WorkflowRun, typ
 import WorkflowProgressBar from '@/components/agentos/WorkflowProgressBar.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import AgentOsConsoleView from './AgentOsConsoleView.vue'
+import { ACG_HISTORY_SOURCES } from '@/utils/acgHistoryFilter'
 
 vi.mock('@/services/api/workflow', async importOriginal => {
   const actual = await importOriginal<typeof import('@/services/api/workflow')>()
@@ -92,11 +93,24 @@ describe('AgentOsConsoleView control plane', () => {
 
     expect(workflowApi.listRuns).toHaveBeenCalledOnce()
     expect(workflowApi.listRuns).toHaveBeenCalledWith(expect.objectContaining({
-      statuses: expect.stringContaining('waiting_review'), summary: true, pageSize: 50
+      statuses: expect.stringContaining('waiting_review'), sources: ACG_HISTORY_SOURCES, summary: true, pageSize: 50
     }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(wrapper.text().indexOf('需要处理')).toBeLessThan(wrapper.text().indexOf('正在运行'))
     expect(wrapper.findAll('.run-item-delete')).toHaveLength(1)
     expect(workflowApi.getWorkflowProgress).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('filters the shared ACG history by role', async () => {
+    const { wrapper } = await mountConsole()
+
+    await wrapper.find('select[aria-label="按角色筛选 ACG 记录"]').setValue('lawyer')
+    await flushPromises()
+
+    expect(workflowApi.listRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sources: ACG_HISTORY_SOURCES, domain: 'legal', page: 1 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
     wrapper.unmount()
   })
 

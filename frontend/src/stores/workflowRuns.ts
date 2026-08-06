@@ -5,8 +5,9 @@ import {
   type WorkflowProgressPhase,
   type WorkflowRunSummary
 } from '@/services/api/workflow'
+import { ACG_HISTORY_SOURCES } from '@/utils/acgHistoryFilter'
 
-export type WorkflowRunSource = 'agent' | 'chat' | 'acg' | 'console' | 'restored'
+export type WorkflowRunSource = 'agent' | 'chat' | 'acg' | 'legacy_agent_chat' | 'console' | 'restored'
 
 export interface WorkflowRunReference {
   runId: string
@@ -54,7 +55,9 @@ const safeObject = (value: string | null): Record<string, unknown> => {
 }
 
 const normalizeSource = (value: unknown): WorkflowRunSource => {
-  return value === 'agent' || value === 'chat' || value === 'acg' || value === 'console' ? value : 'restored'
+  return value === 'agent' || value === 'chat' || value === 'acg' || value === 'legacy_agent_chat' || value === 'console'
+    ? value
+    : 'restored'
 }
 
 const normalizeReference = (value: unknown): WorkflowRunReference | null => {
@@ -231,6 +234,7 @@ export const useWorkflowRunsStore = defineStore('workflowRuns', () => {
       try {
         const page = await workflowApi.listRuns({
           statuses: NON_TERMINAL_STATUSES.join(','),
+          sources: ACG_HISTORY_SOURCES,
           summary: true,
           page: 1,
           pageSize: 100

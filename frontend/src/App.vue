@@ -172,7 +172,14 @@
                 </button>
 
                 <div class="chat-submenu-section-head">
-                  <span>{{ workspaceMode === 'agent' ? 'Agent 记录' : '对话记录' }}</span>
+                  <span>{{ workspaceMode === 'agent' ? 'ACG 记录' : '对话记录' }}</span>
+                  <label v-if="workspaceMode === 'agent'" class="acg-role-filter acg-role-filter--sidebar">
+                    <select v-model="agentHistoryRole" aria-label="按角色筛选 ACG 记录" @change="handleAgentHistoryRoleChange">
+                      <option v-for="option in ACG_HISTORY_ROLE_OPTIONS" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
                   <span v-if="workspaceHistoryCount" class="chat-project-count">{{ workspaceHistoryCount }}</span>
                   <span v-if="conversationListLoading && workspaceHistoryCount" class="chat-submenu-refreshing">更新中</span>
                 </div>
@@ -258,7 +265,7 @@
                     <el-icon><Clock /></el-icon>
                   </span>
                   <span class="history-action__copy">
-                    <strong>{{ workspaceMode === 'agent' ? '查看所有 Agent 记录' : '查找所有聊天记录' }}</strong>
+                    <strong>{{ workspaceMode === 'agent' ? '查看所有 ACG 记录' : '查找所有聊天记录' }}</strong>
                     <small>{{ workspaceMode === 'agent' ? '搜索、审计与任务管理' : '搜索、编辑与管理' }}</small>
                   </span>
                   <el-icon class="history-action__arrow" aria-hidden="true"><ArrowRight /></el-icon>
@@ -473,6 +480,15 @@ import {
   removeConversationWorkspace
 } from '@/utils/conversationWorkspace'
 import { resolveAcgTaskTitle } from '@/utils/acgTaskTitle'
+import {
+  ACG_HISTORY_ROLE_OPTIONS,
+  ACG_HISTORY_ROLE_CHANGE_EVENT,
+  ACG_HISTORY_SOURCES,
+  acgHistoryRoleDomain,
+  loadAcgHistoryRole,
+  saveAcgHistoryRole,
+  type AcgHistoryRole
+} from '@/utils/acgHistoryFilter'
 
 const route = useRoute()
 const router = useRouter()
@@ -501,6 +517,7 @@ const chatPanelWidth = ref(
 const chatPanelResizing = ref(false)
 const recentConversations = ref<Conversation[]>([])
 const recentAgentRuns = ref<WorkflowRunSummary[]>([])
+const agentHistoryRole = ref<AcgHistoryRole>(loadAcgHistoryRole())
 let conversationLoadGeneration = 0
 let conversationLoadController: AbortController | null = null
 let conversationLoadPromise: Promise<void> | null = null
@@ -598,7 +615,13 @@ const loadRecentConversations = (): Promise<void> => {
     try {
       if (requestedWorkspace === 'agent') {
         const page = await workflowApi.listRuns(
-          { sources: 'agent,chat', summary: true, page: 1, pageSize: SIDEBAR_HISTORY_PAGE_SIZE },
+          {
+            sources: ACG_HISTORY_SOURCES,
+            domain: acgHistoryRoleDomain(agentHistoryRole.value),
+            summary: true,
+            page: 1,
+            pageSize: SIDEBAR_HISTORY_PAGE_SIZE
+          },
           { signal: controller.signal }
         )
         if (requestGeneration !== conversationLoadGeneration || requestedWorkspace !== workspaceMode.value) return
@@ -625,6 +648,26 @@ const loadRecentConversations = (): Promise<void> => {
   })()
   conversationLoadPromise = pending
   return pending
+}
+
+const handleAgentHistoryRoleChange = () => {
+  saveAcgHistoryRole(agentHistoryRole.value)
+  conversationLoadController?.abort()
+  conversationLoadPromise = null
+  conversationLoadWorkspace = null
+  void loadRecentConversations()
+}
+
+const handleAgentHistoryRoleSync = (event: Event) => {
+  const role = (event as CustomEvent<AcgHistoryRole>).detail
+  if (!ACG_HISTORY_ROLE_OPTIONS.some(option => option.value === role) || role === agentHistoryRole.value) return
+  agentHistoryRole.value = role
+  if (workspaceMode.value === 'agent') {
+    conversationLoadController?.abort()
+    conversationLoadPromise = null
+    conversationLoadWorkspace = null
+    void loadRecentConversations()
+  }
 }
 
 const handleChatNavToggle = () => {
@@ -1056,6 +1099,7 @@ onMounted(() => {
   window.addEventListener('global-error', handleGlobalError as EventListener)
   window.addEventListener('history-refresh', handleHistoryRefresh)
   window.addEventListener('acg-runs-refresh', handleHistoryRefresh)
+  window.addEventListener(ACG_HISTORY_ROLE_CHANGE_EVENT, handleAgentHistoryRoleSync)
   window.addEventListener('conversation-workspace-change', handleConversationWorkspaceChange)
   mobileMediaQuery.addEventListener('change', handleViewportChange)
   if (chatNavOpen.value) void loadRecentConversations()
@@ -1070,6 +1114,7 @@ onUnmounted(() => {
   window.removeEventListener('global-error', handleGlobalError as EventListener)
   window.removeEventListener('history-refresh', handleHistoryRefresh)
   window.removeEventListener('acg-runs-refresh', handleHistoryRefresh)
+  window.removeEventListener(ACG_HISTORY_ROLE_CHANGE_EVENT, handleAgentHistoryRoleSync)
   window.removeEventListener('conversation-workspace-change', handleConversationWorkspaceChange)
   mobileMediaQuery.removeEventListener('change', handleViewportChange)
 })
@@ -1573,6 +1618,37 @@ onUnmounted(() => {
   background: var(--primary-fade);
   color: var(--primary-color);
   font-size: 10px;
+}
+
+.acg-role-filter--sidebar {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.acg-role-filter--sidebar select {
+  width: 76px;
+  height: 24px;
+  padding: 0 20px 0 7px;
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  outline: 0;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.acg-role-filter--sidebar select:hover {
+  border-color: var(--primary-line);
+  color: var(--primary-color);
+}
+
+.acg-role-filter--sidebar select:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-fade);
 }
 
 .chat-submenu-refreshing {

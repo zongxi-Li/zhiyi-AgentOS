@@ -28,6 +28,14 @@
             </select>
           </label>
           <label>
+            <span>角色</span>
+            <select v-model="filters.role" aria-label="按角色筛选 ACG 记录" @change="applyFilters">
+              <option v-for="option in ACG_HISTORY_ROLE_OPTIONS" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+          <label>
             <span>Workflow / Task</span>
             <input v-model="filters.query" placeholder="输入稳定 ID" @keyup.enter="applyFilters" />
           </label>
@@ -70,6 +78,8 @@
                   <span>恢复 {{ run.recoveryCount }}</span>
                   <span v-if="run.source === 'chat'">来自 Chat</span>
                   <span v-else-if="run.source === 'acg'">来自 ACG</span>
+                  <span v-else-if="run.source === 'legacy_agent_chat'">来自主对话</span>
+                  <span v-else-if="run.source === 'agent'">来自 Agent</span>
                 </span>
               </button>
               <button
@@ -260,6 +270,15 @@ import {
 import { useWorkflowRunsStore } from '@/stores/workflowRuns'
 import { isWorkflowReviewPending } from '@/utils/workflowReviewState'
 import { runtimeProjectionChanged } from '@/utils/runtimePresentation'
+import {
+  ACG_HISTORY_ROLE_OPTIONS,
+  ACG_HISTORY_ROLE_CHANGE_EVENT,
+  ACG_HISTORY_SOURCES,
+  acgHistoryRoleDomain,
+  loadAcgHistoryRole,
+  saveAcgHistoryRole,
+  type AcgHistoryRole
+} from '@/utils/acgHistoryFilter'
 
 const DEFAULT_STATUSES = ['pending', 'planning', 'running', 'retrying', 'waiting_review', 'completed', 'failed', 'cancelled']
 const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
@@ -363,7 +382,12 @@ const terminalDetailsLoaded = new Set<string>()
 const reviewDetailsLoaded = new Set<string>()
 const terminalDetailCache = new Map<string, { run: WorkflowRun; acg: AcgView }>()
 
-const filters = reactive({ status: '' as WorkflowStatus | '', query: '', page: 1 })
+const filters = reactive({
+  status: '' as WorkflowStatus | '',
+  role: loadAcgHistoryRole() as AcgHistoryRole,
+  query: '',
+  page: 1
+})
 let listTimer: ReturnType<typeof setTimeout> | null = null
 let listController: AbortController | null = null
 let listGeneration = 0
@@ -417,6 +441,8 @@ const listParams = () => {
     statuses: filters.status ? undefined : DEFAULT_STATUSES.join(','),
     workflowId: query.startsWith('task_') ? undefined : query || undefined,
     taskId: query.startsWith('task_') ? query : undefined,
+    sources: ACG_HISTORY_SOURCES,
+    domain: acgHistoryRoleDomain(filters.role),
     summary: true,
     page: filters.page,
     pageSize: PAGE_SIZE
@@ -461,6 +487,15 @@ const loadRuns = async (force = false) => {
 }
 
 const applyFilters = () => {
+  saveAcgHistoryRole(filters.role)
+  filters.page = 1
+  void loadRuns(true)
+}
+
+const handleRoleFilterSync = (event: Event) => {
+  const role = (event as CustomEvent<AcgHistoryRole>).detail
+  if (!ACG_HISTORY_ROLE_OPTIONS.some(option => option.value === role) || role === filters.role) return
+  filters.role = role
   filters.page = 1
   void loadRuns(true)
 }
@@ -725,12 +760,14 @@ watch(() => progressTracker.syncError.value, error => {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener(ACG_HISTORY_ROLE_CHANGE_EVENT, handleRoleFilterSync)
   void loadRuns(true)
 })
 
 onBeforeUnmount(() => {
   stopPanelResize?.()
   document.removeEventListener('visibilitychange', handleVisibility)
+  window.removeEventListener(ACG_HISTORY_ROLE_CHANGE_EVENT, handleRoleFilterSync)
   clearListTimer()
   listGeneration += 1
   listController?.abort()

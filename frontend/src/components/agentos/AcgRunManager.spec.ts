@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import AcgRunManager from './AcgRunManager.vue'
 import { workflowApi, type WorkflowRunSummary } from '@/services/api/workflow'
 import { ElMessageBox } from 'element-plus'
+import { ACG_HISTORY_SOURCES } from '@/utils/acgHistoryFilter'
 
 vi.mock('@/services/api/workflow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api/workflow')>()
@@ -30,6 +31,7 @@ const run = (overrides: Partial<WorkflowRunSummary>): WorkflowRunSummary => ({
 
 describe('AcgRunManager', () => {
   beforeEach(() => {
+    localStorage.clear()
     setActivePinia(createPinia())
     vi.useFakeTimers()
     vi.mocked(workflowApi.listRuns).mockResolvedValue({
@@ -61,7 +63,7 @@ describe('AcgRunManager', () => {
     await flushPromises()
 
     expect(workflowApi.listRuns).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'acg', summary: true, pageSize: 20 }),
+      expect.objectContaining({ sources: ACG_HISTORY_SOURCES, summary: true, pageSize: 20 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
     expect(wrapper.text()).toContain('运行中')
@@ -70,6 +72,21 @@ describe('AcgRunManager', () => {
     expect(wrapper.find('.acg-run-item.active').exists()).toBe(true)
     expect(wrapper.find('.acg-run-item__headline strong').text()).toBe('软件开发合同审查')
     expect(wrapper.find('.acg-run-item__identity code').text()).toContain('run_active')
+    wrapper.unmount()
+  })
+
+  it('filters the combined ACG history by role domain', async () => {
+    const wrapper = mount(AcgRunManager, { global: { stubs: { 'el-icon': true } } })
+    await flushPromises()
+
+    await wrapper.find('select[aria-label="按角色筛选 ACG 记录"]').setValue('lawyer')
+    await flushPromises()
+
+    expect(workflowApi.listRuns).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sources: ACG_HISTORY_SOURCES, domain: 'legal' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(localStorage.getItem('acg.history.role')).toBe('lawyer')
     wrapper.unmount()
   })
 
