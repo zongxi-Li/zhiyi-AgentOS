@@ -171,7 +171,14 @@ def test_native_runtime_executes_without_legal_pack(structured_model_runtime):
         for node in runtime_steps
         if node.spec.get("capability") != "information_retrieval"
     ]
-    assert len(structured_model_runtime.calls) == len(model_nodes)
+    # The schema-only fixture cannot cite real upstream fields, so the artifact
+    # capability performs its one bounded semantic regeneration before using
+    # the deterministic, truth-preserving projection.
+    assert len(structured_model_runtime.calls) == len(model_nodes) + 1
+    artifact_step = next(
+        step for step in run.steps if step.capability == "artifact_generation"
+    )
+    assert artifact_step.output["verification"]["status"] == "partial"
     assert all(node.attempts[-1].model_name == "test-model" for node in model_nodes)
     assert all(
         node.attempts[-1].trace_context.get("modelInvocations")

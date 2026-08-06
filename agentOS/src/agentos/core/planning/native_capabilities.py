@@ -21,15 +21,24 @@ def _record(properties: dict, *required: str) -> dict:
     }
 
 
-def _records(properties: dict, *required: str, max_items: int = 12) -> dict:
-    return {
+def _records(
+    properties: dict,
+    *required: str,
+    max_items: int = 12,
+    min_items: int = 0,
+) -> dict:
+    schema = {
         "type": "array",
         "items": _record(properties, *required),
         "maxItems": max_items,
     }
+    if min_items:
+        schema["minItems"] = min_items
+    return schema
 
 
 _TEXT = {"type": "string", "maxLength": 2000}
+_NONEMPTY_TEXT = {"type": "string", "minLength": 1, "maxLength": 2000}
 _DELIVERABLE_TEXT = {"type": "string", "minLength": 1}
 
 
@@ -228,13 +237,21 @@ def _output_schema(capability_id: str) -> dict:
             {
                 "deliverable": _record(
                     {
-                        "title": _TEXT,
-                        "executiveSummary": _TEXT,
+                        "title": _NONEMPTY_TEXT,
+                        "executiveSummary": _NONEMPTY_TEXT,
                         "sections": _records(
-                            {"title": _TEXT, "content": _TEXT, "sourceFields": _TEXT_LIST},
+                            {
+                                "title": _NONEMPTY_TEXT,
+                                "content": _NONEMPTY_TEXT,
+                                "sourceFields": {
+                                    **_TEXT_LIST,
+                                    "minItems": 1,
+                                },
+                            },
                             "title",
                             "content",
                             "sourceFields",
+                            min_items=1,
                         ),
                         "calculations": _records(
                             {"name": _TEXT, "formula": _TEXT, "inputs": _TEXT_LIST, "result": _TEXT, "assumptions": _TEXT_LIST},
@@ -261,10 +278,15 @@ def _output_schema(capability_id: str) -> dict:
                     {
                         "status": {"type": "string", "enum": ["passed", "partial", "failed"]},
                         "checks": _records(
-                            {"criterion": _TEXT, "result": _TEXT, "evidence": _TEXT},
+                            {
+                                "criterion": _NONEMPTY_TEXT,
+                                "result": _NONEMPTY_TEXT,
+                                "evidence": _NONEMPTY_TEXT,
+                            },
                             "criterion",
                             "result",
                             "evidence",
+                            min_items=1,
                         ),
                         "unresolvedGaps": _TEXT_LIST,
                     },

@@ -7,6 +7,7 @@ from typing import Any
 
 
 NATIVE_CAPABILITY_PROMPT_VERSION = "native-capability.v1"
+NATIVE_ARTIFACT_PROMPT_VERSION = "native-artifact.v2"
 
 
 class NativeCapabilityPromptBuilder:
@@ -126,28 +127,53 @@ class NativeCapabilityPromptBuilder:
         )
 
     def build_artifact(self, **kwargs) -> str:
+        descriptor = kwargs["capability_descriptor"].model_dump(
+            by_alias=True,
+            mode="json",
+            exclude={"aliases", "domain_hints", "plugin_id", "plugin_version"},
+        )
+        request = {
+            "capability": descriptor,
+            "stepGoal": kwargs["step_goal"],
+            "task": self._canonical_task(kwargs["task_title"], kwargs["task_input"]),
+            "context": {
+                "upstreamData": kwargs["context_data"],
+                "sourceData": kwargs["source_data"],
+                "evidenceRefs": kwargs["evidence_refs"],
+            },
+            "outputSchema": kwargs["output_schema"],
+        }
+        payload = json.dumps(request, ensure_ascii=False, separators=(",", ":"))
+        rules = {
+            "modelOutput": "deliverable and verification only; runtime renders Markdown",
+            "consumeAllRelevantUpstreamFields": True,
+            "requiredSections": [
+                "executive summary",
+                "requirements and acceptance",
+                "implementation or solution",
+                "resources and calculations",
+                "risks and controls",
+                "verification and unresolved gaps",
+            ],
+            "sourceFields": "use real upstream top-level field names",
+            "verification": "preserve upstream status and unresolved gaps; never upgrade confidence",
+            "facts": "cite supplied sourceRefs and do not invent facts",
+            "unknowns": "record as openQuestions instead of inventing values",
+        }
         return (
-            self.build(**kwargs)
-            + "\nFINAL_COMPOSITION_RULES="
-            + json.dumps(
-                {
-                    "consumeAllRelevantUpstreamFields": True,
-                    "requiredSections": [
-                        "executive summary",
-                        "requirements and acceptance",
-                        "implementation or solution",
-                        "resources and calculations",
-                        "risks and controls",
-                        "verification and unresolved gaps",
-                    ],
-                    "finalAnswer": "complete standalone Markdown deliverable",
-                    "facts": "cite sourceRefs where supplied",
-                    "unknowns": "record as openQuestions instead of inventing values",
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
+            "Compose one complete, actionable workflow deliverable from the supplied task "
+            "and every relevant upstream result. Preserve the task language. Do not invent "
+            "measurements, prices, dates, sources, completed actions, or resolved gaps. "
+            "Return one JSON object matching outputSchema exactly, without Markdown fences "
+            "or commentary.\n"
+            f"RUNTIME_REQUEST={payload}\n"
+            "FINAL_COMPOSITION_RULES="
+            + json.dumps(rules, ensure_ascii=False, separators=(",", ":"))
         )
 
 
-__all__ = ["NATIVE_CAPABILITY_PROMPT_VERSION", "NativeCapabilityPromptBuilder"]
+__all__ = [
+    "NATIVE_ARTIFACT_PROMPT_VERSION",
+    "NATIVE_CAPABILITY_PROMPT_VERSION",
+    "NativeCapabilityPromptBuilder",
+]

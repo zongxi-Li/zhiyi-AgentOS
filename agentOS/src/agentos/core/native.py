@@ -17,6 +17,7 @@ from agentos.core.data_contracts import (
 )
 from agentos.core.models.types import WorkflowDefinition, WorkflowDefinitionType, utc_now
 from agentos.core.native_prompt import (
+    NATIVE_ARTIFACT_PROMPT_VERSION,
     NATIVE_CAPABILITY_PROMPT_VERSION,
     NativeCapabilityPromptBuilder,
 )
@@ -24,7 +25,6 @@ from agentos.core.planning.native_capabilities import NATIVE_CAPABILITY_IDS
 from agentos.core.recovery.contract_adapter import (
     normalize_payload_shape,
     prepare_contract_repair,
-    repair_payload,
 )
 from agentos.core.tool_execution import execute_read_only_tool
 
@@ -38,6 +38,14 @@ NATIVE_RECOVERY_CAPABILITIES = (
 )
 # Backward-compatible export derived from the native Catalog contribution.
 NATIVE_CAPABILITIES = (*NATIVE_CAPABILITY_IDS, *NATIVE_RECOVERY_CAPABILITIES)
+
+
+class ArtifactSemanticError(ValueError):
+    """A schema-valid artifact is not a truthful, actionable deliverable."""
+
+    def __init__(self, issues: list[str]):
+        self.issues = list(dict.fromkeys(str(item) for item in issues if str(item)))
+        super().__init__("; ".join(self.issues))
 
 
 class NativeGeneralAgent(BaseAgent):
@@ -317,6 +325,11 @@ class NativeGeneralAgent(BaseAgent):
         output_thinking_mode = thinking_mode
         timeout_seconds = 180.0 if capability == "artifact_generation" else 120.0
         max_output_tokens = 8192 if capability == "artifact_generation" else 4096
+        prompt_version = (
+            NATIVE_ARTIFACT_PROMPT_VERSION
+            if capability == "artifact_generation"
+            else NATIVE_CAPABILITY_PROMPT_VERSION
+        )
         invocations: list[dict[str, Any]] = []
         repair_used = False
         thinking_fallback_reason: str | None = None
@@ -327,7 +340,7 @@ class NativeGeneralAgent(BaseAgent):
                 thinking_mode=thinking_mode,
                 timeout_seconds=timeout_seconds,
                 max_output_tokens=max_output_tokens,
-                prompt_version=NATIVE_CAPABILITY_PROMPT_VERSION,
+                prompt_version=prompt_version,
             )
         except StructuredGenerationError as exc:
             thinking_enabled = thinking_mode.strip().lower() not in {
@@ -351,9 +364,9 @@ class NativeGeneralAgent(BaseAgent):
                     timeout_seconds=timeout_seconds,
                     max_output_tokens=max_output_tokens,
                     prompt_version=(
-                        f"{NATIVE_CAPABILITY_PROMPT_VERSION}.thinking-finalization1"
+                        f"{prompt_version}.thinking-finalization1"
                         if thinking_enabled
-                        else f"{NATIVE_CAPABILITY_PROMPT_VERSION}.empty-response-retry1"
+                        else f"{prompt_version}.empty-response-retry1"
                     ),
                 )
             elif exc.code != "MODEL_OUTPUT_INVALID_JSON":
@@ -369,7 +382,7 @@ class NativeGeneralAgent(BaseAgent):
                     thinking_mode=output_thinking_mode,
                     timeout_seconds=timeout_seconds,
                     max_output_tokens=max_output_tokens,
-                    prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.json-repair1",
+                    prompt_version=f"{prompt_version}.json-repair1",
                 )
         generation_audit = generated.audit_record()
         if thinking_fallback_reason:
@@ -385,7 +398,70 @@ class NativeGeneralAgent(BaseAgent):
         output = normalize_payload_shape(dict(generated.data), generation_schema)
         output = apply_contract_defaults(output, generation_schema)
         if capability == "artifact_generation":
-            output = self._normalize_artifact_output(context, output)
+            initial_error: Exception | None = None
+            try:
+                output = self._finalize_artifact_candidate(context, output)
+                self._validate_artifact_output(context, output, output_schema)
+            except (ContextContractError, ArtifactSemanticError) as exc:
+                initial_error = exc
+
+            if initial_error is not None:
+                try:
+                    repaired = await runtime.generate_json(
+                        prompt=self.prompt_builder.build_repair(
+                            original_prompt=prompt,
+                            invalid_data=output,
+                            validation_error=str(initial_error),
+                        ),
+                        schema=generation_schema,
+                        thinking_mode=output_thinking_mode,
+                        timeout_seconds=timeout_seconds,
+                        max_output_tokens=max_output_tokens,
+                        prompt_version=f"{prompt_version}.semantic-repair1",
+                    )
+                    invocations.append(repaired.audit_record())
+                    output = normalize_payload_shape(
+                        dict(repaired.data), generation_schema
+                    )
+                    output = apply_contract_defaults(output, generation_schema)
+                    output = self._finalize_artifact_candidate(context, output)
+                    self._validate_artifact_output(context, output, output_schema)
+                    return AgentOutput(
+                        output=output,
+                        summary=(
+                            "Native artifact completed after one semantic regeneration; "
+                            f"initial validation: {initial_error}"
+                        ),
+                        modelInvocations=invocations,
+                    )
+                except (ContextContractError, ArtifactSemanticError, StructuredGenerationError) as repair_exc:
+                    invocations.extend(
+                        dict(item)
+                        for item in (
+                            getattr(repair_exc, "model_invocations", None) or []
+                        )
+                        if isinstance(item, dict)
+                    )
+                    output = self._build_degraded_artifact(
+                        context,
+                        reason=(
+                            f"initial={initial_error}; repair={repair_exc}"
+                        ),
+                    )
+                    self._validate_artifact_output(context, output, output_schema)
+                    return AgentOutput(
+                        output=output,
+                        summary=(
+                            "Native artifact used deterministic upstream aggregation "
+                            "after semantic regeneration failed."
+                        ),
+                        modelInvocations=invocations,
+                    )
+            return AgentOutput(
+                output=output,
+                summary="Native artifact completed after semantic validation.",
+                modelInvocations=invocations,
+            )
         try:
             validate_contract_payload(
                 output,
@@ -413,13 +489,11 @@ class NativeGeneralAgent(BaseAgent):
                 thinking_mode=output_thinking_mode,
                 timeout_seconds=timeout_seconds,
                 max_output_tokens=max_output_tokens,
-                prompt_version=f"{NATIVE_CAPABILITY_PROMPT_VERSION}.repair1",
+                prompt_version=f"{prompt_version}.repair1",
             )
             invocations.append(repaired.audit_record())
             output = normalize_payload_shape(dict(repaired.data), generation_schema)
             output = apply_contract_defaults(output, generation_schema)
-            if capability == "artifact_generation":
-                output = self._normalize_artifact_output(context, output)
             try:
                 validate_contract_payload(
                     output,
@@ -473,6 +547,568 @@ class NativeGeneralAgent(BaseAgent):
             if name in semantic_fields
         ]
         return schema
+
+    _ARTIFACT_INTERNAL_FIELDS = {
+        "artifact",
+        "final_answer",
+        "runtimeSignals",
+        "runtime_signals",
+        "adapter_direction",
+        "adapter_target_node_id",
+        "adapter_source_event_id",
+        "adapter_source_attempt_id",
+        "adapter_status",
+        "adapter_operations",
+        "adapter_issues",
+        "repair_kind",
+        "original_payload_hash",
+        "adapted_payload_hash",
+        "adapted_payload",
+    }
+    _ARTIFACT_PLACEHOLDERS = {
+        "unknown",
+        "n/a",
+        "na",
+        "none",
+        "null",
+        "待补充",
+        "未知",
+    }
+    _VERIFICATION_RANK = {"passed": 0, "partial": 1, "failed": 2}
+
+    @staticmethod
+    def _semantic_text(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+
+    @classmethod
+    def _is_substantive(cls, value: Any) -> bool:
+        if value in (None, "", [], {}):
+            return False
+        text = cls._semantic_text(value)
+        return bool(text) and text.lower() not in cls._ARTIFACT_PLACEHOLDERS
+
+    @classmethod
+    def _artifact_source_entries(
+        cls,
+        context: AgentRunContext,
+    ) -> list[tuple[str, str, Any]]:
+        pack = context.context_pack
+        source_data = getattr(pack, "source_data", None) if pack is not None else None
+        if not isinstance(source_data, dict) or not source_data:
+            upstream = cls._upstream_data(context)
+            source_data = {"upstream": upstream} if upstream else {}
+        entries: list[tuple[str, str, Any]] = []
+        for producer in sorted(source_data, key=str):
+            fields = source_data.get(producer)
+            if not isinstance(fields, dict):
+                continue
+            for field in sorted(fields, key=str):
+                name = str(field)
+                lowered = name.lower()
+                if (
+                    name.startswith("_")
+                    or name in cls._ARTIFACT_INTERNAL_FIELDS
+                    or any(
+                        secret in lowered
+                        for secret in ("password", "secret", "access_token", "api_key")
+                    )
+                ):
+                    continue
+                value = fields[field]
+                if cls._is_substantive(value):
+                    entries.append((str(producer), name, deepcopy(value)))
+        return entries
+
+    @staticmethod
+    def _dedupe_strings(values: list[Any], *, max_length: int = 800) -> list[str]:
+        result: list[str] = []
+        for value in values:
+            text = str(value or "").strip()
+            if not text:
+                continue
+            text = text[:max_length]
+            if text not in result:
+                result.append(text)
+        return result
+
+    @classmethod
+    def _criterion_texts(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value.strip()] if value.strip() else []
+        if isinstance(value, list):
+            return [
+                item
+                for nested in value
+                for item in cls._criterion_texts(nested)
+            ]
+        if isinstance(value, dict):
+            for key in (
+                "criterion",
+                "target",
+                "name",
+                "description",
+                "requirement",
+                "deliverable",
+            ):
+                if cls._is_substantive(value.get(key)):
+                    return cls._criterion_texts(value[key])
+            rendered = cls._semantic_text(value)
+            return [rendered] if rendered else []
+        if value not in (None, ""):
+            return [str(value)]
+        return []
+
+    @classmethod
+    def _requested_criteria(
+        cls,
+        context: AgentRunContext,
+        entries: list[tuple[str, str, Any]],
+    ) -> list[str]:
+        values: list[Any] = [context.task.input.get("expectedArtifacts")]
+        values.extend(
+            value
+            for _producer, field, value in entries
+            if field in {"acceptance_criteria", "success_criteria"}
+        )
+        return cls._dedupe_strings(
+            [item for value in values for item in cls._criterion_texts(value)],
+            max_length=2000,
+        )
+
+    @classmethod
+    def _upstream_verifications(
+        cls,
+        entries: list[tuple[str, str, Any]],
+    ) -> list[dict[str, Any]]:
+        return [
+            deepcopy(value)
+            for _producer, field, value in entries
+            if field == "verification" and isinstance(value, dict)
+        ]
+
+    @classmethod
+    def _finalize_artifact_candidate(
+        cls,
+        context: AgentRunContext,
+        output: dict[str, Any],
+        *,
+        degraded: bool = False,
+        extra_gaps: list[str] | None = None,
+    ) -> dict[str, Any]:
+        normalized = deepcopy(output)
+        entries = cls._artifact_source_entries(context)
+        deliverable = normalized.get("deliverable")
+        if isinstance(deliverable, dict):
+            refs = list(deliverable.get("sourceRefs") or [])
+            pack = context.context_pack
+            refs.extend(
+                list(getattr(pack, "evidence_refs", []) or [])
+                if pack is not None
+                else []
+            )
+            for _producer, field, value in entries:
+                if field in {"evidence_refs", "evidenceRefs", "sourceRefs"}:
+                    refs.extend(value if isinstance(value, list) else [value])
+            all_refs = cls._dedupe_strings(refs)
+            deliverable["sourceRefs"] = all_refs[:12]
+            normalized["deliverable"] = deliverable
+        else:
+            all_refs = []
+
+        verification = normalized.get("verification")
+        verification = deepcopy(verification) if isinstance(verification, dict) else {}
+        checks = [
+            deepcopy(item)
+            for item in (verification.get("checks") or [])
+            if isinstance(item, dict)
+        ]
+        gaps = list(
+            verification.get("unresolvedGaps")
+            or verification.get("unresolved_gaps")
+            or []
+        )
+        statuses = [str(verification.get("status") or "partial").lower()]
+        for upstream in cls._upstream_verifications(entries):
+            statuses.append(str(upstream.get("status") or "partial").lower())
+            checks.extend(
+                deepcopy(item)
+                for item in (upstream.get("checks") or [])
+                if isinstance(item, dict)
+            )
+            gaps.extend(
+                upstream.get("unresolvedGaps")
+                or upstream.get("unresolved_gaps")
+                or []
+            )
+
+        if len(all_refs) > 12:
+            gaps.append(
+                f"{len(all_refs) - 12} source reference(s) exceeded the artifact limit: "
+                + ", ".join(all_refs[12:])
+            )
+        gaps.extend(extra_gaps or [])
+
+        existing_criteria = [
+            str(item.get("criterion") or "").strip().lower()
+            for item in checks
+            if isinstance(item, dict)
+        ]
+        for criterion in cls._requested_criteria(context, entries):
+            normalized_criterion = criterion.lower()
+            if any(
+                normalized_criterion in existing or existing in normalized_criterion
+                for existing in existing_criteria
+                if existing
+            ):
+                continue
+            if len(checks) < 12:
+                checks.append(
+                    {
+                        "criterion": criterion,
+                        "result": "待复核",
+                        "evidence": "任务定义或上游验收条件",
+                    }
+                )
+                existing_criteria.append(normalized_criterion)
+            gaps.append(f"验收条件尚未被成果明确验证：{criterion}")
+
+        unique_checks: list[dict[str, str]] = []
+        for item in checks:
+            check = {
+                "criterion": cls._semantic_text(item.get("criterion"))[:2000],
+                "result": cls._semantic_text(item.get("result"))[:2000],
+                "evidence": cls._semantic_text(item.get("evidence"))[:2000],
+            }
+            if check not in unique_checks:
+                unique_checks.append(check)
+        if len(unique_checks) > 12:
+            gaps.append(
+                f"{len(unique_checks) - 12} verification check(s) exceeded the artifact limit."
+            )
+            unique_checks = unique_checks[:12]
+
+        normalized_statuses = [
+            value if value in cls._VERIFICATION_RANK else "partial"
+            for value in statuses
+        ]
+        if degraded:
+            normalized_statuses.append("partial")
+        status = max(
+            normalized_statuses,
+            key=lambda value: cls._VERIFICATION_RANK[value],
+        )
+        gaps = cls._dedupe_strings(gaps)
+        if len(gaps) > 12:
+            omitted = gaps[11:]
+            gaps = gaps[:11] + [
+                f"另有 {len(omitted)} 个缺口因展示上限合并记录："
+                + "；".join(omitted)[:700]
+            ]
+        checks_complete = bool(unique_checks) and all(
+            all(cls._is_substantive(item.get(key)) for key in ("criterion", "result", "evidence"))
+            for item in unique_checks
+        )
+        if status == "passed" and (not checks_complete or gaps or degraded):
+            status = "partial"
+            if not checks_complete:
+                gaps = cls._dedupe_strings(
+                    gaps + ["验收检查缺少可核对的条件、结果或证据。"]
+                )[:12]
+        normalized["verification"] = {
+            "status": status,
+            "checks": unique_checks,
+            "unresolvedGaps": gaps,
+        }
+        return cls._normalize_artifact_output(context, normalized)
+
+    @classmethod
+    def _validate_artifact_output(
+        cls,
+        context: AgentRunContext,
+        output: dict[str, Any],
+        output_schema: dict[str, Any],
+    ) -> None:
+        validate_contract_payload(
+            output,
+            output_schema,
+            step_id=context.step.step_id,
+            direction="output",
+        )
+        issues: list[str] = []
+        deliverable = output.get("deliverable")
+        verification = output.get("verification")
+        artifact = output.get("artifact")
+        if not isinstance(deliverable, dict):
+            issues.append("deliverable is missing")
+            deliverable = {}
+        for field in ("title", "executiveSummary"):
+            if not cls._is_substantive(deliverable.get(field)):
+                issues.append(f"deliverable.{field} is empty or a placeholder")
+        sections = deliverable.get("sections")
+        if not isinstance(sections, list) or not sections:
+            issues.append("deliverable.sections has no substantive section")
+            sections = []
+        referenced_fields: set[str] = set()
+        for index, section in enumerate(sections):
+            if not isinstance(section, dict):
+                issues.append(f"deliverable.sections[{index}] is not an object")
+                continue
+            for field in ("title", "content"):
+                if not cls._is_substantive(section.get(field)):
+                    issues.append(f"deliverable.sections[{index}].{field} is empty")
+            source_fields = section.get("sourceFields")
+            if not isinstance(source_fields, list) or not source_fields:
+                issues.append(
+                    f"deliverable.sections[{index}].sourceFields is empty"
+                )
+            referenced_fields.update(str(item) for item in source_fields or [])
+
+        gaps = (
+            list(verification.get("unresolvedGaps") or [])
+            if isinstance(verification, dict)
+            else []
+        )
+        gap_text = " ".join(str(item) for item in gaps)
+        source_fields = {
+            field for _producer, field, _value in cls._artifact_source_entries(context)
+        }
+        uncovered = sorted(
+            field
+            for field in source_fields
+            if field not in referenced_fields and field not in gap_text
+        )
+        if uncovered:
+            issues.append("uncovered upstream fields: " + ", ".join(uncovered))
+
+        expected_refs = list(
+            getattr(context.context_pack, "evidence_refs", []) or []
+        ) if context.context_pack is not None else []
+        delivered_refs = list(deliverable.get("sourceRefs") or [])
+        missing_refs = [
+            str(ref)
+            for ref in expected_refs
+            if str(ref) not in delivered_refs and str(ref) not in gap_text
+        ]
+        if missing_refs:
+            issues.append("missing evidence references: " + ", ".join(missing_refs))
+
+        if not isinstance(verification, dict):
+            issues.append("verification is missing")
+        else:
+            checks = verification.get("checks") or []
+            if verification.get("status") == "passed":
+                if gaps:
+                    issues.append("passed verification contains unresolved gaps")
+                if not checks or any(
+                    not isinstance(item, dict)
+                    or any(
+                        not cls._is_substantive(item.get(key))
+                        for key in ("criterion", "result", "evidence")
+                    )
+                    for item in checks
+                ):
+                    issues.append("passed verification lacks evidence-backed checks")
+
+        expected_markdown = cls._render_artifact_markdown(deliverable, verification)
+        if output.get("final_answer") != expected_markdown:
+            issues.append("final_answer is not the deterministic artifact projection")
+        nonempty_lines = [
+            line for line in str(output.get("final_answer") or "").splitlines() if line.strip()
+        ]
+        if len(nonempty_lines) <= 1:
+            issues.append("final_answer contains only a title")
+        if not isinstance(artifact, dict):
+            issues.append("artifact envelope is missing")
+        else:
+            if artifact.get("content") != output.get("final_answer"):
+                issues.append("artifact.content differs from final_answer")
+            if artifact.get("structuredData") != deliverable:
+                issues.append("artifact.structuredData differs from deliverable")
+            if artifact.get("title") != deliverable.get("title"):
+                issues.append("artifact.title differs from deliverable.title")
+        if issues:
+            raise ArtifactSemanticError(issues)
+
+    @classmethod
+    def _artifact_category(cls, field: str) -> str:
+        lowered = field.lower()
+        groups = (
+            ("task", ("task", "requirement", "acceptance", "success", "constraint")),
+            ("process", ("process", "resource", "capacity", "schedule", "timeline")),
+            ("solution", ("architecture", "solution", "design", "implementation", "plan", "component", "data_flow")),
+            ("evidence", ("evidence", "retrieved", "source", "citation")),
+            ("comparison", ("compar", "alternative", "cost", "budget", "calculation")),
+            ("risk", ("risk", "control", "mitigation")),
+            ("verification", ("verification", "remediation", "gap", "question", "assumption")),
+        )
+        for category, tokens in groups:
+            if any(token in lowered for token in tokens):
+                return category
+        return "analysis"
+
+    @classmethod
+    def _build_degraded_artifact(
+        cls,
+        context: AgentRunContext,
+        *,
+        reason: str,
+    ) -> dict[str, Any]:
+        entries = cls._artifact_source_entries(context)
+        if not entries:
+            raise StructuredGenerationError(
+                "ARTIFACT_DELIVERY_INCOMPLETE",
+                "No substantive upstream output is available for a truthful artifact.",
+                direction="output",
+            )
+
+        chinese = any(
+            "\u4e00" <= char <= "\u9fff" for char in context.task.title
+        )
+        labels = {
+            "task": "任务理解与需求" if chinese else "Task and requirements",
+            "process": "流程与资源" if chinese else "Process and resources",
+            "solution": "架构与实施方案" if chinese else "Architecture and solution",
+            "evidence": "资料与证据" if chinese else "Sources and evidence",
+            "comparison": "比较与成本分析" if chinese else "Comparison and cost",
+            "risk": "风险与控制措施" if chinese else "Risks and controls",
+            "verification": "验证与待确认事项" if chinese else "Verification and open items",
+            "analysis": "综合分析" if chinese else "General analysis",
+        }
+        categorized: dict[str, list[tuple[str, str, Any]]] = {
+            key: [] for key in labels
+        }
+        for entry in entries:
+            categorized[cls._artifact_category(entry[1])].append(entry)
+
+        sections: list[dict[str, Any]] = []
+        gaps: list[str] = [
+            "成果模型输出未通过语义校验，已使用确定性上游汇总。",
+            str(reason)[:700],
+        ]
+        for category in labels:
+            items = categorized[category]
+            chunk_lines: list[str] = []
+            chunk_fields: list[str] = []
+            chunk_index = 1
+
+            def flush() -> None:
+                nonlocal chunk_lines, chunk_fields, chunk_index
+                if not chunk_lines:
+                    return
+                if len(sections) >= 12:
+                    gaps.extend(
+                        f"成果章节上限导致字段未展开：{field}"
+                        for field in chunk_fields
+                    )
+                else:
+                    suffix = f" {chunk_index}" if chunk_index > 1 else ""
+                    sections.append(
+                        {
+                            "title": labels[category] + suffix,
+                            "content": "\n".join(chunk_lines),
+                            "sourceFields": list(dict.fromkeys(chunk_fields)),
+                        }
+                    )
+                chunk_lines = []
+                chunk_fields = []
+                chunk_index += 1
+
+            for producer, field, value in items:
+                rendered = cls._semantic_text(value)
+                if len(rendered) > 1400:
+                    rendered = rendered[:1400] + "…"
+                    gaps.append(f"字段内容因单节长度限制被截断：{producer}.{field}")
+                line = f"- **{producer}.{field}**: {rendered}"
+                projected_length = len("\n".join(chunk_lines + [line]))
+                if chunk_lines and (
+                    projected_length > 1900 or len(set(chunk_fields + [field])) > 12
+                ):
+                    flush()
+                chunk_lines.append(line)
+                chunk_fields.append(field)
+            flush()
+
+        if not sections:
+            raise StructuredGenerationError(
+                "ARTIFACT_DELIVERY_INCOMPLETE",
+                "Substantive upstream output could not be projected into report sections.",
+                direction="output",
+            )
+
+        calculations: list[dict[str, Any]] = []
+        assumptions: list[Any] = []
+        questions: list[Any] = []
+        for _producer, field, value in entries:
+            if field == "calculations" and isinstance(value, list):
+                calculations.extend(
+                    deepcopy(item)
+                    for item in value
+                    if isinstance(item, dict)
+                    and all(
+                        key in item
+                        for key in ("name", "formula", "inputs", "result", "assumptions")
+                    )
+                )
+            if field == "assumptions":
+                assumptions.extend(value if isinstance(value, list) else [value])
+            if field in {"openQuestions", "open_questions"}:
+                questions.extend(value if isinstance(value, list) else [value])
+        calculations = calculations[:12]
+        assumptions = cls._dedupe_strings(assumptions)[:12]
+        questions = cls._dedupe_strings(questions)[:12]
+        if not questions:
+            questions = ["请人工复核降级汇总及其未解决缺口。"]
+
+        seed = {
+            "deliverable": {
+                "title": str(context.task.title or "Workflow deliverable").strip(),
+                "executiveSummary": (
+                    "成果生成已降级；以下内容是已完成上游节点的可审计汇总，"
+                    "未解决事项仍需业务或专业人员复核。"
+                    if chinese
+                    else "Artifact generation degraded to an auditable aggregation of completed upstream results; unresolved items still require review."
+                ),
+                "sections": sections,
+                "calculations": calculations,
+                "assumptions": assumptions,
+                "openQuestions": questions,
+                "sourceRefs": [],
+            },
+            "verification": {
+                "status": "partial",
+                "checks": [
+                    {
+                        "criterion": "成果汇编完整性",
+                        "result": "已降级汇编，需复核",
+                        "evidence": "已完成上游节点输出",
+                    }
+                ],
+                "unresolvedGaps": gaps,
+            },
+        }
+        output = cls._finalize_artifact_candidate(
+            context,
+            seed,
+            degraded=True,
+            extra_gaps=gaps,
+        )
+        output["_llm"] = {
+            "success": False,
+            "source": "deterministic_upstream_aggregation",
+            "degraded": True,
+            "error": str(reason)[:700],
+        }
+        return output
 
     @classmethod
     def _normalize_artifact_output(
@@ -630,7 +1266,7 @@ class NativeGeneralFallbackAgent(NativeGeneralAgent):
             output_schema = dict(context.step.output_spec or descriptor.output_contract)
             generation_schema = self._generation_schema(capability, output_schema)
             partial = dict(getattr(exc, "partial_data", None) or {})
-            output = repair_payload(partial, generation_schema)
+            output = apply_contract_defaults(partial, generation_schema)
             if capability == "task_understanding" and not output.get("task_summary"):
                 output["task_summary"] = str(
                     context.task.input.get("userIntent")
@@ -645,17 +1281,28 @@ class NativeGeneralFallbackAgent(NativeGeneralAgent):
                         "结构化模型输出不可用，需人工复核。"
                     )
             if capability == "artifact_generation":
-                output = self._fallback_artifact_seed(context, output)
-                output = self._normalize_artifact_output(context, output)
-            validate_contract_payload(
-                output,
-                output_schema,
-                step_id=context.step.step_id,
-                direction="output",
-            )
+                output = self._build_degraded_artifact(
+                    context,
+                    reason=f"{exc.code}: {exc}",
+                )
+                self._validate_artifact_output(context, output, output_schema)
+            else:
+                try:
+                    validate_contract_payload(
+                        output,
+                        output_schema,
+                        step_id=context.step.step_id,
+                        direction="output",
+                    )
+                except ContextContractError:
+                    raise exc
             output["_llm"] = {
                 "success": False,
-                "source": "schema_projection",
+                "source": (
+                    "deterministic_upstream_aggregation"
+                    if capability == "artifact_generation"
+                    else "explicit_schema_defaults"
+                ),
                 "error": f"{exc.code}: {exc}",
             }
             return AgentOutput(
@@ -663,62 +1310,6 @@ class NativeGeneralFallbackAgent(NativeGeneralAgent):
                 summary=f"Native fallback projected a valid contract for {capability}.",
                 modelInvocations=list(getattr(exc, "model_invocations", None) or []),
             )
-
-    @classmethod
-    def _fallback_artifact_seed(
-        cls,
-        context: AgentRunContext,
-        output: dict[str, Any],
-    ) -> dict[str, Any]:
-        normalized = dict(output)
-        upstream = cls._upstream_data(context)
-        deliverable = normalized.get("deliverable")
-        if not isinstance(deliverable, dict):
-            deliverable = {}
-        sections = deliverable.get("sections")
-        if not isinstance(sections, list) or not sections:
-            sections = [
-                {
-                    "title": str(key).replace("_", " ").strip().title(),
-                    "content": (
-                        value.strip()
-                        if isinstance(value, str)
-                        else json.dumps(value, ensure_ascii=False, default=str)
-                    )[:2000],
-                    "sourceFields": [str(key)],
-                }
-                for key, value in list(upstream.items())[:8]
-                if value not in (None, "", [], {})
-            ]
-        deliverable.update(
-            {
-                "title": str(deliverable.get("title") or context.task.title),
-                "executiveSummary": str(
-                    deliverable.get("executiveSummary")
-                    or "模型结构化输出不可用；以下内容由已完成节点的可审计结果轻量汇总。"
-                ),
-                "sections": sections,
-                "calculations": list(deliverable.get("calculations") or []),
-                "assumptions": list(deliverable.get("assumptions") or []),
-                "openQuestions": list(deliverable.get("openQuestions") or [])
-                or ["请人工复核降级汇总结果。"],
-                "sourceRefs": list(deliverable.get("sourceRefs") or []),
-            }
-        )
-        normalized["deliverable"] = deliverable
-        verification = normalized.get("verification")
-        if not isinstance(verification, dict):
-            verification = {}
-        verification.update(
-            {
-                "status": "partial",
-                "checks": list(verification.get("checks") or []),
-                "unresolvedGaps": list(verification.get("unresolvedGaps") or [])
-                or ["结构化模型输出不可用，已使用轻量汇总。"],
-            }
-        )
-        normalized["verification"] = verification
-        return normalized
 
 
 def native_bootstrap_definition() -> WorkflowDefinition:

@@ -155,6 +155,25 @@ def _context(
     )
 
 
+def _artifact_context(model_runtime, source_data, *, title="Delivery report"):
+    context = _context(
+        model_runtime,
+        objective=title,
+        capability="artifact_generation",
+    )
+    flattened = {
+        field: value
+        for producer in source_data.values()
+        for field, value in producer.items()
+    }
+    context.context_pack = SimpleNamespace(
+        data=flattened,
+        source_data=source_data,
+        evidence_refs=[],
+    )
+    return context
+
+
 def test_native_agent_repairs_invalid_structured_output_once(structured_model_runtime):
     runtime = _RepairRuntime(structured_model_runtime)
 
@@ -291,24 +310,24 @@ def test_native_agent_never_uses_more_than_one_repair(structured_model_runtime):
     assert len(runtime.calls) == 2
 
 
-def test_native_fallback_projects_exhausted_repair_into_valid_contract(
+def test_native_fallback_does_not_invent_missing_required_semantics(
     structured_model_runtime,
 ):
     runtime = _JsonRepairRuntime(structured_model_runtime, invalid_after_retry=True)
 
-    result = asyncio.run(
-        NativeGeneralFallbackAgent().run(
-            _context(runtime, thinking_mode="standard")
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            NativeGeneralFallbackAgent().run(
+                _context(runtime, thinking_mode="standard")
+            )
         )
-    )
 
-    assert result.output["task_summary"] == "still incomplete"
-    assert result.output["constraints"] == []
-    assert result.output["_llm"]["source"] == "schema_projection"
+    assert raised.value.code == "OUTPUT_CONTRACT_VIOLATION"
+    assert raised.value.partial_data == {"task_summary": "still incomplete"}
     assert all(call["thinking_mode"] == "disabled" for call in runtime.calls)
 
 
-def test_native_fallback_projects_real_resource_planning_contract():
+def test_native_fallback_rejects_incomplete_resource_planning_contract():
     runtime = _FixedRuntime(
         {
             "capacity_plan": {
@@ -319,20 +338,15 @@ def test_native_fallback_projects_real_resource_planning_contract():
         }
     )
 
-    result = asyncio.run(
-        NativeGeneralFallbackAgent().run(
-            _context(runtime, capability="resource_planning", thinking_mode="standard")
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            NativeGeneralFallbackAgent().run(
+                _context(runtime, capability="resource_planning", thinking_mode="standard")
+            )
         )
-    )
 
-    assert set(result.output["resource_plan"]) == {
-        "people",
-        "equipment",
-        "systems",
-        "materials",
-    }
-    assert result.output["capacity_plan"]["conclusion"] == "Capacity needs review."
-    assert result.output["_llm"]["source"] == "schema_projection"
+    assert raised.value.code == "OUTPUT_CONTRACT_VIOLATION"
+    assert raised.value.partial_data["capacity_plan"]["conclusion"] == "Capacity needs review."
     assert len(runtime.calls) == 2
 
 
@@ -505,16 +519,30 @@ def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(
     assert set(generation_schema["required"]) == {"deliverable", "verification"}
     assert "final_answer" not in generation_schema["properties"]
     assert "artifact" not in generation_schema["properties"]
-    assert result.output["final_answer"].startswith("# generated:title")
+    assert result.output["final_answer"].startswith("# Factory delivery plan")
     assert result.output["artifact"] == {
         "artifactId": "artifact_52676df0e94b2d89",
         "type": "report",
-        "title": "generated:title",
+        "title": "Factory delivery plan",
         "mediaType": "text/markdown",
         "content": result.output["final_answer"],
         "structuredData": result.output["deliverable"],
     }
-    assert result.output["verification"]["status"] == "passed"
+    assert result.output["verification"]["status"] == "partial"
+    assert result.output["verification"]["unresolvedGaps"]
+    assert result.output["_llm"] == {
+        "success": False,
+        "source": "deterministic_upstream_aggregation",
+        "degraded": True,
+        "error": result.output["_llm"]["error"],
+    }
+    assert len(structured_model_runtime.calls) == 2
+    referenced = {
+        field
+        for section in result.output["deliverable"]["sections"]
+        for field in section["sourceFields"]
+    }
+    assert set(upstream).issubset(referenced)
 
 
 def test_artifact_markdown_is_deterministically_rendered_from_semantic_output():
@@ -568,3 +596,120 @@ def test_artifact_markdown_is_deterministically_rendered_from_semantic_output():
     assert "## 验收核对" in final_answer
     assert result.output["artifact"]["content"] == final_answer
     assert result.output["artifact"]["structuredData"] == result.output["deliverable"]
+
+
+def test_title_only_artifact_uses_truthful_deterministic_fallback():
+    runtime = _FixedRuntime({"deliverable": {"title": "Only a title"}})
+    source_data = {
+        "understand": {"task_summary": "Build a measurable implementation plan"},
+        "risk": {"risks": [{"risk": "Schedule delay"}]},
+        "verify": {
+            "verification": {
+                "status": "partial",
+                "checks": [],
+                "unresolved_gaps": ["Budget evidence is missing"],
+            }
+        },
+    }
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(_artifact_context(runtime, source_data))
+    )
+
+    assert len(runtime.calls) == 2
+    assert result.output["verification"]["status"] == "partial"
+    assert "Budget evidence is missing" in result.output["verification"]["unresolvedGaps"]
+    assert len(result.output["final_answer"].splitlines()) > 1
+    assert result.output["artifact"]["content"] == result.output["final_answer"]
+    assert result.output["_llm"]["source"] == "deterministic_upstream_aggregation"
+
+
+def test_artifact_verification_cannot_upgrade_failed_upstream():
+    runtime = _FixedRuntime(
+        {
+            "deliverable": {
+                "title": "Delivery report",
+                "executiveSummary": "A complete report with a reviewable result.",
+                "sections": [
+                    {
+                        "title": "Risk",
+                        "content": "The delivery risk remains unresolved.",
+                        "sourceFields": ["verification"],
+                    }
+                ],
+                "calculations": [],
+                "assumptions": [],
+                "openQuestions": [],
+                "sourceRefs": [],
+            },
+            "verification": {
+                "status": "passed",
+                "checks": [
+                    {
+                        "criterion": "Report exists",
+                        "result": "passed",
+                        "evidence": "verification",
+                    }
+                ],
+                "unresolvedGaps": [],
+            },
+        }
+    )
+    source_data = {
+        "verify": {
+            "verification": {
+                "status": "failed",
+                "checks": [
+                    {
+                        "criterion": "Budget confirmed",
+                        "result": "failed",
+                        "evidence": "No approved budget",
+                    }
+                ],
+                "unresolved_gaps": ["Approved budget is missing"],
+            }
+        }
+    }
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(_artifact_context(runtime, source_data))
+    )
+
+    assert len(runtime.calls) == 1
+    assert result.output["verification"]["status"] == "failed"
+    assert "Approved budget is missing" in result.output["verification"]["unresolvedGaps"]
+
+
+def test_title_only_artifact_without_upstream_fails_closed():
+    runtime = _FixedRuntime({"deliverable": {"title": "Only a title"}})
+
+    with pytest.raises(StructuredGenerationError) as raised:
+        asyncio.run(
+            NativeGeneralAgent().run(
+                _context(runtime, capability="artifact_generation")
+            )
+        )
+
+    assert len(runtime.calls) == 2
+    assert raised.value.code == "ARTIFACT_DELIVERY_INCOMPLETE"
+
+
+def test_degraded_artifact_covers_more_than_eight_upstream_producers():
+    runtime = _FixedRuntime({"deliverable": {"title": "Only a title"}})
+    source_data = {
+        f"producer-{index:02d}": {f"field_{index:02d}": f"value {index}"}
+        for index in range(17)
+    }
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(_artifact_context(runtime, source_data))
+    )
+
+    referenced = {
+        field
+        for section in result.output["deliverable"]["sections"]
+        for field in section["sourceFields"]
+    }
+    assert referenced == {f"field_{index:02d}" for index in range(17)}
+    assert "value 16" in result.output["final_answer"]
+    assert result.output["verification"]["status"] == "partial"
