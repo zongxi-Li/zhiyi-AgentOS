@@ -159,13 +159,10 @@
                   createdAt: workflowHistoryMessageTime
                 }"
               />
-              <MessageBubble
-                :message="{
-                  id: `history-assistant-${activeWorkflowRun.runId}`,
-                  role: 'assistant',
-                  content: lawyerHistoryReply,
-                  createdAt: workflowHistoryMessageTime
-                }"
+              <ContractReviewReportMessage
+                :deliverables="workflowHistoryStepOutputs"
+                :report="lawyerHistoryReply"
+                :risks="activeContractReviewArtifacts.risks"
               />
             </div>
             <template v-else>
@@ -930,6 +927,7 @@ import DynamicRunSummaryCard from '@/components/agentos/DynamicRunSummaryCard.vu
 import RuntimeChangeTimeline from '@/components/agentos/RuntimeChangeTimeline.vue'
 import WorkflowReviewPanel from '@/components/agentos/WorkflowReviewPanel.vue'
 import AcgRunInspector from '@/components/agentos/AcgRunInspector.vue'
+import ContractReviewReportMessage from '@/components/agentos/ContractReviewReportMessage.vue'
 import ContractRiskPanel from '@/components/agentos/ContractRiskPanel.vue'
 import ContractEvidencePanel from '@/components/agentos/ContractEvidencePanel.vue'
 import ContractReportPreview from '@/components/agentos/ContractReportPreview.vue'

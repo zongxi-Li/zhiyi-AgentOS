@@ -11,6 +11,7 @@ import RoleTemplateSwitchDialog from '@/components/RoleTemplateSwitchDialog.vue'
 import LawyerSkillPanel from '@/components/agent/LawyerSkillPanel.vue'
 import GenericArtifactPanel from '@/features/acg/GenericArtifactPanel.vue'
 import MessageBubble from '@/components/MessageBubble.vue'
+import ContractReviewReportMessage from '@/components/agentos/ContractReviewReportMessage.vue'
 import ChatView from './ChatView.vue'
 
 let chatStoreMock: ReturnType<typeof createChatStoreMock>
@@ -524,12 +525,11 @@ describe('ChatView ACG progress integration', () => {
     expect(lawyerPanel.props('trace')).toHaveLength(2)
     expect(lawyerPanel.props('riskLevel')).toBe('high')
     const historyMessages = wrapper.findAllComponents(MessageBubble)
-    expect(historyMessages).toHaveLength(2)
+    expect(historyMessages).toHaveLength(1)
     expect(historyMessages[0].props('message')).toEqual(expect.objectContaining({ role: 'user' }))
-    expect(historyMessages[1].props('message')).toEqual(expect.objectContaining({
-      role: 'assistant',
-      content: '# 合同审查报告'
-    }))
+    const report = wrapper.findComponent(ContractReviewReportMessage)
+    expect(report.props('report')).toBe('# 合同审查报告')
+    expect(report.props('risks')).toHaveLength(1)
     expect(wrapper.findComponent(DynamicRunSummaryCard).exists()).toBe(false)
     await wrapper.get('.lawyer-workflow-progress__toggle').trigger('click')
     expect(wrapper.findComponent(WorkflowProgressBar).exists()).toBe(false)
