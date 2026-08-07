@@ -172,15 +172,20 @@
                 </button>
 
                 <div class="chat-submenu-section-head">
-                  <span>{{ workspaceMode === 'agent' ? 'ACG 记录' : '对话记录' }}</span>
-                  <label v-if="workspaceMode === 'agent'" class="acg-role-filter acg-role-filter--sidebar">
-                    <select v-model="agentHistoryRole" aria-label="按角色筛选 ACG 记录" @change="handleAgentHistoryRoleChange">
-                      <option v-for="option in ACG_HISTORY_ROLE_OPTIONS" :key="option.value" :value="option.value">
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <span v-if="workspaceHistoryCount" class="chat-project-count">{{ workspaceHistoryCount }}</span>
+                  <span class="chat-submenu-section-title">{{ workspaceMode === 'agent' ? 'ACG 记录' : '对话记录' }}</span>
+                  <div class="chat-submenu-section-tools">
+                    <label v-if="workspaceMode === 'agent'" class="acg-role-filter acg-role-filter--sidebar">
+                      <select v-model="agentHistoryRole" aria-label="按角色筛选 ACG 记录" @change="handleAgentHistoryRoleChange">
+                        <option v-for="option in ACG_HISTORY_ROLE_OPTIONS" :key="option.value" :value="option.value">
+                          {{ option.label }}
+                        </option>
+                      </select>
+                      <el-icon class="acg-role-filter__chevron" aria-hidden="true"><ArrowDown /></el-icon>
+                    </label>
+                    <span v-if="workspaceHistoryCount" class="chat-project-count" :aria-label="`${workspaceHistoryCount} 条记录`">
+                      {{ workspaceHistoryCount }}
+                    </span>
+                  </div>
                   <span v-if="conversationListLoading && workspaceHistoryCount" class="chat-submenu-refreshing">更新中</span>
                 </div>
 
@@ -1581,7 +1586,8 @@ onUnmounted(() => {
 .new-chat-action {
   min-height: 38px;
   margin-bottom: 8px;
-  padding: 0 10px 0 calc(var(--sidebar-icon-axis) - 17px);
+  justify-content: center;
+  padding: 0 10px;
   border: 1px solid var(--border-light);
   background: color-mix(in srgb, var(--bg-card) 84%, transparent);
   color: var(--text-primary);
@@ -1596,59 +1602,97 @@ onUnmounted(() => {
 }
 
 .chat-submenu-section-head {
-  height: 28px;
+  min-height: 34px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 5px 8px 6px;
+  gap: 8px;
+  padding: 3px 6px 5px 8px;
   color: var(--text-disabled);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.035em;
 }
 
+.chat-submenu-section-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+.chat-submenu-section-tools {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .chat-project-count {
-  min-width: 16px;
-  height: 16px;
+  min-width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--primary-fade);
-  color: var(--primary-color);
+  padding: 0 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
+  color: var(--text-muted);
   font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 .acg-role-filter--sidebar {
+  position: relative;
   min-width: 0;
-  margin-left: auto;
+  display: block;
 }
 
 .acg-role-filter--sidebar select {
-  width: 76px;
-  height: 24px;
-  padding: 0 20px 0 7px;
+  width: 90px;
+  height: 28px;
+  padding: 0 25px 0 9px;
   border: 1px solid var(--border-light);
-  border-radius: 7px;
+  border-radius: 6px;
   outline: 0;
-  background: var(--bg-input);
+  appearance: none;
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent);
   color: var(--text-secondary);
   font: inherit;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 650;
   letter-spacing: 0;
   cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .acg-role-filter--sidebar select:hover {
   border-color: var(--primary-line);
+  background: var(--bg-card);
   color: var(--primary-color);
 }
 
 .acg-role-filter--sidebar select:focus-visible {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px var(--primary-fade);
+}
+
+.acg-role-filter__chevron {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  color: var(--text-disabled);
+  font-size: 11px;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 0.16s ease;
+}
+
+.acg-role-filter--sidebar:hover .acg-role-filter__chevron,
+.acg-role-filter--sidebar:focus-within .acg-role-filter__chevron {
+  color: var(--primary-color);
 }
 
 .chat-submenu-refreshing {

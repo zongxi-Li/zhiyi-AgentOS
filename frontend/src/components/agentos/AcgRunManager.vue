@@ -64,11 +64,16 @@
             <span class="acg-run-item__body">
               <span class="acg-run-item__headline">
                 <strong>{{ displayTitle(run) }}</strong>
-                <time>{{ formatRunTime(run.updatedAt || run.startedAt || run.createdAt) }}</time>
               </span>
-              <span class="acg-run-item__identity"><code>{{ shortenId(taskIdentity(run)) }}</code></span>
-              <span class="acg-run-item__phase">
-                {{ phaseLabel(run) }}<template v-if="run.totalSteps"> · {{ run.completedSteps }}/{{ run.totalSteps }}</template>
+              <span class="acg-run-item__meta">
+                <span class="acg-run-item__phase">
+                  {{ phaseLabel(run) }}<template v-if="run.totalSteps"> · 步骤 {{ run.completedSteps }}/{{ run.totalSteps }}</template>
+                </span>
+                <time
+                  v-if="runActivityTime(run)"
+                  :datetime="runActivityTime(run)"
+                  :title="formatFullRunTime(runActivityTime(run))"
+                >{{ runTimeLabel(run) }} {{ formatRunTime(runActivityTime(run)) }}</time>
               </span>
               <span v-if="showProgress(run)" class="acg-run-item__progress" aria-hidden="true">
                 <span :style="{ width: `${safePercentage(run)}%` }"></span>
@@ -150,6 +155,7 @@ let unmounted = false
 const ACTIVE_REFRESH_INTERVAL_MS = 8_000
 const IDLE_REFRESH_INTERVAL_MS = 30_000
 const RUN_LIST_PAGE_SIZE = 20
+const RUN_LIST_STATUSES = 'pending,planning,running,waiting_review,retrying,failed,completed,cancelled'
 
 const groupKey = (run: WorkflowRunSummary): RunGroupKey => {
   if (run.status === 'waiting_review' || run.phase === 'review') return 'review'
@@ -170,14 +176,16 @@ const filteredRuns = computed(() => {
       : -1
     if (!current || timestamp >= currentTimestamp) latestByTask.set(identity, run)
   }
-  return [...latestByTask.values()].filter(run => {
-    const key = groupKey(run)
-    if (statusFilter.value !== 'all' && statusFilter.value !== key) return false
-    if (!keyword) return true
-    return [run.taskId, run.runId, run.title, run.workflowId, run.message]
-      .filter(Boolean)
-      .some(value => String(value).toLocaleLowerCase('zh-CN').includes(keyword))
-  })
+  return [...latestByTask.values()]
+    .filter(run => {
+      const key = groupKey(run)
+      if (statusFilter.value !== 'all' && statusFilter.value !== key) return false
+      if (!keyword) return true
+      return [run.taskId, run.runId, run.title, run.workflowId, run.message]
+        .filter(Boolean)
+        .some(value => String(value).toLocaleLowerCase('zh-CN').includes(keyword))
+    })
+    .sort((left, right) => runTimestamp(right) - runTimestamp(left))
 })
 
 const visibleGroups = computed(() => {
@@ -195,7 +203,14 @@ const visibleGroups = computed(() => {
 const displayTitle = (run: WorkflowRunSummary) => resolveAcgTaskTitle(run)
 
 const taskIdentity = (run: WorkflowRunSummary) => run.taskId || run.runId
-const shortenId = (id: string) => id.length > 18 ? `${id.slice(0, 15)}…` : id
+const runActivityTime = (run: WorkflowRunSummary) => run.updatedAt || run.startedAt || run.createdAt || ''
+const runTimestamp = (run: WorkflowRunSummary) => Date.parse(runActivityTime(run)) || 0
+const runTimeLabel = (run: WorkflowRunSummary) => {
+  const key = groupKey(run)
+  if (key === 'completed') return '完成于'
+  if (key === 'failed') return '结束于'
+  return '更新于'
+}
 
 const safePercentage = (run: WorkflowRunSummary) => {
   const value = run.percent ?? run.percentage ?? run.progress ?? 0
@@ -221,10 +236,26 @@ const formatRunTime = (value?: string | null) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
   const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dayDifference = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000)
+  const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    return `今天 ${clock}`
   }
-  return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+  if (dayDifference === 1) return `昨天 ${clock}`
+  if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${clock}`
+}
+
+const formatFullRunTime = (value?: string | null) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `最后更新：${date.toLocaleString('zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  })}`
 }
 
 const copyTaskId = async (taskId: string) => {
@@ -277,6 +308,7 @@ const loadRuns = (silent = false): Promise<void> => {
       const page = await workflowApi.listRuns(
         {
           sources: ACG_HISTORY_SOURCES,
+          statuses: RUN_LIST_STATUSES,
           domain: acgHistoryRoleDomain(roleFilter.value),
           summary: true,
           page: 1,
@@ -392,18 +424,18 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .status-active .acg-run-item__status { animation: none; }
 }
-.acg-run-item__body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.acg-run-item__headline, .acg-run-item__identity { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.acg-run-item__body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.acg-run-item__headline { min-width: 0; display: flex; align-items: center; }
 .acg-run-item__headline strong { overflow: hidden; color: inherit; font-size: 11px; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.acg-run-item__headline time { flex: 0 0 auto; color: var(--text-disabled); font-size: 9px; font-variant-numeric: tabular-nums; }
-.acg-run-item__identity code { overflow: hidden; color: var(--text-muted); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.acg-run-actions { position: absolute; z-index: 1; top: 27px; right: 5px; display: flex; align-items: center; gap: 1px; opacity: 0; transition: opacity 160ms ease; }
+.acg-run-item__meta { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.acg-run-item__meta time { flex: 0 0 auto; color: var(--text-disabled); font-size: 9px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.acg-run-actions { position: absolute; z-index: 1; top: 5px; right: 5px; display: flex; align-items: center; gap: 1px; opacity: 0; transition: opacity 160ms ease; }
 .acg-run-item:hover .acg-run-actions, .acg-run-actions:focus-within { opacity: 1; }
+.acg-run-item:hover .acg-run-item__headline { padding-right: 44px; }
 .acg-run-action { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--bg-card) 88%, transparent); color: var(--text-disabled); cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }
 .acg-run-action:hover { background: var(--bg-card); color: var(--primary-color); }
 .acg-run-delete:hover { background: var(--danger-fade); color: var(--danger); }
 .acg-run-action:disabled { cursor: wait; opacity: .55; }
-.acg-run-item:hover .acg-run-item__identity { padding-right: 44px; }
 .acg-run-item__phase { overflow: hidden; color: var(--text-secondary); font-size: 10px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .acg-run-item__progress { height: 2px; margin-top: 2px; overflow: hidden; border-radius: 999px; background: var(--border-light); }
 .acg-run-item__progress span { display: block; height: 100%; border-radius: inherit; background: var(--primary-color); transition: width 240ms ease; }

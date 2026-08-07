@@ -63,7 +63,12 @@ describe('AcgRunManager', () => {
     await flushPromises()
 
     expect(workflowApi.listRuns).toHaveBeenCalledWith(
-      expect.objectContaining({ sources: ACG_HISTORY_SOURCES, summary: true, pageSize: 20 }),
+      expect.objectContaining({
+        sources: ACG_HISTORY_SOURCES,
+        statuses: expect.stringContaining('waiting_review'),
+        summary: true,
+        pageSize: 20
+      }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
     expect(wrapper.text()).toContain('运行中')
@@ -71,7 +76,8 @@ describe('AcgRunManager', () => {
     expect(wrapper.text()).toContain('最近完成')
     expect(wrapper.find('.acg-run-item.active').exists()).toBe(true)
     expect(wrapper.find('.acg-run-item__headline strong').text()).toBe('软件开发合同审查')
-    expect(wrapper.find('.acg-run-item__identity code').text()).toContain('run_active')
+    expect(wrapper.find('.acg-run-item__meta').text()).toContain('步骤 2/7')
+    expect(wrapper.find('.acg-run-item__meta time').text()).toMatch(/^(?:更新于|完成于) /)
     wrapper.unmount()
   })
 
@@ -104,7 +110,34 @@ describe('AcgRunManager', () => {
     expect(wrapper.findAll('.acg-run-item')).toHaveLength(1)
     expect(wrapper.find('.status-completed').exists()).toBe(true)
     expect(wrapper.find('.status-failed').exists()).toBe(false)
-    expect(wrapper.text()).toContain('task_retry')
+    expect(wrapper.find('.acg-run-item__select').attributes('title')).toContain('task_retry')
+    wrapper.unmount()
+  })
+
+  it('sorts each status group by the authoritative update timestamp', async () => {
+    vi.mocked(workflowApi.listRuns).mockResolvedValue({
+      items: [
+        run({ taskId: 'task_older', runId: 'run_older', title: '较早任务', updatedAt: '2026-07-26T04:00:10Z' }),
+        run({ taskId: 'task_newer', runId: 'run_newer', title: '较新任务', updatedAt: '2026-07-26T04:02:10Z' })
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 20
+    })
+    const wrapper = mount(AcgRunManager, { global: { stubs: { 'el-icon': true } } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.acg-run-item__headline strong').map(item => item.text())).toEqual(['较新任务', '较早任务'])
+    wrapper.unmount()
+  })
+
+  it('labels same-day timestamps as update time instead of an ambiguous duration', async () => {
+    vi.setSystemTime(new Date('2026-07-26T04:30:00Z'))
+    const wrapper = mount(AcgRunManager, { global: { stubs: { 'el-icon': true } } })
+    await flushPromises()
+
+    expect(wrapper.find('.status-active .acg-run-item__meta time').text()).toContain('更新于 今天')
+    expect(wrapper.find('.status-active .acg-run-item__meta time').attributes('title')).toContain('最后更新')
     wrapper.unmount()
   })
 
