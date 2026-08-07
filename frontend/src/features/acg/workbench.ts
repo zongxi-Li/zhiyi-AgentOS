@@ -49,11 +49,11 @@ export interface PluginUiExtension {
 }
 
 export const createNativeWorkbenchDraft = (): WorkbenchDraft => ({
-  title: '基础软件项目实施方案',
-  taskGoal: '设计一个基础软件项目实施方案，包括目标、阶段、风险和交付物',
+  title: '',
+  taskGoal: '',
   materialText: '',
   constraints: [],
-  expectedArtifacts: ['实施方案'],
+  expectedArtifacts: [],
   materialIds: [],
   enabledPluginIds: [],
   planningMode: 'dynamic',

@@ -103,6 +103,15 @@ const mountPage = async (query = ''): Promise<{ wrapper: VueWrapper; router: Rou
 }
 
 const clickStart = async (wrapper: VueWrapper) => {
+  const draft = (wrapper.vm as unknown as { draft: { title: string; taskGoal: string } }).draft
+  if (!draft.title || draft.title === '未命名 ACG 任务') {
+    draft.title = '测试任务实施方案'
+    await wrapper.vm.$nextTick()
+  }
+  if (!draft.taskGoal) {
+    draft.taskGoal = '完成测试任务分析并输出可验收的实施方案'
+    await wrapper.vm.$nextTick()
+  }
   const button = wrapper.findAll('button').find((item) => item.text().includes('启动 ACG'))
   if (!button) throw new Error('start button not found')
   await button.trigger('click')
@@ -199,7 +208,7 @@ describe('AcgVisualizationView async progress loop', () => {
 
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledOnce()
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
-      title: '基础软件项目实施方案',
+      title: '测试任务实施方案',
       domain: 'general',
       intent: 'general',
       workflowId: undefined,
@@ -207,7 +216,7 @@ describe('AcgVisualizationView async progress loop', () => {
       reviewMode: 'auto',
       input: expect.objectContaining({
         source: 'acg',
-        userIntent: '设计一个基础软件项目实施方案，包括目标、阶段、风险和交付物'
+        userIntent: '完成测试任务分析并输出可验收的实施方案'
       })
     }), expect.any(Object))
     expect(workflowApi.startWorkflow).not.toHaveBeenCalled()
@@ -328,7 +337,7 @@ describe('AcgVisualizationView async progress loop', () => {
 
     await clickStart(wrapper)
     expect(workflowApi.startWorkflowAsync).toHaveBeenCalledWith(expect.objectContaining({
-      title: '设计一个基础软件项目实施方案，包括目标、阶段、风险和交付物',
+      title: '测试任务实施方案',
       domain: 'general',
       intent: 'general',
       enabledPluginIds: ['programmer'],
@@ -569,7 +578,7 @@ describe('AcgVisualizationView async progress loop', () => {
     })
     const { wrapper } = await mountPage()
     const startPromise = clickStart(wrapper)
-    await Promise.resolve()
+    await flushPromises()
     wrapper.unmount()
     expect(signal?.aborted).toBe(true)
     void startPromise

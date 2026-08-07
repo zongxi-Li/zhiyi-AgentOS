@@ -19,6 +19,9 @@ describe('ACG workbench request builder', () => {
     expect(request.input.source).toBe('acg')
     expect(request.input.webSearchEnabled).toBe(true)
     expect(request.input).not.toHaveProperty('contractText')
+    expect(draft.title).toBe('')
+    expect(draft.taskGoal).toBe('')
+    expect(draft.expectedArtifacts).toEqual([])
   })
 
   it('forwards controlled stochastic planning without changing plugin scope', () => {

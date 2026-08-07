@@ -86,6 +86,10 @@ export const resolveAcgTaskTitleAutoUpdate = ({
     return { title: currentTitle, autoTitle: previousAutoTitle }
   }
 
+  if (!compactWhitespace(taskGoal)) {
+    return { title: '', autoTitle: '' }
+  }
+
   const inferred = resolveAcgTaskTitle({ title: taskGoal })
   return { title: inferred, autoTitle: inferred }
 }

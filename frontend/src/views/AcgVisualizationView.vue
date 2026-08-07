@@ -1317,6 +1317,19 @@ onBeforeUnmount(() => {
 .contract-pane .ctrl-row { flex: 1 1 auto; min-height: 0; }
 .contract-pane .contract-textarea { flex: 1 1 auto; min-height: 0; }
 .definition-pane { min-width: 0; gap: 12px; }
+.definition-pane :deep(.el-input__wrapper) {
+  min-height: 42px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  box-shadow: none;
+}
+.definition-pane :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--border-light) inset;
+}
+.definition-pane :deep(.el-input__wrapper.is-focus) {
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--primary-color) inset;
+}
 .pane-heading { color: var(--text-primary); font-size: 13px; font-weight: 750; }
 .pane-heading small { margin-left: 4px; color: var(--text-disabled); font-size: 10px; font-weight: 600; }
 .input-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }

@@ -36,7 +36,9 @@ describe('GenericArtifactPanel', () => {
         finalArtifacts: [artifact],
         stepOutputs: [
           { stepId: 'analysis', name: '通用分析', status: 'completed', output: { findings: ['a'] } },
-          { stepId: 'deliver', name: '成果生成', status: 'completed', output: { final_answer: 'done' } }
+          { stepId: 'deliver', name: '成果生成', status: 'completed', output: { final_answer: 'done' } },
+          { stepId: 'evidence_retrieval', name: 'Evidence retrieval', status: 'completed', output: { evidence: ['a'] } },
+          { stepId: 'evidence_validation', name: 'Evidence validation', status: 'completed', output: { valid: true } }
         ]
       }
     })
@@ -47,7 +49,11 @@ describe('GenericArtifactPanel', () => {
     expect(wrapper.findAll('.solution-section')).toHaveLength(2)
     expect(wrapper.find('.delivery-facts').text()).toContain('2方案章节')
     expect(wrapper.find('.step-output-section').text()).toContain('过程产出')
-    expect(wrapper.findAll('details')).toHaveLength(2)
+    expect(wrapper.findAll('details')).toHaveLength(4)
+    expect(wrapper.find('.step-output-section').text()).toContain('证据检索')
+    expect(wrapper.find('.step-output-section').text()).toContain('证据核验')
+    expect(wrapper.find('.step-output-section').text()).not.toContain('Evidence retrieval')
+    expect(wrapper.find('.step-output-section').text()).not.toContain('Evidence validation')
 
     await wrapper.findAll('.delivery-tabs button')[1].trigger('click')
     expect(wrapper.find('.calculation-card').text()).toContain('244,800 台/年')
@@ -108,6 +114,10 @@ describe('GenericArtifactPanel', () => {
           {
             title: '任务理解与需求',
             content: [
+              '为重点门店建立极端天气下的应急补货机制。',
+              '',
+              '### 补充：任务理解与需求',
+              '',
               '- **native_general_agent.constraints**: [{"constraint":"首期覆盖30家重点门店","mandatory":true,"source":"试点目标"}]',
               '- **native_general_agent.task_summary**: 为连锁企业设计应急补货方案。'
             ].join('\n'),
@@ -127,6 +137,17 @@ describe('GenericArtifactPanel', () => {
             title: '流程与资源',
             content: '- **native_general_agent_3.process_steps**: [{"activities":["提取业务背景"],"id":"step1","name":"任务理解","owner":"项目经理"},{"activities":["形成需求清单"],"id":"step2","nam…',
             sourceFields: ['process_steps']
+          },
+          {
+            title: '补充：比较与成本分析 2',
+            content: [
+              '- **native_general_agent_9.cost_drivers**: ["计算资源规模：420台虚拟机，需按峰值预留","数据库授权：商业数据库迁移至云需重新授权"]',
+              '',
+              '### 补充：风险与控制措施',
+              '',
+              '- **native_general_agent_10.risks**: [{"impact":"高","mitigation":"制定详细计划并预留缓冲","owner":"项目经理","probability":"高","risk":"36周内完成迁移时间紧迫","trigger":"项目启动延迟"}]'
+            ].join('\n'),
+            sourceFields: ['cost_drivers', 'risks']
           }
         ]
       }
@@ -146,13 +167,31 @@ describe('GenericArtifactPanel', () => {
               { activities: ['形成需求清单'], id: 'step2', name: '需求分析', owner: '业务分析师', quality_gate: '覆盖所有目标' }
             ]
           }
+        }, {
+          stepId: 'native_general_agent_9',
+          name: '成本分析',
+          status: 'completed',
+          output: {
+            cost_drivers: ['计算资源规模：420台虚拟机，需按峰值预留', '数据库授权：商业数据库迁移至云需重新授权']
+          }
+        }, {
+          stepId: 'native_general_agent_10',
+          name: '风险分析',
+          status: 'completed',
+          output: {
+            risks: [{
+              impact: '高', mitigation: '制定详细计划并预留缓冲', owner: '项目经理', probability: '高',
+              risk: '36周内完成迁移时间紧迫', trigger: '项目启动延迟'
+            }]
+          }
         }]
       }
     })
 
-    expect(wrapper.findAll('.structured-field')).toHaveLength(5)
-    expect(wrapper.findAll('.record-list')).toHaveLength(4)
+    expect(wrapper.findAll('.structured-field')).toHaveLength(7)
+    expect(wrapper.findAll('.record-list')).toHaveLength(5)
     expect(wrapper.text()).toContain('约束条件')
+    expect(wrapper.text()).toContain('为重点门店建立极端天气下的应急补货机制。')
     expect(wrapper.text()).toContain('验收标准')
     expect(wrapper.text()).toContain('目标值≤8%')
     expect(wrapper.text()).toContain('需求清单')
@@ -160,7 +199,15 @@ describe('GenericArtifactPanel', () => {
     expect(wrapper.text()).toContain('流程步骤')
     expect(wrapper.text()).toContain('需求分析')
     expect(wrapper.text()).toContain('质量门槛覆盖所有目标')
+    expect(wrapper.text()).toContain('成本驱动因素')
+    expect(wrapper.text()).toContain('计算资源规模：420台虚拟机，需按峰值预留')
+    expect(wrapper.text()).toContain('风险清单')
+    expect(wrapper.text()).toContain('影响程度高')
+    expect(wrapper.text()).toContain('控制措施制定详细计划并预留缓冲')
     expect(wrapper.text()).not.toContain('[{"constraint"')
     expect(wrapper.text()).not.toContain('"nam…')
+    expect(wrapper.text()).not.toContain('### 补充：风险与控制措施')
+    expect(wrapper.text()).not.toContain('### 补充：任务理解与需求')
+    expect(wrapper.find('.source-fields').exists()).toBe(false)
   })
 })

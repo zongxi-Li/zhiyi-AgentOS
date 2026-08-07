@@ -62,6 +62,7 @@
           <span class="section-index">{{ String(index + 1).padStart(2, '0') }}</span>
           <div>
             <h6>{{ section.title }}</h6>
+            <p v-if="section.summary && section.fields.length" class="section-summary">{{ section.summary }}</p>
             <div v-if="section.fields.length" class="structured-fields">
               <section v-for="field in section.fields" :key="field.source" class="structured-field">
                 <header class="field-head">
@@ -101,7 +102,7 @@
               </section>
             </div>
             <p v-else class="section-fallback">{{ section.content }}</p>
-            <div v-if="section.sourceFields.length" class="source-fields">
+            <div v-if="section.sourceFields.length && !section.fields.length" class="source-fields">
               <span v-for="field in section.sourceFields" :key="field">{{ field }}</span>
             </div>
           </div>
@@ -158,7 +159,7 @@
       <div class="artifact-list">
         <details v-for="item in stepOutputs" :key="item.stepId">
           <summary>
-            <span>{{ item.name }}</span>
+            <span>{{ displayStepName(item) }}</span>
             <small>{{ statusLabel(item.status) }}</small>
           </summary>
           <pre>{{ JSON.stringify(item.output, null, 2) }}</pre>
@@ -178,6 +179,7 @@ type DeliveryTab = 'solution' | 'calculations' | 'decisions'
 interface DeliverySection {
   title: string
   content: string
+  summary: string
   sourceFields: string[]
   fields: DeliveryField[]
 }
@@ -248,6 +250,9 @@ const FIELD_LABELS: Record<string, string> = {
   open_questions: '待确认事项',
   findings: '分析结论',
   risks: '风险清单',
+  cost_drivers: '成本驱动因素',
+  alternatives: '候选方案',
+  comparison: '方案比较',
   recommendations: '建议方案',
   process_steps: '流程步骤'
 }
@@ -263,6 +268,10 @@ const PROPERTY_LABELS: Record<string, string> = {
   status: '状态',
   owner: '负责人',
   evidence: '依据',
+  impact: '影响程度',
+  probability: '发生概率',
+  trigger: '触发条件',
+  mitigation: '控制措施',
   activities: '执行活动',
   inputs: '输入',
   outputs: '输出',
@@ -374,8 +383,11 @@ const parseStructuredFields = (content: string): DeliveryField[] => {
   const lines = content.split(/\r?\n/).filter(line => line.trim())
   const fields: DeliveryField[] = []
   for (const line of lines) {
+    // A bounded artifact may fold overflow supplements into the final section.
+    // Their Markdown headings separate groups but are not data fields themselves.
+    if (/^\s*#{1,6}\s+\S/.test(line)) continue
     const match = line.match(/^\s*-\s+\*\*(.+?)\*\*:\s*(.*)$/s)
-    if (!match) return []
+    if (!match) continue
     const source = match[1].trim()
     fields.push(normalizeField(source, match[2], resolveSourceValue(source)))
   }
@@ -383,6 +395,12 @@ const parseStructuredFields = (content: string): DeliveryField[] => {
     field.text || field.items.length || field.entries.length || field.records.length
   ))
 }
+
+const parseSectionSummary = (content: string): string => content
+  .split(/\r?\n/)
+  .map(line => line.trim())
+  .filter(line => line && !/^#{1,6}\s+\S/.test(line) && !/^-\s+\*\*(.+?)\*\*:\s*/.test(line))
+  .join('\n')
 
 const primaryArtifact = computed(() => props.finalArtifacts[0] || null)
 const structuredData = computed(() => asRecord(primaryArtifact.value?.structuredData))
@@ -415,6 +433,7 @@ const sections = computed<DeliverySection[]>(() => {
       return {
         title: asText(item.title) || '未命名章节',
         content: asText(item.content),
+        summary: parseSectionSummary(asText(item.content)),
         sourceFields: asTextList(item.sourceFields),
         fields: parseStructuredFields(asText(item.content))
       }
@@ -475,6 +494,22 @@ const statusLabel = (status: string) => ({
   retrying: '重试中',
   cancelled: '已取消'
 })[status] || status
+
+const STEP_NAME_LABELS: Record<string, string> = {
+  evidence_retrieval: '证据检索',
+  evidence_validation: '证据核验'
+}
+
+const normalizeStepNameKey = (value: string) => value.trim().toLowerCase().replace(/[\s-]+/g, '_')
+
+const displayStepName = (item: AcgDeliverable): string => {
+  const nameKey = normalizeStepNameKey(item.name || '')
+  const stepIdKey = normalizeStepNameKey(item.stepId || '')
+  return STEP_NAME_LABELS[nameKey]
+    || STEP_NAME_LABELS[stepIdKey]
+    || item.name
+    || item.stepId
+}
 
 const deliveryMarkdown = computed(() => {
   if (!hasStructuredDelivery.value) return reportContent.value
@@ -652,6 +687,7 @@ summary:focus-visible { outline: 2px solid var(--primary-color); outline-offset:
 .calculation-card h6,
 .decision-grid h6 { margin: 0; font-size: 13px; }
 .section-fallback { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.75; white-space: pre-wrap; }
+.section-summary { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.75; white-space: pre-wrap; }
 .structured-fields { display: grid; gap: 14px; margin-top: 12px; }
 .structured-field + .structured-field { padding-top: 14px; border-top: 1px solid var(--border-light); }
 .field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }

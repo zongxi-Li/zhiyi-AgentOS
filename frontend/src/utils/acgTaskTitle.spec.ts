@@ -36,7 +36,7 @@ describe('resolveAcgTaskTitle', () => {
       currentTitle: 'IC-200智能装配生产线立项实施方案',
       previousAutoTitle: '',
       taskGoal: '基于任务材料，为IC-200工业控制器设计智能装配生产线。',
-      defaultTitle: '基础软件项目实施方案'
+      defaultTitle: ''
     })).toEqual({
       title: 'IC-200智能装配生产线立项实施方案',
       autoTitle: ''
@@ -48,10 +48,22 @@ describe('resolveAcgTaskTitle', () => {
       currentTitle: '基于任务材料',
       previousAutoTitle: '基于任务材料',
       taskGoal: '大型综合医院智慧门诊流程与资源优化方案。',
-      defaultTitle: '基础软件项目实施方案'
+      defaultTitle: ''
     })).toEqual({
       title: '大型综合医院智慧门诊流程与资源优化方案。',
       autoTitle: '大型综合医院智慧门诊流程与资源优化方案。'
+    })
+  })
+
+  it('keeps the task name empty when the task goal is empty', () => {
+    expect(resolveAcgTaskTitleAutoUpdate({
+      currentTitle: '',
+      previousAutoTitle: '',
+      taskGoal: '   ',
+      defaultTitle: ''
+    })).toEqual({
+      title: '',
+      autoTitle: ''
     })
   })
 })
