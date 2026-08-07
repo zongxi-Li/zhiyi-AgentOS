@@ -66,6 +66,22 @@ describe('WorkflowProgressBar', () => {
     wrapper.unmount()
   })
 
+  it('labels degraded delivery separately from recovery', () => {
+    vi.useFakeTimers()
+    const wrapper = mount(WorkflowProgressBar, {
+      props: {
+        progress: makeProgress({
+          phase: 'completed', status: 'completed', percent: 100,
+          recoveryCount: 0, degradationCount: 1
+        })
+      }
+    })
+
+    expect(wrapper.text()).toContain('含 1 次降级交付')
+    expect(wrapper.text()).not.toContain('恢复 1 次')
+    wrapper.unmount()
+  })
+
   it('shows completed 100 and keeps the last state when synchronization fails', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-22T02:07:00Z'))

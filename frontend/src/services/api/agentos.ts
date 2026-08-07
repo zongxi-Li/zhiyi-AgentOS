@@ -57,6 +57,7 @@ export interface WorkflowProgress {
   currentStepId: string | null
   activeStepIds: string[]
   recoveryCount: number
+  degradationCount?: number
   graphVersion?: number | null
   dynamicStepCount?: number
   bindingSwitchCount?: number
@@ -175,6 +176,7 @@ export interface WorkflowRun {
   trace: TraceEvent[]
   error?: string
   recoveryCount?: number
+  degradationCount?: number
   enabledPluginIds?: string[]
   resolvedEnabledPluginIds?: string[]
   pluginSnapshot?: PluginSnapshot[]
@@ -538,6 +540,7 @@ export interface AcgLowEntropyMetrics {
   tokensDelivered: number
   tokensSaved: number
   recoveryCount: number
+  degradationCount?: number
   interactionCount: number
   contractViolationCount: number
   integrityStatus: string

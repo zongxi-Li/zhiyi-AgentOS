@@ -75,7 +75,8 @@
                 <span v-else class="run-mini-progress indeterminate" aria-hidden="true"><span></span></span>
                 <span class="run-item__metrics">
                   <span>{{ run.totalSteps > 0 ? `${run.completedSteps}/${run.totalSteps} 步` : '规模计算中' }}</span>
-                  <span>恢复 {{ run.recoveryCount }}</span>
+                  <span v-if="run.recoveryCount">恢复 {{ run.recoveryCount }}</span>
+                  <span v-if="run.degradationCount">含 {{ run.degradationCount }} 次降级交付</span>
                   <span v-if="run.source === 'chat'">来自 Chat</span>
                   <span v-else-if="run.source === 'acg'">来自 ACG</span>
                   <span v-else-if="run.source === 'legacy_agent_chat'">来自主对话</span>
@@ -166,6 +167,7 @@
             <div><dt>当前步骤</dt><dd>{{ progressTracker.progress.value.currentStepId || '准备中' }}</dd></div>
             <div><dt>活动节点</dt><dd>{{ progressTracker.progress.value.activeStepIds.length }}</dd></div>
             <div><dt>恢复次数</dt><dd>{{ progressTracker.progress.value.recoveryCount }}</dd></div>
+            <div><dt>降级交付</dt><dd>{{ progressTracker.progress.value.degradationCount ?? 0 }}</dd></div>
             <div><dt>开始时间</dt><dd>{{ formatTime(progressTracker.progress.value.startedAt) }}</dd></div>
             <div><dt>更新时间</dt><dd>{{ formatTime(progressTracker.progress.value.updatedAt) }}</dd></div>
           </dl>
@@ -226,6 +228,7 @@
             <span>节点 {{ selectedAcgView.stepStates.length }}</span>
             <span>交付物 {{ selectedAcgView.deliverables.length }}</span>
             <span>恢复 {{ selectedAcgView.lowEntropyMetrics.recoveryCount }}</span>
+            <span v-if="selectedAcgView.lowEntropyMetrics.degradationCount">含 {{ selectedAcgView.lowEntropyMetrics.degradationCount }} 次降级交付</span>
           </div>
           <p v-else>终态、人工审核或展开详情时才读取完整 ACG，不参与列表轮询。</p>
         </section>
