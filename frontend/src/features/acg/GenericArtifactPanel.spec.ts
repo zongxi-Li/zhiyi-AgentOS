@@ -98,4 +98,69 @@ describe('GenericArtifactPanel', () => {
     expect(wrapper.text()).toContain('正在整理最终成果')
     expect(wrapper.text()).not.toContain('最终交付物 0 项')
   })
+
+  it('turns degraded JSON fields into readable requirement and acceptance lists', () => {
+    const structuredArtifact = {
+      ...artifact,
+      structuredData: {
+        ...artifact.structuredData,
+        sections: [
+          {
+            title: '任务理解与需求',
+            content: [
+              '- **native_general_agent.constraints**: [{"constraint":"首期覆盖30家重点门店","mandatory":true,"source":"试点目标"}]',
+              '- **native_general_agent.task_summary**: 为连锁企业设计应急补货方案。'
+            ].join('\n'),
+            sourceFields: ['constraints', 'task_summary']
+          },
+          {
+            title: '任务理解与需求 2',
+            content: '- **native_general_agent_2.acceptance_criteria**: [{"criterion":"核心民生商品缺货率不超过8%","metric":"缺货率","requirement_id":"REQ-002","target":"≤8%"}]',
+            sourceFields: ['acceptance_criteria']
+          },
+          {
+            title: '任务理解与需求 3',
+            content: '- **native_general_agent_2.requirements**: [{"id":"REQ-001","priority":"高","requirement":"建立面向极端天气的应急补货机制","source":"试点目标"}]',
+            sourceFields: ['requirements']
+          },
+          {
+            title: '流程与资源',
+            content: '- **native_general_agent_3.process_steps**: [{"activities":["提取业务背景"],"id":"step1","name":"任务理解","owner":"项目经理"},{"activities":["形成需求清单"],"id":"step2","nam…',
+            sourceFields: ['process_steps']
+          }
+        ]
+      }
+    }
+    const wrapper = mount(GenericArtifactPanel, {
+      props: {
+        status: 'completed',
+        finalReport: null,
+        finalArtifacts: [structuredArtifact],
+        stepOutputs: [{
+          stepId: 'native_general_agent_3',
+          name: '流程拆解',
+          status: 'completed',
+          output: {
+            process_steps: [
+              { activities: ['提取业务背景'], id: 'step1', name: '任务理解', owner: '项目经理', quality_gate: '约束完整' },
+              { activities: ['形成需求清单'], id: 'step2', name: '需求分析', owner: '业务分析师', quality_gate: '覆盖所有目标' }
+            ]
+          }
+        }]
+      }
+    })
+
+    expect(wrapper.findAll('.structured-field')).toHaveLength(5)
+    expect(wrapper.findAll('.record-list')).toHaveLength(4)
+    expect(wrapper.text()).toContain('约束条件')
+    expect(wrapper.text()).toContain('验收标准')
+    expect(wrapper.text()).toContain('目标值≤8%')
+    expect(wrapper.text()).toContain('需求清单')
+    expect(wrapper.text()).toContain('优先级高')
+    expect(wrapper.text()).toContain('流程步骤')
+    expect(wrapper.text()).toContain('需求分析')
+    expect(wrapper.text()).toContain('质量门槛覆盖所有目标')
+    expect(wrapper.text()).not.toContain('[{"constraint"')
+    expect(wrapper.text()).not.toContain('"nam…')
+  })
 })
