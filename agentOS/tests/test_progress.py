@@ -54,6 +54,7 @@ def _run(
     active_step_ids: list[str] | None = None,
     current_step_id: str | None = None,
     recovery_count: int = 0,
+    degradation_count: int = 0,
     with_blueprint: bool = False,
 ) -> WorkflowRun:
     steps = [_step(f"step_{index + 1}", step_status) for index, step_status in enumerate(step_statuses)]
@@ -67,6 +68,7 @@ def _run(
         steps=steps,
         activeStepIds=active_step_ids or [],
         recoveryCount=recovery_count,
+        degradationCount=degradation_count,
         acgBlueprint={"nodes": [], "edges": []} if with_blueprint else None,
     )
 
@@ -202,6 +204,19 @@ def test_retrying_step_projects_recovery_without_increasing_percent():
     assert progress.retrying_steps == 1
     assert progress.percent == pytest.approx(25.0)
     assert progress.active_step_ids == ["step_2"]
+
+
+def test_degraded_delivery_is_projected_separately_from_recovery():
+    run = _run(
+        WorkflowStatus.COMPLETED,
+        [StepStatus.COMPLETED],
+        degradation_count=1,
+    )
+
+    progress = ProgressAssembler().assemble(run)
+
+    assert progress.recovery_count == 0
+    assert progress.degradation_count == 1
 
 
 def test_completed_run_is_always_one_hundred_percent():

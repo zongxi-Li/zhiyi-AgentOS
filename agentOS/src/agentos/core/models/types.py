@@ -104,6 +104,7 @@ class TraceEventType(str, Enum):
     STEP_FAILED = "step_failed"
     RUN_FAILED = "run_failed"
     RUN_RECOVERED = "run_recovered"
+    RUN_DEGRADED = "run_degraded"
     RUN_COMPLETED = "run_completed"
     RUN_CANCELLED = "run_cancelled"
     STOCHASTIC_PLANNING_FALLBACK = "stochastic_planning_fallback"
@@ -297,6 +298,7 @@ class WorkflowRun(CoreModel):
     trace: List[TraceEvent] = Field(default_factory=list)
     error: Optional[str | Dict[str, Any]] = None
     recovery_count: int = Field(default=0, alias="recoveryCount")
+    degradation_count: int = Field(default=0, alias="degradationCount")
     enabled_plugin_ids: List[str] = Field(default_factory=list, alias="enabledPluginIds")
     resolved_enabled_plugin_ids: List[str] = Field(
         default_factory=list, alias="resolvedEnabledPluginIds"

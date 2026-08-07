@@ -92,6 +92,61 @@ def test_acg_engine_runs_linear_workflow():
     asyncio.run(_run())
 
 
+def test_degraded_delivery_does_not_count_as_failure_recovery():
+    class _DegradedAgent(BaseAgent):
+        def __init__(self):
+            super().__init__(
+                AgentProfile(agentName="degraded", domain="test", capabilities=["degraded"])
+            )
+
+        async def run(self, context):
+            return AgentOutput(
+                output={
+                    "result": "auditable fallback",
+                    "_llm": {
+                        "success": False,
+                        "source": "deterministic_upstream_aggregation",
+                        "degraded": True,
+                        "error": "semantic coverage incomplete",
+                    },
+                }
+            )
+
+    async def _run():
+        agents = AgentRegistry()
+        agents.register(_DegradedAgent())
+        workflows = WorkflowRegistry()
+        workflows.register(
+            WorkflowDefinition(
+                workflowId="degraded",
+                name="degraded",
+                domain="test",
+                intent="degraded",
+                runtimeEngine="acg",
+                steps=[
+                    WorkflowStepDefinition(
+                        stepId="degraded",
+                        name="degraded",
+                        agentName="degraded",
+                    )
+                ],
+            )
+        )
+        runtime = WorkflowRuntime(agent_registry=agents, workflow_registry=workflows)
+        task = runtime.create_task(title="degraded", domain="test", intent="degraded")
+
+        run = await runtime.start(task.task_id, workflow_id="degraded")
+
+        assert run.status == WorkflowStatus.COMPLETED
+        assert run.recovery_count == 0
+        assert run.degradation_count == 1
+        assert "降级交付 1 次" in run.lifecycle_message
+        assert TraceEventType.RUN_DEGRADED in {event.event_type for event in run.trace}
+        assert TraceEventType.RUN_RECOVERED not in {event.event_type for event in run.trace}
+
+    asyncio.run(_run())
+
+
 def test_acg_material_input_starts_a_tamper_evident_provenance_chain():
     async def _run():
         runtime, _calls = _runtime(

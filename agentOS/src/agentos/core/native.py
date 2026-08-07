@@ -442,21 +442,42 @@ class NativeGeneralAgent(BaseAgent):
                         )
                         if isinstance(item, dict)
                     )
-                    output = self._build_degraded_artifact(
-                        context,
-                        reason=(
-                            f"initial={initial_error}; repair={repair_exc}"
-                        ),
+                    degradation_reason = (
+                        f"initial={initial_error}; repair={repair_exc}"
                     )
-                    self._validate_artifact_output(context, output, output_schema)
-                    return AgentOutput(
-                        output=output,
-                        summary=(
-                            "Native artifact used deterministic upstream aggregation "
-                            "after semantic regeneration failed."
-                        ),
-                        modelInvocations=invocations,
-                    )
+                    try:
+                        output = self._merge_missing_artifact_fields(
+                            context,
+                            output,
+                            reason=degradation_reason,
+                        )
+                        self._validate_artifact_output(context, output, output_schema)
+                        return AgentOutput(
+                            output=output,
+                            summary=(
+                                "Native artifact preserved model content and merged "
+                                "missing upstream coverage deterministically."
+                            ),
+                            modelInvocations=invocations,
+                        )
+                    except (
+                        ContextContractError,
+                        ArtifactSemanticError,
+                        StructuredGenerationError,
+                    ) as merge_exc:
+                        output = self._build_degraded_artifact(
+                            context,
+                            reason=f"{degradation_reason}; merge={merge_exc}",
+                        )
+                        self._validate_artifact_output(context, output, output_schema)
+                        return AgentOutput(
+                            output=output,
+                            summary=(
+                                "Native artifact used deterministic upstream aggregation "
+                                "after semantic regeneration and partial merge failed."
+                            ),
+                            modelInvocations=invocations,
+                        )
             return AgentOutput(
                 output=output,
                 summary="Native artifact completed after semantic validation.",
@@ -957,6 +978,198 @@ class NativeGeneralAgent(BaseAgent):
         return "analysis"
 
     @classmethod
+    def _merge_missing_artifact_fields(
+        cls,
+        context: AgentRunContext,
+        output: dict[str, Any],
+        *,
+        reason: str,
+    ) -> dict[str, Any]:
+        """Keep a usable model artifact and append only uncovered upstream fields."""
+
+        normalized = deepcopy(output)
+        deliverable = normalized.get("deliverable")
+        if not isinstance(deliverable, dict):
+            raise StructuredGenerationError(
+                "ARTIFACT_PARTIAL_MERGE_UNAVAILABLE",
+                "Model artifact has no deliverable object.",
+                direction="output",
+            )
+        sections = deliverable.get("sections")
+        if (
+            not cls._is_substantive(deliverable.get("title"))
+            or not cls._is_substantive(deliverable.get("executiveSummary"))
+            or not isinstance(sections, list)
+            or not sections
+            or any(
+                not isinstance(section, dict)
+                or not cls._is_substantive(section.get("title"))
+                or not cls._is_substantive(section.get("content"))
+                or not isinstance(section.get("sourceFields"), list)
+                or not section.get("sourceFields")
+                for section in sections
+            )
+        ):
+            raise StructuredGenerationError(
+                "ARTIFACT_PARTIAL_MERGE_UNAVAILABLE",
+                "Model artifact is not structurally usable.",
+                direction="output",
+            )
+
+        entries = cls._artifact_source_entries(context)
+        referenced_fields = {
+            str(field)
+            for section in sections
+            for field in section.get("sourceFields") or []
+        }
+        missing_entries = [
+            entry for entry in entries if entry[1] not in referenced_fields
+        ]
+        if not missing_entries:
+            raise StructuredGenerationError(
+                "ARTIFACT_PARTIAL_MERGE_UNAVAILABLE",
+                "Artifact failed semantic validation without uncovered upstream fields.",
+                direction="output",
+            )
+
+        chinese = any("\u4e00" <= char <= "\u9fff" for char in context.task.title)
+        labels = {
+            "task": "补充：任务理解与需求" if chinese else "Supplement: task and requirements",
+            "process": "补充：流程与资源" if chinese else "Supplement: process and resources",
+            "solution": "补充：架构与实施方案" if chinese else "Supplement: architecture and solution",
+            "evidence": "补充：资料与证据" if chinese else "Supplement: sources and evidence",
+            "comparison": "补充：比较与成本分析" if chinese else "Supplement: comparison and cost",
+            "risk": "补充：风险与控制措施" if chinese else "Supplement: risks and controls",
+            "verification": "补充：验证与待确认事项" if chinese else "Supplement: verification and open items",
+            "analysis": "补充：综合分析" if chinese else "Supplement: general analysis",
+        }
+        categorized: dict[str, list[tuple[str, str, Any]]] = {
+            key: [] for key in labels
+        }
+        for entry in missing_entries:
+            categorized[cls._artifact_category(entry[1])].append(entry)
+
+        added_sections: list[dict[str, Any]] = []
+        merge_gaps = [
+            (
+                "模型成果缺少部分上游字段，系统已保留原内容并补齐缺失字段。"
+                if chinese
+                else "The model artifact omitted upstream fields; the original content was preserved and missing coverage was appended."
+            ),
+            str(reason)[:700],
+        ]
+        for category, items in categorized.items():
+            chunk_lines: list[str] = []
+            chunk_fields: list[str] = []
+            chunk_index = 1
+
+            def flush() -> None:
+                nonlocal chunk_lines, chunk_fields, chunk_index
+                if not chunk_lines:
+                    return
+                suffix = f" {chunk_index}" if chunk_index > 1 else ""
+                added_sections.append(
+                    {
+                        "title": labels[category] + suffix,
+                        "content": "\n".join(chunk_lines),
+                        "sourceFields": list(dict.fromkeys(chunk_fields)),
+                    }
+                )
+                chunk_lines = []
+                chunk_fields = []
+                chunk_index += 1
+
+            for producer, field, value in items:
+                rendered = cls._semantic_text(value)
+                if len(rendered) > 1400:
+                    rendered = rendered[:1400] + "…"
+                    merge_gaps.append(
+                        f"字段内容因单节长度限制被截断：{producer}.{field}"
+                    )
+                line = f"- **{producer}.{field}**: {rendered}"
+                if chunk_lines and (
+                    len("\n".join(chunk_lines + [line])) > 1900
+                    or len(set(chunk_fields + [field])) > 12
+                ):
+                    flush()
+                chunk_lines.append(line)
+                chunk_fields.append(field)
+            flush()
+
+        merged_sections = list(sections) + added_sections
+        while len(merged_sections) > 12:
+            overflow = merged_sections.pop()
+            pending_fields = [str(item) for item in overflow["sourceFields"]]
+            overflow_lines = str(overflow["content"]).splitlines()
+            for target in reversed(merged_sections):
+                target_fields = [str(item) for item in target.get("sourceFields") or []]
+                field_capacity = 12 - len(set(target_fields))
+                available = 2000 - len(str(target.get("content") or ""))
+                if field_capacity <= 0 or available < 40:
+                    continue
+                selected_fields = pending_fields[:field_capacity]
+                selected_lines = [
+                    line
+                    for line in overflow_lines
+                    if any(f".{field}**:" in line for field in selected_fields)
+                ]
+                supplement = (
+                    f"\n\n### {overflow['title']}\n"
+                    + ("\n".join(selected_lines) or ", ".join(selected_fields))
+                )
+                appended = supplement[:available]
+                if len(appended) < len(supplement):
+                    appended = appended[:-1] + "…"
+                    merge_gaps.append(
+                        "补充章节折叠时内容被截断："
+                        f"{overflow['title']}"
+                    )
+                target["content"] = str(target.get("content") or "") + appended
+                target["sourceFields"] = list(
+                    dict.fromkeys(target_fields + selected_fields)
+                )
+                pending_fields = pending_fields[len(selected_fields):]
+                if not pending_fields:
+                    break
+            if pending_fields:
+                raise StructuredGenerationError(
+                    "ARTIFACT_PARTIAL_MERGE_UNAVAILABLE",
+                    "Missing-field supplements exceed the bounded section contract.",
+                    direction="output",
+                )
+        deliverable["sections"] = merged_sections
+
+        # Reuse the audited deterministic projection for structured calculations
+        # and assumptions, while retaining every usable model-generated item.
+        fallback_deliverable = cls._build_degraded_artifact(
+            context,
+            reason=reason,
+        )["deliverable"]
+        for field in ("calculations", "assumptions", "openQuestions"):
+            existing = list(deliverable.get(field) or [])
+            for item in fallback_deliverable.get(field) or []:
+                if item not in existing:
+                    existing.append(deepcopy(item))
+            deliverable[field] = existing[:12]
+
+        normalized["deliverable"] = deliverable
+        normalized = cls._finalize_artifact_candidate(
+            context,
+            normalized,
+            degraded=True,
+            extra_gaps=merge_gaps,
+        )
+        normalized["_llm"] = {
+            "success": False,
+            "source": "model_with_deterministic_coverage_merge",
+            "degraded": True,
+            "partialMerge": True,
+            "missingFields": list(dict.fromkeys(field for _, field, _ in missing_entries)),
+            "error": str(reason)[:700],
+        }
+        return normalized
+
+    @classmethod
     def _build_degraded_artifact(
         cls,
         context: AgentRunContext,
@@ -1046,19 +1259,92 @@ class NativeGeneralAgent(BaseAgent):
             )
 
         calculations: list[dict[str, Any]] = []
+        calculation_keys: set[str] = set()
         assumptions: list[Any] = []
         questions: list[Any] = []
+
+        def add_calculation(candidate: Any) -> None:
+            if not isinstance(candidate, dict) or not all(
+                key in candidate
+                for key in ("name", "formula", "inputs", "result", "assumptions")
+            ):
+                return
+            normalized = deepcopy(candidate)
+            key = json.dumps(
+                normalized,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            )
+            if key in calculation_keys:
+                return
+            calculation_keys.add(key)
+            calculations.append(normalized)
+
         for _producer, field, value in entries:
             if field == "calculations" and isinstance(value, list):
-                calculations.extend(
-                    deepcopy(item)
-                    for item in value
-                    if isinstance(item, dict)
-                    and all(
-                        key in item
-                        for key in ("name", "formula", "inputs", "result", "assumptions")
+                for item in value:
+                    add_calculation(item)
+            if field == "capacity_plan" and isinstance(value, dict):
+                capacity_assumptions = cls._dedupe_strings(
+                    value.get("assumptions") or []
+                )[:12]
+                assumptions.extend(capacity_assumptions)
+                for index, item in enumerate(value.get("calculations") or [], start=1):
+                    if isinstance(item, dict):
+                        add_calculation(item)
+                        continue
+                    formula = cls._semantic_text(item)
+                    if not formula:
+                        continue
+                    result = formula.rsplit("=", 1)[-1].strip() if "=" in formula else formula
+                    add_calculation(
+                        {
+                            "name": f"容量计算 {index}" if chinese else f"Capacity calculation {index}",
+                            "formula": formula,
+                            "inputs": [],
+                            "result": result,
+                            "assumptions": capacity_assumptions,
+                        }
                     )
-                )
+            if field == "cost_analysis" and isinstance(value, dict):
+                cost_assumptions = cls._dedupe_strings(
+                    value.get("assumptions") or []
+                )[:12]
+                assumptions.extend(cost_assumptions)
+                currency = cls._semantic_text(value.get("currency"))
+                items = [
+                    item
+                    for item in (value.get("items") or [])
+                    if isinstance(item, dict)
+                    and cls._is_substantive(item.get("item"))
+                    and isinstance(item.get("amount"), (int, float))
+                ]
+                total = value.get("total")
+                if items and isinstance(total, (int, float)):
+                    amounts = [item["amount"] for item in items]
+                    suffix = f" {currency}" if currency else ""
+                    add_calculation(
+                        {
+                            "name": "预算合计" if chinese else "Budget total",
+                            "formula": " + ".join(str(amount) for amount in amounts),
+                            "inputs": [
+                                (
+                                    f"{cls._semantic_text(item['item'])}: "
+                                    f"{item['amount']}{suffix}"
+                                    + (
+                                        f"（{cls._semantic_text(item.get('basis'))}）"
+                                        if cls._is_substantive(item.get("basis"))
+                                        else ""
+                                    )
+                                )
+                                for item in items
+                            ],
+                            "result": f"{total}{suffix}",
+                            "assumptions": cost_assumptions,
+                        }
+                    )
             if field == "assumptions":
                 assumptions.extend(value if isinstance(value, list) else [value])
             if field in {"openQuestions", "open_questions"}:

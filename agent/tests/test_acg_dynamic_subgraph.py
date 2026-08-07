@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from agentos.agents import AgentOutput, AgentProfile, AgentRegistry, BaseAgent
 from agentos.core.acg import ACGBlueprint, ACGEdge, StepNode
 from agentos.core.models.types import (
+    TraceEventType,
     WorkflowDefinition,
     WorkflowStatus,
     WorkflowStepDefinition,
@@ -225,6 +226,10 @@ def test_cross_domain_outcome_event_patch_executes_inserted_subgraph(
     detail = client.get(f"/ai/core/workflows/runs/{run.run_id}").json()
 
     assert run.status == WorkflowStatus.COMPLETED
+    assert run.recovery_count == 0
+    assert not [
+        item for item in run.trace if item.event_type == TraceEventType.RUN_RECOVERED
+    ]
     assert graph.graph_version == 2
     assert len(dynamic_nodes) == 2
     assert all(node.status.value == "completed" for node in dynamic_nodes)
@@ -325,6 +330,7 @@ def test_barrier_applies_only_one_structural_patch_and_next_round_drains_pending
     ]
 
     assert run.status == WorkflowStatus.COMPLETED
+    assert run.recovery_count == 0
     assert run.runtime_graph.graph_version == 3
     assert len(run.runtime_graph.applied_patches) == 2
     assert barrier_v2

@@ -657,8 +657,22 @@ class ACGExecutor:
                         attempt=attempt.attempt_number,
                         evidence_refs=list(outcome.provenance_events.get("evidenceRefs") or []),
                     )
-                if structural_event:
+                if structural_event and outcome.status == StepStatus.RETRYING:
                     candidate.recovery_count += 1
+                    self.runtime.trace_store.append(
+                        run=candidate,
+                        event_type=TraceEventType.RUN_RECOVERED,
+                        step_id=node.node_id,
+                        agent_name=attempt.agent_name,
+                        observation=f"Structural recovery scheduled for {node.node_id}",
+                        payload=self._correlation(
+                            graph,
+                            node,
+                            attempt,
+                            scheduled=outcome.scheduled_graph_version,
+                        )
+                        | {"strategy": "local_replan"},
+                    )
                 elif outcome.status == StepStatus.WAITING_REVIEW:
                     waiting_review = True
                 elif outcome.status == StepStatus.RETRYING:
@@ -1026,13 +1040,13 @@ class ACGExecutor:
             "error": str(llm.get("error") or "model output degraded")[:240],
         }
         degraded.append(detail)
-        run.recovery_count += 1
+        run.degradation_count += 1
         self.runtime.trace_store.append(
             run=run,
-            event_type=TraceEventType.RUN_RECOVERED,
+            event_type=TraceEventType.RUN_DEGRADED,
             step_id=node.node_id,
             agent_name=attempt.agent_name,
-            observation=f"Step used a degraded fallback: {node.spec.get('name') or node.node_id}",
+            observation=f"Step delivered a degraded result: {node.spec.get('name') or node.node_id}",
             payload=detail | self._correlation(run.runtime_graph, node, attempt, scheduled=attempt.graph_version),
         )
 

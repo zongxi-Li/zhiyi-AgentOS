@@ -488,8 +488,20 @@ def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(
         "task_summary": "Build a production line",
         "requirements": [{"id": "R1"}],
         "acceptance_criteria": [{"target": "55 seconds"}],
-        "capacity_plan": {"conclusion": "240000 units/year"},
-        "cost_analysis": {"total": 8000000},
+        "capacity_plan": {
+            "assumptions": ["Two shifts are available"],
+            "calculations": ["Available capacity = 10 * 2 = 20 units/day"],
+            "conclusion": "20 units/day",
+        },
+        "cost_analysis": {
+            "currency": "CNY",
+            "items": [
+                {"item": "Equipment", "amount": 5000000, "basis": "Supplier estimate"},
+                {"item": "Integration", "amount": 3000000, "basis": "Project estimate"},
+            ],
+            "total": 8000000,
+            "assumptions": ["Final quotations are pending"],
+        },
         "risks": [{"risk": "schedule"}],
         "verification": {"status": "partial"},
     }
@@ -519,23 +531,27 @@ def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(
     assert set(generation_schema["required"]) == {"deliverable", "verification"}
     assert "final_answer" not in generation_schema["properties"]
     assert "artifact" not in generation_schema["properties"]
-    assert result.output["final_answer"].startswith("# Factory delivery plan")
+    assert result.output["final_answer"].startswith("# generated:title")
+    assert result.output["deliverable"]["sections"][0] == {
+        "title": "generated:title",
+        "content": "generated:content",
+        "sourceFields": ["generated:sourceFields"],
+    }
     assert result.output["artifact"] == {
         "artifactId": "artifact_52676df0e94b2d89",
         "type": "report",
-        "title": "Factory delivery plan",
+        "title": "generated:title",
         "mediaType": "text/markdown",
         "content": result.output["final_answer"],
         "structuredData": result.output["deliverable"],
     }
     assert result.output["verification"]["status"] == "partial"
     assert result.output["verification"]["unresolvedGaps"]
-    assert result.output["_llm"] == {
-        "success": False,
-        "source": "deterministic_upstream_aggregation",
-        "degraded": True,
-        "error": result.output["_llm"]["error"],
-    }
+    assert result.output["_llm"]["success"] is False
+    assert result.output["_llm"]["source"] == "model_with_deterministic_coverage_merge"
+    assert result.output["_llm"]["degraded"] is True
+    assert result.output["_llm"]["partialMerge"] is True
+    assert set(result.output["_llm"]["missingFields"]) == set(upstream)
     assert len(structured_model_runtime.calls) == 2
     referenced = {
         field
@@ -543,6 +559,27 @@ def test_artifact_generation_consumes_all_upstream_and_normalizes_envelope(
         for field in section["sourceFields"]
     }
     assert set(upstream).issubset(referenced)
+    calculations = result.output["deliverable"]["calculations"]
+    assert {
+        "name": "Capacity calculation 1",
+        "formula": "Available capacity = 10 * 2 = 20 units/day",
+        "inputs": [],
+        "result": "20 units/day",
+        "assumptions": ["Two shifts are available"],
+    } in calculations
+    assert {
+        "name": "Budget total",
+        "formula": "5000000 + 3000000",
+        "inputs": [
+            "Equipment: 5000000 CNY（Supplier estimate）",
+            "Integration: 3000000 CNY（Project estimate）",
+        ],
+        "result": "8000000 CNY",
+        "assumptions": ["Final quotations are pending"],
+    } in calculations
+    assert {"Two shifts are available", "Final quotations are pending"}.issubset(
+        result.output["deliverable"]["assumptions"]
+    )
 
 
 def test_artifact_markdown_is_deterministically_rendered_from_semantic_output():
@@ -622,6 +659,60 @@ def test_title_only_artifact_uses_truthful_deterministic_fallback():
     assert len(result.output["final_answer"].splitlines()) > 1
     assert result.output["artifact"]["content"] == result.output["final_answer"]
     assert result.output["_llm"]["source"] == "deterministic_upstream_aggregation"
+
+
+def test_partial_artifact_merge_stays_within_section_contract_limit():
+    original_sections = [
+        {
+            "title": f"Analysis section {index}",
+            "content": f"Original grounded conclusion {index}",
+            "sourceFields": [f"covered_field_{index}"],
+        }
+        for index in range(12)
+    ]
+    runtime = _FixedRuntime(
+        {
+            "deliverable": {
+                "title": "Knowledge service delivery",
+                "executiveSummary": "The analysis produced twelve useful sections.",
+                "sections": original_sections,
+                "calculations": [],
+                "assumptions": [],
+                "openQuestions": [],
+                "sourceRefs": [],
+            },
+            "verification": {
+                "status": "partial",
+                "checks": [
+                    {
+                        "criterion": "Coverage",
+                        "result": "Requires supplementation",
+                        "evidence": "Upstream field inventory",
+                    }
+                ],
+                "unresolvedGaps": [],
+            },
+        }
+    )
+    upstream = {f"field_{index}": f"Grounded value {index}" for index in range(14)}
+
+    result = asyncio.run(
+        NativeGeneralAgent().run(
+            _artifact_context(runtime, {"upstream": upstream})
+        )
+    )
+
+    sections = result.output["deliverable"]["sections"]
+    referenced = {
+        field for section in sections for field in section["sourceFields"]
+    }
+    assert result.output["_llm"]["source"] == "model_with_deterministic_coverage_merge", (
+        result.output["_llm"]
+    )
+    assert len(sections) == 12
+    assert sections[0] == original_sections[0]
+    assert set(upstream).issubset(referenced)
+    assert result.output["_llm"]["partialMerge"] is True
 
 
 def test_artifact_verification_cannot_upgrade_failed_upstream():

@@ -1372,8 +1372,13 @@ class WorkflowRuntime:
         self._transition_run(run, WorkflowStatus.COMPLETED)
         if run.status != WorkflowStatus.COMPLETED:
             return
+        delivery_notes: list[str] = []
         if run.recovery_count:
-            run.lifecycle_message = f"ACG 工作流执行完成（含 {run.recovery_count} 次降级恢复）"
+            delivery_notes.append(f"恢复 {run.recovery_count} 次")
+        if run.degradation_count:
+            delivery_notes.append(f"降级交付 {run.degradation_count} 次")
+        if delivery_notes:
+            run.lifecycle_message = f"ACG 工作流执行完成（含{'，'.join(delivery_notes)}）"
         run.current_step_id = None
         run.output = self.orchestrator.compose_final_output(run)
         self.task_manager.mark_completed(task)

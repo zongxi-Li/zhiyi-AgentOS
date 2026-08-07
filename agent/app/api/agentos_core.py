@@ -2340,6 +2340,7 @@ def create_router(
                 "tokensDelivered": tokens_delivered,
                 "tokensSaved": max(0, tokens_available - tokens_delivered),
                 "recoveryCount": run.recovery_count,
+                "degradationCount": run.degradation_count,
                 "interactionCount": len(interactions),
                 "contractViolationCount": len(contract_violations),
                 "integrityStatus": provenance.get("integrityStatus", "legacy_or_invalid"),

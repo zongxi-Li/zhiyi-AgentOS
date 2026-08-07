@@ -41,6 +41,7 @@ class WorkflowProgress(CoreModel):
     current_step_id: Optional[str] = Field(default=None, alias="currentStepId")
     active_step_ids: list[str] = Field(default_factory=list, alias="activeStepIds")
     recovery_count: int = Field(default=0, alias="recoveryCount")
+    degradation_count: int = Field(default=0, alias="degradationCount")
     graph_version: Optional[int] = Field(default=None, alias="graphVersion")
     dynamic_step_count: int = Field(default=0, alias="dynamicStepCount")
     binding_switch_count: int = Field(default=0, alias="bindingSwitchCount")
@@ -158,6 +159,7 @@ class ProgressAssembler:
             currentStepId=current_step_id,
             activeStepIds=active_step_ids,
             recoveryCount=run.recovery_count,
+            degradationCount=run.degradation_count,
             graphVersion=graph_version,
             dynamicStepCount=dynamic_step_count,
             bindingSwitchCount=binding_switch_count,
