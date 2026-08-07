@@ -28,6 +28,7 @@ public record WorkflowProgressResponse(
         String currentStepId,
         List<String> activeStepIds,
         Integer recoveryCount,
+        Integer degradationCount,
         Integer graphVersion,
         Integer dynamicStepCount,
         Integer bindingSwitchCount,
@@ -67,6 +68,7 @@ public record WorkflowProgressResponse(
         Objects.requireNonNull(cancelledSteps, "cancelledSteps is required");
         Objects.requireNonNull(activeStepIds, "activeStepIds is required");
         Objects.requireNonNull(recoveryCount, "recoveryCount is required");
+        Objects.requireNonNull(degradationCount, "degradationCount is required");
         Objects.requireNonNull(updatedAt, "updatedAt is required");
         Objects.requireNonNull(progress, "progress is required");
         Objects.requireNonNull(percentage, "percentage is required");
