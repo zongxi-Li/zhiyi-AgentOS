@@ -726,6 +726,9 @@ const openAcgOperations = async () => {
 
 const startNewChat = async () => {
   chatStore.clearMessages()
+  if (workspaceMode.value === 'agent') {
+    window.dispatchEvent(new Event('agent-new-task'))
+  }
   await router.push({ path: '/chat', query: { workspace: workspaceMode.value } })
 }
 

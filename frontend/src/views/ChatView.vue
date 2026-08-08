@@ -146,46 +146,59 @@
           </div>
 
           <section v-else-if="showWorkflowHistoryDetail" class="workflow-history-detail" aria-label="Agent 历史任务详情">
-            <div v-if="!activeWorkflowRun" class="workflow-history-loading">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>正在恢复任务详情…</span>
-            </div>
-            <div v-else-if="showLawyerHistoryFeedback" class="lawyer-history-conversation">
-              <MessageBubble
-                :message="{
-                  id: `history-user-${activeWorkflowRun.runId}`,
-                  role: 'user',
-                  content: workflowHistoryInput,
-                  createdAt: workflowHistoryMessageTime
-                }"
-              />
-              <ContractReviewReportMessage
-                :deliverables="workflowHistoryStepOutputs"
-                :report="lawyerHistoryReply"
-                :risks="activeContractReviewArtifacts.risks"
-              />
+            <div v-if="!activeWorkflowRun" class="workflow-history-loading" :class="{ 'is-error': workflowResultState === 'error' || workflowResultState === 'partial' }">
+              <template v-if="workflowResultState === 'loading' || workflowResultState === 'idle'">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>正在恢复任务详情…</span>
+              </template>
+              <template v-else>
+                <strong>任务详情暂时未能加载</strong>
+                <span>{{ workflowResultError || '请重新加载任务详情。' }}</span>
+                <button type="button" @click="retryWorkflowHistoryDetail">重新加载</button>
+              </template>
             </div>
             <template v-else>
-              <article class="workflow-history-request">
-                <header>
-                  <div>
-                    <span class="workflow-history-eyebrow">历史任务输入</span>
-                    <h3>{{ workflowHistoryTitle }}</h3>
-                  </div>
-                  <div class="workflow-history-identity">
-                    <span>{{ activeWorkflowRun.workflowId }}</span>
-                    <code>{{ activeWorkflowRun.runId }}</code>
-                  </div>
-                </header>
-                <pre>{{ workflowHistoryInput }}</pre>
-              </article>
+              <div v-if="workflowResultState === 'partial'" class="workflow-history-partial" role="status">
+                <span>{{ workflowResultError }}</span>
+                <button type="button" @click="retryWorkflowHistoryDetail">补充加载</button>
+              </div>
+              <div v-if="showLawyerHistoryFeedback" class="lawyer-history-conversation">
+                <MessageBubble
+                  :message="{
+                    id: `history-user-${activeWorkflowRun.runId}`,
+                    role: 'user',
+                    content: workflowHistoryInput,
+                    createdAt: workflowHistoryMessageTime
+                  }"
+                />
+                <ContractReviewReportMessage
+                  :deliverables="workflowHistoryStepOutputs"
+                  :report="lawyerHistoryReply"
+                  :risks="activeContractReviewArtifacts.risks"
+                />
+              </div>
+              <template v-else>
+                <article class="workflow-history-request">
+                  <header>
+                    <div>
+                      <span class="workflow-history-eyebrow">历史任务输入</span>
+                      <h3>{{ workflowHistoryTitle }}</h3>
+                    </div>
+                    <div class="workflow-history-identity">
+                      <span>{{ activeWorkflowRun.workflowId }}</span>
+                      <code>{{ activeWorkflowRun.runId }}</code>
+                    </div>
+                  </header>
+                  <pre>{{ workflowHistoryInput }}</pre>
+                </article>
 
-              <GenericArtifactPanel
-                :step-outputs="workflowHistoryStepOutputs"
-                :final-artifacts="workflowHistoryFinalArtifacts"
-                :final-report="workflowHistoryFinalReport"
-                :status="activeWorkflowStatus"
-              />
+                <GenericArtifactPanel
+                  :step-outputs="workflowHistoryStepOutputs"
+                  :final-artifacts="workflowHistoryFinalArtifacts"
+                  :final-report="workflowHistoryFinalReport"
+                  :status="activeWorkflowStatus"
+                />
+              </template>
             </template>
           </section>
 
@@ -1056,6 +1069,10 @@ const activeWorkflowRun = ref<WorkflowRun | null>(null)
 const activeAcgView = ref<AcgView | null>(null)
 const isSubmittingWorkflow = ref(false)
 const isLoadingWorkflowResult = ref(false)
+type WorkflowResultState = 'idle' | 'loading' | 'ready' | 'partial' | 'error'
+type WorkflowResultCacheEntry = { run?: WorkflowRun; view?: AcgView }
+const workflowResultState = ref<WorkflowResultState>('idle')
+const workflowResultError = ref<string | null>(null)
 const workflowStartError = ref<string | null>(null)
 const currentConversationId = computed(() => {
   const routeContextId = typeof route.query.contextId === 'string' ? route.query.contextId.trim() : ''
@@ -1070,7 +1087,18 @@ const workflowProgressState = useWorkflowProgress({
 })
 const hasActiveWorkflow = computed(() => Boolean(activeWorkflowRunId.value))
 const showWorkflowHistoryDetail = computed(() => (
-  chatStore.messages.length === 0 && Boolean(activeWorkflowRunId.value)
+  Boolean(activeWorkflowRunId.value) && (
+    chatStore.messages.length === 0
+    || (
+      isAgentMode.value
+      && isLawyerMode.value
+      && (
+        workflowProgressState.progress.value?.phase === 'completed'
+        || workflowProgressState.progress.value?.status === 'completed'
+      )
+      && !['idle', 'loading'].includes(workflowResultState.value)
+    )
+  )
 ))
 const showHeroMode = computed(() => {
   return chatStore.messages.length === 0
@@ -1103,9 +1131,12 @@ let contextPanelResizeStartY = 0
 let contextPanelResizeStartHeight = CONTEXT_PANEL_DEFAULT_HEIGHT
 let workflowResultController: AbortController | null = null
 let workflowResultGeneration = 0
+let workflowResultInFlight: { runId: string; promise: Promise<boolean> } | null = null
+let workflowResultRetryTimer: ReturnType<typeof window.setTimeout> | null = null
+let workflowResultRetryCount = 0
 let conversationGeneration = 0
 const terminalResultLoaded = new Set<string>()
-const workflowResultCache = new Map<string, { run: WorkflowRun; view: AcgView }>()
+const workflowResultCache = new Map<string, WorkflowResultCacheEntry>()
 let composerResizeObserver: ResizeObserver | undefined
 const agentPanelContentRef = ref<HTMLElement | null>(null)
 
@@ -1530,39 +1561,102 @@ const invalidateWorkflowResultRequest = () => {
   workflowResultGeneration += 1
   workflowResultController?.abort()
   workflowResultController = null
+  workflowResultInFlight = null
+  if (workflowResultRetryTimer !== null) window.clearTimeout(workflowResultRetryTimer)
+  workflowResultRetryTimer = null
+  workflowResultRetryCount = 0
   isLoadingWorkflowResult.value = false
+  workflowResultState.value = 'idle'
+  workflowResultError.value = null
 }
 
-const loadActiveAcgView = async (runId = activeWorkflowRunId.value, force = false) => {
-  if (!runId || runId !== activeWorkflowRunId.value) return false
-  if (isLoadingWorkflowResult.value && !force) return false
+const scheduleWorkflowResultRetry = (runId: string) => {
+  if (workflowResultRetryCount >= 2 || workflowResultRetryTimer !== null) return
+  workflowResultRetryCount += 1
+  workflowResultRetryTimer = window.setTimeout(() => {
+    workflowResultRetryTimer = null
+    if (runId === activeWorkflowRunId.value) void loadActiveAcgView(runId)
+  }, workflowResultRetryCount * 1500)
+}
+
+const loadActiveAcgView = (runId = activeWorkflowRunId.value, force = false): Promise<boolean> => {
+  if (!runId || runId !== activeWorkflowRunId.value) return Promise.resolve(false)
+  if (workflowResultInFlight?.runId === runId) {
+    const inFlight = workflowResultInFlight.promise
+    if (!force) return inFlight
+    return inFlight.then(() => (
+      runId === activeWorkflowRunId.value
+        ? loadActiveAcgView(runId, true)
+        : false
+    ))
+  }
   const requestGeneration = ++workflowResultGeneration
   workflowResultController?.abort()
   workflowResultController = new AbortController()
   const signal = workflowResultController.signal
   isLoadingWorkflowResult.value = true
-  try {
-    const [run, view] = await Promise.all([
+  if (!activeWorkflowRun.value && !activeAcgView.value) workflowResultState.value = 'loading'
+  workflowResultError.value = null
+
+  const pending = (async () => {
+    const [runResult, viewResult] = await Promise.allSettled([
       agentosApi.getWorkflowRun(runId, { signal }),
       agentosApi.getAcgView(runId, { signal })
     ])
     if (requestGeneration !== workflowResultGeneration || runId !== activeWorkflowRunId.value) return false
-    activeWorkflowRun.value = run
-    activeAcgView.value = view
-    workflowResultCache.set(runId, { run, view })
-    syncWorkflowMessageStatus(run.runId, run.status)
-    return true
-  } catch (error: unknown) {
-    if (!axios.isCancel(error) && force && requestGeneration === workflowResultGeneration) {
-      ElMessage.warning('ACG 最终结果暂时未能加载')
+
+    if (runResult.status === 'fulfilled') {
+      activeWorkflowRun.value = runResult.value
+      syncWorkflowMessageStatus(runResult.value.runId, runResult.value.status)
+    }
+    if (viewResult.status === 'fulfilled') activeAcgView.value = viewResult.value
+
+    const cached = workflowResultCache.get(runId) || {}
+    workflowResultCache.set(runId, {
+      run: activeWorkflowRun.value || cached.run,
+      view: activeAcgView.value || cached.view
+    })
+
+    const hasRun = Boolean(activeWorkflowRun.value)
+    const hasView = Boolean(activeAcgView.value)
+    if (hasRun && hasView) {
+      workflowResultRetryCount = 0
+      workflowResultState.value = 'ready'
+      workflowResultError.value = null
+      return true
+    }
+
+    const rejected = [runResult, viewResult].filter(result => result.status === 'rejected')
+    const wasCancelled = rejected.length > 0
+      && rejected.every(result => result.status === 'rejected' && axios.isCancel(result.reason))
+    workflowResultState.value = hasRun || hasView ? 'partial' : 'error'
+    workflowResultError.value = hasRun
+      ? '运行详情已恢复，动态拓扑暂时未能加载。'
+      : hasView
+        ? '动态拓扑已恢复，任务报告暂时未能加载。'
+        : '任务报告和动态拓扑均暂时未能加载。'
+    if (!wasCancelled) {
+      scheduleWorkflowResultRetry(runId)
+      if (force) ElMessage.warning('ACG 最终结果暂时未能完整加载')
     }
     return false
-  } finally {
+  })().finally(() => {
     if (requestGeneration === workflowResultGeneration) {
       workflowResultController = null
+      workflowResultInFlight = null
       isLoadingWorkflowResult.value = false
     }
-  }
+  })
+  workflowResultInFlight = { runId, promise: pending }
+  return pending
+}
+
+const retryWorkflowHistoryDetail = () => {
+  if (!activeWorkflowRunId.value) return
+  if (workflowResultRetryTimer !== null) window.clearTimeout(workflowResultRetryTimer)
+  workflowResultRetryTimer = null
+  workflowResultRetryCount = 0
+  void loadActiveAcgView(activeWorkflowRunId.value, true)
 }
 
 function handleWorkflowProgressChanged(current: WorkflowProgress, previous: WorkflowProgress | null) {
@@ -1800,18 +1894,22 @@ const activeLawyerWorkflowRiskLevel = computed(() => {
 const latestLawyerMeta = computed(() => {
   const lastAssistant = latestLawyerMessage.value
   const fallbackSteps = activeLawyerWorkflowSteps.value
+  const hasCurrentRunSteps = fallbackSteps.length > 0
   return {
-    skillsUsed: lastAssistant?.skillsUsed?.length
-      ? lastAssistant.skillsUsed
-      : fallbackSteps.map(step => step.stepId),
-    trace: lastAssistant?.trace?.length
-      ? lastAssistant.trace
-      : fallbackSteps.map((step, index) => ({
+    // The active Run is the source of truth while it is available. A chat
+    // message can be written before late runtime nodes, such as report generation,
+    // have completed.
+    skillsUsed: hasCurrentRunSteps
+      ? fallbackSteps.map(step => step.stepId)
+      : lastAssistant?.skillsUsed || [],
+    trace: hasCurrentRunSteps
+      ? fallbackSteps.map((step, index) => ({
         step: index + 1,
         thought: step.agentName || step.stepId,
         action: step.stepId,
         observation: step.status
-      })),
+      }))
+      : lastAssistant?.trace || [],
     federated: lastAssistant?.federated || {},
     riskLevel: lastAssistant?.riskLevel || activeLawyerWorkflowRiskLevel.value
   }
@@ -2208,6 +2306,10 @@ const resetWorkspaceForRoleSwitch = async () => {
     path: '/chat',
     query: { ...remainingQuery, workspace: workspaceMode.value }
   })
+}
+
+const handleNewAgentTask = () => {
+  void resetWorkspaceForRoleSwitch()
 }
 
 const prepareRoleSwitch = async (targetLabel: string): Promise<boolean> => {
@@ -2821,12 +2923,13 @@ const restoreWorkflowForConversation = async () => {
   activeWorkflowBinding.value = binding?.runId === runId ? binding : null
   const cachedResult = workflowResultCache.get(runId)
   if (cachedResult) {
-    activeWorkflowRun.value = cachedResult.run
-    activeAcgView.value = cachedResult.view
+    activeWorkflowRun.value = cachedResult.run || null
+    activeAcgView.value = cachedResult.view || null
+    workflowResultState.value = cachedResult.run && cachedResult.view ? 'ready' : 'partial'
   }
   await workflowProgressState.start(runId, { fresh: false })
   if (restoreGeneration !== conversationGeneration || runId !== activeWorkflowRunId.value) return
-  if (!cachedResult && !activeWorkflowRun.value && !isLoadingWorkflowResult.value) {
+  if ((!activeWorkflowRun.value || !activeAcgView.value) && !isLoadingWorkflowResult.value) {
     await loadActiveAcgView(runId)
   }
   if (!routeRunId && binding) {
@@ -2875,6 +2978,7 @@ watch(
 
 onMounted(async () => {
   window.addEventListener('workspace-mode-change', handleWorkspaceModeChange)
+  window.addEventListener('agent-new-task', handleNewAgentTask)
   window.addEventListener('resize', handleWorkflowPanelViewportResize)
   if (showHeroMode.value) {
     setContextPanelOpen(false)
@@ -2909,6 +3013,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('workspace-mode-change', handleWorkspaceModeChange)
+  window.removeEventListener('agent-new-task', handleNewAgentTask)
   window.removeEventListener('resize', handleWorkflowPanelViewportResize)
   composerResizeObserver?.disconnect()
   stopAgentPanelResize()
@@ -4164,6 +4269,30 @@ onUnmounted(() => {
   justify-content: center;
   gap: 10px;
   color: var(--text-secondary);
+}
+.workflow-history-loading.is-error { flex-direction: column; }
+.workflow-history-loading strong { color: var(--text-primary); font-size: 14px; }
+.workflow-history-loading button,
+.workflow-history-partial button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--primary-line);
+  border-radius: 6px;
+  background: var(--primary-fade);
+  color: var(--primary-color);
+  cursor: pointer;
+}
+.workflow-history-partial {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border-light));
+  border-radius: 7px;
+  background: var(--warning-fade);
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .lawyer-history-conversation {
