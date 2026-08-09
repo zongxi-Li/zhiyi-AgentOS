@@ -8,14 +8,21 @@ ACG 构建器动态生成认知协作网络。
 from __future__ import annotations
 
 from agentos.core.planning.acg_builder import ACGBuilder
+from agentos.core.planning.budget import PlanningBudgetPolicy
 from agentos.core.planning.capabilities import CapabilityCatalog, PlanningCapabilityDescriptor
+from agentos.core.planning.context import (
+    PLANNING_MATERIAL_MAX_CHARS,
+    PlanningMaterialContext,
+    PlanningRequestContext,
+    build_material_context,
+)
 from agentos.core.planning.cognitive_router import (
     CapabilityBinding,
     CognitiveRouter,
     CollaborationNetwork,
 )
 from agentos.core.planning.engine import ACGPlanningError, PlanningEngine, PlanResult
-from agentos.core.planning.intent_parser import IntentLLM, IntentParser
+from agentos.core.planning.intent_parser import IntentLLM, IntentParseOutcome, IntentParser
 from agentos.core.planning.profile import CapabilityCandidate, TaskSemanticProfile
 from agentos.core.planning.template_matcher import TemplateMatch, TemplateMatcher
 from agentos.core.planning.variants import (
@@ -33,6 +40,12 @@ __all__ = [
     "PlanResult",
     "IntentParser",
     "IntentLLM",
+    "IntentParseOutcome",
+    "PlanningRequestContext",
+    "PlanningMaterialContext",
+    "PlanningBudgetPolicy",
+    "PLANNING_MATERIAL_MAX_CHARS",
+    "build_material_context",
     "TaskSemanticProfile",
     "CapabilityCandidate",
     "TemplateMatcher",

@@ -20,10 +20,12 @@ from typing import Any, Dict, Optional
 from agentos.agents import AgentRegistry
 from agentos.core.acg import ACGBlueprint, promote_workflow_to_acg
 from agentos.core.planning.acg_builder import ACGBuilder
+from agentos.core.planning.budget import PlanningBudgetPolicy
 from agentos.core.planning.capabilities import CapabilityCatalog
+from agentos.core.planning.context import PlanningRequestContext
 from agentos.core.planning.cognitive_router import CognitiveRouter
 from agentos.core.planning.default_catalog import build_default_capability_catalog
-from agentos.core.planning.intent_parser import IntentLLM, IntentParser
+from agentos.core.planning.intent_parser import INTENT_PROMPT_VERSION, IntentLLM, IntentParser
 from agentos.core.planning.profile import TaskSemanticProfile
 from agentos.core.planning.template_matcher import TemplateMatcher
 from agentos.core.planning.variants import (
@@ -37,6 +39,10 @@ from agentos.core.workflow.registry import WorkflowRegistry
 
 class ACGPlanningError(ValueError):
     """The planner cannot produce an executable ACG with current capabilities/budgets."""
+
+    def __init__(self, message: str, *, code: str = "ACG_PLANNING_FAILED") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass
@@ -57,7 +63,33 @@ class PlanResult:
     selected_bindings: list[Dict[str, str]] = field(default_factory=list)
     selection_reasons: list[str] = field(default_factory=list)
     stochastic_fallback: bool = False
+    requested_planning_mode: str = "template_preferred"
+    intent_parse_source: str = "heuristic"
+    intent_fallback_reason: Optional[str] = None
+    rejected_capabilities: list[str] = field(default_factory=list)
+    material_context: Dict[str, Any] = field(default_factory=dict)
+    estimated_entropy: int = 0
+    entropy_budget: int = 0
+    intent_llm_metadata: Dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+
+    def to_diagnostics(self) -> Dict[str, Any]:
+        return {
+            "requestedPlanningMode": self.requested_planning_mode,
+            "effectiveStrategy": self.strategy,
+            "intentParseSource": self.intent_parse_source,
+            "intentFallbackReason": self.intent_fallback_reason,
+            "templateId": self.template_id,
+            "templateScore": self.template_score,
+            "materialContext": dict(self.material_context),
+            "rejectedCapabilities": list(self.rejected_capabilities),
+            "entropyBudget": self.entropy_budget,
+            "estimatedEntropy": self.estimated_entropy,
+            "intentPromptVersion": INTENT_PROMPT_VERSION,
+            "intentProvider": self.intent_llm_metadata.get("provider"),
+            "intentModel": self.intent_llm_metadata.get("model"),
+            "intentLatencyMs": self.intent_llm_metadata.get("latency_ms"),
+        }
 
     def to_decision(self) -> Dict[str, Any]:
         return {
@@ -75,6 +107,7 @@ class PlanResult:
             "selectedBindings": self.selected_bindings,
             "selectionReasons": self.selection_reasons,
             "stochasticFallback": self.stochastic_fallback,
+            "planningDiagnostics": self.to_diagnostics(),
             "profile": self.profile.model_dump(by_alias=True),
             "graphId": self.blueprint.graph_id,
             "nodeCount": self.blueprint.node_count,
@@ -94,12 +127,14 @@ class PlanningEngine:
         capability_catalog: CapabilityCatalog | None = None,
         intent_llm: Optional[IntentLLM] = None,
         template_threshold: float = 0.85,
+        budget_policy: PlanningBudgetPolicy | None = None,
     ):
         self.capability_catalog = capability_catalog or build_default_capability_catalog()
         self.intent_parser = IntentParser(intent_llm, self.capability_catalog)
         self.template_matcher = TemplateMatcher(workflow_registry, threshold=template_threshold)
         self.cognitive_router = CognitiveRouter(agent_registry, self.capability_catalog)
         self.acg_builder = ACGBuilder(self.capability_catalog)
+        self.budget_policy = budget_policy or PlanningBudgetPolicy.from_env()
         self.variant_generator = PlanningVariantGenerator(
             capability_catalog=self.capability_catalog,
             cognitive_router=self.cognitive_router,
@@ -118,38 +153,87 @@ class PlanningEngine:
         planning_diversity: str = "stable",
         planning_seed: int | None = None,
         capability_catalog_revision: str | None = None,
+        planning_context: PlanningRequestContext | None = None,
+        requested_planning_mode: str | None = None,
+        explicit_template_id: str | None = None,
     ) -> PlanResult:
         diversity = normalize_planning_diversity(planning_diversity)
         resolved_seed = planning_seed
         if diversity != "stable" and resolved_seed is None:
             resolved_seed = secrets.randbits(53)
-        profile = self.intent_parser.parse(
+        context = planning_context or PlanningRequestContext(
+            intent=intent,
+            domain=domain,
+            task_type=task_type,
+        )
+        parse_outcome = self.intent_parser.parse_outcome(
             intent=intent,
             domain=domain,
             task_type=task_type,
             thinking_mode=thinking_mode,
             use_llm=not deterministic_intent,
+            context=context,
+        )
+        profile = parse_outcome.profile
+        profile.entropy_budget = self.budget_policy.for_complexity(
+            profile.estimated_complexity
+        )
+        mode_was_explicit = requested_planning_mode is not None
+        mode = requested_planning_mode or (
+            "dynamic" if force_dynamic else "template_preferred"
         )
 
         match = None
-        if not force_dynamic and diversity == "stable":
+        template_budget_rejection: str | None = None
+        should_try_template = not force_dynamic and (
+            bool(explicit_template_id)
+            or diversity == "stable"
+            or (mode_was_explicit and mode == "template_preferred")
+        )
+        if should_try_template:
             # 静态优选
-            match = self.template_matcher.match(profile)
+            match = (
+                self.template_matcher.explicit(explicit_template_id)
+                if explicit_template_id
+                else self.template_matcher.match(profile)
+            )
             if self.template_matcher.is_hit(match):
                 blueprint = promote_workflow_to_acg(match.workflow, task_id=task_id)
                 blueprint.objective = profile.primary_goal or blueprint.objective
-                return PlanResult(
-                    blueprint=blueprint,
-                    profile=profile,
-                    strategy="static_template",
-                    template_id=match.workflow.workflow_id,
-                    template_score=match.score,
-                    thinking_mode=thinking_mode,
-                    planning_diversity=diversity,
-                    planning_seed=resolved_seed,
-                    capability_catalog_revision=capability_catalog_revision,
-                    selected_capabilities=list(profile.required_capabilities),
-                    notes=[f"matched template by {match.matched_by}"],
+                estimated_entropy = self._estimate_blueprint_entropy(blueprint)
+                if estimated_entropy <= profile.entropy_budget:
+                    result = PlanResult(
+                        blueprint=blueprint,
+                        profile=profile,
+                        strategy="static_template",
+                        template_id=match.workflow.workflow_id,
+                        template_score=match.score,
+                        thinking_mode=thinking_mode,
+                        planning_diversity=diversity,
+                        planning_seed=resolved_seed,
+                        capability_catalog_revision=capability_catalog_revision,
+                        selected_capabilities=list(profile.required_capabilities),
+                        requested_planning_mode=mode,
+                        intent_parse_source=parse_outcome.source,
+                        intent_fallback_reason=parse_outcome.fallback_reason,
+                        rejected_capabilities=list(parse_outcome.rejected_capabilities),
+                        material_context=context.material.to_diagnostics(),
+                        estimated_entropy=estimated_entropy,
+                        entropy_budget=profile.entropy_budget,
+                        intent_llm_metadata=dict(parse_outcome.llm_metadata),
+                        notes=[f"matched template by {match.matched_by}"],
+                    )
+                    self._decorate_blueprint(result)
+                    return result
+                if explicit_template_id:
+                    raise ACGPlanningError(
+                        f"Explicit workflow entropy {estimated_entropy} exceeds budget "
+                        f"{profile.entropy_budget}",
+                        code="PLANNING_BUDGET_EXCEEDED",
+                    )
+                template_budget_rejection = (
+                    f"template entropy {estimated_entropy} exceeds budget "
+                    f"{profile.entropy_budget}; trying dynamic planning"
                 )
 
         # 动态补位
@@ -157,12 +241,14 @@ class PlanningEngine:
         if stable_network.unresolved_capabilities:
             raise ACGPlanningError(
                 "No registered Agent can execute capabilities: "
-                + ", ".join(stable_network.unresolved_capabilities)
+                + ", ".join(stable_network.unresolved_capabilities),
+                code="PLANNING_CAPABILITY_UNRESOLVED",
             )
         if stable_network.over_budget:
             raise ACGPlanningError(
                 f"Estimated entropy {stable_network.estimated_entropy} exceeds budget "
-                f"{stable_network.entropy_budget}"
+                f"{stable_network.entropy_budget}",
+                code="PLANNING_BUDGET_EXCEEDED",
             )
         variant_set = self.variant_generator.generate(
             profile=profile,
@@ -203,6 +289,12 @@ class PlanningEngine:
                 seed=None,
             )
             selected_variant = stable_set.variants[0]
+            if selected_variant.network.over_budget:
+                raise ACGPlanningError(
+                    f"Estimated entropy {selected_variant.network.estimated_entropy} exceeds "
+                    f"budget {selected_variant.network.entropy_budget}",
+                    code="PLANNING_BUDGET_EXCEEDED",
+                )
             blueprint = self.acg_builder.build(
                 task_id=task_id,
                 profile=profile,
@@ -231,7 +323,9 @@ class PlanningEngine:
         ]
         notes.extend(selected_variant.network.notes)
         notes.extend(rejected)
-        return PlanResult(
+        if template_budget_rejection:
+            notes.append(template_budget_rejection)
+        result = PlanResult(
             blueprint=blueprint,
             profile=profile,
             strategy="dynamic_generation",
@@ -252,8 +346,41 @@ class PlanningEngine:
             ],
             selection_reasons=list(selected_variant.selection_reasons),
             stochastic_fallback=stochastic_fallback,
+            requested_planning_mode=mode,
+            intent_parse_source=parse_outcome.source,
+            intent_fallback_reason=parse_outcome.fallback_reason,
+            rejected_capabilities=list(parse_outcome.rejected_capabilities),
+            material_context=context.material.to_diagnostics(),
+            estimated_entropy=selected_variant.network.estimated_entropy,
+            entropy_budget=profile.entropy_budget,
+            intent_llm_metadata=dict(parse_outcome.llm_metadata),
             notes=notes,
         )
+        self._decorate_blueprint(result)
+        return result
+
+    def _decorate_blueprint(self, result: PlanResult) -> None:
+        result.blueprint.metadata.update(
+            {
+                "semanticProfile": result.profile.model_dump(
+                    by_alias=True,
+                    mode="json",
+                ),
+                "planningDiagnostics": result.to_diagnostics(),
+                "plannerAlgorithmVersion": result.planner_algorithm_version,
+                "capabilityCatalogRevision": result.capability_catalog_revision,
+                "entropyBudget": result.entropy_budget,
+                "estimatedEntropy": result.estimated_entropy,
+            }
+        )
+
+    def _estimate_blueprint_entropy(self, blueprint: ACGBlueprint) -> int:
+        agents = {
+            step.agent_name
+            for step in blueprint.step_nodes()
+            if step.agent_name
+        }
+        return max(0, len(agents) - 1) * self.cognitive_router.entropy_per_edge
 
     def _validate_agents(self, blueprint: ACGBlueprint, *, domain: str) -> None:
         missing: list[str] = []

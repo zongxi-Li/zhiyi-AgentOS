@@ -1,20 +1,46 @@
-"""Catalog-driven parsing of raw intent into a domain-neutral semantic profile."""
+"""Catalog-driven parsing of bounded task context into a semantic profile."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Protocol
+from dataclasses import dataclass, field
+from typing import Any, Dict, Literal, Optional, Protocol
 
 from agentos.core.acg.enums import ComplexityLevel
 from agentos.core.planning.capabilities import (
     CapabilityCatalog,
     highest_planning_risk_level,
 )
+from agentos.core.planning.context import PlanningRequestContext
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.profile import CapabilityCandidate, TaskSemanticProfile
 
 
 class IntentLLM(Protocol):
     def generate_json(self, prompt: str, schema: Dict[str, Any], **kwargs) -> Dict[str, Any]: ...
+
+
+IntentParseSource = Literal["llm", "heuristic"]
+IntentFallbackReason = Literal[
+    "llm_unavailable",
+    "llm_timeout",
+    "llm_invalid_response",
+    "llm_no_registered_capability",
+]
+
+
+@dataclass(frozen=True)
+class IntentParseOutcome:
+    profile: TaskSemanticProfile
+    source: IntentParseSource
+    fallback_reason: IntentFallbackReason | None = None
+    rejected_capabilities: tuple[str, ...] = ()
+    llm_metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class _NoRegisteredCapability(ValueError):
+    def __init__(self, rejected_capabilities: list[str]) -> None:
+        super().__init__("LLM returned no executable registered capability")
+        self.rejected_capabilities = rejected_capabilities
 
 
 _PROFILE_SCHEMA = {
@@ -38,10 +64,11 @@ _PROFILE_SCHEMA = {
 }
 
 _NATIVE_FALLBACK = ["task_understanding", "analysis", "artifact_generation"]
+INTENT_PROMPT_VERSION = "intent-profile.v2"
 
 
 class IntentParser:
-    """Select only registered capabilities, using an LLM or deterministic aliases."""
+    """Select registered capabilities with an auditable LLM-first fallback."""
 
     def __init__(
         self,
@@ -59,36 +86,112 @@ class IntentParser:
         task_type: str = "general",
         thinking_mode: str | None = None,
         use_llm: bool = True,
+        context: PlanningRequestContext | None = None,
     ) -> TaskSemanticProfile:
+        """Compatibility wrapper returning only the semantic profile."""
+
+        return self.parse_outcome(
+            intent=intent,
+            domain=domain,
+            task_type=task_type,
+            thinking_mode=thinking_mode,
+            use_llm=use_llm,
+            context=context,
+        ).profile
+
+    def parse_outcome(
+        self,
+        *,
+        intent: str,
+        domain: str = "general",
+        task_type: str = "general",
+        thinking_mode: str | None = None,
+        use_llm: bool = True,
+        context: PlanningRequestContext | None = None,
+    ) -> IntentParseOutcome:
+        planning_context = context or PlanningRequestContext(
+            intent=intent,
+            domain=domain,
+            task_type=task_type,
+        )
         if use_llm and self.llm is not None:
             try:
-                return self._parse_with_llm(intent, domain, task_type, thinking_mode)
-            except Exception:
-                pass
-        return self._heuristic(intent, domain, task_type)
+                profile, rejected, metadata = self._parse_with_llm(
+                    planning_context,
+                    thinking_mode,
+                )
+                return IntentParseOutcome(
+                    profile=profile,
+                    source="llm",
+                    rejected_capabilities=tuple(rejected),
+                    llm_metadata=metadata,
+                )
+            except _NoRegisteredCapability as exc:
+                reason: IntentFallbackReason = "llm_no_registered_capability"
+                fallback_rejected = tuple(exc.rejected_capabilities)
+            except Exception as exc:
+                message = str(exc).lower()
+                reason = (
+                    "llm_timeout"
+                    if isinstance(exc, TimeoutError)
+                    or any(
+                        marker in message
+                        for marker in ("timeout", "timed out", "deadline exceeded")
+                    )
+                    else "llm_invalid_response"
+                )
+                fallback_rejected = ()
+        elif use_llm:
+            reason = "llm_unavailable"
+            fallback_rejected = ()
+        else:
+            reason = None
+            fallback_rejected = ()
+        return IntentParseOutcome(
+            profile=self._heuristic(planning_context),
+            source="heuristic",
+            fallback_reason=reason,
+            rejected_capabilities=fallback_rejected,
+        )
 
     def _parse_with_llm(
         self,
-        intent: str,
-        domain: str,
-        task_type: str,
+        context: PlanningRequestContext,
         thinking_mode: str | None,
-    ) -> TaskSemanticProfile:
+    ) -> tuple[TaskSemanticProfile, list[str], dict[str, Any]]:
         result = self.llm.generate_json(
-            self.build_prompt(intent=intent, domain=domain, task_type=task_type),
+            self.build_prompt(context=context),
             _PROFILE_SCHEMA,
             thinking_mode=thinking_mode,
+            temperature=0.0,
+            timeout=30.0,
         )
         data = result.get("data", result) if isinstance(result, dict) else {}
         data = dict(data) if isinstance(data, dict) else {}
         data.pop("entropyBudget", None)
         data.pop("entropy_budget", None)
-        data.setdefault("domainHint", domain)
-        data.setdefault("taskTypeHint", task_type)
-        data["rawIntent"] = intent
-        data["requiredCapabilities"] = self._normalize_capabilities(
-            data.get("requiredCapabilities") or [],
-            domain=domain,
+        data.setdefault("domainHint", context.domain)
+        data.setdefault("taskTypeHint", context.task_type)
+        data["rawIntent"] = context.intent
+        raw_capabilities = data.get("requiredCapabilities") or []
+        normalized, rejected = self._normalize_capabilities_with_rejected(
+            raw_capabilities,
+            domain=context.domain,
+        )
+        if not normalized:
+            raise _NoRegisteredCapability(rejected)
+        data["requiredCapabilities"] = normalized
+        data["keyConstraints"] = self._merge_authoritative(
+            context.constraints,
+            data.get("keyConstraints"),
+        )
+        data["expectedArtifacts"] = self._merge_authoritative(
+            context.expected_artifacts,
+            data.get("expectedArtifacts"),
+        )
+        data["verificationRequirements"] = self._merge_authoritative(
+            context.verification_requirements,
+            data.get("verificationRequirements"),
         )
         data["capabilityCandidates"] = [
             CapabilityCandidate(
@@ -97,65 +200,129 @@ class IntentParser:
                 matchedTerms=[],
                 source="llm",
             ).model_dump(by_alias=True)
-            for capability_id in data["requiredCapabilities"]
+            for capability_id in normalized
         ]
         profile = TaskSemanticProfile.model_validate(data)
-        if not profile.primary_goal.strip() or not profile.required_capabilities:
-            raise ValueError("LLM returned no executable registered capability")
-        return self._finalize(profile, intent=intent, domain=domain, task_type=task_type)
+        if not profile.primary_goal.strip():
+            raise ValueError("LLM returned no primary goal")
+        metadata = {
+            key: result.get(key)
+            for key in ("provider", "model", "latency_ms")
+            if isinstance(result, dict) and result.get(key) is not None
+        }
+        return self._finalize(profile, context=context), rejected, metadata
 
-    def build_prompt(self, *, intent: str, domain: str, task_type: str) -> str:
+    def build_prompt(
+        self,
+        *,
+        intent: str | None = None,
+        domain: str = "general",
+        task_type: str = "general",
+        context: PlanningRequestContext | None = None,
+    ) -> str:
+        planning_context = context or PlanningRequestContext(
+            intent=intent or "",
+            domain=domain,
+            task_type=task_type,
+        )
         options = "\n".join(
             f"- {item.capability_id}: {item.display_name}；{item.description}"
-            for item in self.capability_catalog.available(domain)
+            for item in self.capability_catalog.available(planning_context.domain)
         )
-        return (
-            "你是任务规划的意图解析器。只返回 JSON。\n"
-            "从下列目录选择实际需要执行的稳定 capabilityId，不得创造目录外能力。\n"
-            f"可选执行能力：\n{options}\n\n"
-            "返回 primaryGoal、keyConstraints、requiredCapabilities、expectedArtifacts、"
-            "verificationRequirements、estimatedComplexity、domainHint、taskTypeHint、"
-            "implicitRequirements、riskLevel。\n"
-            f"领域提示：{domain}\n任务类型提示：{task_type}\n用户需求：{intent}\n"
-        )
+        sections = [
+            f"规划提示版本：{INTENT_PROMPT_VERSION}",
+            "你是任务规划的意图解析器。只返回 JSON。",
+            "从下列目录选择实际需要执行的稳定 capabilityId，不得创造目录外能力。",
+            f"可选执行能力：\n{options}",
+            (
+                "返回 primaryGoal、keyConstraints、requiredCapabilities、expectedArtifacts、"
+                "verificationRequirements、estimatedComplexity、domainHint、taskTypeHint、"
+                "implicitRequirements、riskLevel。"
+            ),
+            f"领域提示：{planning_context.domain}",
+            f"任务类型提示：{planning_context.task_type}",
+            f"用户目标：{planning_context.intent}",
+        ]
+        if planning_context.constraints:
+            sections.append("显式约束（必须保留）：" + "；".join(planning_context.constraints))
+        if planning_context.expected_artifacts:
+            sections.append(
+                "显式交付物（必须保留）：" + "；".join(planning_context.expected_artifacts)
+            )
+        if planning_context.verification_requirements:
+            sections.append(
+                "显式验证要求（必须保留）："
+                + "；".join(planning_context.verification_requirements)
+            )
+        if planning_context.material.excerpt:
+            sections.append("任务材料（仅用于识别所需能力）：\n" + planning_context.material.excerpt)
+        return "\n\n".join(sections) + "\n"
 
-    def _heuristic(self, intent: str, domain: str, task_type: str) -> TaskSemanticProfile:
-        text = intent or ""
+    def _heuristic(self, context: PlanningRequestContext) -> TaskSemanticProfile:
+        text = context.searchable_text
         length = len(text)
         complexity = (
-            ComplexityLevel.COMPLEX
-            if length > 600
+            ComplexityLevel.EXTREME
+            if length > 4000
+            else ComplexityLevel.COMPLEX
+            if length > 1200
             else ComplexityLevel.MEDIUM
-            if length > 200
+            if length > 400
             else ComplexityLevel.SIMPLE
         )
-        candidates = self._infer_capability_candidates(text, domain)
+        candidates = self._infer_capability_candidates(text, context.domain)
         capabilities = [candidate.capability_id for candidate in candidates]
         profile = TaskSemanticProfile(
-            primaryGoal=text[:80] or task_type,
+            primaryGoal=context.intent[:80] or context.task_type,
+            keyConstraints=list(context.constraints),
             requiredCapabilities=capabilities,
             capabilityCandidates=candidates,
-            expectedArtifacts=["deliverable"] if "artifact_generation" in capabilities else [],
-            verificationRequirements=["verification"] if "verification" in capabilities else [],
+            expectedArtifacts=list(context.expected_artifacts),
+            verificationRequirements=list(context.verification_requirements),
             estimatedComplexity=complexity,
-            domainHint=domain,
-            taskTypeHint=task_type,
+            domainHint=context.domain,
+            taskTypeHint=context.task_type,
             riskLevel="normal",
-            rawIntent=text,
+            rawIntent=context.intent,
         )
-        return self._finalize(profile, intent=text, domain=domain, task_type=task_type)
+        return self._finalize(profile, context=context)
 
     def _finalize(
         self,
         profile: TaskSemanticProfile,
         *,
-        intent: str,
-        domain: str,
-        task_type: str,
+        context: PlanningRequestContext,
     ) -> TaskSemanticProfile:
-        normalized = self._normalize_capabilities(profile.required_capabilities, domain=domain)
+        normalized = self._normalize_capabilities(
+            profile.required_capabilities,
+            domain=context.domain,
+        )
         if not normalized:
-            normalized = list(_NATIVE_FALLBACK)
+            normalized = []
+            for capability_id in _NATIVE_FALLBACK:
+                try:
+                    self.capability_catalog.get(capability_id)
+                except KeyError:
+                    continue
+                normalized.append(capability_id)
+        profile.key_constraints = self._merge_authoritative(
+            context.constraints,
+            profile.key_constraints,
+        )
+        profile.expected_artifacts = self._merge_authoritative(
+            context.expected_artifacts,
+            profile.expected_artifacts,
+        )
+        profile.verification_requirements = self._merge_authoritative(
+            context.verification_requirements,
+            profile.verification_requirements,
+        )
+        normalized = self._ensure_semantic_capabilities(
+            normalized,
+            domain=context.domain,
+            expected_artifacts=profile.expected_artifacts,
+            verification_requirements=profile.verification_requirements,
+        )
         explicit_capabilities = set(normalized)
         profile.required_capabilities = self.capability_catalog.expand_dependencies(normalized)
         by_capability = {
@@ -171,8 +338,6 @@ class IntentParser:
                     "dependency"
                     if capability_id not in explicit_capabilities
                     else "fallback"
-                    if capability_id in _NATIVE_FALLBACK
-                    else "catalog_alias"
                 ),
             )
             for capability_id in profile.required_capabilities
@@ -186,11 +351,46 @@ class IntentParser:
                 ),
             ]
         )
-        profile.primary_goal = profile.primary_goal.strip() or (intent or task_type or "Unnamed task")[:80]
-        profile.domain_hint = profile.domain_hint or domain
-        profile.task_type_hint = profile.task_type_hint or task_type
-        profile.raw_intent = profile.raw_intent or intent
+        profile.primary_goal = profile.primary_goal.strip() or (
+            context.intent or context.task_type or "Unnamed task"
+        )[:80]
+        profile.domain_hint = context.domain
+        profile.task_type_hint = context.task_type
+        profile.raw_intent = context.intent
         return profile
+
+    def _ensure_semantic_capabilities(
+        self,
+        capabilities: list[str],
+        *,
+        domain: str,
+        expected_artifacts: list[str],
+        verification_requirements: list[str],
+    ) -> list[str]:
+        selected = list(capabilities)
+        descriptors = [self.capability_catalog.get(item) for item in selected]
+        available = list(self.capability_catalog.available(domain))
+        if expected_artifacts and not any(item.produces_artifact for item in descriptors):
+            artifact_options = [item for item in available if item.produces_artifact]
+            artifact_options.sort(
+                key=lambda item: (
+                    item.planning_stage not in {"deliver", "report"},
+                    item.priority,
+                    item.capability_id,
+                )
+            )
+            if artifact_options:
+                selected.append(artifact_options[0].capability_id)
+        if verification_requirements and not any(
+            item.planning_stage == "verify" for item in descriptors
+        ):
+            verification = next(
+                (item for item in available if item.planning_stage == "verify"),
+                None,
+            )
+            if verification is not None:
+                selected.append(verification.capability_id)
+        return list(dict.fromkeys(selected))
 
     def _infer_capabilities(self, text: str, domain: str) -> list[str]:
         return [
@@ -204,11 +404,11 @@ class IntentParser:
         normalized_text = "".join(text.lower().split())
         matches: list[CapabilityCandidate] = []
         for descriptor in self.capability_catalog.available(domain):
-            searchable_terms = list(dict.fromkeys([
-                descriptor.capability_id,
-                descriptor.display_name,
-                *descriptor.aliases,
-            ]))
+            searchable_terms = list(
+                dict.fromkeys(
+                    [descriptor.capability_id, descriptor.display_name, *descriptor.aliases]
+                )
+            )
             matched_terms = [
                 term
                 for term in searchable_terms
@@ -262,25 +462,63 @@ class IntentParser:
                     )
                 )
         normalized = self._normalize_capabilities(
-            [item.capability_id for item in matches], domain=domain
+            [item.capability_id for item in matches],
+            domain=domain,
         )
         by_capability = {item.capability_id: item for item in matches}
         return [by_capability[item] for item in normalized]
 
     def _normalize_capabilities(self, values, *, domain: str) -> list[str]:
+        normalized, _ = self._normalize_capabilities_with_rejected(values, domain=domain)
+        return normalized
+
+    def _normalize_capabilities_with_rejected(
+        self,
+        values,
+        *,
+        domain: str,
+    ) -> tuple[list[str], list[str]]:
         available = {
             descriptor.capability_id
             for descriptor in self.capability_catalog.available(domain)
         }
         normalized: list[str] = []
-        for value in values:
-            try:
-                descriptor = self.capability_catalog.resolve(str(value))
-            except KeyError:
+        rejected: list[str] = []
+        for value in values if isinstance(values, (list, tuple, set)) else []:
+            raw = str(value or "").strip()
+            if not raw:
                 continue
-            if descriptor.capability_id in available and descriptor.capability_id not in normalized:
+            try:
+                descriptor = self.capability_catalog.resolve(raw)
+            except KeyError:
+                rejected.append(raw)
+                continue
+            if descriptor.capability_id not in available:
+                rejected.append(raw)
+            elif descriptor.capability_id not in normalized:
                 normalized.append(descriptor.capability_id)
-        return normalized
+        return normalized, list(dict.fromkeys(rejected))
+
+    @staticmethod
+    def _merge_authoritative(authoritative, inferred) -> list[str]:
+        values: list[str] = []
+        for source in (authoritative, inferred):
+            if isinstance(source, str):
+                items = [source]
+            elif isinstance(source, (list, tuple, set)):
+                items = source
+            else:
+                items = []
+            values.extend(str(item).strip() for item in items if str(item).strip())
+        return list(dict.fromkeys(values))
 
 
-__all__ = ["IntentParser", "IntentLLM", "TaskSemanticProfile"]
+__all__ = [
+    "IntentFallbackReason",
+    "IntentLLM",
+    "IntentParseOutcome",
+    "IntentParseSource",
+    "IntentParser",
+    "INTENT_PROMPT_VERSION",
+    "TaskSemanticProfile",
+]

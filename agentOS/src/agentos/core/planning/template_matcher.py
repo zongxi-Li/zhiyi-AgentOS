@@ -78,6 +78,12 @@ class TemplateMatcher:
         matched_by = "index+similarity" if best_score >= self.threshold else "index"
         return TemplateMatch(workflow=best, score=round(best_score, 4), matched_by=matched_by)
 
+    def explicit(self, workflow_id: str) -> TemplateMatch:
+        workflow = self.registry.get(workflow_id)
+        if workflow.is_native_bootstrap:
+            raise ValueError("native bootstrap cannot be selected as a static template")
+        return TemplateMatch(workflow=workflow, score=1.0, matched_by="explicit")
+
     def is_hit(self, match: TemplateMatch) -> bool:
         return match.workflow is not None and match.score >= self.threshold
 

@@ -18,7 +18,7 @@ from agentos.core.planning.profile import TaskSemanticProfile
 
 
 PlanningDiversity = Literal["stable", "balanced", "exploratory"]
-PLANNER_ALGORITHM_VERSION = "controlled-stochastic-v1"
+PLANNER_ALGORITHM_VERSION = "semantic-context-v2"
 _CANDIDATE_COUNTS: dict[PlanningDiversity, int] = {
     "stable": 1,
     "balanced": 4,
