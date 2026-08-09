@@ -75,6 +75,41 @@ export interface WorkflowRunSummary extends WorkflowProgress {
   createdAt?: string | null
 }
 
+export interface PlanningMaterialDiagnostics {
+  included: boolean
+  digest?: string | null
+  materialDigest?: string | null
+  summaryDigest?: string | null
+  totalCharacters: number
+  selectedCharacters: number
+  truncated: boolean
+  sourceCount: number
+}
+
+export interface PlanningDiagnostics {
+  requestedPlanningMode: 'dynamic' | 'template_preferred'
+  effectiveStrategy: 'static_template' | 'dynamic_generation'
+  intentParseSource: 'llm' | 'heuristic'
+  intentFallbackReason?: 'llm_unavailable' | 'llm_timeout' | 'llm_invalid_response' | 'llm_no_registered_capability' | null
+  templateId?: string | null
+  templateScore?: number
+  materialContext: PlanningMaterialDiagnostics
+  rejectedCapabilities: string[]
+  entropyBudget: number
+  estimatedEntropy: number
+  intentPromptVersion?: string
+  intentProvider?: string | null
+  intentModel?: string | null
+  intentLatencyMs?: number | null
+}
+
+export interface WorkflowExecutionState extends Record<string, any> {
+  planningDiagnostics?: PlanningDiagnostics
+  planningProfile?: Record<string, any>
+  planningSelectionReasons?: string[]
+  workflowSelectionSource?: 'explicit' | 'recommended'
+}
+
 export interface WorkflowRunDeleteResponse {
   runId: string
   taskId: string
@@ -163,6 +198,7 @@ export interface WorkflowRun {
   taskId: string
   title?: string | null
   workflowId: string
+  workflowSelectionSource?: 'explicit' | 'recommended'
   domain: string
   runtimeEngine?: string
   implementationId?: string
@@ -191,7 +227,7 @@ export interface WorkflowRun {
   completedStepIds?: string[]
   activeStepIds?: string[]
   provenance?: Record<string, any>
-  executionState?: Record<string, any>
+  executionState?: WorkflowExecutionState
   runtimeGraph?: Record<string, any> | null
   graphVersion?: number | null
   dynamicStepCount?: number

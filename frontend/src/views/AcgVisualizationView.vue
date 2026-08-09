@@ -178,6 +178,21 @@
         <strong>本次规划选择依据</strong>
         <span v-for="reason in planningSelectionReasons.slice(0, 4)" :key="reason">{{ reason }}</span>
       </div>
+      <div v-if="planningDiagnostics" class="planning-diagnostics">
+        <div class="planning-diagnostic-tags">
+          <el-tag :type="planningDiagnostics.intentParseSource === 'llm' ? 'success' : 'warning'" effect="plain">
+            {{ planningDiagnostics.intentParseSource === 'llm' ? 'LLM 语义解析' : '规则降级' }}
+          </el-tag>
+          <el-tag type="info" effect="plain">
+            {{ planningDiagnostics.effectiveStrategy === 'static_template' ? '模板复用' : '动态生成' }}
+          </el-tag>
+          <span v-if="planningDiagnostics.materialContext?.included">
+            材料 {{ planningDiagnostics.materialContext.selectedCharacters.toLocaleString('zh-CN') }}/{{ planningDiagnostics.materialContext.totalCharacters.toLocaleString('zh-CN') }} 字
+            <template v-if="planningDiagnostics.materialContext.truncated">（已截取规划片段）</template>
+          </span>
+        </div>
+        <p v-if="planningFallbackMessage" class="planning-fallback-warning">{{ planningFallbackMessage }}</p>
+      </div>
     </section>
 
     <WorkflowProgressBar
@@ -1005,6 +1020,17 @@ const planningSelectionReasons = computed<string[]>(() => {
   const reasons = activeRun.value?.executionState?.planningSelectionReasons
   return Array.isArray(reasons) ? reasons.filter(item => typeof item === 'string') : []
 })
+const planningDiagnostics = computed(() => activeRun.value?.executionState?.planningDiagnostics || null)
+const planningFallbackMessage = computed(() => {
+  const reason = planningDiagnostics.value?.intentFallbackReason
+  if (!reason) return ''
+  return ({
+    llm_unavailable: '规划模型当前不可用，本次已使用确定性规则生成执行图。',
+    llm_timeout: '规划模型响应超时，本次已使用确定性规则生成执行图。',
+    llm_invalid_response: '规划模型返回格式无效，本次已使用确定性规则生成执行图。',
+    llm_no_registered_capability: '规划模型未选择可执行能力，本次已使用确定性规则生成执行图。'
+  } as Record<string, string>)[reason] || '本次规划已降级为确定性规则。'
+})
 
 watch(inputPanelExpanded, value => {
   clearInputPanelCompactTimer()
@@ -1289,6 +1315,9 @@ onBeforeUnmount(() => {
 .planning-selection-reasons { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:10px; font-size:11px; color:var(--text-secondary); }
 .planning-selection-reasons strong { width:100%; color:var(--text-primary); }
 .planning-selection-reasons span { padding:4px 7px; border-radius:6px; background:var(--bg-input); }
+.planning-diagnostics { display:flex; flex-direction:column; gap:7px; margin-top:4px; }
+.planning-diagnostic-tags { display:flex; align-items:center; flex-wrap:wrap; gap:7px; color:var(--text-secondary); font-size:11px; }
+.planning-fallback-warning { margin:0; padding:8px 10px; border-left:3px solid var(--el-color-warning); background:color-mix(in srgb, var(--el-color-warning) 8%, transparent); color:var(--text-secondary); font-size:12px; }
 .scope-warning { margin:0; padding:8px 10px; border-left:3px solid var(--el-color-warning); background:color-mix(in srgb, var(--el-color-warning) 8%, transparent); color:var(--text-secondary); font-size:12px; }
 .input-panel-expandable {
   display: flex;

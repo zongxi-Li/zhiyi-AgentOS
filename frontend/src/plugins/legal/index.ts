@@ -57,6 +57,7 @@ export const legalUiExtension: PluginUiExtension = {
       reviewMode: legal.conservativeReview ? 'human_in_loop' : draft.reviewMode,
       input: {
         userIntent: legal.reviewGoal,
+        ...(legal.useTemplateWorkflow ? { planningMode: 'template_preferred' } : {}),
         contractText,
         contractType: legal.contractType,
         legalReviewGoal: legal.reviewGoal,

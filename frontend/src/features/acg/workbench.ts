@@ -96,7 +96,6 @@ export const buildWorkbenchStartRequest = (
     expectedArtifacts: [...draft.expectedArtifacts],
     planningMode: draft.planningMode,
     usePlanner: true,
-    forceDynamicPlanning: draft.planningMode === 'dynamic',
     webSearchEnabled: draft.webSearchEnabled,
     thinkingMode: draft.thinkingMode,
     pluginData: clonePluginData(draft.pluginData)
