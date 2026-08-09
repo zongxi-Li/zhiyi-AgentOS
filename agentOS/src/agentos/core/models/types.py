@@ -128,6 +128,9 @@ class AgentTask(CoreModel):
     priority: str = "normal"
     status: WorkflowStatus = WorkflowStatus.PENDING
     recommended_workflow: Optional[str] = Field(default=None, alias="recommendedWorkflow")
+    workflow_selection_source: Literal["explicit", "recommended"] = Field(
+        default="recommended", alias="workflowSelectionSource"
+    )
     enabled_plugin_ids: Optional[List[str]] = Field(default=None, alias="enabledPluginIds")
     created_at: datetime = Field(default_factory=utc_now, alias="createdAt")
     updated_at: datetime = Field(default_factory=utc_now, alias="updatedAt")
@@ -280,6 +283,9 @@ class WorkflowRun(CoreModel):
     run_id: str = Field(default_factory=lambda: new_id("run"), alias="runId")
     task_id: str = Field(alias="taskId")
     workflow_id: str = Field(alias="workflowId")
+    workflow_selection_source: Literal["explicit", "recommended"] = Field(
+        default="recommended", alias="workflowSelectionSource"
+    )
     domain: str
     runtime_engine: str = Field(alias="runtimeEngine")
     implementation_id: Optional[str] = Field(default=None, alias="implementationId")

@@ -70,6 +70,7 @@ class TaskManager:
             securityLevel=security_level,
             priority=priority,
             recommendedWorkflow=workflow.workflow_id if workflow else None,
+            workflowSelectionSource="explicit" if workflow_id else "recommended",
             enabledPluginIds=(
                 list(enabled_plugin_ids) if enabled_plugin_ids is not None else None
             ),

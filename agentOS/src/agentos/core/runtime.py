@@ -57,6 +57,8 @@ from agentos.core.run_locks import GLOBAL_RUN_LOCK_MANAGER, RunLockManager
 from agentos.core.runtime_graph import RuntimeGraph
 from agentos.core.planning.default_catalog import build_default_capability_catalog
 from agentos.core.planning.capabilities import CapabilityCatalog
+from agentos.core.planning.budget import PlanningBudgetPolicy
+from agentos.core.planning.context import PlanningRequestContext
 from agentos.core.planning.variants import (
     PLANNER_ALGORITHM_VERSION,
     normalize_planning_diversity,
@@ -120,6 +122,9 @@ class WorkflowRuntime:
         self.agent_registry = agent_registry or AgentRegistry()
         self.workflow_registry = workflow_registry or WorkflowRegistry()
         self.capability_catalog = capability_catalog or build_default_capability_catalog()
+        # Validate trusted server-side budgets while the runtime is starting,
+        # rather than discovering an invalid deployment setting on the first Run.
+        self.planning_budget_policy = PlanningBudgetPolicy.from_env()
         self.plugin_manifests = tuple(plugin_manifests)
         self.workflow_store = workflow_store or MemoryWorkflowStore()
         self.trace_store = trace_store or TraceStore()
@@ -189,6 +194,7 @@ class WorkflowRuntime:
                 agent_registry=self.agent_registry,
                 capability_catalog=self.capability_catalog,
                 intent_llm=self._intent_llm,
+                budget_policy=self.planning_budget_policy,
             )
         return self._planning_engine
 
@@ -301,6 +307,11 @@ class WorkflowRuntime:
         run = WorkflowRun(
             taskId=task.task_id,
             workflowId=workflow.workflow_id,
+            workflowSelectionSource=(
+                "explicit"
+                if workflow_id is not None or task.workflow_selection_source == "explicit"
+                else "recommended"
+            ),
             domain=workflow.domain,
             runtimeEngine=workflow.effective_runtime_engine,
             implementationId=workflow.effective_implementation_id,
@@ -425,9 +436,12 @@ class WorkflowRuntime:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            error_code = str(
+                getattr(exc, "code", None) or "workflow_execution_failed"
+            )
             await self.fail_run_safely(
                 run.run_id,
-                error_code="workflow_execution_failed",
+                error_code=error_code,
                 error_message=self._safe_error_message(exc),
             )
             logger.exception(
@@ -549,12 +563,24 @@ class WorkflowRuntime:
                 blueprint = blueprint.model_copy(deep=True, update={"task_id": task.task_id})
             return blueprint
 
-        planning_mode = str(run.input.get("planningMode") or "").strip().lower()
-        force_dynamic = (
-            workflow.is_native_bootstrap
-            or bool(run.input.get("forceDynamicPlanning"))
-            or planning_mode == "dynamic"
+        raw_planning_mode = str(run.input.get("planningMode") or "").strip().lower()
+        if raw_planning_mode in {"dynamic", "template_preferred"}:
+            planning_mode = raw_planning_mode
+        elif raw_planning_mode:
+            planning_mode = "template_preferred"
+        else:
+            planning_mode = (
+                "dynamic"
+                if bool(run.input.get("forceDynamicPlanning"))
+                else "template_preferred"
+            )
+        explicit_template_id = (
+            workflow.workflow_id
+            if run.workflow_selection_source == "explicit"
+            and not workflow.is_native_bootstrap
+            else None
         )
+        force_dynamic = planning_mode == "dynamic" and explicit_template_id is None
         use_planner = force_dynamic or bool(run.input.get("usePlanner")) or not workflow.steps
         if use_planner:
             intent_text = str(
@@ -567,24 +593,14 @@ class WorkflowRuntime:
                 or task.title
                 or workflow.description
             )
-            # A task goal alone is not the whole execution contract.  The
-            # workbench stores explicit constraints and deliverables beside it;
-            # feed those fields to deterministic planning so a requested final
-            # report cannot silently disappear from an otherwise valid graph.
-            for field, label in (
-                ("constraints", "执行约束"),
-                ("expectedArtifacts", "预期交付物"),
-            ):
-                raw_items = run.input.get(field)
-                if isinstance(raw_items, str):
-                    items = [raw_items.strip()] if raw_items.strip() else []
-                elif isinstance(raw_items, (list, tuple, set)):
-                    items = [str(item).strip() for item in raw_items if str(item).strip()]
-                else:
-                    items = []
-                if items:
-                    intent_text = f"{intent_text}\n{label}：{'；'.join(items)}"
             planning_engine = self._planning_engine_for_run(run)
+            planning_context = PlanningRequestContext.from_task_input(
+                intent=intent_text,
+                domain=workflow.domain or task.domain,
+                task_type=task.intent or workflow.intent,
+                task_input=run.input,
+                capability_catalog=planning_engine.capability_catalog,
+            )
             plan = planning_engine.plan(
                 task_id=task.task_id,
                 intent=intent_text,
@@ -592,12 +608,12 @@ class WorkflowRuntime:
                 task_type=task.intent or workflow.intent,
                 force_dynamic=force_dynamic,
                 thinking_mode=str(run.input.get("thinkingMode") or "").strip() or None,
-                # 强制动态图仍使用本地语义解析以避免模型往返；拓扑多样性由
-                # 已持久化 seed 驱动，并且只作用于受约束的规划候选。
-                deterministic_intent=force_dynamic,
                 planning_diversity=run.planning_diversity,
                 planning_seed=run.planning_seed,
                 capability_catalog_revision=run.capability_catalog_revision,
+                planning_context=planning_context,
+                requested_planning_mode=planning_mode,
+                explicit_template_id=explicit_template_id,
             )
             run.planning_diversity = plan.planning_diversity
             run.planning_seed = plan.planning_seed
@@ -614,6 +630,12 @@ class WorkflowRuntime:
                     "selectedCapabilities": list(plan.selected_capabilities),
                     "selectedBindings": list(plan.selected_bindings),
                     "planningSelectionReasons": list(plan.selection_reasons),
+                    "workflowSelectionSource": run.workflow_selection_source,
+                    "planningProfile": plan.profile.model_dump(
+                        by_alias=True,
+                        mode="json",
+                    ),
+                    "planningDiagnostics": plan.to_diagnostics(),
                 }
             )
             self.trace_store.append(
@@ -1255,6 +1277,7 @@ class WorkflowRuntime:
                 run.execution_scope
             ),
             intent_llm=self._intent_llm,
+            budget_policy=self.planning_budget_policy,
         )
 
     def _workflow_for_run(self, run: WorkflowRun) -> WorkflowDefinition:
