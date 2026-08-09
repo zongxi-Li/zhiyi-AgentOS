@@ -216,9 +216,12 @@ describe('AcgVisualizationView async progress loop', () => {
       reviewMode: 'auto',
       input: expect.objectContaining({
         source: 'acg',
-        userIntent: '完成测试任务分析并输出可验收的实施方案'
+        userIntent: '完成测试任务分析并输出可验收的实施方案',
+        planningMode: 'dynamic'
       })
     }), expect.any(Object))
+    expect(vi.mocked(workflowApi.startWorkflowAsync).mock.calls[0][0].input)
+      .not.toHaveProperty('forceDynamicPlanning')
     expect(workflowApi.startWorkflow).not.toHaveBeenCalled()
     expect(vi.mocked(workflowApi.startWorkflowAsync).mock.calls[0][0].clientRequestId).toBeTruthy()
     expect(workflowApi.getWorkflowProgress).toHaveBeenCalledWith('run_1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
@@ -383,6 +386,41 @@ describe('AcgVisualizationView async progress loop', () => {
 
     expect(wrapper.find('.scope-warning').text()).toContain('插件快照功能之前')
     expect(wrapper.find('.snapshot-list').text()).toContain('Native only')
+    wrapper.unmount()
+  })
+
+  it('renders typed planning diagnostics and a safe fallback warning', async () => {
+    vi.mocked(workflowApi.getWorkflowProgress).mockResolvedValue(makeProgress({
+      phase: 'executing', status: 'running'
+    }))
+    vi.mocked(workflowApi.getRun).mockResolvedValue({
+      ...makeRun(),
+      executionState: {
+        planningDiagnostics: {
+          requestedPlanningMode: 'template_preferred',
+          effectiveStrategy: 'dynamic_generation',
+          intentParseSource: 'heuristic',
+          intentFallbackReason: 'llm_timeout',
+          templateId: null,
+          templateScore: 0,
+          materialContext: {
+            included: true, digest: 'abc', totalCharacters: 20000,
+            selectedCharacters: 12000, truncated: true, sourceCount: 1
+          },
+          rejectedCapabilities: [], entropyBudget: 4096, estimatedEntropy: 768,
+          intentPromptVersion: 'intent-profile.v2'
+        }
+      }
+    })
+
+    const { wrapper } = await mountPage('?runId=run_1')
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+
+    expect(wrapper.find('.planning-diagnostics').text()).toContain('规则降级')
+    expect(wrapper.find('.planning-diagnostics').text()).toContain('动态生成')
+    expect(wrapper.find('.planning-diagnostics').text()).toContain('12,000/20,000')
+    expect(wrapper.find('.planning-fallback-warning').text()).toContain('规划模型响应超时')
     wrapper.unmount()
   })
 

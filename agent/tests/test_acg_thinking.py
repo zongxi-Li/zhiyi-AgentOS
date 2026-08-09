@@ -34,7 +34,11 @@ def test_acg_planner_forwards_thinking_mode_to_intent_llm():
     )
 
     assert profile.primary_goal == "完成合同风险审查"
-    assert llm.kwargs == {"thinking_mode": "deep"}
+    assert llm.kwargs == {
+        "thinking_mode": "deep",
+        "temperature": 0.0,
+        "timeout": 30.0,
+    }
 
 
 def test_contract_review_llm_helper_preserves_run_thinking_mode(monkeypatch):

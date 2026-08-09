@@ -323,7 +323,7 @@ def test_llm_config_reads_provider_key_from_secret_file(monkeypatch, tmp_path):
     assert config.base_url == "https://api.deepseek.com/v1"
 
 
-def test_force_dynamic_contract_review_builds_executable_data_dependencies():
+def test_dynamic_contract_review_builds_executable_data_dependencies():
     async def run_test():
         runtime = _runtime()
         task = runtime.create_task(
@@ -337,13 +337,12 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
                     "检索证据依据，生成修改建议、人工审核要点和最终报告。"
                 ),
                 "usePlanner": True,
-                "forceDynamicPlanning": True,
+                "planningMode": "dynamic",
                 "thinkingMode": "disabled",
             },
         )
         run = await runtime.start(
             task.task_id,
-            workflow_id="legal_contract_review_v1",
             review_mode="auto",
         )
 
@@ -424,7 +423,7 @@ def test_force_dynamic_contract_review_builds_executable_data_dependencies():
     asyncio.run(run_test())
 
 
-def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summary():
+def test_dynamic_contract_review_prefers_complete_task_goal_over_ui_summary():
     async def run_test():
         runtime = _runtime()
         task = runtime.create_task(
@@ -438,7 +437,7 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
                 "constraints": ["必须进行条款分类和人工审核"],
                 "expectedArtifacts": ["最终合同审查报告"],
                 "usePlanner": True,
-                "forceDynamicPlanning": True,
+                "planningMode": "dynamic",
                 "thinkingMode": "disabled",
                 "planningDiversity": "balanced",
                 "planningSeed": 3720774559611499,
@@ -447,7 +446,6 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
 
         run = await runtime.start(
             task.task_id,
-            workflow_id="legal_contract_review_v1",
             review_mode="auto",
         )
 
@@ -484,7 +482,7 @@ def test_force_dynamic_contract_review_prefers_complete_task_goal_over_ui_summar
     asyncio.run(run_test())
 
 
-def test_force_dynamic_review_preserves_deep_thinking_until_report():
+def test_dynamic_review_preserves_deep_thinking_until_report():
     async def run_test():
         runtime = _runtime()
         task = runtime.create_task(
@@ -495,14 +493,13 @@ def test_force_dynamic_review_preserves_deep_thinking_until_report():
                 "contractText": "甲方委托乙方开发跨境数据处理系统，并约定分阶段付款与验收。",
                 "userIntent": "解析合同、分类条款、识别风险、匹配依据、提出建议、人工审核并生成报告。",
                 "usePlanner": True,
-                "forceDynamicPlanning": True,
+                "planningMode": "dynamic",
                 "thinkingMode": "deep",
             },
         )
 
         waiting = await runtime.start(
             task.task_id,
-            workflow_id="legal_contract_review_v1",
             review_mode="human_in_loop",
         )
         assert waiting.status == WorkflowStatus.WAITING_REVIEW

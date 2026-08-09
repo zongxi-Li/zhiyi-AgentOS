@@ -224,7 +224,7 @@ def test_native_runtime_freezes_generated_planning_seed_and_audit_metadata(
 
     assert loaded.status == WorkflowStatus.COMPLETED
     assert loaded.planning_seed == frozen_seed
-    assert loaded.planner_algorithm_version == "controlled-stochastic-v1"
+    assert loaded.planner_algorithm_version == "semantic-context-v2"
     assert loaded.selected_planning_variant_id
     assert loaded.acg_blueprint["metadata"]["planningSeed"] == frozen_seed
     assert planner_events[-1].payload["planningSeed"] == frozen_seed

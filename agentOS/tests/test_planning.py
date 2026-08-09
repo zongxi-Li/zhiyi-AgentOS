@@ -65,6 +65,7 @@ def _registries():
     )
     ar = AgentRegistry()
     ar.register(_Agent("parser", "legal", ["文本解析"]))
+    ar.register(_Agent("classifier", "legal", ["条款分类"]))
     ar.register(_Agent("risk", "legal", ["风险识别"]))
     ar.register(_Agent("reporter", "legal", ["报告生成"]))
     return wr, ar
